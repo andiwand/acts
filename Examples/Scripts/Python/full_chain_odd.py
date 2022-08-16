@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import pathlib, acts, acts.examples
 import acts.examples.dd4hep
 from common import getOpenDataDetectorDirectory
@@ -25,6 +26,7 @@ rnd = acts.examples.RandomNumbers(seed=42)
 
 from acts.examples.simulation import (
     addParticleGun,
+    addPythia8,
     MomentumConfig,
     EtaConfig,
     ParticleConfig,
@@ -39,23 +41,33 @@ from acts.examples.reconstruction import (
     VertexFinder,
 )
 
-s = acts.examples.Sequencer(events=100, numThreads=-1, logLevel=acts.logging.INFO)
-
-addParticleGun(
+"""
+s = acts.examples.Sequencer(events=100, skip=1, numThreads=1, logLevel=acts.logging.INFO)
+s = addPythia8(
     s,
-    MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
-    EtaConfig(-3.0, 3.0, uniform=True),
-    ParticleConfig(2, acts.PdgParticle.eMuon, randomizeCharge=True),
+    npileup=200,
     rnd=rnd,
+    outputDirCsv=outputDir,
 )
-addFatras(
+"""
+s = acts.examples.Sequencer(events=1, numThreads=1, logLevel=acts.logging.VERBOSE)
+s.addReader(
+    acts.examples.CsvParticleReader(
+        level=acts.logging.INFO,
+        inputDir=str(outputDir),
+        inputStem="myparticles",
+        outputParticles="particles_input",
+    )
+)
+s = addFatras(
     s,
     trackingGeometry,
     field,
     outputDirRoot=outputDir,
     rnd=rnd,
 )
-addDigitization(
+"""
+s = addDigitization(
     s,
     trackingGeometry,
     field,
@@ -63,37 +75,20 @@ addDigitization(
     outputDirRoot=outputDir,
     rnd=rnd,
 )
-addSeeding(
+s = addSeeding(
     s,
     trackingGeometry,
     field,
     geoSelectionConfigFile=oddSeedingSel,
     outputDirRoot=outputDir,
 )
-addCKFTracks(
+s = addCKFTracks(
     s,
     trackingGeometry,
     field,
     CKFPerformanceConfig(ptMin=400.0 * u.MeV, nMeasurementsMin=6),
     outputDirRoot=outputDir,
 )
-s.addAlgorithm(
-    acts.examples.TrackSelector(
-        level=acts.logging.INFO,
-        inputTrackParameters="fittedTrackParameters",
-        outputTrackParameters="trackparameters",
-        outputTrackIndices="outputTrackIndices",
-        removeNeutral=True,
-        absEtaMax=2.5,
-        loc0Max=4.0 * u.mm,  # rho max
-        ptMin=500 * u.MeV,
-    )
-)
-addVertexFitting(
-    s,
-    field,
-    vertexFinder=VertexFinder.Iterative,
-    outputDirRoot=outputDir,
-)
+"""
 
 s.run()
