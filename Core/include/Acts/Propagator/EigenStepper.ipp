@@ -9,6 +9,8 @@
 #include "Acts/EventData/detail/TransformationBoundToFree.hpp"
 #include "Acts/Propagator/detail/CovarianceEngine.hpp"
 
+#include <csignal>
+
 template <typename E, typename A>
 Acts::EigenStepper<E, A>::EigenStepper(
     std::shared_ptr<const MagneticFieldProvider> bField)
@@ -89,6 +91,11 @@ void Acts::EigenStepper<E, A>::update(State& state, const Vector3& uposition,
   state.pars.template segment<3>(eFreePos0) = uposition;
   state.pars.template segment<3>(eFreeDir0) = udirection;
   state.pars[eFreeTime] = time;
+  if (up == 0) {
+    std::cout << "EigenStepper: update p " << up
+      << " from " << momentum(state) << "\n";
+    std::raise(SIGINT);
+  }
   state.pars[eFreeQOverP] = (state.q != 0. ? state.q / up : 1. / up);
 }
 
@@ -133,6 +140,18 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
   if (!state.stepping.extension.validExtensionForStep(state, *this) ||
       !state.stepping.extension.k1(state, *this, sd.k1, sd.B_first, sd.kQoP)) {
     return 0.;
+  }
+
+  if (!std::isfinite(sd.k1.x()) ||
+      !std::isfinite(sd.k1.y()) ||
+      !std::isfinite(sd.k1.z())) {
+    std::cout << "EigenStepper: k1 " << sd.k1.transpose() << "\n";
+    std::cout << "pos " << pos.transpose() << "\n";
+    std::cout << "charge " << charge(state.stepping) << "\n";
+    std::cout << "momentum " << momentum(state.stepping) << "\n";
+    std::cout << "dir " << dir.transpose() << "\n";
+    std::cout << "B_first " << sd.B_first.transpose() << "\n";
+    std::cout << "kQoP " << sd.kQoP[0] << ", " << sd.kQoP[1] << ", " << sd.kQoP[2] << ", " << sd.kQoP[3] << "\n";
   }
 
   // The following functor starts to perform a Runge-Kutta step of a certain

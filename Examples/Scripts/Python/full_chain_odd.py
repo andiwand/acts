@@ -34,6 +34,8 @@ from acts.examples.simulation import (
     addDigitization,
 )
 from acts.examples.reconstruction import (
+    SeedingAlgorithm,
+    TruthSeedRanges,
     addSeeding,
     addCKFTracks,
     CKFPerformanceConfig,
@@ -49,24 +51,40 @@ s = addPythia8(
     rnd=rnd,
     outputDirCsv=outputDir,
 )
-"""
-s = acts.examples.Sequencer(events=1, numThreads=1, logLevel=acts.logging.VERBOSE)
-s.addReader(
-    acts.examples.CsvParticleReader(
-        level=acts.logging.INFO,
-        inputDir=str(outputDir),
-        inputStem="myparticles",
-        outputParticles="particles_input",
-    )
-)
 s = addFatras(
     s,
     trackingGeometry,
     field,
+    outputDirCsv=outputDir,
     outputDirRoot=outputDir,
     rnd=rnd,
 )
 """
+s = acts.examples.Sequencer(events=1, numThreads=1, logLevel=acts.logging.INFO)
+s.addReader(
+    acts.examples.CsvParticleReader(
+        level=acts.logging.INFO,
+        inputDir=str(outputDir),
+        inputStem="particles_initial",
+        outputParticles="particles_initial",
+    )
+)
+s.addReader(
+    acts.examples.CsvParticleReader(
+        level=acts.logging.INFO,
+        inputDir=str(outputDir),
+        inputStem="particles_initial",
+        outputParticles="particles_selected",
+    )
+)
+s.addReader(
+    acts.examples.CsvSimHitReader(
+        level=acts.logging.INFO,
+        inputDir = str(outputDir),
+        inputStem = "hits",
+        outputSimHits = "simhits",
+    )
+)
 s = addDigitization(
     s,
     trackingGeometry,
@@ -89,6 +107,5 @@ s = addCKFTracks(
     CKFPerformanceConfig(ptMin=400.0 * u.MeV, nMeasurementsMin=6),
     outputDirRoot=outputDir,
 )
-"""
 
 s.run()

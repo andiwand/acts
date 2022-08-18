@@ -13,6 +13,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <iostream>
 
 using namespace Acts::UnitLiterals;
 
@@ -140,7 +141,7 @@ inline float deriveDeltaHalf(float qOverP, const RelativisticQuantities& rq) {
   assert((qOverP != 0) and "q/p must be non-zero"); \
   assert((q != 0) and "Charge must be non-zero");
 
-float Acts::computeEnergyLossBethe(const MaterialSlab& slab, int /* unused */,
+float Acts::computeEnergyLossBethe(const MaterialSlab& slab, int pdg,
                                    float m, float qOverP, float q) {
   ASSERT_INPUTS(m, qOverP, q)
 
@@ -164,6 +165,12 @@ float Acts::computeEnergyLossBethe(const MaterialSlab& slab, int /* unused */,
   // identical to the prefactor epsilon for the most probable value.
   const auto running =
       0.5f * std::log(u / I) + 0.5f * std::log(wmax / I) - rq.beta2 - dhalf;
+
+  if (eps * running > m) {
+    std::cout << "Interactions: thickness " << thickness << "\n";
+    std::cout << "pdg " << pdg << "\n";
+  }
+
   return eps * running;
 }
 

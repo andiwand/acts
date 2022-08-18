@@ -107,6 +107,12 @@ struct PointwiseMaterialInteraction {
     pathCorrection = surface->pathCorrection(state.geoContext, pos, dir);
     slab.scaleThickness(pathCorrection);
 
+    if (slab.thickness() > 1000) {
+      std::cout << "PMI: thickness " << slab.thickness() << " scale " << pathCorrection << "\n";
+      std::cout << std::tie(*surface, state.geoContext) << "\n";
+      std::cout << "pos " << pos.transpose() << " dir " << dir.transpose() << "\n";
+    }
+
     // Get the surface material & properties from them
     return slab;
   }

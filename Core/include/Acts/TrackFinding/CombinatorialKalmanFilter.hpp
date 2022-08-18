@@ -58,6 +58,8 @@ struct CombinatorialKalmanFilterTipState {
   size_t nOutliers = 0;
   // Number of holes
   size_t nHoles = 0;
+
+  double p = 0;
 };
 
 /// Extension struct which holds the delegates to customize the CKF behavior
