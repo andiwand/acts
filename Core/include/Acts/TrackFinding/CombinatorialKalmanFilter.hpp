@@ -713,6 +713,10 @@ class CombinatorialKalmanFilter {
           currentTip = addNonSourcelinkState(stateMask, boundState, result,
                                              isSensitive, prevTip, logger);
 
+          if (stepper.momentum(state.stepping) <= 1e-4) {
+            std::cout << "CKF: momentum " << stepper.momentum(state.stepping) << "\n";
+          }
+
           // Check the branch
           if (not m_extensions.branchStopper(tipState)) {
             // Remember the active tip and its state
