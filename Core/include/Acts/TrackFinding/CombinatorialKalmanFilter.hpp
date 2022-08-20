@@ -432,6 +432,21 @@ class CombinatorialKalmanFilter {
         }
       }
 
+      if (stepper.momentum(state.stepping) <= 0) {
+        std::cout << "CKF: hello p = 0\n";
+
+        if (result.activeTips.empty()) {
+
+        } else if (result.activeTips.size() == 1) {
+          ACTS_VERBOSE("Kalman filtering finds "
+                       << result.lastTrackIndices.size() << " tracks");
+          result.filtered = true;
+        } else {
+          result.activeTips.erase(result.activeTips.end() - 1);
+          reset(state, stepper, result);
+        }
+      }
+
       // Post-processing after filtering phase
       if (result.filtered) {
         // Return error if filtering finds no tracks
@@ -544,6 +559,11 @@ class CombinatorialKalmanFilter {
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
       materialInteractor(state.navigation.currentSurface, state, stepper);
+
+      // If the particle stops here we are in trouble
+      if (stepper.momentum(state.stepping) <= 1e-4) {
+        std::cout << "CKF: point 1 momentum " << stepper.momentum(state.stepping) << "\n";
+      }
     }
 
     /// @brief CombinatorialKalmanFilter actor operation :
@@ -578,6 +598,10 @@ class CombinatorialKalmanFilter {
         // Update state and stepper with pre material effects
         materialInteractor(surface, state, stepper,
                            MaterialUpdateStage::PreUpdate);
+
+        if (stepper.momentum(state.stepping) <= 1e-4) {
+          std::cout << "CKF: point 2 momentum " << stepper.momentum(state.stepping) << "\n";
+        }
 
         // Bind the transported state to the current surface
         auto boundStateRes =
@@ -650,6 +674,10 @@ class CombinatorialKalmanFilter {
         // Update state and stepper with post material effects
         materialInteractor(surface, state, stepper,
                            MaterialUpdateStage::PostUpdate);
+
+        if (stepper.momentum(state.stepping) <= 1e-4) {
+          std::cout << "CKF: point 3 momentum " << stepper.momentum(state.stepping) << "\n";
+        }
       } else if (surface->associatedDetectorElement() != nullptr ||
                  surface->surfaceMaterial() != nullptr) {
         // No splitting on the surface without source links. Set it to one
@@ -713,10 +741,6 @@ class CombinatorialKalmanFilter {
           currentTip = addNonSourcelinkState(stateMask, boundState, result,
                                              isSensitive, prevTip, logger);
 
-          if (stepper.momentum(state.stepping) <= 1e-4) {
-            std::cout << "CKF: momentum " << stepper.momentum(state.stepping) << "\n";
-          }
-
           // Check the branch
           if (not m_extensions.branchStopper(tipState)) {
             // Remember the active tip and its state
@@ -731,6 +755,10 @@ class CombinatorialKalmanFilter {
           // Update state and stepper with material effects
           materialInteractor(surface, state, stepper,
                              MaterialUpdateStage::FullUpdate);
+
+          if (stepper.momentum(state.stepping) <= 1e-4) {
+            std::cout << "CKF: point 4 momentum " << stepper.momentum(state.stepping) << "\n";
+          }
         }
       } else {
         // Neither measurement nor material on surface, this branch is still

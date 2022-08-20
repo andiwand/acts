@@ -94,7 +94,7 @@ void Acts::EigenStepper<E, A>::update(State& state, const Vector3& uposition,
   if (up == 0) {
     std::cout << "EigenStepper: update p " << up
       << " from " << momentum(state) << "\n";
-    std::raise(SIGINT);
+    //std::raise(SIGINT);
   }
   state.pars[eFreeQOverP] = (state.q != 0. ? state.q / up : 1. / up);
 }
