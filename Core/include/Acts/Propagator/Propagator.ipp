@@ -8,6 +8,8 @@
 
 #include "Acts/EventData/TrackParametersConcept.hpp"
 
+#include <csignal>
+
 template <typename S, typename N>
 template <typename result_t, typename propagator_state_t>
 auto Acts::Propagator<S, N>::propagate_impl(propagator_state_t& state,
@@ -73,6 +75,8 @@ auto Acts::Propagator<S, N>::propagate_impl(propagator_state_t& state,
     ACTS_ERROR("Propagation reached the step count limit of "
                << state.options.maxSteps << " (did " << result.steps
                << " steps)");
+    std::cout << "Propagator: step size " << m_stepper.outputStepSize(state.stepping) << "\n";
+    std::raise(SIGINT);
     return PropagatorError::StepCountLimitReached;
   }
 

@@ -433,7 +433,7 @@ class CombinatorialKalmanFilter {
       }
 
       if (stepper.momentum(state.stepping) <= 0) {
-        std::cout << "CKF: hello p = 0\n";
+        std::cout << "CKF: hello p = 0 active tips " << result.activeTips.size() << "\n";
 
         if (result.activeTips.empty()) {
 
@@ -444,6 +444,8 @@ class CombinatorialKalmanFilter {
         } else {
           result.activeTips.erase(result.activeTips.end() - 1);
           reset(state, stepper, result);
+
+          std::cout << "new momentum " << stepper.momentum(state.stepping) << "\n";
         }
       }
 
