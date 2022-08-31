@@ -111,6 +111,7 @@ struct PointwiseMaterialInteraction {
       std::cout << "PMI: thickness " << slab.thickness() << " scale " << pathCorrection << "\n";
       std::cout << std::tie(*surface, state.geoContext) << "\n";
       std::cout << "pos " << pos.transpose() << " dir " << dir.transpose() << "\n";
+      std::cout << typeid(*state.navigation.currentSurface->surfaceMaterial()).name() << "\n";
     }
 
     // Get the surface material & properties from them
