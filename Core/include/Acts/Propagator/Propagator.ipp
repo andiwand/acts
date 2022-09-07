@@ -76,6 +76,8 @@ auto Acts::Propagator<S, N>::propagate_impl(propagator_state_t& state,
                << state.options.maxSteps << " (did " << result.steps
                << " steps)");
     std::cout << "Propagator: step size " << m_stepper.outputStepSize(state.stepping) << "\n";
+    std::cout << "path length " << result.pathLength << "\n";
+    std::cout << "position " << m_stepper.position(state.stepping).transpose() << "\n";
     std::raise(SIGINT);
     return PropagatorError::StepCountLimitReached;
   }

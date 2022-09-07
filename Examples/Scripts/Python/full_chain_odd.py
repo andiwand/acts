@@ -43,7 +43,7 @@ from acts.examples.reconstruction import (
     VertexFinder,
 )
 
-s = acts.examples.Sequencer(events=100, skip=0, numThreads=1, logLevel=acts.logging.INFO)
+s = acts.examples.Sequencer(events=100, skip=2, numThreads=1, logLevel=acts.logging.INFO)
 s = addPythia8(
     s,
     npileup=200,
