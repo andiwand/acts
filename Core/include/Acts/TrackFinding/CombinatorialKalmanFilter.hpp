@@ -256,6 +256,9 @@ struct CombinatorialKalmanFilterResult {
   bool finished = false;
 
   Result<void> result{Result<void>::success()};
+
+  // TODO place into options and make them accessible?
+  AbortList<PathLimitReached, EndOfWorldReached, ParticleStopped> abortList;
 };
 
 /// Combinatorial Kalman filter to find tracks.
@@ -324,8 +327,6 @@ class CombinatorialKalmanFilter {
 
     /// Whether to run smoothing to get fitted parameter
     bool smoothing = true;
-
-    AbortList<PathLimitReached, EndOfWorldReached, ParticleStopped> m_abortList;
 
     /// @brief CombinatorialKalmanFilter actor operation
     ///
@@ -434,11 +435,10 @@ class CombinatorialKalmanFilter {
         }
       }
 
-      if (m_abortList(state, stepper, result)) {
+      if (result.abortList(result, state, stepper)) {
         std::cout << "CKF: hello p = 0 active tips " << result.activeTips.size() << "\n";
         std::cout << "position " << stepper.position(state.stepping).transpose() << "\n";
         std::cout << "path " << state.stepping.pathAccumulated << "\n";
-        std::cout << "stopped " << stopped << " end " << end << " path " << path << "\n";
 
         if (result.activeTips.empty()) {
           std::cout << "Kalman filtering finds "
@@ -564,8 +564,6 @@ class CombinatorialKalmanFilter {
                              stepper.direction(state.stepping),
                              state.stepping.navDir,
                              &currentState.referenceSurface(), nullptr);
-      
-      //detail::
 
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
@@ -575,6 +573,8 @@ class CombinatorialKalmanFilter {
       if (stepper.momentum(state.stepping) <= 1e-4) {
         std::cout << "CKF: point 1 momentum " << stepper.momentum(state.stepping) << "\n";
       }
+
+      detail::setupLoopProtection(state, stepper, result.abortList.template get<PathLimitReached>());
     }
 
     /// @brief CombinatorialKalmanFilter actor operation :
