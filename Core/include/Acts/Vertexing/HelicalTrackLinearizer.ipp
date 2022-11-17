@@ -16,6 +16,12 @@ Acts::Result<Acts::LinearizedTrack> Acts::
         const Acts::MagneticFieldContext& mctx, State& state) const {
   Vector3 linPointPos = VectorHelpers::position(linPoint);
 
+  linPointPos = {561.223, 50.188, -229.679};
+
+  std::cout << "HelTrkLinProp " << linPointPos.transpose() << std::endl;
+  std::cout << "HelTrkLinProp " << params.position(gctx).transpose() << std::endl;
+  std::cout << "HelTrkLinProp " << params.unitDirection().transpose() << std::endl;
+
   const std::shared_ptr<PerigeeSurface> perigeeSurface =
       Surface::makeShared<PerigeeSurface>(linPointPos);
 
@@ -23,8 +29,9 @@ Acts::Result<Acts::LinearizedTrack> Acts::
                                                 params.unitDirection(), false);
 
   // Create propagator options
-  auto logger = getDefaultLogger("HelTrkLinProp", Logging::INFO);
+  auto logger = getDefaultLogger("HelTrkLinProp", Logging::VERBOSE);
   propagator_options_t pOptions(gctx, mctx, LoggerWrapper{*logger});
+  pOptions.maxSteps = 100;
   pOptions.direction = intersection.intersection.pathLength >= 0
                            ? NavigationDirection::Forward
                            : NavigationDirection::Backward;

@@ -132,6 +132,12 @@ struct SurfaceReached {
                           Intersection3D::Status::onSurface);
     double distance = sIntersection.intersection.pathLength;
 
+    ACTS_VERBOSE("intersect position "
+                << stepper.position(state.stepping).transpose()
+                << " direction "
+                << (state.stepping.navDir * stepper.direction(state.stepping)).transpose()
+                << " distance " << distance << " navdir " << state.stepping.navDir);
+
     // Return true if you fall below tolerance
     if (targetReached) {
       ACTS_VERBOSE("Target: x | "

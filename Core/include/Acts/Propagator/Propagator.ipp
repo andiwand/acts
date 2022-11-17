@@ -46,6 +46,7 @@ auto Acts::Propagator<S, N>::propagate_impl(propagator_state_t& state,
         double s = *res;
         result.pathLength += s;
         ACTS_VERBOSE("Step with size = " << s << " performed");
+        ACTS_VERBOSE("ended up at " << m_stepper.position(state.stepping).transpose() << " direction " << m_stepper.direction(state.stepping).transpose());
       } else {
         ACTS_ERROR("Step failed with " << res.error() << ": "
                                        << res.error().message());

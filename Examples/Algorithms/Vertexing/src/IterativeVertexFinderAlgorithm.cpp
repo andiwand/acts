@@ -95,9 +95,20 @@ ActsExamples::ProcessCode ActsExamples::IterativeVertexFinderAlgorithm::execute(
   // Set up the actual vertex finder
   VertexFinder::Config finderCfg(vertexFitter, linearizer, std::move(seeder),
                                  ipEst);
-  finderCfg.maxVertices = 200;
-  //finderCfg.reassignTracksAfterFirstFit = true;
   finderCfg.useBeamConstraint = true;
+  finderCfg.significanceCutSeeding = 10;
+  finderCfg.maximumChi2cutForSeeding = 49;
+  finderCfg.maxVertices = 200;
+  finderCfg.createSplitVertices = false;
+  finderCfg.splitVerticesTrkInvFraction = 2;
+  finderCfg.reassignTracksAfterFirstFit = false;
+  finderCfg.doMaxTracksCut = false;
+  finderCfg.maxTracks = 5000;
+  finderCfg.cutOffTrackWeight = 0.01;
+  //finderCfg.gaussianMaxD0Significance = 3.5;
+  //finderCfg.gaussianMaxDZSignificance = 12.0;
+  //finderCfg.ipEstMaxIterations = 20;
+  //finderCfg.ipEstPrecision = 1e-10;
   VertexFinder finder(finderCfg);
   VertexFinder::State state(*m_cfg.bField, ctx.magFieldContext);
 

@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <iostream>
 
 namespace Acts {
 
@@ -108,8 +109,11 @@ class ConstrainedStep {
     }
     // check the current value and set it if appropriate
     // this will also allow signed values due to overstepping
+    std::cout << "CS update " << m_values[type] * m_direction << " vs " << value;
     if (std::abs(value) <= std::abs(m_values[type])) {
       m_values[type] = value * m_direction;
+    } else if (Acts::directionFromStepSize(value * m_direction) != Acts::directionFromStepSize(m_values[type] * m_direction)) {
+      m_values[type] = -m_values[type];
     }
   }
 

@@ -52,6 +52,8 @@ ActsExamples::CsvTrackParameterReader::availableEvents() const {
 
 ActsExamples::ProcessCode ActsExamples::CsvTrackParameterReader::read(
     const ActsExamples::AlgorithmContext& ctx) {
+  using namespace Acts::UnitLiterals;
+
   TrackParametersContainer trackParameters;
 
   auto surface = Acts::Surface::makeShared<Acts::PerigeeSurface>(
@@ -68,7 +70,7 @@ ActsExamples::ProcessCode ActsExamples::CsvTrackParameterReader::read(
     params[Acts::eBoundLoc1] = d.z0;
     params[Acts::eBoundPhi] = d.phi;
     params[Acts::eBoundTheta] = d.theta;
-    params[Acts::eBoundQOverP] = d.qop;
+    params[Acts::eBoundQOverP] = d.qop*1./(1_MeV);
 
     int q = params[Acts::eBoundQOverP] >= 0 ? 1 : -1;
 
@@ -77,33 +79,33 @@ ActsExamples::ProcessCode ActsExamples::CsvTrackParameterReader::read(
     cov(Acts::eBoundLoc1, Acts::eBoundLoc1) = d.var_z0;
     cov(Acts::eBoundPhi, Acts::eBoundPhi) = d.var_phi;
     cov(Acts::eBoundTheta, Acts::eBoundTheta) = d.var_theta;
-    cov(Acts::eBoundQOverP, Acts::eBoundQOverP) = d.var_qop;
+    cov(Acts::eBoundQOverP, Acts::eBoundQOverP) = d.var_qop*1./(1_MeV)*1./(1_MeV);
     cov(Acts::eBoundTime, Acts::eBoundTime) = 1;
 
     cov(Acts::eBoundLoc0, Acts::eBoundLoc1) = d.cov_d0z0;
     cov(Acts::eBoundLoc0, Acts::eBoundPhi) = d.cov_d0phi;
     cov(Acts::eBoundLoc0, Acts::eBoundTheta) = d.cov_d0theta;
-    cov(Acts::eBoundLoc0, Acts::eBoundQOverP) = d.cov_d0qop;
+    cov(Acts::eBoundLoc0, Acts::eBoundQOverP) = d.cov_d0qop*1./(1_MeV);
 
     cov(Acts::eBoundLoc1, Acts::eBoundLoc0) = d.cov_z0d0;
     cov(Acts::eBoundLoc1, Acts::eBoundPhi) = d.cov_z0phi;
     cov(Acts::eBoundLoc1, Acts::eBoundTheta) = d.cov_z0theta;
-    cov(Acts::eBoundLoc1, Acts::eBoundQOverP) = d.cov_z0qop;
+    cov(Acts::eBoundLoc1, Acts::eBoundQOverP) = d.cov_z0qop*1./(1_MeV);
 
     cov(Acts::eBoundPhi, Acts::eBoundLoc0) = d.cov_phid0;
     cov(Acts::eBoundPhi, Acts::eBoundLoc1) = d.cov_phiz0;
     cov(Acts::eBoundPhi, Acts::eBoundTheta) = d.cov_phitheta;
-    cov(Acts::eBoundPhi, Acts::eBoundQOverP) = d.cov_phiqop;
+    cov(Acts::eBoundPhi, Acts::eBoundQOverP) = d.cov_phiqop*1./(1_MeV);
 
     cov(Acts::eBoundTheta, Acts::eBoundLoc0) = d.cov_thetad0;
     cov(Acts::eBoundTheta, Acts::eBoundLoc1) = d.cov_thetaz0;
     cov(Acts::eBoundTheta, Acts::eBoundPhi) = d.cov_thetaphi;
-    cov(Acts::eBoundTheta, Acts::eBoundQOverP) = d.cov_thetaqop;
+    cov(Acts::eBoundTheta, Acts::eBoundQOverP) = d.cov_thetaqop*1./(1_MeV);
 
-    cov(Acts::eBoundQOverP, Acts::eBoundLoc0) = d.cov_qopd0;
-    cov(Acts::eBoundQOverP, Acts::eBoundLoc1) = d.cov_qopz0;
-    cov(Acts::eBoundQOverP, Acts::eBoundPhi) = d.cov_qopphi;
-    cov(Acts::eBoundQOverP, Acts::eBoundTheta) = d.cov_qoptheta;
+    cov(Acts::eBoundQOverP, Acts::eBoundLoc0) = d.cov_qopd0*1./(1_MeV);
+    cov(Acts::eBoundQOverP, Acts::eBoundLoc1) = d.cov_qopz0*1./(1_MeV);
+    cov(Acts::eBoundQOverP, Acts::eBoundPhi) = d.cov_qopphi*1./(1_MeV);
+    cov(Acts::eBoundQOverP, Acts::eBoundTheta) = d.cov_qoptheta*1./(1_MeV);
 
     trackParameters.emplace_back(surface, params, q, cov);
   }
