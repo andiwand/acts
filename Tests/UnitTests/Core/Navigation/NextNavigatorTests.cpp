@@ -9,9 +9,13 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Detector/Portal.hpp"
+#include "Acts/Detector/PortalHelper.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
+#include "Acts/Geometry/CuboidVolumeBounds.hpp"
 #include "Acts/Navigation/NavigationState.hpp"
 #include "Acts/Navigation/NextNavigator.hpp"
+#include "Acts/Navigation/SurfaceCandidatesUpdators.hpp"
+#include "Acts/Navigation/DetectorVolumeFinders.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
@@ -29,24 +33,38 @@ Acts::MagneticFieldContext mfContext;
 BOOST_AUTO_TEST_SUITE(Experimental)
 
 BOOST_AUTO_TEST_CASE(NextNavigator) {
-  // TODO get some geometry
+  auto innerVolume = Acts::Experimental::DetectorVolumeFactory::construct(
+    Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
+    "inner volume", Acts::Transform3::Identity(), std::make_unique<Acts::CuboidVolumeBounds>(3, 3, 3), 
+		std::vector<std::shared_ptr<Acts::Surface>>(), std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(),
+    Acts::Experimental::allPortalsAndSurfaces());
+
+  auto detectorVolume = Acts::Experimental::DetectorVolumeFactory::construct(
+    Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
+    "detector volume", Acts::Transform3::Identity(), std::make_unique<Acts::CuboidVolumeBounds>(10, 10, 10), 
+		std::vector<std::shared_ptr<Acts::Surface>>(), std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>({innerVolume}),
+    Acts::Experimental::allPortalsAndSurfaces());
+
+  auto detector = Acts::Experimental::Detector::makeShared(
+      "detector", std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>({detectorVolume}),
+      Acts::Experimental::tryAllVolumes());
 
   using ActionListType = Acts::ActionList<>;
   using AbortListType = Acts::AbortList<>;
 
   auto bField = std::make_shared<Acts::ConstantBField>(Acts::Vector3{0, 0, 2 * Acts::UnitConstants::T});
 
+  Acts::Experimental::NextNavigator::Config navCfg;
+  navCfg.detector = detector.get();
+
   auto stepper = Acts::EigenStepper<>(bField);
-  auto navigator = Acts::Experimental::NextNavigator({});
+  auto navigator = Acts::Experimental::NextNavigator(navCfg, Acts::getDefaultLogger("NextNavigator", Acts::Logging::Level::VERBOSE));
   auto options = Acts::PropagatorOptions<ActionListType, AbortListType>(tgContext, mfContext);
-  auto propagator = Acts::Propagator<Acts::EigenStepper<>, Acts::Experimental::NextNavigator>(stepper, navigator);
+  auto propagator = Acts::Propagator<Acts::EigenStepper<>, Acts::Experimental::NextNavigator>(stepper, navigator, Acts::getDefaultLogger("Propagator", Acts::Logging::Level::VERBOSE));
 
   // define start parameters
-  double pT = 10 * Acts::UnitConstants::GeV;
-  double phi = 0 * Acts::UnitConstants::rad;
-  double theta = 0 * Acts::UnitConstants::rad;
-  Acts::Vector4 pos(0, 0, 0, 0);
-  Acts::Vector3 mom(pT * cos(phi), pT * sin(phi), pT / tan(theta));
+  Acts::Vector4 pos(0, 0, -5, 0);
+  Acts::Vector3 mom(0, 0, 10);
   Acts::CurvilinearTrackParameters start(pos, mom, mom.norm(), +1);
   // propagate to the cylinder surface
   const auto& result = propagator.propagate(start, options).value();

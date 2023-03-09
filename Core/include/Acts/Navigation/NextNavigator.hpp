@@ -252,7 +252,7 @@ class NextNavigator {
   ///
   /// boolean return triggers exit to stepper
   template <typename propagator_state_t, typename stepper_t>
-  bool inactive(propagator_state_t& state, const stepper_t& stepper) const {
+  bool inactive(propagator_state_t& /*state*/, const stepper_t& /*stepper*/) const {
     if (m_cfg.detector == nullptr) {
       return true;
     }
@@ -275,7 +275,7 @@ class NextNavigator {
   ///
   /// @return boolean return triggers exit to stepper
   template <typename propagator_state_t, typename stepper_t>
-  void initialize(propagator_state_t& state, const stepper_t& stepper) const {
+  void initialize(propagator_state_t& state, const stepper_t& /*stepper*/) const {
     ACTS_VERBOSE(volInfo(state) << "initialize");
 
     auto& nState = state.navigation;
@@ -312,7 +312,7 @@ class NextNavigator {
   /// boolean return triggers exit to stepper
   template <typename propagator_state_t, typename stepper_t>
   void initializeTarget(propagator_state_t& state,
-                        const stepper_t& stepper) const {
+                        const stepper_t& /*stepper*/) const {
     ACTS_VERBOSE(volInfo(state) << "initialize target");
 
     auto& nState = state.navigation;
