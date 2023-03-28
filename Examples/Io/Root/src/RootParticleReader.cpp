@@ -26,14 +26,14 @@ ActsExamples::RootParticleReader::RootParticleReader(
     : ActsExamples::IReader(),
       m_cfg(config),
       m_logger(Acts::getDefaultLogger(name(), level)) {
-  m_inputChain = new TChain(m_cfg.treeName.c_str());
-
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing input filename");
   }
   if (m_cfg.treeName.empty()) {
     throw std::invalid_argument("Missing tree name");
   }
+
+  m_inputChain = new TChain(m_cfg.treeName.c_str());
 
   m_outputParticles.initialize(m_cfg.particleCollection);
   m_outputPrimaryVertices.maybeInitialize(m_cfg.vertexPrimaryCollection);

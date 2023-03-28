@@ -1,5 +1,6 @@
 add_library(
   ActsExamplesIoPerformance SHARED
+  ActsExamples/Io/Performance/AmbiguityResolutionPerformanceWriter.cpp
   ActsExamples/Io/Performance/TrackFinderPerformanceWriter.cpp
   ActsExamples/Io/Performance/TrackFitterPerformanceWriter.cpp
   ActsExamples/Io/Performance/CKFPerformanceWriter.cpp

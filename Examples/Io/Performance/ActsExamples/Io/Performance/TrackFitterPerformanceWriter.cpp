@@ -28,9 +28,7 @@ ActsExamples::TrackFitterPerformanceWriter::TrackFitterPerformanceWriter(
       m_cfg(std::move(config)),
       m_resPlotTool(m_cfg.resPlotToolConfig, level),
       m_effPlotTool(m_cfg.effPlotToolConfig, level),
-      m_trackSummaryPlotTool(m_cfg.trackSummaryPlotToolConfig, level)
-
-{
+      m_trackSummaryPlotTool(m_cfg.trackSummaryPlotToolConfig, level) {
   // trajectories collection name is already checked by base ctor
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing particles input collection");
