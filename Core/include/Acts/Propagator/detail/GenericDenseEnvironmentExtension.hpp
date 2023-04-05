@@ -84,10 +84,10 @@ struct GenericDenseEnvironmentExtension {
     }
 
     // Check existence of a volume with material
-    if (!navigator.currentVolume(state.navigation) ||
-        !navigator.currentVolume(state.navigation)->volumeMaterial()) {
+    if (!navigator.currentVolumeMaterial(state.navigation)) {
       return 0;
     }
+
     return 2;
   }
 
@@ -119,7 +119,7 @@ struct GenericDenseEnvironmentExtension {
     if (i == 0) {
       // Set up container for energy loss
       auto volumeMaterial =
-          navigator.currentVolume(state.navigation)->volumeMaterial();
+          navigator.currentVolumeMaterial(state.navigation);
       ThisVector3 position = stepper.position(state.stepping);
       material = (volumeMaterial->material(position.template cast<double>()));
       initialMomentum = stepper.momentum(state.stepping);

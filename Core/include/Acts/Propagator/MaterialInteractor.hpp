@@ -72,10 +72,10 @@ struct MaterialInteractor {
     }
     // We only have material interactions if there is potential material
     const Surface* surface = navigator.currentSurface(state.navigation);
-    const TrackingVolume* volume = navigator.currentVolume(state.navigation);
+    const IVolumeMaterial* volumeMaterial = navigator.currentVolumeMaterial(state.navigation);
 
     if (not(surface and surface->surfaceMaterial()) and
-        not(volume and volume->volumeMaterial())) {
+        not(volumeMaterial)) {
       return;
     }
 
@@ -113,9 +113,9 @@ struct MaterialInteractor {
       d.updateState(state, stepper, mode);
       // Record the result
       recordResult(d, result);
-    } else if (recordInteractions && volume and volume->volumeMaterial()) {
+    } else if (recordInteractions && volumeMaterial) {
       // Prepare relevant input particle properties
-      detail::VolumeMaterialInteraction d(volume, state, stepper);
+      detail::VolumeMaterialInteraction d(state, stepper);
       // Determine the effective traversed material and its properties
       // Material exists but it's not real, i.e. vacuum; there is nothing to do
       if (not d.evaluateMaterialSlab(state, navigator)) {

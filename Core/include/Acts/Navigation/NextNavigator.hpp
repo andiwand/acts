@@ -104,6 +104,10 @@ class NextNavigator {
     return nullptr;  // TODO we do not have a tracking volume
   }
 
+  const IVolumeMaterial* currentVolumeMaterial(const State& state) const {
+    return state.currentVolume->volumeMaterial();
+  }
+
   const Surface* startSurface(const State& state) const {
     return state.startSurface;
   }
