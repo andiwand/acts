@@ -9,7 +9,19 @@ target_link_libraries(
     ActsExamplesDetectorGeant4
   PUBLIC ActsCore ActsExamplesFramework ActsExamplesGeant4 ActsPluginGeant4)
 
+add_executable(
+  ActsExampleCalorimeterDemo
+  src/CalorimeterDemo.cpp)
+target_link_libraries(
+  ActsExampleCalorimeterDemo
+  PRIVATE
+    ActsCore
+    ActsPluginGeant4
+    ActsExamplesFramework
+    ActsExamplesGeant4
+    ActsExamplesIoRoot
+    ActsExamplesDetectorGeant4)
+
 install(
-  TARGETS ActsExamplesDetectorGeant4
+  TARGETS ActsExamplesDetectorGeant4 ActsExampleCalorimeterDemo
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  

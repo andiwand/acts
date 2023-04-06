@@ -30,7 +30,6 @@
 #include <boost/container/small_vector.hpp>
 
 namespace Acts {
-
 namespace Experimental {
 
 class NextNavigator {
@@ -429,5 +428,4 @@ class NextNavigator {
 };
 
 }  // namespace Experimental
-
 }  // namespace Acts

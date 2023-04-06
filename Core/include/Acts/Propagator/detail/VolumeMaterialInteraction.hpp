@@ -18,6 +18,9 @@ namespace detail {
 
 /// @brief Struct to handle volume material interaction
 struct VolumeMaterialInteraction {
+  /// Data from the propagation state
+  const TrackingVolume* volume;
+
   /// The particle current position
   const Vector3 pos;
   /// The particle current time
@@ -49,12 +52,15 @@ struct VolumeMaterialInteraction {
   /// @tparam propagator_state_t Type of the propagator state
   /// @tparam stepper_t Type of the stepper
   ///
+  /// @param [in] vVolume The current volume
   /// @param [in] state State of the propagation
   /// @param [in] stepper Stepper in use
   template <typename propagator_state_t, typename stepper_t>
-  VolumeMaterialInteraction(const propagator_state_t& state,
+  VolumeMaterialInteraction(const TrackingVolume* vVolume,
+                            const propagator_state_t& state,
                             const stepper_t& stepper)
-      : pos(stepper.position(state.stepping)),
+      : volume(vVolume),
+        pos(stepper.position(state.stepping)),
         time(stepper.time(state.stepping)),
         dir(stepper.direction(state.stepping)),
         momentum(stepper.momentum(state.stepping)),
@@ -78,8 +84,11 @@ struct VolumeMaterialInteraction {
   bool evaluateMaterialSlab(const propagator_state_t& state,
                             const navigator_t& navigator) {
     pathCorrection = 0;
-    if (navigator.currentVolumeMaterial(state.navigation) != nullptr) {
-      slab = MaterialSlab(navigator.currentVolumeMaterial(state.navigation)
+    if (navigator.currentVolume(state.navigation) != nullptr &&
+        navigator.currentVolume(state.navigation)->volumeMaterial() !=
+            nullptr) {
+      slab = MaterialSlab(navigator.currentVolume(state.navigation)
+                              ->volumeMaterial()
                               ->material(pos),
                           1);  // state.stepping.StepSize
     } else {

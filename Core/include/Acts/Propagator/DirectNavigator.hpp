@@ -16,12 +16,10 @@
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 
-#include <iomanip>
+#include <algorithm>
 #include <iterator>
-#include <sstream>
-#include <string>
-
-#include <boost/algorithm/string.hpp>
+#include <memory>
+#include <vector>
 
 namespace Acts {
 
