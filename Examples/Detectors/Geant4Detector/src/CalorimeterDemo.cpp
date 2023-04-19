@@ -23,9 +23,12 @@
 #include "Acts/Propagator/DenseEnvironmentExtension.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/detail/SteppingLogger.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Visualization/GeometryView3D.hpp"
+#include "Acts/Visualization/ObjVisualization3D.hpp"
 #include "ActsExamples/Geant4/GdmlDetectorConstruction.hpp"
 #include "ActsExamples/Geant4Detector/Geant4Detector.hpp"
 
@@ -132,7 +135,7 @@ int main() {
   using Stepper = Acts::EigenStepper<Acts::StepperExtensionList<
       Acts::DefaultExtension, Acts::DenseEnvironmentExtension>>;
   using Navigator = Acts::Experimental::NextNavigator;
-  using ActionListType = Acts::ActionList<>;
+  using ActionListType = Acts::ActionList<Acts::detail::SteppingLogger>;
   using AbortListType = Acts::AbortList<>;
   using PropagatorOptions =
       Acts::DenseStepperPropagatorOptions<ActionListType, AbortListType>;
@@ -152,5 +155,17 @@ int main() {
   Acts::Vector3 mom(10, 0, 0);
   Acts::CurvilinearTrackParameters start(pos, mom, mom.norm(), +1);
   // propagate to the cylinder surface
-  propagator.propagate(start, options);
+  auto result = propagator.propagate(start, options);
+
+  auto steppingLoggerResult =
+      result->get<Acts::detail::SteppingLogger::result_type>();
+  const auto &steps = steppingLoggerResult.steps;
+  std::cout << steps.size() << std::endl;
+
+  Acts::ObjVisualization3D visualization;
+  for (std::size_t i = 0; i < steps.size() - 1; ++i) {
+    Acts::GeometryView3D::drawSegment(visualization, steps[i].position,
+                                      steps[i + 1].position);
+  }
+  visualization.write("/home/andreas/track.obj");
 }
