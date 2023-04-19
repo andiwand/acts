@@ -77,16 +77,22 @@ struct GenericDenseEnvironmentExtension {
             typename navigator_t>
   int bid(const propagator_state_t& state, const stepper_t& stepper,
           const navigator_t& navigator) const {
+    std::cout << "hello from dense env bid 1" << std::endl;
+
     // Check for valid particle properties
     if (stepper.charge(state.stepping) == 0. || state.options.mass == 0. ||
         stepper.momentum(state.stepping) < state.options.momentumCutOff) {
       return 0;
     }
 
+    std::cout << "hello from dense env bid 2" << std::endl;
+
     // Check existence of a volume with material
     if (!navigator.currentVolumeMaterial(state.navigation)) {
       return 0;
     }
+
+    std::cout << "hello from dense env bid 3" << std::endl;
 
     return 2;
   }
@@ -118,8 +124,7 @@ struct GenericDenseEnvironmentExtension {
     // i = 0 is used for setup and evaluation of k
     if (i == 0) {
       // Set up container for energy loss
-      auto volumeMaterial =
-          navigator.currentVolumeMaterial(state.navigation);
+      auto volumeMaterial = navigator.currentVolumeMaterial(state.navigation);
       ThisVector3 position = stepper.position(state.stepping);
       material = (volumeMaterial->material(position.template cast<double>()));
       initialMomentum = stepper.momentum(state.stepping);
@@ -450,6 +455,7 @@ struct GenericDenseEnvironmentExtension {
   void updateEnergyLoss(const double mass, const double h,
                         const propagator_state_t& state,
                         const stepper_t& stepper, const int i) {
+    std::cout << "hello from dense env eloss" << std::endl;
     // Update parameters related to a changed momentum
     currentMomentum = initialMomentum + h * dPds[i - 1];
     using std::sqrt;
