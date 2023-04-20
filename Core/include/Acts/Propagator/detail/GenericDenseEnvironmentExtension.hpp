@@ -458,6 +458,7 @@ struct GenericDenseEnvironmentExtension {
     std::cout << "hello from dense env eloss" << std::endl;
     // Update parameters related to a changed momentum
     currentMomentum = initialMomentum + h * dPds[i - 1];
+    std::cout << currentMomentum << std::endl;
     using std::sqrt;
     energy[i] = sqrt(currentMomentum * currentMomentum + mass * mass);
     dPds[i] = g * energy[i] / currentMomentum;

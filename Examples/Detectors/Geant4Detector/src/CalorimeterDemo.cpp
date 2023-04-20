@@ -27,6 +27,7 @@
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Utilities/PdgParticle.hpp"
 #include "Acts/Visualization/GeometryView3D.hpp"
 #include "Acts/Visualization/ObjVisualization3D.hpp"
 #include "ActsExamples/Geant4/GdmlDetectorConstruction.hpp"
@@ -98,7 +99,7 @@ std::shared_ptr<Acts::Experimental::Detector> buildDetector(
   auto detectorVolume = Acts::Experimental::DetectorVolumeFactory::construct(
       Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
       "Detector Volume", Acts::Transform3::Identity(),
-      std::make_unique<Acts::CuboidVolumeBounds>(50000, 50000, 50000),
+      std::make_unique<Acts::CuboidVolumeBounds>(5000, 5000, 5000),
       std::vector<std::shared_ptr<Acts::Surface>>(),
       std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(
           {caloVolume}),
@@ -146,6 +147,7 @@ int main() {
       navCfg,
       Acts::getDefaultLogger("NextNavigator", Acts::Logging::Level::VERBOSE));
   auto options = PropagatorOptions(tgContext, mfContext);
+  options.absPdgCode = Acts::eElectron;
   auto propagator = Propagator(
       stepper, navigator,
       Acts::getDefaultLogger("Propagator", Acts::Logging::Level::VERBOSE));
