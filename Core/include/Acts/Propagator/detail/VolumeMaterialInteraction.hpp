@@ -20,7 +20,6 @@ namespace detail {
 struct VolumeMaterialInteraction {
   /// Data from the propagation state
   const TrackingVolume* volume;
-
   /// The particle current position
   const Vector3 pos;
   /// The particle current time
