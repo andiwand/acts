@@ -88,27 +88,24 @@ std::shared_ptr<Acts::Experimental::Detector> buildDetector(
 
   auto caloVolume = Acts::Experimental::DetectorVolumeFactory::construct(
       Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
-      "Calo Volume", caloTransform, std::move(caloBounds),
-      std::vector<std::shared_ptr<Acts::Surface>>(),
-      std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(),
-      Acts::Experimental::tryAllPortalsAndSurfaces());
+      "Calo Volume", caloTransform, std::move(caloBounds), {}, {},
+      Acts::Experimental::tryAllPortalsAndSurfaces(),
+      Acts::Experimental::tryAllSubVolumes());
   caloVolume->assignVolumeMaterial(
       std::make_shared<Acts::HomogeneousVolumeMaterial>(caloMaterial));
 
   auto detectorVolume = Acts::Experimental::DetectorVolumeFactory::construct(
       Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
       "Detector Volume", Acts::Transform3::Identity(),
-      std::make_unique<Acts::CuboidVolumeBounds>(5000, 5000, 5000),
-      std::vector<std::shared_ptr<Acts::Surface>>(),
-      std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(
-          {caloVolume}),
-      Acts::Experimental::tryAllPortalsAndSurfaces());
+      std::make_unique<Acts::CuboidVolumeBounds>(5000, 5000, 5000), {},
+      {caloVolume}, Acts::Experimental::tryAllPortalsAndSurfaces(),
+      Acts::Experimental::tryAllSubVolumes());
 
   auto detector = Acts::Experimental::Detector::makeShared(
       "Detector",
       std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(
           {detectorVolume}),
-      Acts::Experimental::tryAllVolumes());
+      Acts::Experimental::tryRootVolumes());
 
   return detector;
 }
