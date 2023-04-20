@@ -93,8 +93,7 @@ std::shared_ptr<Acts::Experimental::Detector> buildDetector(
       std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>(),
       Acts::Experimental::tryAllPortalsAndSurfaces());
   caloVolume->assignVolumeMaterial(
-      std::make_shared<Acts::HomogeneousVolumeMaterial>(
-          std::move(caloMaterial)));
+      std::make_shared<Acts::HomogeneousVolumeMaterial>(caloMaterial));
 
   auto detectorVolume = Acts::Experimental::DetectorVolumeFactory::construct(
       Acts::Experimental::defaultPortalAndSubPortalGenerator(), tgContext,
@@ -147,7 +146,7 @@ int main() {
       navCfg,
       Acts::getDefaultLogger("NextNavigator", Acts::Logging::Level::VERBOSE));
   auto options = PropagatorOptions(tgContext, mfContext);
-  options.absPdgCode = Acts::eElectron;
+  options.absPdgCode = Acts::eMuon;
   auto propagator = Propagator(
       stepper, navigator,
       Acts::getDefaultLogger("Propagator", Acts::Logging::Level::VERBOSE));
