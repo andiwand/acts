@@ -84,7 +84,8 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   state.stepping.p = 8.;
   state.stepping.q = 9.;
   state.stepping.covTransport = true;
-  state.stepping.navDir = NavigationDirection::Backward;
+  state.stepping.navDir = NavigationDirection::Forward;
+  state.stepping.stepSize = ConstrainedStep(1);
   state.options.mass = 10.;
   state.options.absPdgCode = 11;
   state.navigation.currentVolume = volume.get();
@@ -108,7 +109,7 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   BOOST_CHECK_EQUAL(volMatInt.nav, state.stepping.navDir);
 
   // Evaluate the material
-  bool result = volMatInt.evaluateMaterialSlab(state, navigator);
+  bool result = volMatInt.evaluateMaterialSlab(state, navigator, stepper);
   BOOST_CHECK(result);
   BOOST_CHECK_EQUAL(volMatInt.slab.material(), mat);
   BOOST_CHECK_EQUAL(volMatInt.slab.thickness(), 1.);
@@ -116,7 +117,7 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
 
   // Evaluate the material without a tracking volume
   state.navigation.currentVolume = nullptr;
-  result = volMatInt.evaluateMaterialSlab(state, navigator);
+  result = volMatInt.evaluateMaterialSlab(state, navigator, stepper);
   BOOST_CHECK(!result);
   BOOST_CHECK_EQUAL(volMatInt.pathCorrection, 0.);
 }

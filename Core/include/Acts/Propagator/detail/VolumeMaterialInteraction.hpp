@@ -73,23 +73,28 @@ struct VolumeMaterialInteraction {
   /// @brief This function evaluates the material properties to interact with
   ///
   /// @tparam propagator_state_t Type of the propagator state
+  /// @tparam stepper_t Type of the stepper of the propagation
   /// @tparam navigator_t Type of the propagator state
   ///
   /// @param [in] state State of the propagation
+  /// @param [in] stepper The stepper in use
   /// @param [in] navigator Navigator of the propagation
   ///
   /// @return Boolean statement whether the material is valid
-  template <typename propagator_state_t, typename navigator_t>
+  template <typename propagator_state_t, typename stepper_t,
+            typename navigator_t>
   bool evaluateMaterialSlab(const propagator_state_t& state,
+                            const stepper_t& stepper,
                             const navigator_t& navigator) {
     pathCorrection = 0;
     if (navigator.currentVolume(state.navigation) != nullptr &&
         navigator.currentVolume(state.navigation)->volumeMaterial() !=
             nullptr) {
-      slab = MaterialSlab(navigator.currentVolume(state.navigation)
-                              ->volumeMaterial()
-                              ->material(pos),
-                          1);  // state.stepping.StepSize
+      slab =
+          MaterialSlab(navigator.currentVolume(state.navigation)
+                           ->volumeMaterial()
+                           ->material(pos),
+                       state.stepping.stepSize.value());
     } else {
       slab = MaterialSlab();
     }
