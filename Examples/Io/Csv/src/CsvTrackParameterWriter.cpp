@@ -85,37 +85,50 @@ ActsExamples::ProcessCode ActsExamples::CsvTrackParameterWriter::write(
     data.phi = params[Acts::eBoundPhi];
     data.theta = params[Acts::eBoundTheta];
     data.qop = params[Acts::eBoundQOverP];
+    data.t = params[Acts::eBoundTime];
 
     data.var_d0 = cov(Acts::eBoundLoc0, Acts::eBoundLoc0);
     data.var_z0 = cov(Acts::eBoundLoc1, Acts::eBoundLoc1);
     data.var_phi = cov(Acts::eBoundPhi, Acts::eBoundPhi);
     data.var_theta = cov(Acts::eBoundTheta, Acts::eBoundTheta);
     data.var_qop = cov(Acts::eBoundQOverP, Acts::eBoundQOverP);
+    data.var_t = cov(Acts::eBoundTime, Acts::eBoundTime);
 
     data.cov_d0z0 = cov(Acts::eBoundLoc0, Acts::eBoundLoc1);
     data.cov_d0phi = cov(Acts::eBoundLoc0, Acts::eBoundPhi);
     data.cov_d0theta = cov(Acts::eBoundLoc0, Acts::eBoundTheta);
     data.cov_d0qop = cov(Acts::eBoundLoc0, Acts::eBoundQOverP);
+    data.cov_d0t = cov(Acts::eBoundLoc0, Acts::eBoundTime);
 
     data.cov_z0d0 = cov(Acts::eBoundLoc1, Acts::eBoundLoc0);
     data.cov_z0phi = cov(Acts::eBoundLoc1, Acts::eBoundPhi);
     data.cov_z0theta = cov(Acts::eBoundLoc1, Acts::eBoundTheta);
     data.cov_z0qop = cov(Acts::eBoundLoc1, Acts::eBoundQOverP);
+    data.cov_z0t = cov(Acts::eBoundLoc1, Acts::eBoundTime);
 
     data.cov_phid0 = cov(Acts::eBoundPhi, Acts::eBoundLoc0);
     data.cov_phiz0 = cov(Acts::eBoundPhi, Acts::eBoundLoc1);
     data.cov_phitheta = cov(Acts::eBoundPhi, Acts::eBoundTheta);
     data.cov_phiqop = cov(Acts::eBoundPhi, Acts::eBoundQOverP);
+    data.cov_phit = cov(Acts::eBoundPhi, Acts::eBoundTime);
 
     data.cov_thetad0 = cov(Acts::eBoundTheta, Acts::eBoundLoc0);
     data.cov_thetaz0 = cov(Acts::eBoundTheta, Acts::eBoundLoc1);
     data.cov_thetaphi = cov(Acts::eBoundTheta, Acts::eBoundPhi);
     data.cov_thetaqop = cov(Acts::eBoundTheta, Acts::eBoundQOverP);
+    data.cov_thetat = cov(Acts::eBoundTheta, Acts::eBoundTime);
 
     data.cov_qopd0 = cov(Acts::eBoundQOverP, Acts::eBoundLoc0);
     data.cov_qopz0 = cov(Acts::eBoundQOverP, Acts::eBoundLoc1);
     data.cov_qopphi = cov(Acts::eBoundQOverP, Acts::eBoundPhi);
     data.cov_qoptheta = cov(Acts::eBoundQOverP, Acts::eBoundTheta);
+    data.cov_qopt = cov(Acts::eBoundQOverP, Acts::eBoundTime);
+
+    data.cov_td0 = cov(Acts::eBoundTime, Acts::eBoundLoc0);
+    data.cov_tz0 = cov(Acts::eBoundTime, Acts::eBoundLoc1);
+    data.cov_tphi = cov(Acts::eBoundTime, Acts::eBoundPhi);
+    data.cov_ttheta = cov(Acts::eBoundTime, Acts::eBoundTheta);
+    data.cov_tqop = cov(Acts::eBoundTime, Acts::eBoundQOverP);
 
     writer.append(data);
   }

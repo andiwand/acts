@@ -35,11 +35,11 @@
 #include <memory>
 
 #include "VertexingHelpers.hpp"
-
-ActsExamples::AdaptiveMultiVertexFinderAlgorithm::
-    AdaptiveMultiVertexFinderAlgorithm(const Config& config,
-                                       Acts::Logging::Level level)
-    : ActsExamples::IAlgorithm("AdaptiveMultiVertexFinder", level),
+//where do we use this file?
+ActsExamples::AdaptiveMultiVertexFinderAlgorithm:: //where is this algo defined?
+    AdaptiveMultiVertexFinderAlgorithm(const Config& config, //what does the & mean here?
+                                       Acts::Logging::Level level) //what are config and level? where does this data come from?
+    : ActsExamples::IAlgorithm("AdaptiveMultiVertexFinder", level), //Is this initializing certain variables of this class? how to understand this syntax?
       m_cfg(config) {
   if (m_cfg.inputTrackParameters.empty() == m_cfg.inputTrajectories.empty()) {
     throw std::invalid_argument(
@@ -63,10 +63,10 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::
   m_outputTime.initialize(m_cfg.outputTime);
 }
 
-ActsExamples::ProcessCode
+ActsExamples::ProcessCode //what happens here? 
 ActsExamples::AdaptiveMultiVertexFinderAlgorithm::execute(
-    const ActsExamples::AlgorithmContext& ctx) const {
-  // Set up EigenStepper
+    const ActsExamples::AlgorithmContext& ctx) const { //syntax? what is ctx and where does it come from?
+  // Set up EigenStepper, i.e. ?
   Acts::EigenStepper<> stepper(m_cfg.bField);
 
   // Set up the propagator
@@ -81,28 +81,23 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::execute(
   Linearizer linearizer(ltConfig, logger().cloneWithSuffix("HelLin"));
 
   // Set up deterministic annealing with user-defined temperatures
-  //Acts::AnnealingUtility::Config annealingConfig;
-  //annealingConfig.setOfTemperatures = {1.};
-  //Acts::AnnealingUtility annealingUtility(annealingConfig);
-  std::vector<double> temperatures{8.0, 4.0, 2.0, 1.4142136, 1.2247449, 1.0};
   Acts::AnnealingUtility::Config annealingConfig;
-  annealingConfig.setOfTemperatures = temperatures;
+  annealingConfig.setOfTemperatures = {1.}; //turning annealing off
   Acts::AnnealingUtility annealingUtility(annealingConfig);
 
   // Set up the vertex fitter with user-defined annealing
-  Fitter::Config fitterCfg(ipEstimator); //defined in AdaptiveMultiVertexFinderAlgorithm.hpp
+  Fitter::Config fitterCfg(ipEstimator);
   fitterCfg.annealingTool = annealingUtility;
-  fitterCfg.minWeight = m_cfg.minWeight; //0.001
-  fitterCfg.doSmoothing = true;
+  fitterCfg.minWeight = 0.001; //if I change this value the plot does not change - what do I do wrong?
+  fitterCfg.doSmoothing = true; //what is smoothing?
   Fitter fitter(fitterCfg, logger().cloneWithSuffix("AMVFitter"));
 
   // Set up the vertex seed finder
   SeedFinder seedFinder;
 
-  Finder::Config finderConfig(std::move(fitter), seedFinder, ipEstimator,
-                              std::move(linearizer), m_cfg.bField);
+  Finder::Config finderConfig(std::move(fitter), seedFinder, ipEstimator, //std::move allows compiler to cannibalize its argument's resources
+                              std::move(linearizer), m_cfg.bField); //used when object is soon going to be destroyed and we don't need to keep its resources
   // We do not want to use a beamspot constraint here
-  finderConfig.maxIterations = m_cfg.maxIterations;
   finderConfig.useBeamSpotConstraint = false;
   finderConfig.tracksMaxZinterval = 1. * Acts::UnitConstants::mm;
 

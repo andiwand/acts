@@ -55,6 +55,10 @@ class AdaptiveMultiVertexFinderAlgorithm final : public IAlgorithm {
     std::string outputTime = "time";
     /// The magnetic field
     std::shared_ptr<Acts::MagneticFieldProvider> bField;
+    /// Minimum weight for fitter
+    double minWeight;
+    /// Maximum number of iterations in the finding procedure
+    int maxIterations;
   };
 
   AdaptiveMultiVertexFinderAlgorithm(const Config& config,

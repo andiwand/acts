@@ -49,10 +49,12 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
   unsigned int nIter = 0;
 
   // Start iterating
-  while (nIter < m_cfg.maxIterations &&
-         (!state.annealingState.equilibriumReached || !isSmallShift)) {
+  //std::cout << "\nmaxiterations : " << m_cfg.maxIterations <<"\n";
+  while (nIter < 1 && //m_cfg.maxIterations &&
+         (!state.annealingState.equilibriumReached || !isSmallShift)) { //what happens here: tracks are compatible for the seed. Then, vertex position if adapted incorrectly by fitter and compatibilities explode (i.e., tracks become incompatible!)
     // Initial loop over all vertices in state.vertexCollection
     for (auto currentVtx : state.vertexCollection) {
+      //std::cout << "\ncurrent vtx:\n" << currentVtx->fullPosition() <<"\n";
       VertexInfo<input_track_t>& currentVtxInfo = state.vtxInfoMap[currentVtx];
       currentVtxInfo.relinearize = false;
       // Store old position of vertex, i.e. seed position
@@ -69,11 +71,12 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
         // Prepare for fit with new vertex position
         prepareVertexForFit(state, currentVtx, vertexingOptions);
       }
-      // Determine if constraint vertex exist
+      // Determine if constraint vertex exists
       if (state.vtxInfoMap[currentVtx].constraintVertex.fullCovariance() !=
           SymMatrix4::Zero()) {
+        //std::cout << "\nSetting position to:\n" << state.vtxInfoMap[currentVtx].constraintVertex.fullPosition() << "\n";
         currentVtx->setFullPosition(
-            state.vtxInfoMap[currentVtx].constraintVertex.fullPosition());
+            state.vtxInfoMap[currentVtx].constraintVertex.fullPosition()); //only set z position!
         currentVtx->setFitQuality(
             state.vtxInfoMap[currentVtx].constraintVertex.fitQuality());
         currentVtx->setFullCovariance(
@@ -81,9 +84,10 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
       } else if (currentVtx->fullCovariance() == SymMatrix4::Zero()) {
         return VertexingError::NoCovariance;
       }
+      //std::cout << "\n seed vertex covariance:\n" << currentVtx->fullCovariance();
       double weight =
-          1. / m_cfg.annealingTool.getWeight(state.annealingState, 1.);
-      currentVtx->setFullCovariance(currentVtx->fullCovariance() * weight);
+          1. / m_cfg.annealingTool.getWeight(state.annealingState, 1.); //why do we set chi2=1?
+      currentVtx->setFullCovariance(currentVtx->fullCovariance() * weight);//why do we do this?
 
       // Set vertexCompatibility for all TrackAtVertex objects
       // at current vertex
@@ -103,7 +107,7 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
   // Multivertex fit is finished
 
   // Check if smoothing is required
-  if (m_cfg.doSmoothing) {
+  if (m_cfg.doSmoothing) { //doSmoothing is set to true
     doVertexSmoothing(state);
   }
 
@@ -124,7 +128,7 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::addVtxToFit(
 
   // Prepares vtx and tracks for fast estimation method of their
   // compatibility with vertex
-  auto res = prepareVertexForFit(state, &newVertex, vertexingOptions);
+  auto res = prepareVertexForFit(state, &newVertex, vertexingOptions); 
   if (!res.ok()) {
     return res.error();
   }
@@ -132,6 +136,9 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::addVtxToFit(
   std::vector<Vertex<input_track_t>*> lastIterAddedVertices = {&newVertex};
   // List of vertices added in current iteration
   std::vector<Vertex<input_track_t>*> currentIterAddedVertices;
+
+  //BUG (?) forgot to add newVertex to verticesToFit
+  verticesToFit.push_back(&newVertex);
 
   // Loop as long as new vertices are found that share tracks with
   // previously added vertices
@@ -168,6 +175,8 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::addVtxToFit(
   }  // End while loop
 
   state.vertexCollection = verticesToFit;
+
+  //std::cout << "\n number of vertices to fit: " << verticesToFit.size() << " pos of first vertex: " << verticesToFit.at(0)->fullPosition();
 
   // Perform fit on all added vertices
   auto fitRes = fitImpl(state, linearizer, vertexingOptions);
@@ -207,6 +216,7 @@ Acts::Result<void> Acts::
     }
     // Set ip3dParams for current trackAtVertex
     currentVtxInfo.ip3dParams.emplace(trk, res.value());
+    //std::cout << "\nimpact params: \n" << res.value()<<"\n";
   }
   return {};
 }
@@ -218,7 +228,6 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::
         State& state, Vertex<input_track_t>* currentVtx,
         const VertexingOptions<input_track_t>& vertexingOptions) const {
   VertexInfo<input_track_t>& currentVtxInfo = state.vtxInfoMap[currentVtx];
-
   // Loop over tracks at current vertex and
   // estimate compatibility with vertex
   for (const auto& trk : currentVtxInfo.trackLinks) {
@@ -242,6 +251,7 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::
     auto compRes = m_cfg.ipEst.get3dVertexCompatibility(
         vertexingOptions.geoContext, &(currentVtxInfo.ip3dParams.at(trk)),
         VectorHelpers::position(currentVtxInfo.oldPosition));
+    //std::cout << "\n compatibility" << *compRes << " \n";
     if (!compRes.ok()) {
       return compRes.error();
     }
@@ -255,20 +265,32 @@ Acts::Result<void> Acts::
     AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::setWeightsAndUpdate(
         State& state, const linearizer_t& linearizer,
         const VertexingOptions<input_track_t>& vertexingOptions) const {
+  //std::cout << "\n minWeight: " << m_cfg.minWeight <<"\n";
+  //std::cout << "\ntrack weights:\n";
+
   for (auto vtx : state.vertexCollection) {
     VertexInfo<input_track_t>& currentVtxInfo = state.vtxInfoMap[vtx];
+    double avgTrackWeight = 0.;
+    int trackCnt = 0;
+    //std::cout << "\n vertex pos:\n" << vtx->fullPosition();
+    //std::cout << "\n vertex covariance:\n" << vtx->fullCovariance();
     for (const auto& trk : currentVtxInfo.trackLinks) {
       auto& trkAtVtx = state.tracksAtVerticesMap.at(std::make_pair(trk, vtx));
-
+      if (trackCnt > 0) break;
+      ++trackCnt;
       // Set trackWeight for current track
       double currentTrkWeight = m_cfg.annealingTool.getWeight(
           state.annealingState, trkAtVtx.vertexCompatibility,
           collectTrackToVertexCompatibilities(state, trk));
       trkAtVtx.trackWeight = currentTrkWeight;
-
+      avgTrackWeight += currentTrkWeight;
+      std::cout << "\n" << currentTrkWeight << "\n";
       if (trkAtVtx.trackWeight > m_cfg.minWeight) {
         // Check if linearization state exists or need to be relinearized
         if (not trkAtVtx.isLinearized || state.vtxInfoMap[vtx].relinearize) {
+          auto params = m_extractParameters(*trk);
+          //std::cout << "\ntrack params:\n" << trk << "\n";
+          //std::cout << "\ntrack covariance matrix:\n" << params.covariance().value() << "\n";
           auto result = linearizer.linearizeTrack(
               m_extractParameters(*trk), state.vtxInfoMap[vtx].oldPosition,
               vertexingOptions.geoContext, vertexingOptions.magFieldContext,
@@ -283,15 +305,20 @@ Acts::Result<void> Acts::
 
           trkAtVtx.linearizedState = *result;
           trkAtVtx.isLinearized = true;
+          //std::cout << "\n position linearizationPoint:\n" << result->linearizationPoint << "\n\n";
+          //std::cout << "\n position positionAtPCA:\n" << result->positionAtPCA << "\n\n";
         }
         // Update the vertex with the new track
         KalmanVertexUpdater::updateVertexWithTrack<input_track_t>(*vtx,
                                                                   trkAtVtx);
+      //std::cout << "\n fitted position:\n" << vtx->fullPosition() << "\n\n";
       } else {
         ACTS_VERBOSE("Track weight too low. Skip track.");
       }
     }  // End loop over tracks at vertex
     ACTS_VERBOSE("New vertex position: " << vtx->fullPosition().transpose());
+    avgTrackWeight /= trackCnt;
+    //std::cout << "\navg track Weight: " << avgTrackWeight << "\n";
   }  // End loop over vertex collection
 
   return {};

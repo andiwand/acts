@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import numpy as np
 import argparse
 import tempfile
 import shutil
 import datetime
 import sys
+import uproot
 
 sys.path += [
     str(Path(__file__).parent.parent.parent / "Examples/Scripts/Python/"),
@@ -325,6 +327,7 @@ def run_vertexing(fitter, mu, events):
             field,
             vertexFinder=fitter,
             outputDirRoot=tp,
+            minWeight=0.001,
         )
 
         s.run()
@@ -333,14 +336,17 @@ def run_vertexing(fitter, mu, events):
 
         perf_file = tp / f"performance_vertexing.root"
         assert perf_file.exists(), "Performance file not found"
+        rf = uproot.open(f"{perf_file}:vertexing")
+        nreco = rf["nRecoVtx"].array(library="np")
         shutil.copy(
             perf_file,
             outdir / f"performance_vertexing_{fitter.name}_mu{mu}.root",
         )
+        return nreco
 
 
 with acts.FpeMonitor():
-
+    '''
     ### Truth tracking with Kalman Filter
 
     truth_tracking_kalman()
@@ -358,15 +364,16 @@ with acts.FpeMonitor():
         (False, False, "orthogonal"),
     ]:
         run_ckf_tracking(truthSmearedSeeded, truthEstimatedSeeded, label)
-
+    '''
     ### VERTEX MU SCAN
-
-    for fitter in (VertexFinder.Iterative, VertexFinder.AMVF):
-        for mu in (1, 10, 25, 50, 75, 100, 125, 150, 175, 200):
+    events = 5
+    mus = (100,)#(1, 10, 25, 50, 75, 100, 125, 150, 175, 200)
+    nrecos = np.zeros((2, len(mus), events))
+    for fitter_ind, fitter in enumerate((VertexFinder.Iterative, VertexFinder.AMVF)):
+        for mu_ind, mu in enumerate(mus):
             start = datetime.datetime.now()
 
-            events = 5
-            run_vertexing(fitter, mu, events)
+            nrecos[fitter_ind, mu_ind, :] = run_vertexing(fitter, mu, events)
 
             delta = datetime.datetime.now() - start
 
@@ -375,3 +382,6 @@ with acts.FpeMonitor():
             (
                 outdir / f"performance_vertexing_{fitter.name}_mu{mu}_time.txt"
             ).write_text(str(duration))
+    print(f'for mu = {mu}:')
+    print('avg reconstructed vertices for iterative vertex finder', np.mean(nrecos[0, mu_ind]))
+    print('avg reconstructed vertices for AMVF vertex finder', np.mean(nrecos[1, mu_ind]))

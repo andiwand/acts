@@ -41,6 +41,8 @@ void Acts::KalmanVertexUpdater::detail::update(
   // Calculate ndf
   ndf += sign * trackWeight * 2.;
 
+  std::cout << "\nchi2, ndf, newVertexPos:\n" << chi2 << " " << ndf << "\n" << matrixCache.newVertexPos << "\n";
+
   // Updating the vertex
   vtx.setPosition(matrixCache.newVertexPos);
   vtx.setCovariance(matrixCache.newVertexCov);

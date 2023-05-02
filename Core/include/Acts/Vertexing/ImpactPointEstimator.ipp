@@ -44,6 +44,9 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
   Vector3 deltaR;
   Vector3 momDir;
 
+  //std::cout << "\n track params: \n" << trkParams << "\n";
+  //std::cout << "\n vtx pos: \n" << vtxPos << "\n";
+
   auto res =
       getDistanceAndMomentum(gctx, trkParams, vtxPos, deltaR, momDir, state);
 
@@ -77,6 +80,9 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // Do the propagation to linPointPos
   auto result = m_cfg.propagator->propagate(trkParams, *planeSurface, pOptions);
+
+  //std::cout << "\n impact parameters: \n" << *result->endParameters << "\n";
+
   if (result.ok()) {
     return *result->endParameters;
   } else {
@@ -94,14 +100,16 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
   if (trkParams == nullptr) {
     return VertexingError::EmptyInput;
   }
-
+  //std::cout << "\nglobal vertex x and y coordinate:\n" << vertexPos << "\n";
   // surface rotation
   RotationMatrix3 myRotation =
-      trkParams->referenceSurface().transform(gctx).rotation();
+      trkParams->referenceSurface().transform(gctx).rotation(); //non-unity
   // Surface translation
   Vector3 myTranslation =
-      trkParams->referenceSurface().transform(gctx).translation();
-
+      trkParams->referenceSurface().transform(gctx).translation(); //translation in z-direction --> quite big? 
+  
+  //std::cout << "\nRotation:\n" << myRotation << "\n";
+  //std::cout << "\nTranslation:\n" << myTranslation << "\n";
   // x and y direction of plane
   Vector3 xDirPlane = myRotation.col(0);
   Vector3 yDirPlane = myRotation.col(1);
@@ -111,20 +119,21 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // local x/y vertex position
   Vector2 vertexLocXY{vertexLocPlane.dot(xDirPlane),
-                      vertexLocPlane.dot(yDirPlane)};
-
+                      vertexLocPlane.dot(yDirPlane)}; 
+  //std::cout << "\nlocal vertex x and y coordinate:\n" << vertexLocXY << "\n";
   // track covariance
   if (not trkParams->covariance().has_value()) {
     return VertexingError::NoCovariance;
   }
   auto cov = trkParams->covariance();
-  SymMatrix2 myWeightXY = cov->block<2, 2>(0, 0).inverse();
+  SymMatrix2 myWeightXY = cov->block<2, 2>(0, 0).inverse(); //why is this only for x and y? and not for other params?
+  //std::cout << "\nWeightsXY:\n" << myWeightXY << "\n";
 
   // 2-dim residual
   Vector2 myXYpos =
       Vector2(trkParams->parameters()[eX], trkParams->parameters()[eY]) -
       vertexLocXY;
-
+  //std::cout << "\nlocal track x and y coordinate:\n" << trkParams->parameters()[eX] << "   " << trkParams->parameters()[eY] << "\n";
   // return chi2
   return myXYpos.dot(myWeightXY * myXYpos);
 }
@@ -224,7 +233,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   Vector3 vec0 = trkSurfaceCenter + Vector3(-(d0 - r) * std::sin(phi),
                                             (d0 - r) * std::cos(phi),
-                                            z0 + r * phi * cotTheta);
+                                            z0 + r * phi * cotTheta); //interpretation of this vector?
 
   // Perform newton approximation method
   // this will change the value of phi
@@ -239,7 +248,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
   double sinPhi = std::sin(phi);
 
   // Set momentum direction
-  momDir = Vector3(sinTheta * cosPhi, sinPhi * sinTheta, std::cos(theta));
+  momDir = Vector3(sinTheta * cosPhi, sinPhi * sinTheta, std::cos(theta)); //this is still in the local coordinate system?
 
   // point of closest approach in 3D
   Vector3 pointCA3d = vec0 + r * Vector3(-sinPhi, cosPhi, -cotTheta * phi);

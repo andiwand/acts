@@ -1358,6 +1358,8 @@ def addVertexFitting(
     vertexFinder: VertexFinder = VertexFinder.Truth,
     trackSelectorRanges: Optional[TrackSelectorRanges] = None,
     logLevel: Optional[acts.logging.Level] = None,
+    minWeight: Optional[float] = 0.001,
+    maxIterations: Optional[int] = 100
 ) -> None:
     """This function steers the vertex fitting
 
@@ -1447,6 +1449,8 @@ def addVertexFitting(
             outputProtoVertices="protovertices",
             outputVertices=outputVertices,
             outputTime=outputTime,
+            minWeight=minWeight,
+            maxIterations=maxIterations,
         )
         s.addAlgorithm(findVertices)
     else:

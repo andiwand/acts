@@ -33,17 +33,17 @@ namespace Acts {
 ///
 ///////////////////////////////////////////////////////////////////////////
 ///
-/// @tparam input_track_t Track object type
+/// @tparam input_track_t Track object type //tparam denotes that input_track_t will be a template argument
 /// @tparam linearizer_t Track linearizer type
-template <typename input_track_t, typename linearizer_t>
-class AdaptiveMultiVertexFitter {
+template <typename input_track_t, typename linearizer_t> //input_track_t and linearizer_t stand for an arbitrary data type in the following
+class AdaptiveMultiVertexFitter { //why is the class called like this, but later we only write Fitter:: instead of AdaptiveMultiVertexFilter::?
   static_assert(LinearizerConcept<linearizer_t>,
                 "Linearizer does not fulfill linearizer concept.");
 
  public:
-  using InputTrack_t = input_track_t;
-  using Propagator_t = typename linearizer_t::Propagator_t;
-  using Linearizer_t = linearizer_t;
+  using InputTrack_t = input_track_t; //here we don't need to write typename but we could (?), InputTrack_t is capitalized as a convention
+  using Propagator_t = typename linearizer_t::Propagator_t; //typename specifies that the following is considered a type name rather than the variable Propagator_t from class linearizer_t
+  using Linearizer_t = linearizer_t; // what is the meaning of these things?
 
  private:
   using IPEstimator = ImpactPointEstimator<InputTrack_t, Propagator_t>;
@@ -51,18 +51,18 @@ class AdaptiveMultiVertexFitter {
  public:
   /// @brief The fitter state
   struct State {
-    State(const MagneticFieldProvider& field,
-          const Acts::MagneticFieldContext& magContext)
-        : ipState(field.makeCache(magContext)),
-          linearizerState(field.makeCache(magContext)) {}
+    State(const MagneticFieldProvider& field, //passing a reference to the field to avoid copying the variable (&) and ensuring that it won't be modified (const)
+          const Acts::MagneticFieldContext& magContext) 
+        : ipState(field.makeCache(magContext)), 
+          linearizerState(field.makeCache(magContext)) {} //what is ipState/linearizerState? why do we use round brackets instead of curly ones?
     // Vertex collection to be fitted
-    std::vector<Vertex<InputTrack_t>*> vertexCollection;
+    std::vector<Vertex<InputTrack_t>*> vertexCollection; //vector of pointers to vertices
 
     // Annealing state
-    AnnealingUtility::State annealingState;
+    AnnealingUtility::State annealingState; 
 
     // IPEstimator state
-    typename IPEstimator::State ipState;
+    typename IPEstimator::State ipState; //why do we need typename here and above not?
 
     // Linearizer state
     typename Linearizer_t::State linearizerState;
@@ -75,17 +75,17 @@ class AdaptiveMultiVertexFitter {
 
     std::map<std::pair<const InputTrack_t*, Vertex<InputTrack_t>*>,
              TrackAtVertex<InputTrack_t>>
-        tracksAtVerticesMap;
+        tracksAtVerticesMap; //what are tracks at vertices?
 
     /// @brief Default State constructor
-    State() = default;
+    State() = default; //should this constructor not be beneath the first one to make code cleaner?
 
     // Adds a vertex to trackToVerticesMultiMap
     void addVertexToMultiMap(Vertex<InputTrack_t>& vtx) {
       for (auto trk : vtxInfoMap[&vtx].trackLinks) {
         trackToVerticesMultiMap.emplace(trk, &vtx);
       }
-    }
+    } 
 
     // Removes a vertex from trackToVerticesMultiMap
     void removeVertexFromMultiMap(Vertex<InputTrack_t>& vtx) {
@@ -141,16 +141,17 @@ class AdaptiveMultiVertexFitter {
   ///
   /// @param cfg Configuration object
   /// @param logger The logging instance
+  //why do we need to distinguish the two cases?
   template <
       typename T = InputTrack_t,
-      std::enable_if_t<std::is_same<T, BoundTrackParameters>::value, int> = 0>
+      std::enable_if_t<std::is_same<T, BoundTrackParameters>::value, int> = 0> //std_is_same<T1, T2>::value is true if T1 and T2 are of the same type, else it is false, how does this work exactly?
   AdaptiveMultiVertexFitter(Config& cfg,
                             std::unique_ptr<const Logger> logger =
                                 getDefaultLogger("AdaptiveMultiVertexFitter",
-                                                 Logging::INFO))
-      : m_cfg(std::move(cfg)),
-        m_extractParameters([](T params) { return params; }),
-        m_logger(std::move(logger)) {}
+                                                 Logging::INFO)) //what is the logger?
+      : m_cfg(std::move(cfg)), //m_ stands for member and is used for member variables of a class,
+        m_extractParameters([](T params) { return params; }), //what happens here?
+        m_logger(std::move(logger)) {} //std::move destroys logger (or rather its resources) after copying it to m_logger, what is a logger?
 
   /// @brief Constructor for user-defined InputTrack_t type !=
   /// BoundTrackParameters
@@ -176,10 +177,10 @@ class AdaptiveMultiVertexFitter {
   /// @param vertexingOptions Vertexing options
   ///
   /// @return Result<void> object
-  Result<void> fit(
+  Result<void> fit( //why did we introduce ACTS::Result<void>?
       State& state, const std::vector<Vertex<InputTrack_t>*>& verticesToFit,
       const Linearizer_t& linearizer,
-      const VertexingOptions<InputTrack_t>& vertexingOptions) const;
+      const VertexingOptions<InputTrack_t>& vertexingOptions) const; //const at the end means that function can't modify member variables
 
   /// @brief Adds new vertex to an existing multi-vertex fit
   /// and fits everything together (by invoking the fit_impl method):
@@ -209,15 +210,16 @@ class AdaptiveMultiVertexFitter {
       const Linearizer_t& linearizer,
       const VertexingOptions<InputTrack_t>& vertexingOptions) const;
 
- private:
-  /// Configuration object
-  const Config m_cfg;
 
+  /// Configuration object
+  const Config m_cfg; 
+  const Config& config() const { return m_cfg; }
+ //why do we change between private and public so often? 
   /// @brief Function to extract track parameters,
   /// InputTrack_t objects are BoundTrackParameters by default, function to be
   /// overwritten to return BoundTrackParameters for other InputTrack_t objects.
   std::function<BoundTrackParameters(InputTrack_t)> m_extractParameters;
-
+private: //TODO: put make Config and m_extractParameters private again
   /// Logging instance
   std::unique_ptr<const Logger> m_logger;
 
@@ -275,10 +277,11 @@ class AdaptiveMultiVertexFitter {
   /// @param state The state object
   /// @param linearizer The track linearizer
   /// @param vertexingOptions Vertexing options
+  public:
   Result<void> setWeightsAndUpdate(
       State& state, const Linearizer_t& linearizer,
       const VertexingOptions<input_track_t>& vertexingOptions) const;
-
+  private:
   /// @brief Collects all compatibility values of the track `trk`
   /// at all vertices it is currently attached to and outputs
   /// these values in a vector
@@ -287,9 +290,10 @@ class AdaptiveMultiVertexFitter {
   /// @param trk The track
   ///
   /// @return Vector of compatibility values
+  public:
   std::vector<double> collectTrackToVertexCompatibilities(
       State& state, const InputTrack_t* trk) const;
-
+  private:
   /// @brief Determines if vertex position has shifted more than
   /// m_cfg.maxRelativeShift in last iteration
   ///

@@ -268,21 +268,24 @@ struct TrackParameterData {
   double phi;
   double theta;
   double qop;
+  double t;
 
-  double var_d0, var_z0, var_phi, var_theta, var_qop;
+  double var_d0, var_z0, var_phi, var_theta, var_qop, var_t;
 
-  double cov_d0z0, cov_d0phi, cov_d0theta, cov_d0qop;
-  double cov_z0d0, cov_z0phi, cov_z0theta, cov_z0qop;
-  double cov_phid0, cov_phiz0, cov_phitheta, cov_phiqop;
-  double cov_thetad0, cov_thetaz0, cov_thetaphi, cov_thetaqop;
-  double cov_qopd0, cov_qopz0, cov_qopphi, cov_qoptheta;
+  double cov_d0z0, cov_d0phi, cov_d0theta, cov_d0qop, cov_d0t;
+  double cov_z0d0, cov_z0phi, cov_z0theta, cov_z0qop, cov_z0t;
+  double cov_phid0, cov_phiz0, cov_phitheta, cov_phiqop, cov_phit;
+  double cov_thetad0, cov_thetaz0, cov_thetaphi, cov_thetaqop, cov_thetat;
+  double cov_qopd0, cov_qopz0, cov_qopphi, cov_qoptheta, cov_qopt;
+  double cov_td0, cov_tz0, cov_tphi, cov_ttheta, cov_tqop;
 
-  DFE_NAMEDTUPLE(TrackParameterData, d0, z0, phi, theta, qop, var_d0, var_z0,
-                 var_phi, var_theta, var_qop, cov_d0z0, cov_d0phi, cov_d0theta,
-                 cov_d0qop, cov_z0d0, cov_z0phi, cov_z0theta, cov_z0qop,
-                 cov_phid0, cov_phiz0, cov_phitheta, cov_phiqop, cov_thetad0,
-                 cov_thetaz0, cov_thetaphi, cov_thetaqop, cov_qopd0, cov_qopz0,
-                 cov_qopphi, cov_qoptheta);
+  DFE_NAMEDTUPLE(TrackParameterData, d0, z0, phi, theta, qop, t, var_d0, var_z0,
+                 var_phi, var_theta, var_qop, var_t, cov_d0z0, cov_d0phi, cov_d0theta,
+                 cov_d0qop, cov_d0t, cov_z0d0, cov_z0phi, cov_z0theta, cov_z0qop, cov_z0t,
+                 cov_phid0, cov_phiz0, cov_phitheta, cov_phiqop, cov_phit, cov_thetad0,
+                 cov_thetaz0, cov_thetaphi, cov_thetaqop, cov_thetat, cov_qopd0, cov_qopz0,
+                 cov_qopphi, cov_qoptheta, cov_qopt,cov_td0, cov_tz0, cov_tphi, cov_ttheta, 
+                 cov_tqop);
 };
 
 }  // namespace ActsExamples
