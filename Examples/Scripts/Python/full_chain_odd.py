@@ -14,6 +14,9 @@ from acts.examples.simulation import (
 from acts.examples.reconstruction import (
     addSeeding,
     TruthSeedRanges,
+    SeedingAlgorithm,
+    ParticleSmearingSigmas,
+    SeedFinderConfigArg,
     addCKFTracks,
     CKFPerformanceConfig,
     TrackSelectorRanges,
@@ -170,6 +173,7 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
         ParticleSmearingSigmas(
             pRel=0.01
         ),
+        initialVarInflation=[100,100,100,100,100,100],
         seedingAlgorithm=SeedingAlgorithm.TruthSmeared if seedingTruthSmeared else SeedingAlgorithm.Default,
         geoSelectionConfigFile=oddSeedingSel,
         outputDirRoot=outputDir,
@@ -218,11 +222,12 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
             # outputDirCsv=outputDir,
         )
 
-    addVertexFitting(
-        s,
-        field,
-        vertexFinder=VertexFinder.Iterative,
-        outputDirRoot=outputDir,
-    )
+    # disabled for now because of funny FPE
+    #addVertexFitting(
+    #    s,
+    #    field,
+    #    vertexFinder=VertexFinder.Iterative,
+    #    outputDirRoot=outputDir,
+    #)
 
     s.run()
