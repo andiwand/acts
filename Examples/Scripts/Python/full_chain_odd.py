@@ -85,8 +85,8 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
     if not ttbar:
         addParticleGun(
             s,
-            MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
-            EtaConfig(-3.0, 3.0, uniform=True),
+            MomentumConfig(10.0 * u.GeV, 10.0 * u.GeV, transverse=True),
+            EtaConfig(-0.5, 0.5, uniform=True),
             ParticleConfig(2, acts.PdgParticle.eMuon, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
                 stddev=acts.Vector4(
