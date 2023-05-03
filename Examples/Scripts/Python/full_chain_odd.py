@@ -43,12 +43,18 @@ parser.add_argument(
     help="Use the Ml Ambiguity Solver instead of the classical one",
     action="store_true",
 )
+parser.add_argument(
+    "--seeding-truth-smeared",
+    help="Use truth smeared seeding",
+    action="store_true",
+)
 
 args = vars(parser.parse_args())
 
 ttbar = args["ttbar"]
 g4_simulation = args["geant4"]
 ambiguity_MLSolver = args["MLSolver"]
+seedingTruthSmeared = args["seeding_truth_smeared"]
 u = acts.UnitConstants
 geoDir = getOpenDataDetectorDirectory()
 outputDir = pathlib.Path.cwd() / "odd_output"
@@ -161,6 +167,10 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
         TruthSeedRanges(pt=(1.0 * u.GeV, None), eta=(-3.0, 3.0), nHits=(9, None))
         if ttbar
         else TruthSeedRanges(),
+        ParticleSmearingSigmas(
+            pRel=0.01
+        ),
+        seedingAlgorithm=SeedingAlgorithm.TruthSmeared if seedingTruthSmeared else SeedingAlgorithm.Default,
         geoSelectionConfigFile=oddSeedingSel,
         outputDirRoot=outputDir,
     )
