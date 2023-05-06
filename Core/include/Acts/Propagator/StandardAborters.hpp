@@ -142,12 +142,16 @@ struct SurfaceReached {
         state.geoContext, stepper.position(state.stepping),
         state.stepping.navDir * stepper.direction(state.stepping), true);
 
+    ACTS_VERBOSE("Target: x | reference surface "
+                 << std::tie(targetSurface, state.geoContext));
     ACTS_VERBOSE("Target: x | "
                  << "intersecting Target surface from "
                  << stepper.position(state.stepping).transpose()
                  << " and direction "
-                 << (state.stepping.navDir * stepper.direction(state.stepping))
-                        .transpose());
+                 << (stepper.direction(state.stepping) *
+                     stepper.momentum(state.stepping))
+                        .transpose()
+                 << " results in " << sIntersection.intersection.status);
 
     // The target is reached
     bool targetReached = (sIntersection.intersection.status ==

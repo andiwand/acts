@@ -156,8 +156,7 @@ Acts::SurfaceIntersection Acts::LineSurface::intersect(
       // At closest approach: check inside R or and inside Z
       const Vector3 vecLocal(result - mb);
       double cZ = vecLocal.dot(eb);
-      double hZ =
-          m_bounds->get(LineBounds::eHalfLengthZ) + onSurfaceTolerance;
+      double hZ = m_bounds->get(LineBounds::eHalfLengthZ) + onSurfaceTolerance;
       if ((std::abs(cZ) > std::abs(hZ)) or
           ((vecLocal - cZ * eb).norm() >
            m_bounds->get(LineBounds::eR) + onSurfaceTolerance)) {

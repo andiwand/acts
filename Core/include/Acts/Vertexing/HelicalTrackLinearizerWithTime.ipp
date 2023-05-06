@@ -328,7 +328,7 @@ void Acts::HelicalTrackLinearizerWithTime<propagator_t, propagator_options_t>::
 
   // calculate the params for a slightly shifted vertex
   bool shiftRef = false;
-  double delta = 0.0001;
+  double delta = 0.01;
 
   Vector3 globalCoords = endParams.position(gctx);
 
@@ -350,13 +350,19 @@ void Acts::HelicalTrackLinearizerWithTime<propagator_t, propagator_options_t>::
     }
 
     std::cout << "momentum " << endParams.momentum().transpose() << std::endl;
+    std::cout << "momentum shifted " << endParamsShifted.momentum().transpose()
+              << std::endl;
+
+    std::cout << "endParams reference surface "
+              << std::tie(endParams.referenceSurface(), gctx) << std::endl;
+    std::cout << "endParams " << paramsAtPCA << std::endl;
+    std::cout << "endParams after wiggle: " << endParamsShifted << std::endl;
 
     std::cout << "global " << globalCoords.transpose() << std::endl;
     std::cout << "global after wiggle " << globalCoordsShifted.transpose()
               << std::endl;
-
-    std::cout << "endParams " << paramsAtPCA << std::endl;
-    std::cout << "endParams after wiggle: " << endParamsShifted << std::endl;
+    std::cout << "global after wiggle "
+              << endParamsShifted.position(gctx).transpose() << std::endl;
 
     intersection = perigeeSurface->intersect(
         gctx, globalCoordsShifted, endParamsShifted.unitDirection(), true);
