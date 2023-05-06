@@ -75,8 +75,7 @@ struct GsfActor {
     std::size_t maxComponents = 16;
 
     /// Input measurements
-    std::map<GeometryIdentifier, std::reference_wrapper<const SourceLink>>
-        inputMeasurements;
+    const std::map<GeometryIdentifier, SourceLink>* inputMeasurements = nullptr;
 
     /// Bethe Heitler Approximator pointer. The fitter holds the approximator
     /// instance TODO if we somehow could initialize a reference here...
@@ -219,12 +218,12 @@ struct GsfActor {
 
     // Check what we have on this surface
     const auto found_source_link =
-        m_cfg.inputMeasurements.find(surface.geometryId());
+        m_cfg.inputMeasurements->find(surface.geometryId());
     const bool haveMaterial =
         navigator.currentSurface(state.navigation)->surfaceMaterial() &&
         !m_cfg.disableAllMaterialHandling;
     const bool haveMeasurement =
-        found_source_link != m_cfg.inputMeasurements.end();
+        found_source_link != m_cfg.inputMeasurements->end();
 
     ACTS_VERBOSE(std::boolalpha << "haveMaterial " << haveMaterial
                                 << ", haveMeasurement: " << haveMeasurement);
@@ -405,7 +404,7 @@ struct GsfActor {
       auto new_pars = old_bound.parameters();
 
       const auto delta_p = [&]() {
-        if (state.stepping.navDir == NavigationDirection::Forward) {
+        if (state.stepping.navDir == Direction::Forward) {
           return p_prev * (gaussian.mean - 1.);
         } else {
           return p_prev * (1. / gaussian.mean - 1.);
@@ -422,7 +421,7 @@ struct GsfActor {
       auto new_cov = old_bound.covariance().value();
 
       const auto varInvP = [&]() {
-        if (state.stepping.navDir == NavigationDirection::Forward) {
+        if (state.stepping.navDir == Direction::Forward) {
           const auto f = 1. / (p_prev * gaussian.mean);
           return f * f * gaussian.var;
         } else {
@@ -791,6 +790,45 @@ struct GsfActor {
     m_cfg.abortOnError = options.abortOnError;
     m_cfg.disableAllMaterialHandling = options.disableAllMaterialHandling;
     m_cfg.weightCutoff = options.weightCutoff;
+  }
+};
+
+/// An actor that collects the final multi component state once the propagation
+/// finished
+struct FinalStateCollector {
+  using MultiPars = Acts::Experimental::GsfConstants::FinalMultiComponentState;
+
+  struct result_type {
+    MultiPars pars;
+  };
+
+  template <typename propagator_state_t, typename stepper_t,
+            typename navigator_t>
+  void operator()(propagator_state_t& state, const stepper_t& stepper,
+                  const navigator_t& navigator, result_type& result,
+                  const Logger& /*logger*/) const {
+    if (not(navigator.targetReached(state.navigation) and
+            navigator.currentSurface(state.navigation))) {
+      return;
+    }
+
+    const auto& surface = *navigator.currentSurface(state.navigation);
+    std::vector<std::tuple<double, BoundVector, std::optional<BoundSymMatrix>>>
+        states;
+
+    for (auto cmp : stepper.componentIterable(state.stepping)) {
+      auto singleState = cmp.singleState(state);
+      auto bs = cmp.singleStepper(stepper).boundState(singleState.stepping,
+                                                      surface, true);
+
+      if (bs.ok()) {
+        const auto& btp = std::get<BoundTrackParameters>(*bs);
+        states.emplace_back(cmp.weight(), btp.parameters(), btp.covariance());
+      }
+    }
+
+    result.pars =
+        typename MultiPars::value_type(surface.getSharedPtr(), states);
   }
 };
 

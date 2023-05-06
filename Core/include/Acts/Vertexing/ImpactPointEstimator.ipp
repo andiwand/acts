@@ -76,7 +76,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // Create propagator options
   propagator_options_t pOptions(gctx, mctx);
-  pOptions.direction = NavigationDirection::Backward;
+  pOptions.direction = Direction::Backward;
 
   // Do the propagation to linPointPos
   auto result = m_cfg.propagator->propagate(trkParams, *planeSurface, pOptions);
@@ -276,7 +276,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // Create propagator options
   propagator_options_t pOptions(gctx, mctx);
-  pOptions.direction = NavigationDirection::Backward;
+  pOptions.direction = Direction::Backward;
 
   // Do the propagation to linPoint
   auto result = m_cfg.propagator->propagate(track, *perigeeSurface, pOptions);
@@ -379,7 +379,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // Create propagator options
   propagator_options_t pOptions(gctx, mctx);
-  pOptions.direction = NavigationDirection::Backward;
+  pOptions.direction = Direction::Backward;
 
   // Do the propagation to the perigeee
   auto result = m_cfg.propagator->propagate(track, *perigeeSurface, pOptions);
@@ -423,7 +423,7 @@ Acts::ImpactPointEstimator<input_track_t, propagator_t, propagator_options_t>::
 
   // Create propagator options
   propagator_options_t pOptions(gctx, mctx);
-  pOptions.direction = NavigationDirection::Backward;
+  pOptions.direction = Direction::Backward;
 
   // Do the propagation to the perigeee
   auto result = m_cfg.propagator->propagate(track, *perigeeSurface, pOptions);
