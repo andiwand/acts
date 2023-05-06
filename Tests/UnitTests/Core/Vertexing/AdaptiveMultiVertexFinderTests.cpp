@@ -24,6 +24,7 @@
 #include "Acts/Vertexing/ImpactPointEstimator.hpp"
 #include "Acts/Vertexing/TrackDensityVertexFinder.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
+#include "Acts/Vertexing/HelicalTrackLinearizerWithTime.hpp"
 
 #include <chrono>
 
@@ -36,7 +37,7 @@ using namespace Acts::UnitLiterals;
 
 using Covariance = BoundSymMatrix;
 using Propagator = Acts::Propagator<EigenStepper<>>;
-using Linearizer = HelicalTrackLinearizer<Propagator>;
+using Linearizer = HelicalTrackLinearizerWithTime<Propagator>;
 
 // Create a test context
 GeometryContext geoContext = GeometryContext();
@@ -675,6 +676,7 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
     for (const auto& trk : tracks) {
       std::cout << trkCount+1 << ". track: " << std::endl;
       std::cout << "params: \n" << trk << std::endl;
+      std::cout << "pos: \n" << trk.position(geoContext) << std::endl;
       //std::cout << "covariance: \n" << trk.covariance().value() << std::endl;
       trkCount++;
       if (trkCount == maxCount) {
@@ -833,10 +835,10 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
       std::cout << *compRes << "\n";
     }
   }
-  finder.config().vertexFitter.setWeightsAndUpdate(fitterState, finder.config().linearizer, vertexingOptions);
+  //finder.config().vertexFitter.setWeightsAndUpdate(fitterState, finder.config().linearizer, vertexingOptions);
 
   //compute track weights
-  /*
+  
   if (printWeights) {
     std::cout << "\n\nTrack Weights (minWeight = " << finder.config().vertexFitter.m_cfg.minWeight << ")\n";
   }
@@ -846,11 +848,13 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
   if (printFittedVtx){
     std::cout << "Vertex positions when adding tracks to the fit:\n";
   }
+  int trkCnt = 0;
   for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks) {
     auto& trkAtVtx = fitterState.tracksAtVerticesMap.at(std::make_pair(trk, &seed));
     double currentTrkWeight = finder.config().vertexFitter.m_cfg.annealingTool.getWeight(
           fitterState.annealingState, trkAtVtx.vertexCompatibility,
           finder.config().vertexFitter.collectTrackToVertexCompatibilities(fitterState, trk));
+    if (trkCnt > 0) break;
     trkAtVtx.trackWeight = currentTrkWeight;
     if (printWeights) {
       std::cout << "weight: " << currentTrkWeight << "\n";
@@ -865,20 +869,31 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
           if (trkAtVtx.isLinearized) {
             fitterState.vtxInfoMap[&seed].linPoint = fitterState.vtxInfoMap[&seed].oldPosition;
           }
-          trkAtVtx.linearizedState = *result;
-          trkAtVtx.isLinearized = true;
+          //trkAtVtx.linearizedState = *result;
+          //trkAtVtx.isLinearized = true;
           std::cout << "\n position jacobian:\n" << result->positionJacobian << "\n\n";
+          //std::cout << "\n momentum jacobian:\n" << result->momentumJacobian << "\n\n";
         }
+
+        finder.config().linearizer.calculateNumericalJacobians(
+          finder.m_extractParameters(*trk), fitterState.vtxInfoMap[&seed].oldPosition,
+          vertexingOptions.geoContext, vertexingOptions.magFieldContext,
+          fitterState.linearizerState
+        );
+          //finder.config().vertexFitter.m_cfg.ipEst,
+          //fitterState.ipState
+        
         // Update the vertex with the new track
-        KalmanVertexUpdater::updateVertexWithTrack<Fitter::InputTrack_t>(seed,
-                                                                        trkAtVtx);
+        //KalmanVertexUpdater::updateVertexWithTrack<Fitter::InputTrack_t>(seed,
+         //                                                               trkAtVtx);
         if (printFittedVtx){
           std::cout << "position:\n" << seed.fullPosition() << "\n\n";
         }
     }
+    trkCnt ++;
   }
-
   //check if vertex is good
+  /*
   std::vector<Vertex<Fitter::InputTrack_t>*> allVerticesPtr {&seed};
   auto [nCompatibleTracks, isGoodVertex] =
         finder.checkVertexAndCompatibleTracks(seed, seedTracks, fitterState);
@@ -889,6 +904,7 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
     std::cout << "\n\n Good Vertex: " << isGoodVertex << " Keep Vertex: " << knV <<"\n";
   }
   */
+
 /*
 
   // Set up constant B-Field
