@@ -349,13 +349,20 @@ void Acts::HelicalTrackLinearizerWithTime<propagator_t, propagator_options_t>::
       endParamsShifted.parameters().template head<2>() = shiftedD0Z0;
     }
 
+    std::cout << "momentum " << endParams.momentum().transpose() << std::endl;
+
+    std::cout << "global " << globalCoords.transpose() << std::endl;
+    std::cout << "global after wiggle " << globalCoordsShifted.transpose()
+              << std::endl;
+
     std::cout << "endParams " << paramsAtPCA << std::endl;
     std::cout << "endParams after wiggle: " << endParamsShifted << std::endl;
 
     intersection = perigeeSurface->intersect(
-        gctx, globalCoordsShifted, endParamsShifted.unitDirection(), false);
+        gctx, globalCoordsShifted, endParamsShifted.unitDirection(), true);
 
     std::cout << "distance to perigee " << intersection.intersection.pathLength
+              << " intersection status " << intersection.intersection.status
               << std::endl;
 
     // Create propagator options

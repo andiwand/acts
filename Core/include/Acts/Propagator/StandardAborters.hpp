@@ -142,6 +142,13 @@ struct SurfaceReached {
         state.geoContext, stepper.position(state.stepping),
         state.stepping.navDir * stepper.direction(state.stepping), true);
 
+    ACTS_VERBOSE("Target: x | "
+                 << "intersecting Target surface from "
+                 << stepper.position(state.stepping).transpose()
+                 << " and direction "
+                 << (state.stepping.navDir * stepper.direction(state.stepping))
+                        .transpose());
+
     // The target is reached
     bool targetReached = (sIntersection.intersection.status ==
                           Intersection3D::Status::onSurface);
