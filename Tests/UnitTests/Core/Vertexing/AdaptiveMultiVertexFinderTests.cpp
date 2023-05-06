@@ -21,10 +21,10 @@
 #include "Acts/Vertexing/AdaptiveMultiVertexFitter.hpp"
 #include "Acts/Vertexing/GridDensityVertexFinder.hpp"
 #include "Acts/Vertexing/HelicalTrackLinearizer.hpp"
+#include "Acts/Vertexing/HelicalTrackLinearizerWithTime.hpp"
 #include "Acts/Vertexing/ImpactPointEstimator.hpp"
 #include "Acts/Vertexing/TrackDensityVertexFinder.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
-#include "Acts/Vertexing/HelicalTrackLinearizerWithTime.hpp"
 
 #include <chrono>
 
@@ -640,8 +640,9 @@ BOOST_AUTO_TEST_CASE(
 BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
   using IPEstimator = ImpactPointEstimator<BoundTrackParameters, Propagator>;
   using Fitter = AdaptiveMultiVertexFitter<BoundTrackParameters, Linearizer>;
-  using SeedFinder = TrackDensityVertexFinder<Fitter,
-                              GaussianTrackDensity<BoundTrackParameters>>;
+  using SeedFinder =
+      TrackDensityVertexFinder<Fitter,
+                               GaussianTrackDensity<BoundTrackParameters>>;
   using Finder = AdaptiveMultiVertexFinder<Fitter, SeedFinder>;
 
   bool printLoadedData = false;
@@ -654,27 +655,28 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
   bool printFittedVtx = false;
   bool printIfGood = false;
 
-  //load data
+  // load data
   std::string toolStringTiming = "truth";
-  auto csvData = readTracksAndVertexCSV(toolStringTiming, "vertexing_event_mu3");
+  auto csvData =
+      readTracksAndVertexCSV(toolStringTiming, "vertexing_event_mu3");
 
-  //retrieve track and vertex data
+  // retrieve track and vertex data
   auto tracks = std::get<TracksData>(csvData);
   auto trueVtxInfo = std::get<VerticesData>(csvData);
 
-  //make vector of pointers to tracks
+  // make vector of pointers to tracks
   std::vector<const Fitter::InputTrack_t*> tracksPtr;
   for (const auto& trk : tracks) {
     tracksPtr.push_back(&trk);
   }
-  
-  //print track parameters and true vertex positions:
+
+  // print track parameters and true vertex positions:
   if (printLoadedData) {
     std::cout << "Number of tracks in event: " << tracks.size() << std::endl;
     int maxCount = 12;
     int trkCount = 0;
     for (const auto& trk : tracks) {
-      std::cout << trkCount+1 << ". track: " << std::endl;
+      std::cout << trkCount + 1 << ". track: " << std::endl;
       std::cout << "params: \n" << trk << std::endl;
       std::cout << "pos: \n" << trk.position(geoContext) << std::endl;
       //std::cout << "covariance: \n" << trk.covariance().value() << std::endl;
@@ -686,26 +688,30 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
     int vertCount = 0;
     for (const auto& vtx : trueVtxInfo) {
       vertCount++;
-      std::cout << vertCount+1 << ". Vertex at position:\n" << vtx.position
-                << std::endl;
+      std::cout << vertCount + 1 << ". Vertex at position:\n"
+                << vtx.position << std::endl;
     }
   }
 
-  //define fitter and finder (two instances of classes, which we use for vertexing)
+  // define fitter and finder (two instances of classes, which we use for
+  // vertexing)
   auto bField = std::make_shared<ConstantBField>(Vector3(0., 0., 2_T));
-  
-  //what is this?
-  EigenStepper<> stepper(bField); 
+
+  // what is this?
+  EigenStepper<> stepper(bField);
 
   // Set up propagator with void navigator - what is this?
-  auto propagator = std::make_shared<Propagator>(stepper);
+  auto propagator = std::make_shared<Propagator>(
+      stepper, detail::VoidNavigator(),
+      getDefaultLogger("Propagator", Acts::Logging::VERBOSE));
 
-  //estimates the impact point, i.e., the point of closest approach of the track to a vertex (?)
+  // estimates the impact point, i.e., the point of closest approach of the
+  // track to a vertex (?)
   IPEstimator::Config ipEstimatorCfg(bField, propagator);
   IPEstimator ipEstimator(ipEstimatorCfg);
 
-  //weight function depends on a "temperature", which gets gradually decreased 
-  //this procedure called "annealing" reduces effects of outliers
+  // weight function depends on a "temperature", which gets gradually decreased
+  // this procedure called "annealing" reduces effects of outliers
   std::vector<double> temperatures{8.0, 4.0, 2.0, 1.4142136, 1.2247449, 1.0};
   AnnealingUtility::Config annealingConfig;
   annealingConfig.setOfTemperatures = temperatures;
@@ -713,11 +719,12 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
 
   VertexingOptions<BoundTrackParameters> vertexingOptions(geoContext,
                                                           magFieldContext);
-  //vertexingOptions.vertexConstraint = std::get<BeamSpotData>(csvData); //if uncomment need to set useBeamSpotConstraint = true
+  // vertexingOptions.vertexConstraint = std::get<BeamSpotData>(csvData); //if
+  // uncomment need to set useBeamSpotConstraint = true
 
   Fitter::Config fitterCfg(ipEstimator);
   fitterCfg.annealingTool = annealingUtility;
-  fitterCfg.doSmoothing = true; //should this be true?
+  fitterCfg.doSmoothing = true;  // should this be true?
   Fitter fitter(fitterCfg);
   Fitter::State fitterState(*bField, vertexingOptions.magFieldContext);
 
@@ -729,175 +736,201 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
   SeedFinder::State seedFinderState;
   Finder::Config finderConfig(std::move(fitter), seedFinder, ipEstimator,
                               std::move(linearizer), bField);
-  finderConfig.useBeamSpotConstraint = false; // TODO: test this as well!
+  finderConfig.useBeamSpotConstraint = false;  // TODO: test this as well!
   Finder finder(finderConfig);
   Finder::State state;
 
-  //do a first estimate for the vertex (so-called "seed")
-  std::vector<const Fitter::InputTrack_t*> seedTracks = tracksPtr; //tracks from which we compute the seed
-  Vertex<Fitter::InputTrack_t> currentConstraint = vertexingOptions.vertexConstraint; 
-  std::vector<const Fitter::InputTrack_t*> removedSeedTracks; //TODO: all compatible tracks with last vertex that need to be removed from seed tracks
-  auto seedResult = finder.doSeeding(seedTracks, currentConstraint, vertexingOptions,
-                                     seedFinderState, removedSeedTracks);
-  
+  // do a first estimate for the vertex (so-called "seed")
+  std::vector<const Fitter::InputTrack_t*> seedTracks =
+      tracksPtr;  // tracks from which we compute the seed
+  Vertex<Fitter::InputTrack_t> currentConstraint =
+      vertexingOptions.vertexConstraint;
+  std::vector<const Fitter::InputTrack_t*>
+      removedSeedTracks;  // TODO: all compatible tracks with last vertex that
+                          // need to be removed from seed tracks
+  auto seedResult =
+      finder.doSeeding(seedTracks, currentConstraint, vertexingOptions,
+                       seedFinderState, removedSeedTracks);
+
   auto seed = *std::make_unique<Vertex<Fitter::InputTrack_t>>(*seedResult);
-  if (printSeed){
+  if (printSeed) {
     std::cout << "\n position of seed:\n" << seed.fullPosition() << "\n";
   }
 
-  //tracks that can be assigned to vertex
+  // tracks that can be assigned to vertex
   std::vector<const Fitter::InputTrack_t*> searchTracks = tracksPtr;
-  //assign tracks to vertex
-  auto prepResult = finder.canPrepareVertexForFit(searchTracks, seedTracks,
-                                           seed, currentConstraint,
-                                           fitterState, vertexingOptions);
-  if(printAssignedTracks){
+  // assign tracks to vertex
+  auto prepResult = finder.canPrepareVertexForFit(
+      searchTracks, seedTracks, seed, currentConstraint, fitterState,
+      vertexingOptions);
+  if (printAssignedTracks) {
     bool printParams = true;
-    if (printParams){
+    if (printParams) {
       std::cout << "\nparameters of assigned tracks:\n\n";
-    }
-    else {
+    } else {
       std::cout << "\npositions and time of assigned tracks:\n\n";
     }
-    for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks){
-      if (printParams){
+    for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks) {
+      if (printParams) {
         std::cout << *trk << "\n\n";
-      }
-      else{
+      } else {
         auto params = finder.m_extractParameters(*trk);
         auto pos = params.position(vertexingOptions.geoContext);
-        std::cout << pos << " time: "<< params.time() << "\n\n";
+        std::cout << pos << " time: " << params.time() << "\n\n";
       }
     }
   }
 
-  //map every track to all of its connected vertices
-  fitterState.addVertexToMultiMap(seed); 
-  if (printMultimap){
+  // map every track to all of its connected vertices
+  fitterState.addVertexToMultiMap(seed);
+  if (printMultimap) {
     std::cout << "\nmultimap of tracks to verts:\n\n";
-    for (auto itr = fitterState.trackToVerticesMultiMap.begin(); 
-        itr != fitterState.trackToVerticesMultiMap.end(); ++itr){
-            auto params = finder.m_extractParameters(*(itr->first));
-            auto pos = params.position(vertexingOptions.geoContext);
-            std::cout << "track position: \n" << pos << "\nvertex position:\n" << (itr->second->fullPosition()) << "\n\n"; 
-        }
+    for (auto itr = fitterState.trackToVerticesMultiMap.begin();
+         itr != fitterState.trackToVerticesMultiMap.end(); ++itr) {
+      auto params = finder.m_extractParameters(*(itr->first));
+      auto pos = params.position(vertexingOptions.geoContext);
+      std::cout << "track position: \n"
+                << pos << "\nvertex position:\n"
+                << (itr->second->fullPosition()) << "\n\n";
+    }
   }
 
-  //estimate the track parameters in the point of closest approach to the vertex (i.e., the impact point)
-  // The seed position (head<3> returns only the first 3 elements of the vector)
-  //the Perigee parametrization is done wrt the vertex seed position rather than wrt the origin
-  const Vector3& seedPos = fitterState.vtxInfoMap[&seed].seedPosition.template head<3>();
-  if (printImpactParams) std::cout << "\nimpact parameters:\n\n";
+  // estimate the track parameters in the point of closest approach to the
+  // vertex (i.e., the impact point)
+  //  The seed position (head<3> returns only the first 3 elements of the
+  //  vector)
+  // the Perigee parametrization is done wrt the vertex seed position rather
+  // than wrt the origin
+  const Vector3& seedPos =
+      fitterState.vtxInfoMap[&seed].seedPosition.template head<3>();
+  if (printImpactParams)
+    std::cout << "\nimpact parameters:\n\n";
   for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks) {
-    auto res = finder.config().vertexFitter.m_cfg.ipEst.estimate3DImpactParameters(
-        vertexingOptions.geoContext, vertexingOptions.magFieldContext,
-        finder.m_extractParameters(*trk), seedPos, fitterState.ipState);
+    auto res =
+        finder.config().vertexFitter.m_cfg.ipEst.estimate3DImpactParameters(
+            vertexingOptions.geoContext, vertexingOptions.magFieldContext,
+            finder.m_extractParameters(*trk), seedPos, fitterState.ipState);
     // Set ip3dParams
     fitterState.vtxInfoMap[&seed].ip3dParams.emplace(trk, res.value());
-    if (printImpactParams) std::cout << "\n" << res.value() << "\n";
+    if (printImpactParams)
+      std::cout << "\n" << res.value() << "\n";
   }
 
-  //we only consider one vertex here
+  // we only consider one vertex here
   std::vector<Vertex<Fitter::InputTrack_t>*> verticesToFit;
   verticesToFit.push_back(&seed);
   fitterState.vertexCollection = verticesToFit;
 
-  //compute compatibility of all tracks with vertex (low compatibility means that tracks are compatible)
-  //timing info does not enter!
-  if (printCompatibilities){
+  // compute compatibility of all tracks with vertex (low compatibility means
+  // that tracks are compatible) timing info does not enter!
+  if (printCompatibilities) {
     std::cout << "\n\nVertex Compatibilities:\n";
   }
 
   if (fitterState.vtxInfoMap[&seed].constraintVertex.fullCovariance() !=
-          SymMatrix4::Zero()) {
-        //std::cout << "\nSetting position to:\n" << state.vtxInfoMap[&seed].constraintVertex.fullPosition() << "\n";
-        seed.setFullPosition(
-            fitterState.vtxInfoMap[&seed].constraintVertex.fullPosition()); //only set z position!
-        seed.setFitQuality(
-            fitterState.vtxInfoMap[&seed].constraintVertex.fitQuality());
-        seed.setFullCovariance(
-            fitterState.vtxInfoMap[&seed].constraintVertex.fullCovariance());
-        } 
+      SymMatrix4::Zero()) {
+    //std::cout << "\nSetting position to:\n" << state.vtxInfoMap[&seed].constraintVertex.fullPosition() << "\n";
+    seed.setFullPosition(
+        fitterState.vtxInfoMap[&seed]
+            .constraintVertex.fullPosition());  // only set z position!
+    seed.setFitQuality(
+        fitterState.vtxInfoMap[&seed].constraintVertex.fitQuality());
+    seed.setFullCovariance(
+        fitterState.vtxInfoMap[&seed].constraintVertex.fullCovariance());
+  }
   std::cout << "\n seed vertex covariance:\n" << seed.fullCovariance();
   double weight =
-          1. / finder.config().vertexFitter.m_cfg.annealingTool.getWeight(fitterState.annealingState, 1.); //why do we set chi2=1?
-  seed.setFullCovariance(seed.fullCovariance() * weight); //why do we do this? has no effect atm
-  
+      1. / finder.config().vertexFitter.m_cfg.annealingTool.getWeight(
+               fitterState.annealingState, 1.);  // why do we set chi2=1?
+  seed.setFullCovariance(seed.fullCovariance() *
+                         weight);  // why do we do this? has no effect atm
+
   for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks) {
     auto& trkAtVtx =
         fitterState.tracksAtVerticesMap.at(std::make_pair(trk, &seed));
     // Set compatibility with current vertex
-    auto compRes = finder.config().vertexFitter.m_cfg.ipEst.get3dVertexCompatibility(
-        vertexingOptions.geoContext, &(fitterState.vtxInfoMap[&seed].ip3dParams.at(trk)),
-        VectorHelpers::position(seed.fullPosition()));
+    auto compRes =
+        finder.config().vertexFitter.m_cfg.ipEst.get3dVertexCompatibility(
+            vertexingOptions.geoContext,
+            &(fitterState.vtxInfoMap[&seed].ip3dParams.at(trk)),
+            VectorHelpers::position(seed.fullPosition()));
     trkAtVtx.vertexCompatibility = *compRes;
-    if (printCompatibilities){
+    if (printCompatibilities) {
       std::cout << *compRes << "\n";
     }
   }
-  //finder.config().vertexFitter.setWeightsAndUpdate(fitterState, finder.config().linearizer, vertexingOptions);
+  // finder.config().vertexFitter.setWeightsAndUpdate(fitterState,
+  // finder.config().linearizer, vertexingOptions);
 
-  //compute track weights
-  
+  // compute track weights
+
   if (printWeights) {
-    std::cout << "\n\nTrack Weights (minWeight = " << finder.config().vertexFitter.m_cfg.minWeight << ")\n";
-  }
-  else {
+    std::cout << "\n\nTrack Weights (minWeight = "
+              << finder.config().vertexFitter.m_cfg.minWeight << ")\n";
+  } else {
     std::cout << "\n";
   }
-  if (printFittedVtx){
+  if (printFittedVtx) {
     std::cout << "Vertex positions when adding tracks to the fit:\n";
   }
   int trkCnt = 0;
   for (const auto& trk : fitterState.vtxInfoMap[&seed].trackLinks) {
-    auto& trkAtVtx = fitterState.tracksAtVerticesMap.at(std::make_pair(trk, &seed));
-    double currentTrkWeight = finder.config().vertexFitter.m_cfg.annealingTool.getWeight(
-          fitterState.annealingState, trkAtVtx.vertexCompatibility,
-          finder.config().vertexFitter.collectTrackToVertexCompatibilities(fitterState, trk));
-    if (trkCnt > 0) break;
+    auto& trkAtVtx =
+        fitterState.tracksAtVerticesMap.at(std::make_pair(trk, &seed));
+    double currentTrkWeight =
+        finder.config().vertexFitter.m_cfg.annealingTool.getWeight(
+            fitterState.annealingState, trkAtVtx.vertexCompatibility,
+            finder.config().vertexFitter.collectTrackToVertexCompatibilities(
+                fitterState, trk));
+    if (trkCnt > 0)
+      break;
     trkAtVtx.trackWeight = currentTrkWeight;
     if (printWeights) {
       std::cout << "weight: " << currentTrkWeight << "\n";
     }
     if (trkAtVtx.trackWeight > finder.config().vertexFitter.m_cfg.minWeight) {
-        // Check if linearization state exists or needs to be relinearized
-        if (not trkAtVtx.isLinearized || fitterState.vtxInfoMap[&seed].relinearize) {
-          auto result = finder.config().linearizer.linearizeTrack(
-              finder.m_extractParameters(*trk), fitterState.vtxInfoMap[&seed].oldPosition,
-              vertexingOptions.geoContext, vertexingOptions.magFieldContext,
-              fitterState.linearizerState);
-          if (trkAtVtx.isLinearized) {
-            fitterState.vtxInfoMap[&seed].linPoint = fitterState.vtxInfoMap[&seed].oldPosition;
-          }
-          //trkAtVtx.linearizedState = *result;
-          //trkAtVtx.isLinearized = true;
-          std::cout << "\n position jacobian:\n" << result->positionJacobian << "\n\n";
-          //std::cout << "\n momentum jacobian:\n" << result->momentumJacobian << "\n\n";
+      // Check if linearization state exists or needs to be relinearized
+      if (not trkAtVtx.isLinearized ||
+          fitterState.vtxInfoMap[&seed].relinearize) {
+        auto result = finder.config().linearizer.linearizeTrack(
+            finder.m_extractParameters(*trk),
+            fitterState.vtxInfoMap[&seed].oldPosition,
+            vertexingOptions.geoContext, vertexingOptions.magFieldContext,
+            fitterState.linearizerState);
+        if (trkAtVtx.isLinearized) {
+          fitterState.vtxInfoMap[&seed].linPoint =
+              fitterState.vtxInfoMap[&seed].oldPosition;
         }
+        // trkAtVtx.linearizedState = *result;
+        // trkAtVtx.isLinearized = true;
+        std::cout << "\n position jacobian:\n"
+                  << result->positionJacobian << "\n\n";
+        //std::cout << "\n momentum jacobian:\n" << result->momentumJacobian << "\n\n";
+      }
 
-        finder.config().linearizer.calculateNumericalJacobians(
-          finder.m_extractParameters(*trk), fitterState.vtxInfoMap[&seed].oldPosition,
+      finder.config().linearizer.calculateNumericalJacobians(
+          finder.m_extractParameters(*trk),
+          fitterState.vtxInfoMap[&seed].oldPosition,
           vertexingOptions.geoContext, vertexingOptions.magFieldContext,
-          fitterState.linearizerState
-        );
-          //finder.config().vertexFitter.m_cfg.ipEst,
-          //fitterState.ipState
-        
-        // Update the vertex with the new track
-        //KalmanVertexUpdater::updateVertexWithTrack<Fitter::InputTrack_t>(seed,
-         //                                                               trkAtVtx);
-        if (printFittedVtx){
-          std::cout << "position:\n" << seed.fullPosition() << "\n\n";
-        }
+          fitterState.linearizerState);
+      // finder.config().vertexFitter.m_cfg.ipEst,
+      // fitterState.ipState
+
+      // Update the vertex with the new track
+      // KalmanVertexUpdater::updateVertexWithTrack<Fitter::InputTrack_t>(seed,
+      //                                                               trkAtVtx);
+      if (printFittedVtx) {
+        std::cout << "position:\n" << seed.fullPosition() << "\n\n";
+      }
     }
-    trkCnt ++;
+    trkCnt++;
   }
-  //check if vertex is good
+  // check if vertex is good
   /*
   std::vector<Vertex<Fitter::InputTrack_t>*> allVerticesPtr {&seed};
   auto [nCompatibleTracks, isGoodVertex] =
         finder.checkVertexAndCompatibleTracks(seed, seedTracks, fitterState);
-  
+
   bool knV = finder.keepNewVertex(seed, allVerticesPtr, fitterState);
 
   if (printIfGood) {
@@ -905,94 +938,94 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_finder_test_with_timing) {
   }
   */
 
-/*
+  /*
 
-  // Set up constant B-Field
-  auto bField = std::make_shared<ConstantBField>(Vector3(0., 0., 2_T));
+    // Set up constant B-Field
+    auto bField = std::make_shared<ConstantBField>(Vector3(0., 0., 2_T));
 
-  // Set up EigenStepper
-  EigenStepper<> stepper(bField);
+    // Set up EigenStepper
+    EigenStepper<> stepper(bField);
 
-  // Set up propagator with void navigator
-  auto propagator = std::make_shared<Propagator>(stepper);
+    // Set up propagator with void navigator
+    auto propagator = std::make_shared<Propagator>(stepper);
 
-  // IP 3D Estimator
-  using IPEstimator = ImpactPointEstimator<BoundTrackParameters, Propagator>;
+    // IP 3D Estimator
+    using IPEstimator = ImpactPointEstimator<BoundTrackParameters, Propagator>;
 
-  IPEstimator::Config ipEstimatorCfg(bField, propagator);
-  IPEstimator ipEstimator(ipEstimatorCfg);
+    IPEstimator::Config ipEstimatorCfg(bField, propagator);
+    IPEstimator ipEstimator(ipEstimatorCfg);
 
-  std::vector<double> temperatures{8.0, 4.0, 2.0, 1.4142136, 1.2247449, 1.0};
-  AnnealingUtility::Config annealingConfig;
-  annealingConfig.setOfTemperatures = temperatures;
-  AnnealingUtility annealingUtility(annealingConfig);
+    std::vector<double> temperatures{8.0, 4.0, 2.0, 1.4142136, 1.2247449, 1.0};
+    AnnealingUtility::Config annealingConfig;
+    annealingConfig.setOfTemperatures = temperatures;
+    AnnealingUtility annealingUtility(annealingConfig);
 
-  using Fitter = AdaptiveMultiVertexFitter<BoundTrackParameters, Linearizer>;
+    using Fitter = AdaptiveMultiVertexFitter<BoundTrackParameters, Linearizer>;
 
-  Fitter::Config fitterCfg(ipEstimator);
+    Fitter::Config fitterCfg(ipEstimator);
 
-  fitterCfg.annealingTool = annealingUtility;
+    fitterCfg.annealingTool = annealingUtility;
 
-  // Linearizer for BoundTrackParameters type test
-  Linearizer::Config ltConfig(bField, propagator);
-  Linearizer linearizer(ltConfig);
+    // Linearizer for BoundTrackParameters type test
+    Linearizer::Config ltConfig(bField, propagator);
+    Linearizer linearizer(ltConfig);
 
-  // Test smoothing
-  fitterCfg.doSmoothing = true;
+    // Test smoothing
+    fitterCfg.doSmoothing = true;
 
-  Fitter fitter(fitterCfg);
+    Fitter fitter(fitterCfg);
 
-  using SeedFinder =
-      TrackDensityVertexFinder<Fitter,
-                               GaussianTrackDensity<BoundTrackParameters>>;
+    using SeedFinder =
+        TrackDensityVertexFinder<Fitter,
+                                 GaussianTrackDensity<BoundTrackParameters>>;
 
-  SeedFinder seedFinder;
+    SeedFinder seedFinder;
 
-  using Finder = AdaptiveMultiVertexFinder<Fitter, SeedFinder>;
+    using Finder = AdaptiveMultiVertexFinder<Fitter, SeedFinder>;
 
-  Finder::Config finderConfig(std::move(fitter), seedFinder, ipEstimator,
-                              std::move(linearizer), bField);
+    Finder::Config finderConfig(std::move(fitter), seedFinder, ipEstimator,
+                                std::move(linearizer), bField);
 
-  // TODO: test this as well!
-  // finderConfig.useBeamSpotConstraint = false;
+    // TODO: test this as well!
+    // finderConfig.useBeamSpotConstraint = false;
 
-  Finder finder(finderConfig);
-  Finder::State state;
+    Finder finder(finderConfig);
+    Finder::State state;
 
 
 
-  if (debugMode) {
-    std::cout << "Number of tracks in event: " << tracks.size() << std::endl;
-    int maxCout = 12;
-    int count = 0;
-    for (const auto& trk : tracks) {
-      std::cout << count << ". track: " << std::endl;
-      std::cout << "params: \n" << trk << std::endl;
-      std::cout << "covariance: \n" << trk.covariance().value() << std::endl;
-      count++;
-      if (count == maxCout) {
-        break;
+    if (debugMode) {
+      std::cout << "Number of tracks in event: " << tracks.size() << std::endl;
+      int maxCout = 12;
+      int count = 0;
+      for (const auto& trk : tracks) {
+        std::cout << count << ". track: " << std::endl;
+        std::cout << "params: \n" << trk << std::endl;
+        std::cout << "covariance: \n" << trk.covariance().value() << std::endl;
+        count++;
+        if (count == maxCout) {
+          break;
+        }
       }
     }
-  }
-  
 
 
-  VertexingOptions<BoundTrackParameters> vertexingOptions(geoContext,
-                                                          magFieldContext);
-  
-  //work without vertexConstraint?
-  vertexingOptions.vertexConstraint = std::get<BeamSpotData>(csvData); 
 
-  const std::vector<const Fitter::InputTrack_t*>& origTracks = tracksPtr;
+    VertexingOptions<BoundTrackParameters> vertexingOptions(geoContext,
+                                                            magFieldContext);
 
-  Fitter::State fitterState(bField, magFieldContext);
-  SeedFinder::State seedFinderState;
+    //work without vertexConstraint?
+    vertexingOptions.vertexConstraint = std::get<BeamSpotData>(csvData);
 
-  std::vector<std::unique_ptr<Vertex<Fitter::InputTrack_t>>> allVertices;
-  std::vector<Vertex<Fitter::InputTrack_t>*> allVerticesPtr;
-  std::vector<const Fitter::InputTrack_t*> removedSeedTracks;
-  */
+    const std::vector<const Fitter::InputTrack_t*>& origTracks = tracksPtr;
+
+    Fitter::State fitterState(bField, magFieldContext);
+    SeedFinder::State seedFinderState;
+
+    std::vector<std::unique_ptr<Vertex<Fitter::InputTrack_t>>> allVertices;
+    std::vector<Vertex<Fitter::InputTrack_t>*> allVerticesPtr;
+    std::vector<const Fitter::InputTrack_t*> removedSeedTracks;
+    */
   /*
   auto t1 = std::chrono::system_clock::now();
   auto findResult = finder.find(tracksPtr, vertexingOptions, state);
