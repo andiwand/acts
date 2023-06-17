@@ -1,7 +1,7 @@
 variables:
   CCACHE_DIR: ${CI_PROJECT_DIR}/ccache
   CCACHE_MAXSIZE: 2G
-  CCACHE_KEY_SUFFIX: r1
+  CCACHE_KEY_SUFFIX: r2
 
 clang_tidy:
   stage: build
@@ -100,7 +100,7 @@ build_exatrkx:
       -DACTS_EXATRKX_ENABLE_ONNX=ON
       -DACTS_BUILD_EXAMPLES_PYTHON_BINDINGS=ON
       -DACTS_ENABLE_LOG_FAILURE_THRESHOLD=ON
-    - cmake --build build -- -j3
+    - cmake --build build --
 
 test_exatrkx:
   stage: test
@@ -171,7 +171,7 @@ build_linux_ubuntu:
       -DACTS_BUILD_PLUGIN_ACTSVG=ON
 
     - ccache -z
-    - cmake --build build -- -j3
+    - cmake --build build --
     - ccache -s
 
 linux_test_examples:
@@ -282,7 +282,7 @@ linux_physmon:
       -DACTS_BUILD_PLUGIN_ACTSVG=ON
 
     - ccache -z
-    - cmake --build build -- -j3
+    - cmake --build build --
     - ccache -s
 
     - ctest --test-dir build -j$(nproc)
@@ -399,7 +399,7 @@ linux_ubuntu_2204_clang:
       -DACTS_BUILD_PLUGIN_ACTSVG=ON
 
     - ccache -z
-    - cmake --build build -- -j3
+    - cmake --build build
     - ccache -s
 
     - ctest --test-dir build -j$(nproc)
