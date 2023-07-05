@@ -280,7 +280,7 @@ inline std::pair<Acts::BoundTrackParameters, double> transportToSurface(
   options_t<Actions, Aborts> options(geoCtx, magCtx);
   options.direction = Acts::Direction::Forward;
   options.pathLimit = pathLimit;
-  options.maxStepSize = 1_cm;
+  options.maxStepSize = 0.9_cm;
 
   auto result = propagator.propagate(initialParams, targetSurface, options);
   BOOST_CHECK(result.ok());
@@ -409,20 +409,29 @@ inline void runToSurfaceComparisonTest(
           refPropagator, geoCtx, magCtx, initialParams, pathLength);
   CHECK_CLOSE_ABS(freePathLength, pathLength, epsPos);
 
+  std::cout << "initialParams " << initialParams.parameters().transpose()
+            << " freeParams " << freeParams.position(geoCtx).transpose()
+            << std::endl;
+
   // build a target surface at the propagated position
   auto surface = buildTargetSurface(freeParams, geoCtx);
   BOOST_CHECK(surface);
 
   // propagate twice to the surface using the two different propagators
   // increase path length limit to ensure the surface can be reached
+  std::cout << "transportToSurface A" << std::endl;
   auto [cmpParams, cmpPath] =
       transportToSurface<cmp_propagator_t, charge_t, options_t>(
           cmpPropagator, geoCtx, magCtx, initialParams, *surface,
           1.5 * pathLength);
+  std::cout << "transportToSurface B" << std::endl;
   auto [refParams, refPath] =
       transportToSurface<ref_propagator_t, charge_t, options_t>(
           refPropagator, geoCtx, magCtx, initialParams, *surface,
           1.5 * pathLength);
+  std::cout << "cov init\n" << initialParams.covariance().value() << std::endl;
+  std::cout << "cov A\n" << cmpParams.covariance().value() << std::endl;
+  std::cout << "cov B\n" << refParams.covariance().value() << std::endl;
   // check parameter comparison
   checkParametersConsistency(cmpParams, refParams, geoCtx, epsPos, epsDir,
                              epsMom);

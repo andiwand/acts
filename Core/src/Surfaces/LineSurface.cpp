@@ -167,6 +167,8 @@ Acts::SurfaceIntersection Acts::LineSurface::intersect(
   Intersection3D::Status status = Intersection3D::Status::unreachable;
   if (std::abs(denom) > std::abs(tolerance)) {
     double u = (mab.dot(ea) - mab.dot(eb) * eaTeb) / denom;
+    std::cout << "line surface distance " << u << " tolerance " << tolerance
+              << std::endl;
     // Check if we are on the surface already
     status = std::abs(u) < std::abs(tolerance)
                  ? Intersection3D::Status::onSurface

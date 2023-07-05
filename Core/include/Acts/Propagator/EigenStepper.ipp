@@ -189,6 +189,9 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
               std::abs(sd.kQoP[0] - sd.kQoP[1] - sd.kQoP[2] + sd.kQoP[3]));
     error_estimate = std::max(error_estimate, 1e-20);
 
+    std::cout << "stepper error estimate " << error_estimate << " tolerance "
+              << state.options.tolerance << std::endl;
+
     return success(error_estimate <= state.options.tolerance);
   };
 
@@ -197,6 +200,8 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
   // Select and adjust the appropriate Runge-Kutta step size as given
   // ATL-SOFT-PUB-2009-001
   while (true) {
+    std::cout << "try runge kutta step " << state.stepping.stepSize
+              << std::endl;
     auto res = tryRungeKuttaStep(state.stepping.stepSize);
     if (!res.ok()) {
       return res.error();

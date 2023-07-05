@@ -78,6 +78,8 @@ auto Acts::RiddersPropagator<propagator_t>::propagate(
   Jacobian jacobian = wiggleAndCalculateJacobian(options, start, nominalResult);
   nominalResult.transportJacobian = jacobian;
 
+  std::cout << "ridders jacobian\n" << jacobian << std::endl;
+
   if (start.covariance()) {
     // use nominal parameters and Ridders covariance
     auto cov = jacobian * (*start.covariance()) * jacobian.transpose();
@@ -197,6 +199,12 @@ Acts::RiddersPropagator<propagator_t>::wiggleParameter(
     const auto& r = m_propagator.propagate(tp, target, options).value();
     // Collect the slope
     derivatives.push_back((r.endParameters->parameters() - nominal) / h);
+
+    std::cout << "wiggle" << std::endl;
+    std::cout << "from " << values.transpose() << std::endl;
+    std::cout << "to " << r.endParameters->parameters().transpose()
+              << std::endl;
+    std::cout << "nominal " << nominal.transpose() << std::endl;
 
     // Correct for a possible variation of phi around
     if (param == eBoundPhi) {

@@ -83,17 +83,16 @@ inline Propagator makePropagator(double bz) {
   auto logger = getDefaultLogger("Dense", Logging::INFO);
   return Propagator(
       std::move(stepper),
-      Acts::Navigator{{makeDetector()}, logger->cloneWithSuffix("Nav")},
-      logger->cloneWithSuffix("Prop"));
+      Acts::Navigator{{makeDetector()},
+                      getDefaultLogger("DenseNav", Logging::VERBOSE)},
+      getDefaultLogger("DenseProp", Logging::VERBOSE));
 }
 
 inline RiddersPropagator makeRiddersPropagator(double bz) {
   using namespace Acts;
 
-  auto magField = std::make_shared<MagneticField>(Acts::Vector3(0.0, 0.0, bz));
-  Stepper stepper(std::move(magField));
-  return RiddersPropagator(std::move(stepper),
-                           Acts::Navigator{{makeDetector()}});
+  Propagator propagator = makePropagator(bz);
+  return RiddersPropagator(propagator);
 }
 
 }  // namespace
@@ -216,6 +215,24 @@ BOOST_DATA_TEST_CASE(CovarianceToStrawAlongZ,
                      ds::phiWithoutAmbiguity* ds::thetaCentral* ds::absMomentum*
                          ds::chargeNonZero* ds::pathLength* ds::magneticField,
                      phi, theta, p, q, s, bz) {
+  runToSurfaceComparisonTest<Propagator, RiddersPropagator, Acts::SinglyCharged,
+                             ZStrawSurfaceBuilder,
+                             Acts::DenseStepperPropagatorOptions>(
+      makePropagator(bz), makeRiddersPropagator(bz), geoCtx, magCtx,
+      makeParametersCurvilinearWithCovariance(phi, theta, p, q), s,
+      ZStrawSurfaceBuilder(), epsPos, epsDir, epsMom, epsCov);
+}
+
+// TODO TMP
+namespace bdata = boost::unit_test::data;
+BOOST_DATA_TEST_CASE(asdfasdf,
+                     bdata::make({-180_degree}) * bdata::make({-135_degree}) *
+                         bdata::make({1_GeV}) * bdata::make({1_e}) *
+                         bdata::make({1_cm}) * bdata::make({2_T}),
+                     phi, theta, p, q, s, bz) {
+  std::cout << "phi, theta, p, q, s, bz = " << phi << ", " << theta << ", " << p
+            << ", " << q << ", " << s << ", " << bz << std::endl;
+
   runToSurfaceComparisonTest<Propagator, RiddersPropagator, Acts::SinglyCharged,
                              ZStrawSurfaceBuilder,
                              Acts::DenseStepperPropagatorOptions>(
