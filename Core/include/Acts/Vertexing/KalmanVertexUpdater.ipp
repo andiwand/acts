@@ -75,26 +75,53 @@ void Acts::KalmanVertexUpdater::updatePosition(
   const ActsSymMatrix<5> trkParamWeight =
       linTrack.covarianceAtPCA.block<5, 5>(0, 0).inverse();
 
+  std::cout << "linTrack.covarianceAtPCA.block<5, 5>(0, 0) "
+            << linTrack.covarianceAtPCA.block<5, 5>(0, 0).determinant() << "\n"
+            << linTrack.covarianceAtPCA.block<5, 5>(0, 0) << std::endl;
+  std::cout << "trkParamWeight " << trkParamWeight.determinant() << "\n"
+            << trkParamWeight << std::endl;
+
   // Vertex to be updated
   const Vector3& oldVtxPos = vtx.position();
-  matrixCache.oldVertexWeight = (vtx.covariance()).inverse();
+  matrixCache.oldVertexWeight = vtx.covariance().inverse();
 
   // W_k matrix
   matrixCache.momWeightInv =
       (momJac.transpose() * (trkParamWeight * momJac)).inverse();
 
   // G_b = G_k - G_k*B_k*W_k*B_k^(T)*G_k^T
-  ActsSymMatrix<5> gBmat =
+  ActsMatrix<5, 5> gBmat =
       trkParamWeight -
       trkParamWeight *
           (momJac * (matrixCache.momWeightInv * momJac.transpose())) *
           trkParamWeight.transpose();
+
+  std::cout << "matrixCache.momWeightInv "
+            << matrixCache.momWeightInv.determinant() << "\n"
+            << matrixCache.momWeightInv << std::endl;
+  std::cout << "vtx.covariance() " << vtx.covariance().determinant() << "\n"
+            << vtx.covariance() << std::endl;
+  std::cout << "matrixCache.oldVertexWeight "
+            << matrixCache.oldVertexWeight.determinant() << "\n"
+            << matrixCache.oldVertexWeight << std::endl;
+  std::cout << "trackWeight " << trackWeight << std::endl;
+  std::cout << "sign " << sign << std::endl;
+  std::cout << "gBmat\n" << gBmat << std::endl;
+  std::cout << "posJac\n" << posJac << std::endl;
+  std::cout << "momJac\n" << momJac << std::endl;
 
   // New vertex cov matrix
   matrixCache.newVertexWeight =
       matrixCache.oldVertexWeight +
       trackWeight * sign * posJac.transpose() * (gBmat * posJac);
   matrixCache.newVertexCov = matrixCache.newVertexWeight.inverse();
+
+  std::cout << "matrixCache.newVertexWeight "
+            << matrixCache.newVertexWeight.determinant() << "\n"
+            << matrixCache.newVertexWeight << std::endl;
+  std::cout << "matrixCache.newVertexCov "
+            << matrixCache.newVertexCov.determinant() << "\n"
+            << matrixCache.newVertexCov << std::endl;
 
   // New vertex position
   matrixCache.newVertexPos =

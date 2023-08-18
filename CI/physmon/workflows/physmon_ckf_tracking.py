@@ -161,6 +161,7 @@ def run_ckf_tracking(truthSmearedSeeded, truthEstimatedSeeded, label):
             outputVertices="amvf_fittedVertices",
             vertexFinder=VertexFinder.AMVF,
             outputDirRoot=tp / "amvf",
+            logLevel=acts.logging.VERBOSE,
         )
 
         s.run()

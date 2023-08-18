@@ -99,6 +99,9 @@ auto Acts::AdaptiveMultiVertexFinder<vfitter_t, sfinder_t>::find(
     auto [nCompatibleTracks, isGoodVertex] =
         checkVertexAndCompatibleTracks(vtxCandidate, seedTracks, fitterState);
 
+    std::cout << "vtxCandidate cov\n"
+              << vtxCandidate.fullCovariance() << std::endl;
+
     ACTS_DEBUG("Vertex is good vertex: " << isGoodVertex);
     if (nCompatibleTracks > 0) {
       removeCompatibleTracksFromSeedTracks(vtxCandidate, seedTracks,
@@ -519,11 +522,14 @@ auto Acts::AdaptiveMultiVertexFinder<vfitter_t, sfinder_t>::isMergedVertex(
     const Vector4 deltaPos = otherPos - candidatePos;
     const double deltaZPos = otherZPos - candidateZPos;
     const double sumCovZ = otherZCov + candidateZCov;
+    std::cout << "sumCovZ = otherZCov + candidateZCov " << sumCovZ << " "
+              << otherZCov << " " << candidateZCov << std::endl;
 
     double significance = 0;
     if (not m_cfg.do3dSplitting) {
       if (sumCovZ <= 0) {
         // TODO FIXME this should never happen
+        std::abort();
         continue;
       }
       // Use only z significance

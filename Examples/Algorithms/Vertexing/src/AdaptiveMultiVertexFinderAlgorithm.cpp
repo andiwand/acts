@@ -80,7 +80,7 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::execute(
   Fitter::Config fitterCfg(ipEstimator);
   fitterCfg.annealingTool = annealingUtility;
   fitterCfg.minWeight = 0.001;
-  fitterCfg.doSmoothing = true;
+  fitterCfg.doSmoothing = false;
   Fitter fitter(fitterCfg, logger().cloneWithSuffix("AMVFitter"));
 
   // Set up the vertex seed finder
@@ -90,6 +90,7 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::execute(
                               std::move(linearizer), m_cfg.bField);
   // We do not want to use a beamspot constraint here
   finderConfig.useBeamSpotConstraint = false;
+  finderConfig.looseConstrValue = 1e2;
   finderConfig.tracksMaxZinterval = 1. * Acts::UnitConstants::mm;
   finderConfig.maxIterations = 200;
 

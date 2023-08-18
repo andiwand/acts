@@ -6,6 +6,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include "Acts/Utilities/Logger.hpp"
 #include "Acts/Vertexing/KalmanVertexTrackUpdater.hpp"
 #include "Acts/Vertexing/KalmanVertexUpdater.hpp"
 #include "Acts/Vertexing/VertexingError.hpp"
@@ -83,6 +84,7 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
       }
       double weight =
           1. / m_cfg.annealingTool.getWeight(state.annealingState, 1.);
+      std::cout << "weight: " << weight << std::endl;
       currentVtx->setFullCovariance(currentVtx->fullCovariance() * weight);
 
       // Set vertexCompatibility for all TrackAtVertex objects
@@ -104,6 +106,7 @@ Acts::AdaptiveMultiVertexFitter<input_track_t, linearizer_t>::fitImpl(
 
   // Check if smoothing is required
   if (m_cfg.doSmoothing) {
+    ACTS_VERBOSE("Perform vertex smoothing");
     doVertexSmoothing(state);
   }
 
@@ -284,9 +287,16 @@ Acts::Result<void> Acts::
           trkAtVtx.linearizedState = *result;
           trkAtVtx.isLinearized = true;
         }
+        std::cout << "track cov\n"
+                  << trkAtVtx.linearizedState.covarianceAtPCA << std::endl;
+        std::cout << "track cov det "
+                  << trkAtVtx.linearizedState.covarianceAtPCA.determinant()
+                  << std::endl;
+        std::cout << "pre update cov\n" << vtx->fullCovariance() << std::endl;
         // Update the vertex with the new track
         KalmanVertexUpdater::updateVertexWithTrack<input_track_t>(*vtx,
                                                                   trkAtVtx);
+        std::cout << "post update cov\n" << vtx->fullCovariance() << std::endl;
       } else {
         ACTS_VERBOSE("Track weight too low. Skip track.");
       }
