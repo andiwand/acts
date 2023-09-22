@@ -40,6 +40,7 @@
 #include "Acts/Utilities/Result.hpp"
 
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 
@@ -323,7 +324,7 @@ class KalmanFitter {
     KalmanFitterExtensions<traj_t> extensions;
 
     /// The Surface being
-    SurfaceReached targetReached;
+    SurfaceReached targetReached{std::numeric_limits<double>::lowest()};
 
     /// Calibration context for the fit
     const CalibrationContext* calibrationContext{nullptr};
@@ -943,10 +944,12 @@ class KalmanFitter {
 
       // Lambda to get the intersection of the free params on the target surface
       auto target = [&](const FreeVector& freeVector) -> SurfaceIntersection {
-        return targetSurface->intersect(
-            state.geoContext, freeVector.segment<3>(eFreePos0),
-            state.options.direction * freeVector.segment<3>(eFreeDir0), true,
-            state.options.targetTolerance);
+        return targetSurface
+            ->intersect(
+                state.geoContext, freeVector.segment<3>(eFreePos0),
+                state.options.direction * freeVector.segment<3>(eFreeDir0),
+                true, state.options.targetTolerance)
+            .closest();
       };
 
       // The smoothed free params at the first/last measurement state.
@@ -975,13 +978,15 @@ class KalmanFitter {
       if (closerToFirstCreatedState) {
         stepper.resetState(state.stepping, firstCreatedState.smoothed(),
                            firstCreatedState.smoothedCovariance(),
-                           firstCreatedState.referenceSurface());
-        reverseDirection = (firstIntersection.intersection.pathLength < 0);
+                           firstCreatedState.referenceSurface(),
+                           state.options.maxStepSize);
+        reverseDirection = firstIntersection.pathLength() < 0;
       } else {
         stepper.resetState(state.stepping, lastCreatedMeasurement.smoothed(),
                            lastCreatedMeasurement.smoothedCovariance(),
-                           lastCreatedMeasurement.referenceSurface());
-        reverseDirection = (lastIntersection.intersection.pathLength < 0);
+                           lastCreatedMeasurement.referenceSurface(),
+                           state.options.maxStepSize);
+        reverseDirection = lastIntersection.pathLength() < 0;
       }
       // Reverse the navigation direction if necessary
       if (reverseDirection) {
