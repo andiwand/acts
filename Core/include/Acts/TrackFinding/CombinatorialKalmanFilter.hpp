@@ -1239,13 +1239,13 @@ class CombinatorialKalmanFilter {
                            firstCreatedState.smoothedCovariance(),
                            firstCreatedState.referenceSurface(),
                            state.options.maxStepSize);
-        reverseDirection = firstIntersection.intersection.pathLength < 0;
+        reverseDirection = firstIntersection.pathLength() < 0;
       } else {
         stepper.resetState(state.stepping, lastCreatedMeasurement.smoothed(),
                            lastCreatedMeasurement.smoothedCovariance(),
                            lastCreatedMeasurement.referenceSurface(),
                            state.options.maxStepSize);
-        reverseDirection = lastIntersection.intersection.pathLength < 0;
+        reverseDirection = lastIntersection.pathLength() < 0;
       }
       // Reverse the navigation direction if necessary
       if (reverseDirection) {
