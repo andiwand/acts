@@ -59,9 +59,14 @@ inline std::tuple<Acts::Vector2, Acts::Vector4, Acts::Vector3> averageSimHits(
     if (result.ok()) {
       avgLocal += result.value();
     } else {
+      auto intersection =
+          surface.intersect(gCtx, simHit.position(), simHit.direction());
+
       ACTS_WARNING("While averaging simhit, hit "
                    << simHitIdx << " is not on the corresponding surface "
-                   << surface.geometryId() << "; use [0,0] as local position");
+                   << surface.geometryId() << "; distance is "
+                   << intersection.closest().pathLength()
+                   << "; use [0,0] as local position");
     }
     // global position should already be at the intersection. no need to perform
     // an additional intersection call.
