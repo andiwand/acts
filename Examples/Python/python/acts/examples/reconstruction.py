@@ -122,7 +122,7 @@ TrackSelectorConfig = namedtuple(
 TrackFindingConfig = namedtuple(
     "TrackFindingConfig",
     ["chi2CutOff", "numMeasurementsCutOff"],
-    defaults=[5.0, 10],
+    defaults=[15.0, 10],
 )
 
 AmbiguityResolutionConfig = namedtuple(
