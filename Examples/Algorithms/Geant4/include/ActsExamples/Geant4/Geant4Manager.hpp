@@ -65,8 +65,6 @@ class Geant4Manager {
 
   std::shared_ptr<Geant4Handle> currentHandle() const;
 
-  std::shared_ptr<Geant4Handle> currentHandle() const;
-
   /// This can only be called once due to Geant4 limitations
   std::shared_ptr<Geant4Handle> createHandle(int logLevel,
                                              const std::string &physicsList);
