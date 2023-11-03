@@ -252,7 +252,7 @@ ActsExamples::ProcessCode ActsExamples::RootMaterialTrackWriter::writeT(
     m_v_phi = phi(mtrack.first.second);
     m_v_eta = eta(mtrack.first.second);
 
-    // an now loop over the material
+    // and now loop over the material
     for (const auto& mint : materialInteractions) {
       auto direction = mint.direction.normalized();
 
@@ -333,7 +333,7 @@ ActsExamples::ProcessCode ActsExamples::RootMaterialTrackWriter::writeT(
       // store volume information
       if (m_cfg.storeVolume) {
         Acts::GeometryIdentifier vlayerID;
-        if (not mint.volume.empty()) {
+        if (!mint.volume.empty()) {
           vlayerID = mint.volume.geometryId();
           m_vol_id.push_back(vlayerID.value());
         } else {

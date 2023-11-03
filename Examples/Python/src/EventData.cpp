@@ -48,8 +48,7 @@ void addEventData(Context& ctx) {
           })
       .def_property_readonly_static(
           "chargedGeantino", [](py::object /* self */) {
-            return Acts::ParticleHypothesis::chargedGeantino(
-                1 * Acts::UnitConstants::e);
+            return Acts::ParticleHypothesis::chargedGeantino();
           });
 }
 
