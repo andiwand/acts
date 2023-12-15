@@ -11,6 +11,8 @@
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Utilities/Result.hpp"
 
+#include <cstddef>
+#include <limits>
 #include <unordered_map>
 
 #include <boost/functional/hash.hpp>
@@ -29,81 +31,74 @@ namespace Acts {
 /// Unlike in the GaussianGridTrackDensity, the overall density map
 /// grows adaptively when tracks densities are added to the grid.
 class AdaptiveGridTrackDensity {
-  // Assert odd spatial and temporal track grid size
-
  public:
   // The first (second) integer indicates the bin's z (t) position
   using Bin = std::pair<int, int>;
   // Mapping between bins and track densities
-  using DensityMap = std::unordered_map<Bin, float, boost::hash<Bin>>;
+  using SparseDensityMap = std::unordered_map<Bin, double, boost::hash<Bin>>;
   // Coordinates in the z-t plane; the t value will be set to 0 if time
   // vertex seeding is disabled
-  using ZTPosition = std::pair<float, float>;
+  using ZTPosition = std::pair<double, double>;
   // z-t position of a maximum and its width
-  using ZTPositionAndWidth = std::pair<ZTPosition, float>;
+  using ZTPositionAndWidth = std::pair<ZTPosition, double>;
+
+  struct DensityMap {
+    double exponentOffset = std::numeric_limits<double>::infinity();
+    SparseDensityMap scaledMap;
+
+    std::size_t size() const { return scaledMap.size(); }
+    bool empty() const { return scaledMap.empty(); }
+    bool contains(const Bin& bin) const { return scaledMap.count(bin) != 0; }
+
+    double scaled(const Bin& bin) const {
+      if (auto it = scaledMap.find(bin); it == scaledMap.end()) {
+        return it->second;
+      }
+      return 0.;
+    }
+    double& scaled(const Bin& bin) { return scaledMap[bin]; }
+  };
 
   /// The configuration struct
   struct Config {
-    /// Default constructor
-    Config() = default;
+    /// Spatial extent of a bin in d0 and z0 direction, should always be set to
+    /// a positive value
+    double spatialBinExtent = 15 * UnitConstants::um;
 
-    // In total, a track is represented by a grid of size
-    // spatialTrkGridSize * temporalTrkGridSize
-    // Number of bins per track in z direction
-    unsigned int spatialTrkGridSize = 15;
+    /// Number of sigmas to use for the spatial extent of the track
+    double spatialTrkSigmas = 3.0;
 
-    // Spatial extent of a bin in d0 and z0 direction, should always be set to a
-    // positive value
-    float spatialBinExtent = 0.;  // mm
+    /// Temporal extent of a bin, should be set to 0 if time vertex seeding is
+    /// disabled (i.e., if temporalTrkGridSize = 1)
+    double temporalBinExtent = 19 * UnitConstants::mm;
 
-    // Number of bins per track in t direction
-    unsigned int temporalTrkGridSize = 1;
+    /// Number of sigmas to use for the temporal extent of the track
+    double temporalTrkSigmas = 3.0;
 
-    // Temporal extent of a bin, should be set to 0 if time vertex seeding is
-    // disabled (i.e., if temporalTrkGridSize = 1)
-    float temporalBinExtent = 0.;  // mm
+    /// Spatial window for filling the density map
+    std::pair<double, double> spatialWindow = {-250 * UnitConstants::mm,
+                                               250 * UnitConstants::mm};
+    /// Temporal window for filling the density map
+    std::pair<double, double> temporalWindow = {-10 * UnitConstants::ns,
+                                                10 * UnitConstants::ns};
 
-    // Do NOT use just the z-bin with the highest
-    // track density, but instead check (up to)
-    // first three density maxima (only those that have
-    // a maximum relative deviation of 'relativeDensityDev'
-    // from the main maximum) and take the z-bin of the
-    // maximum with the highest surrounding density sum
+    bool useTime = true;
+
+    /// Do NOT use just the z-bin with the highest
+    /// track density, but instead check (up to)
+    /// first three density maxima (only those that have
+    /// a maximum relative deviation of 'relativeDensityDev'
+    /// from the main maximum) and take the z-bin of the
+    /// maximum with the highest surrounding density sum
     bool useHighestSumZPosition = false;
 
-    // The maximum relative density deviation from the main
-    // maximum to consider the second and third maximum for
-    // the highest-sum approach from above
-    float maxRelativeDensityDev = 0.01;
+    /// The maximum relative density deviation from the main
+    /// maximum to consider the second and third maximum for
+    /// the highest-sum approach from above
+    double maxRelativeDensityDev = 0.01;
   };
 
-  AdaptiveGridTrackDensity(const Config& cfg) : m_cfg(cfg) {
-    // Check that spatial and temporal track grid size are odd
-    if (!bool(m_cfg.spatialTrkGridSize % 2) ||
-        !bool(m_cfg.temporalTrkGridSize % 2)) {
-      throw std::invalid_argument(
-          "Please choose an odd spatialTrkGridSize and temporalTrkGridSize.");
-    }
-  }
-
-  /// @brief Calculates the bin center from the bin number
-  /// @param bin Bin number
-  /// @param binExtent Bin extent
-  /// @return Bin center
-  static float getBinCenter(int bin, float binExtent);
-
-  /// @brief Calculates the bin number corresponding to a d, z, or time value
-  /// @param value d, z, or time value
-  /// @param binExtent Bin extent
-  /// @return Bin number
-  static int getBin(float value, float binExtent);
-
-  /// @brief Finds the maximum density of a DensityMap
-  /// @param densityMap Map between bins and corresponding density
-  /// values
-  /// @return Iterator of the map entry with the highest density
-  DensityMap::const_iterator highestDensityEntry(
-      const DensityMap& densityMap) const;
+  AdaptiveGridTrackDensity(const Config& cfg);
 
   /// @brief Returns the z and t coordinate of maximum (surrounding)
   /// track density
@@ -146,6 +141,38 @@ class AdaptiveGridTrackDensity {
                      DensityMap& mainDensityMap) const;
 
  private:
+  Config m_cfg;
+
+  /// @brief Calculates the bin number corresponding to a d, z, or time value
+  /// @param value d, z, or time value
+  /// @param binExtent Bin extent
+  /// @return Bin number
+  static int getBin(double value, double binExtent);
+
+  /// @brief Calculates the bin center from the bin number
+  /// @param bin Bin number
+  /// @param binExtent Bin extent
+  /// @return Bin center
+  static double getBinCenter(int bin, double binExtent);
+
+  static int getTrkGridSize(double sigma, double trkSigmas, double binExtent);
+
+  int getSpatialBin(double value) const;
+  int getTemporalBin(double value) const;
+
+  double getSpatialBinCenter(int bin) const;
+  double getTemporalBinCenter(int bin) const;
+
+  int getSpatialTrkGridSize(double sigma) const;
+  int getTemporalTrkGridSize(double sigma) const;
+
+  /// @brief Finds the maximum density of a DensityMap
+  /// @param densityMap Map between bins and corresponding density
+  /// values
+  /// @return Iterator of the map entry with the highest density
+  SparseDensityMap::const_iterator highestDensityEntry(
+      const DensityMap& densityMap) const;
+
   /// @brief Function that creates a track density map, i.e., a map from bins
   /// to the corresponding density values for a single track.
   ///
@@ -155,7 +182,9 @@ class AdaptiveGridTrackDensity {
   /// @param cov 3x3 impact parameter covariance matrix
   DensityMap createTrackGrid(const Acts::Vector3& impactParams,
                              const Bin& centralBin,
-                             const Acts::SquareMatrix3& cov) const;
+                             const Acts::SquareMatrix3& cov,
+                             int spatialTrkGridSize,
+                             int temporalTrkGridSize) const;
 
   /// @brief Function that estimates the seed width in z direction based
   /// on the full width at half maximum (FWHM) of the maximum density peak
@@ -167,22 +196,8 @@ class AdaptiveGridTrackDensity {
   /// @param maxZT z-t position of the maximum density value
   ///
   /// @return The width
-  Result<float> estimateSeedWidth(const DensityMap& densityMap,
-                                  const ZTPosition& maxZT) const;
-
-  /// @brief Helper to retrieve values of an nDim-dimensional normal
-  /// distribution
-  /// @note The constant prefactor (2 * pi)^(- nDim / 2) is discarded
-  ///
-  /// @param args Coordinates where the Gaussian should be evaluated
-  /// @note args must be in a coordinate system with origin at the mean
-  /// values of the Gaussian
-  /// @param cov Covariance matrix
-  ///
-  /// @return Multivariate Gaussian evaluated at args
-  template <unsigned int nDim>
-  static float multivariateGaussian(const Acts::ActsVector<nDim>& args,
-                                    const Acts::ActsSquareMatrix<nDim>& cov);
+  Result<double> estimateSeedWidth(const DensityMap& densityMap,
+                                   const ZTPosition& maxZT) const;
 
   /// @brief Checks (up to) first three density maxima that have a
   /// maximum relative deviation of 'relativeDensityDev' from the
@@ -201,9 +216,7 @@ class AdaptiveGridTrackDensity {
   /// @param bin Bin whose neighbors in z we want to sum up
   ///
   /// @return The density sum
-  float getDensitySum(const DensityMap& densityMap, const Bin& bin) const;
-
-  Config m_cfg;
+  double getDensitySum(const DensityMap& densityMap, const Bin& bin) const;
 };
 
 }  // namespace Acts
