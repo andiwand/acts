@@ -18,6 +18,8 @@
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/VoidNavigator.hpp"
@@ -201,9 +203,10 @@ using propagator_t = Propagator<EigenStepper<>, VoidNavigator>;
 
 BoundVector localToLocal(const propagator_t& prop, const BoundVector& local,
                          const Surface& src, const Surface& dst) {
-  PropagatorOptions<> options{gctx, mctx};
-  options.stepTolerance = 1e-10;
-  options.surfaceTolerance = 1e-10;
+  PropagatorOptions<propagator_t, ActionList<>, AbortList<>> options{gctx,
+                                                                     mctx};
+  options.stepper.stepTolerance = 1e-10;
+  options.navigator.surfaceTolerance = 1e-10;
 
   BoundTrackParameters start{src.getSharedPtr(), local, std::nullopt,
                              ParticleHypothesis::pion()};

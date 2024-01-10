@@ -30,7 +30,6 @@
 #include "Acts/Tests/CommonHelpers/CubicBVHTrackingGeometry.hpp"
 #include "Acts/Tests/CommonHelpers/CylindricalTrackingGeometry.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
-#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
@@ -38,7 +37,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <string>
 #include <system_error>

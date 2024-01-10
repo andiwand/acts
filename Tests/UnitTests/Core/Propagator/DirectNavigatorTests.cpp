@@ -11,7 +11,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
@@ -29,13 +28,10 @@
 #include "Acts/Tests/CommonHelpers/CylindricalTrackingGeometry.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <iostream>
 #include <memory>
 #include <random>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -113,10 +109,11 @@ void runTest(const rpropagator_t& rprop, const dpropagator_t& dprop, double pT,
   using ReferenceAbortList = AbortList<EndOfWorld>;
 
   // Options definition
-  using Options = PropagatorOptions<RefereceActionList, ReferenceAbortList>;
+  using Options =
+      PropagatorOptions<rpropagator_t, RefereceActionList, ReferenceAbortList>;
   Options pOptions(tgContext, mfContext);
   if (oversteppingTest) {
-    pOptions.maxStepSize = oversteppingMaxStepSize;
+    pOptions.stepper.maxStepSize = oversteppingMaxStepSize;
   }
 
   // Surface collector configuration
@@ -142,16 +139,14 @@ void runTest(const rpropagator_t& rprop, const dpropagator_t& dprop, double pT,
     }
 
     // Action list for direct navigator with its initializer
-    using DirectActionList = ActionList<DirectNavigator::Initializer,
-                                        MaterialInteractor, SurfaceCollector<>>;
+    using DirectActionList = ActionList<MaterialInteractor, SurfaceCollector<>>;
 
     // Direct options definition
-    using DirectOptions = PropagatorOptions<DirectActionList, AbortList<>>;
+    using DirectOptions =
+        PropagatorOptions<dpropagator_t, DirectActionList, AbortList<>>;
     DirectOptions dOptions(tgContext, mfContext);
     // Set the surface sequence
-    auto& dInitializer =
-        dOptions.actionList.get<DirectNavigator::Initializer>();
-    dInitializer.navSurfaces = surfaceSequence;
+    dOptions.navigator.navSurfaces = surfaceSequence;
     // Surface collector configuration
     auto& dCollector = dOptions.actionList.template get<SurfaceCollector<>>();
     dCollector.selector.selectSensitive = true;

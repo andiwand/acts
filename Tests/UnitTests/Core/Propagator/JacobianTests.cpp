@@ -138,10 +138,10 @@ void testJacobianToGlobal(const Parameters& pars) {
   // Jacobian creation for Propagator/Steppers
   // a) ATLAS stepper
   AtlasStepperType::State astepState(tgContext, bField->makeCache(mfContext),
-                                     pars);
+                                     pars, {});
   // b) Eigen stepper
   EigenStepperType::State estepState(tgContext, bField->makeCache(mfContext),
-                                     pars);
+                                     pars, {});
 
   // create the matrices
   auto asMatrix = convertToMatrix(astepState.pVector);

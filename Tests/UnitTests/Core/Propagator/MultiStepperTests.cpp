@@ -11,7 +11,6 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/EventData/Charge.hpp"
 #include "Acts/EventData/GenericBoundTrackParameters.hpp"
 #include "Acts/EventData/MultiComponentTrackParameters.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
@@ -20,22 +19,21 @@
 #include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/NullBField.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
 #include "Acts/Propagator/DefaultExtension.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/MultiEigenStepperLoop.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/StepperExtensionList.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/Intersection.hpp"
-#include "Acts/Utilities/Logger.hpp"
-#include "Acts/Utilities/Result.hpp"
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -72,11 +70,12 @@ const auto defaultNullBField = std::make_shared<NullBField>();
 const auto particleHypothesis = ParticleHypothesis::pion();
 
 struct Options {
-  double stepTolerance = 1e-4;
-  double stepSizeCutOff = 0.0;
-  std::size_t maxRungeKuttaStepTrials = 10;
+  struct {
+    double stepTolerance = 1e-4;
+    double stepSizeCutOff = 0.0;
+    std::size_t maxRungeKuttaStepTrials = 10;
+  } stepper;
   Direction direction = defaultNDir;
-  const Acts::Logger &logger = Acts::getDummyLogger();
 };
 
 struct MockNavigator {};
@@ -130,6 +129,12 @@ auto makeDefaultBoundPars(bool cov = true, std::size_t n = 4,
   return MultiComponentBoundTrackParameters(surface, cmps, particleHypothesis);
 }
 
+SingleStepper::Options makeDefaultOptions() {
+  SingleStepper::Options options;
+  options.maxStepSize = defaultStepSize;
+  return options;
+}
+
 //////////////////////////////////////////////////////
 /// Test the construction of the MultiStepper::State
 //////////////////////////////////////////////////////
@@ -141,7 +146,8 @@ void test_multi_stepper_state() {
   constexpr std::size_t N = 4;
   const auto multi_pars = makeDefaultBoundPars(Cov, N, BoundVector::Ones());
 
-  MultiState state(geoCtx, magCtx, defaultBField, multi_pars, defaultStepSize);
+  MultiState state(geoCtx, magCtx, defaultBField, multi_pars,
+                   makeDefaultOptions());
 
   MultiStepper ms(defaultBField);
 
@@ -185,9 +191,9 @@ void test_multi_stepper_state_invalid() {
   // Empty component vector
   const auto multi_pars = makeDefaultBoundPars(false, 0);
 
-  BOOST_CHECK_THROW(
-      MultiState(geoCtx, magCtx, defaultBField, multi_pars, defaultStepSize),
-      std::invalid_argument);
+  BOOST_CHECK_THROW(MultiState(geoCtx, magCtx, defaultBField, multi_pars,
+                               makeDefaultOptions()),
+                    std::invalid_argument);
 }
 
 BOOST_AUTO_TEST_CASE(multi_eigen_stepper_state_invalid) {
@@ -216,9 +222,9 @@ void test_multi_stepper_vs_eigen_stepper() {
   BoundTrackParameters single_pars(surface, pars, cov, particleHypothesis);
 
   MultiState multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
   SingleStepper::State single_state(geoCtx, defaultBField->makeCache(magCtx),
-                                    single_pars, defaultStepSize);
+                                    single_pars, makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultBField);
   SingleStepper single_stepper(defaultBField);
@@ -278,9 +284,9 @@ void test_components_modifying_accessors() {
   const auto multi_pars = makeDefaultBoundPars();
 
   MultiState mutable_multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                                 defaultStepSize);
+                                 makeDefaultOptions());
   const MultiState const_multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                                     defaultStepSize);
+                                     makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultBField);
 
@@ -382,10 +388,10 @@ void test_multi_stepper_surface_status_update() {
                     .isApprox(Vector3{-1.0, 0.0, 0.0}, 1.e-10));
 
   MultiState multi_state(geoCtx, magCtx, defaultNullBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
   SingleStepper::State single_state(
       geoCtx, defaultNullBField->makeCache(magCtx), std::get<1>(multi_pars[0]),
-      defaultStepSize);
+      makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultNullBField);
   SingleStepper single_stepper(defaultNullBField);
@@ -485,10 +491,10 @@ void test_component_bound_state() {
                     .isApprox(Vector3{-1.0, 0.0, 0.0}, 1.e-10));
 
   MultiState multi_state(geoCtx, magCtx, defaultNullBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
   SingleStepper::State single_state(
       geoCtx, defaultNullBField->makeCache(magCtx), std::get<1>(multi_pars[0]),
-      defaultStepSize);
+      makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultNullBField);
   SingleStepper single_stepper(defaultNullBField);
@@ -555,7 +561,7 @@ void test_combined_bound_state_function() {
   MultiComponentBoundTrackParameters multi_pars(surface, cmps,
                                                 particleHypothesis);
   MultiState multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
   MultiStepper multi_stepper(defaultBField);
 
   auto res = multi_stepper.boundState(multi_state, *surface, true,
@@ -601,7 +607,7 @@ void test_combined_curvilinear_state_function() {
   MultiComponentBoundTrackParameters multi_pars(surface, cmps,
                                                 particleHypothesis);
   MultiState multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
   MultiStepper multi_stepper(defaultBField);
 
   const auto [curv_pars, jac, pathLength] =
@@ -642,7 +648,7 @@ void test_single_component_interface_function() {
                                                 particleHypothesis);
 
   MultiState multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultBField);
 
@@ -687,7 +693,7 @@ void remove_add_components_function() {
   const auto multi_pars = makeDefaultBoundPars(4);
 
   MultiState multi_state(geoCtx, magCtx, defaultBField, multi_pars,
-                         defaultStepSize);
+                         makeDefaultOptions());
 
   MultiStepper multi_stepper(defaultBField);
 
@@ -723,7 +729,9 @@ void propagator_instatiation_test_function() {
 
   auto surface = Acts::Surface::makeShared<Acts::PlaneSurface>(
       Vector3::Zero(), Vector3{1.0, 0.0, 0.0});
-  PropagatorOptions options(geoCtx, magCtx);
+  PropagatorOptions<Propagator<multi_stepper_t, Navigator>, ActionList<>,
+                    AbortList<>>
+      options(geoCtx, magCtx);
 
   std::vector<std::tuple<double, BoundVector, std::optional<BoundSquareMatrix>>>
       cmps(4, {0.25, BoundVector::Ones().eval(),

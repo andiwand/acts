@@ -25,6 +25,7 @@
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
+#include "Acts/Propagator/VoidNavigator.hpp"
 #include "Acts/Propagator/detail/LoopProtection.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
@@ -159,7 +160,7 @@ BOOST_DATA_TEST_CASE(
 
 using BField = ConstantBField;
 using EigenStepper = Acts::EigenStepper<>;
-using EigenPropagator = Propagator<EigenStepper>;
+using EigenPropagator = Propagator<EigenStepper, Acts::VoidNavigator>;
 
 const int ntests = 100;
 const int skip = 0;
@@ -203,7 +204,8 @@ BOOST_DATA_TEST_CASE(
   CurvilinearTrackParameters start(Vector4(0, 0, 0, 42), phi, theta, q / p,
                                    std::nullopt, ParticleHypothesis::pion());
 
-  using PropagatorOptions = PropagatorOptions<ActionList<>, AbortList<>>;
+  using PropagatorOptions =
+      PropagatorOptions<EigenPropagator, ActionList<>, AbortList<>>;
   PropagatorOptions options(tgContext, mfContext);
   options.maxSteps = 1e6;
   const auto& result = epropagator.propagate(start, options).value();

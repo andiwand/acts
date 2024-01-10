@@ -11,37 +11,29 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/EventData/GenericCurvilinearTrackParameters.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
+#include "Acts/Propagator/AbortList.hpp"
 #include "Acts/Propagator/ActionList.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/MaterialInteractor.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
-#include "Acts/Propagator/StandardAborters.hpp"
 #include "Acts/Propagator/SurfaceCollector.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Tests/CommonHelpers/CylindricalTrackingGeometry.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
-#include <map>
 #include <memory>
-#include <optional>
 #include <random>
-#include <tuple>
 #include <utility>
-#include <vector>
 
 namespace bdata = boost::unit_test::data;
 using namespace Acts::UnitLiterals;
@@ -114,8 +106,9 @@ BOOST_DATA_TEST_CASE(
   CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
-  PropagatorOptions<> options(tgContext, mfContext);
-  options.maxStepSize = 10_cm;
+  PropagatorOptions<EigenPropagatorType, ActionList<>, AbortList<>> options(
+      tgContext, mfContext);
+  options.stepper.maxStepSize = 10_cm;
   options.pathLimit = 25_cm;
 
   BOOST_CHECK(
@@ -159,18 +152,20 @@ BOOST_DATA_TEST_CASE(
   // A PlaneSelector for the SurfaceCollector
   using PlaneCollector = SurfaceCollector<PlaneSelector>;
 
-  PropagatorOptions<ActionList<PlaneCollector>> options(tgContext, mfContext);
-
-  options.maxStepSize = 10_cm;
+  PropagatorOptions<EigenPropagatorType, ActionList<PlaneCollector>,
+                    AbortList<>>
+      options(tgContext, mfContext);
+  options.stepper.maxStepSize = 10_cm;
   options.pathLimit = 25_cm;
 
   const auto& result = epropagator.propagate(start, options).value();
   auto collector_result = result.get<PlaneCollector::result_type>();
 
   // step through the surfaces and go step by step
-  PropagatorOptions<> optionsEmpty(tgContext, mfContext);
+  PropagatorOptions<EigenPropagatorType, ActionList<>, AbortList<>>
+      optionsEmpty(tgContext, mfContext);
+  optionsEmpty.stepper.maxStepSize = 25_cm;
 
-  optionsEmpty.maxStepSize = 25_cm;
   // Try propagation from start to each surface
   for (const auto& colsf : collector_result.collected) {
     const auto& csurface = colsf.surface;
@@ -221,9 +216,10 @@ BOOST_DATA_TEST_CASE(
   CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
-  PropagatorOptions<ActionList<MaterialInteractor>> options(tgContext,
-                                                            mfContext);
-  options.maxStepSize = 25_cm;
+  PropagatorOptions<EigenPropagatorType, ActionList<MaterialInteractor>,
+                    AbortList<>>
+      options(tgContext, mfContext);
+  options.stepper.maxStepSize = 25_cm;
   options.pathLimit = 25_cm;
 
   const auto& result = epropagator.propagate(start, options).value();
@@ -269,9 +265,10 @@ BOOST_DATA_TEST_CASE(
                                    ParticleHypothesis::pion());
 
   // Action list and abort list
-  PropagatorOptions<ActionList<MaterialInteractor>> options(tgContext,
-                                                            mfContext);
-  options.maxStepSize = 25_cm;
+  PropagatorOptions<EigenPropagatorType, ActionList<MaterialInteractor>,
+                    AbortList<>>
+      options(tgContext, mfContext);
+  options.stepper.maxStepSize = 25_cm;
   options.pathLimit = 1500_mm;
 
   const auto& status = epropagator.propagate(start, options).value();
