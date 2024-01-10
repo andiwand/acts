@@ -600,7 +600,8 @@ class Gx2Fitter {
     using Actors = Acts::ActionList<GX2FActor>;
     using Aborters = Acts::AbortList<GX2FAborter>;
 
-    using PropagatorOptions = Acts::PropagatorOptions<Actors, Aborters>;
+    using PropagatorOptions =
+        Acts::PropagatorOptions<propagator_t, Actors, Aborters>;
 
     start_parameters_t params = sParameters;
     BoundVector deltaParams = BoundVector::Zero();

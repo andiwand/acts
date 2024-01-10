@@ -263,6 +263,8 @@ class MultiEigenStepperLoop
       : EigenStepper<extensionlist_t, auctioneer_t>(std::move(bField)),
         m_logger(std::move(logger)) {}
 
+  using Options = typename SingleStepper::Options;
+
   struct State {
     /// The struct that stores the individual components
     struct Component {
@@ -307,7 +309,7 @@ class MultiEigenStepperLoop
                    const MagneticFieldContext& mctx,
                    const std::shared_ptr<const MagneticFieldProvider>& bfield,
                    const MultiComponentBoundTrackParameters& multipars,
-                   double ssize = std::numeric_limits<double>::max())
+                   const Options& options)
         : particleHypothesis(multipars.particleHypothesis()),
           geoContext(gctx),
           magContext(mctx) {
@@ -322,7 +324,7 @@ class MultiEigenStepperLoop
       for (auto i = 0ul; i < multipars.components().size(); ++i) {
         const auto& [weight, singlePars] = multipars[i];
         components.push_back(
-            {SingleState(gctx, bfield->makeCache(mctx), singlePars, ssize),
+            {SingleState(gctx, bfield->makeCache(mctx), singlePars, options),
              weight, Intersection3D::Status::onSurface});
       }
 
@@ -336,8 +338,8 @@ class MultiEigenStepperLoop
   State makeState(std::reference_wrapper<const GeometryContext> gctx,
                   std::reference_wrapper<const MagneticFieldContext> mctx,
                   const MultiComponentBoundTrackParameters& par,
-                  double ssize = std::numeric_limits<double>::max()) const {
-    return State(gctx, mctx, SingleStepper::m_bField, par, ssize);
+                  const Options& options) const {
+    return State(gctx, mctx, SingleStepper::m_bField, par, options);
   }
 
   /// @brief Resets the state
@@ -347,13 +349,12 @@ class MultiEigenStepperLoop
   /// @param [in] cov Covariance matrix
   /// @param [in] surface The reference surface of the bound parameters
   /// @param [in] stepSize Step size
-  void resetState(
-      State& state, const BoundVector& boundParams,
-      const BoundSquareMatrix& cov, const Surface& surface,
-      const double stepSize = std::numeric_limits<double>::max()) const {
+  void resetState(State& state, const BoundVector& boundParams,
+                  const BoundSquareMatrix& cov, const Surface& surface,
+                  const Options& options) const {
     for (auto& component : state.components) {
       SingleStepper::resetState(component.state, boundParams, cov, surface,
-                                stepSize);
+                                options);
     }
   }
 
@@ -497,10 +498,11 @@ class MultiEigenStepperLoop
   Result<ComponentProxy> addComponent(State& state,
                                       const BoundTrackParameters& pars,
                                       double weight) const {
+    // TODO are default options fine here?
     state.components.push_back(
         {SingleState(state.geoContext,
-                     SingleStepper::m_bField->makeCache(state.magContext),
-                     pars),
+                     SingleStepper::m_bField->makeCache(state.magContext), pars,
+                     Options()),
          weight, Intersection3D::Status::onSurface});
 
     return ComponentProxy{state.components.back(), state};

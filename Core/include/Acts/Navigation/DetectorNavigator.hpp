@@ -8,21 +8,17 @@
 
 #pragma once
 
-#include "Acts/Definitions/Units.hpp"
 #include "Acts/Detector/Detector.hpp"
 #include "Acts/Detector/DetectorVolume.hpp"
 #include "Acts/Detector/Portal.hpp"
-#include "Acts/Geometry/BoundarySurfaceT.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Geometry/Layer.hpp"
 #include "Acts/Navigation/NavigationState.hpp"
-#include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Surfaces/BoundaryCheck.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
-#include <iomanip>
-#include <iterator>
 #include <sstream>
 #include <string>
 
@@ -47,18 +43,24 @@ class DetectorNavigator {
     bool resolvePassive = false;
   };
 
+  struct Options : public NavigatorPlainOptions {
+    /// @brief Set the plain options
+    ///
+    /// @param pOptions The plain options
+    void setPlainOptions(const NavigatorPlainOptions& pOptions) {
+      // TODO is this safe?
+      static_cast<NavigatorPlainOptions&>(*this) = pOptions;
+    }
+  };
+
   /// Nested State struct
   ///
   /// It acts as an internal state which is
   /// created for every propagation/extrapolation step
   /// and keep thread-local navigation information
   struct State : public NavigationState {
-    /// Navigation state - external state: the start surface
-    const Surface* startSurface = nullptr;
-    /// Navigation state - external state: the current surface
+    /// The current surface
     const Surface* currentSurface = nullptr;
-    /// Navigation state - external state: the target surface
-    const Surface* targetSurface = nullptr;
     /// Indicator if the target is reached
     bool targetReached = false;
     /// Navigation state : a break has been detected
@@ -75,11 +77,8 @@ class DetectorNavigator {
                                                   Logging::Level::INFO))
       : m_cfg{cfg}, m_logger{std::move(_logger)} {}
 
-  State makeState(const Surface* startSurface,
-                  const Surface* targetSurface) const {
+  State makeState(const Options& /*options*/) const {
     State result;
-    result.startSurface = startSurface;
-    result.targetSurface = targetSurface;
     return result;
   }
 
@@ -93,14 +92,6 @@ class DetectorNavigator {
 
   const IVolumeMaterial* currentVolumeMaterial(const State& state) const {
     return state.currentVolume->volumeMaterial();
-  }
-
-  const Surface* startSurface(const State& state) const {
-    return state.startSurface;
-  }
-
-  const Surface* targetSurface(const State& state) const {
-    return state.targetSurface;
   }
 
   bool targetReached(const State& state) const { return state.targetReached; }
@@ -221,7 +212,7 @@ class DetectorNavigator {
       auto surfaceStatus = stepper.updateSurfaceStatus(
           state.stepping, surface, c.objectIntersection.index(),
           state.options.direction, BoundaryCheck(boundaryCheck),
-          state.options.surfaceTolerance, logger());
+          state.options.navigator.surfaceTolerance, logger());
       if (surfaceStatus == Intersection3D::Status::reachable) {
         ACTS_VERBOSE(volInfo(state)
                      << posInfo(state, stepper)
@@ -291,7 +282,7 @@ class DetectorNavigator {
         state.stepping, *nextSurface,
         nState.surfaceCandidate().objectIntersection.index(),
         state.options.direction, BoundaryCheck(boundaryCheck),
-        state.options.surfaceTolerance, logger());
+        state.options.navigator.surfaceTolerance, logger());
 
     // Check if we are at a surface
     if (surfaceStatus == Intersection3D::Status::onSurface) {

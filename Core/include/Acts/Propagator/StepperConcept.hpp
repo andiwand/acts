@@ -36,7 +36,6 @@ using bound_state_t = typename T::BoundState;
 template <typename T>
 using curvilinear_state_t = typename T::CurvilinearState;
 
-METHOD_TRAIT(reset_state_t, resetState);
 METHOD_TRAIT(get_field_t, getField);
 METHOD_TRAIT(position_t, position);
 METHOD_TRAIT(direction_t, direction);
@@ -99,8 +98,6 @@ constexpr bool MultiStepperStateConcept= require<
         static_assert(bound_state_exists, "BoundState type not found");
         constexpr static bool curvilinear_state_exists = exists<curvilinear_state_t, S>;
         static_assert(curvilinear_state_exists, "CurvilinearState type not found");
-        constexpr static bool reset_state_exists = has_method<const S, void, reset_state_t, state&, const BoundVector&, const BoundSquareMatrix&, const Surface&, const double>;
-        static_assert(reset_state_exists, "resetState method not found");
         constexpr static bool position_exists = has_method<const S, Vector3, position_t, const state&>;
         static_assert(position_exists, "position method not found");
         constexpr static bool direction_exists = has_method<const S, Vector3, direction_t, const state&>;

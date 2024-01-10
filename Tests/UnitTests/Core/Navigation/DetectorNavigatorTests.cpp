@@ -69,8 +69,10 @@ BOOST_AUTO_TEST_CASE(DetectorNavigator) {
   auto detector = Acts::Experimental::Detector::makeShared(
       "Detector", {detectorVolume}, Acts::Experimental::tryRootVolumes());
 
-  using ActionListType = Acts::ActionList<>;
-  using AbortListType = Acts::AbortList<>;
+  using Propagator = Acts::Propagator<Acts::EigenStepper<>,
+                                      Acts::Experimental::DetectorNavigator>;
+  using ActionList = Acts::ActionList<>;
+  using AbortList = Acts::AbortList<>;
 
   auto bField = std::make_shared<Acts::ConstantBField>(
       Acts::Vector3(0, 0, 2 * Acts::UnitConstants::T));
@@ -82,10 +84,9 @@ BOOST_AUTO_TEST_CASE(DetectorNavigator) {
   auto navigator = Acts::Experimental::DetectorNavigator(
       navCfg, Acts::getDefaultLogger("DetectorNavigator",
                                      Acts::Logging::Level::VERBOSE));
-  auto options = Acts::PropagatorOptions<ActionListType, AbortListType>(
+  auto options = Acts::PropagatorOptions<Propagator, ActionList, AbortList>(
       tgContext, mfContext);
-  auto propagator = Acts::Propagator<Acts::EigenStepper<>,
-                                     Acts::Experimental::DetectorNavigator>(
+  auto propagator = Propagator(
       stepper, navigator,
       Acts::getDefaultLogger("Propagator", Acts::Logging::Level::VERBOSE));
 

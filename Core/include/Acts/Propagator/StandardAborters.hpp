@@ -49,7 +49,7 @@ struct PathLimitReached {
     // Check if the maximum allowed step size has to be updated
     double distance =
         std::abs(internalLimit) - std::abs(state.stepping.pathAccumulated);
-    double tolerance = state.options.surfaceTolerance;
+    double tolerance = state.options.navigator.surfaceTolerance;
     bool limitReached = (std::abs(distance) < std::abs(tolerance));
     if (limitReached) {
       ACTS_VERBOSE("PathLimit aborter | "
@@ -114,7 +114,7 @@ struct SurfaceReached {
         overrideNearLimit.value_or(stepper.overstepLimit(state.stepping));
     const double farLimit =
         state.stepping.stepSize.value(ConstrainedStep::aborter);
-    const double tolerance = state.options.surfaceTolerance;
+    const double tolerance = state.options.navigator.surfaceTolerance;
 
     const auto sIntersection = surface->intersect(
         state.geoContext, stepper.position(state.stepping),

@@ -100,8 +100,8 @@ struct SimulationActor {
     }
 
     // check if we are still on the start surface and skip if so
-    if ((navigator.startSurface(state.navigation) != nullptr) &&
-        (navigator.startSurface(state.navigation) ==
+    if ((state.options.navigator.startSurface != nullptr) &&
+        (state.options.navigator.startSurface ==
          navigator.currentSurface(state.navigation))) {
       return;
     }

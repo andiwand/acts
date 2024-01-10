@@ -10,15 +10,11 @@
 
 #include "Acts/EventData/TrackHelpers.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
-#include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/MultiStepperAborters.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
 #include "Acts/TrackFitting/GsfOptions.hpp"
-#include "Acts/TrackFitting/KalmanFitter.hpp"
 #include "Acts/TrackFitting/detail/GsfActor.hpp"
 #include "Acts/Utilities/Logger.hpp"
-
-#include <fstream>
 
 namespace Acts {
 
@@ -105,16 +101,16 @@ struct GaussianSumFitter {
 
     // Initialize the forward propagation with the DirectNavigator
     auto fwdPropInitializer = [&sSequence, this](const auto& opts) {
-      using Actors = ActionList<GsfActor, DirectNavigator::Initializer>;
+      using Actors = ActionList<GsfActor>;
       using Aborters = AbortList<NavigationBreakAborter>;
 
-      PropagatorOptions<Actors, Aborters> propOptions(opts.geoContext,
-                                                      opts.magFieldContext);
+      PropagatorOptions<propagator_t, Actors, Aborters> propOptions(
+          opts.geoContext, opts.magFieldContext);
 
       propOptions.setPlainOptions(opts.propagatorPlainOptions);
 
-      propOptions.actionList.template get<DirectNavigator::Initializer>()
-          .navSurfaces = sSequence;
+      propOptions.navigator.navSurfaces = std::move(sSequence);
+
       propOptions.actionList.template get<GsfActor>()
           .m_cfg.bethe_heitler_approx = &m_betheHeitlerApproximation;
 
@@ -123,20 +119,20 @@ struct GaussianSumFitter {
 
     // Initialize the backward propagation with the DirectNavigator
     auto bwdPropInitializer = [&sSequence, this](const auto& opts) {
-      using Actors = ActionList<GsfActor, DirectNavigator::Initializer>;
+      using Actors = ActionList<GsfActor>;
       using Aborters = AbortList<>;
 
       std::vector<const Surface*> backwardSequence(
           std::next(sSequence.rbegin()), sSequence.rend());
       backwardSequence.push_back(opts.referenceSurface);
 
-      PropagatorOptions<Actors, Aborters> propOptions(opts.geoContext,
-                                                      opts.magFieldContext);
+      PropagatorOptions<propagator_t, Actors, Aborters> propOptions(
+          opts.geoContext, opts.magFieldContext);
 
       propOptions.setPlainOptions(opts.propagatorPlainOptions);
 
-      propOptions.actionList.template get<DirectNavigator::Initializer>()
-          .navSurfaces = std::move(backwardSequence);
+      propOptions.navigator.navSurfaces = std::move(backwardSequence);
+
       propOptions.actionList.template get<GsfActor>()
           .m_cfg.bethe_heitler_approx = &m_betheHeitlerApproximation;
 
@@ -163,8 +159,8 @@ struct GaussianSumFitter {
       using Actors = ActionList<GsfActor>;
       using Aborters = AbortList<EndOfWorldReached, NavigationBreakAborter>;
 
-      PropagatorOptions<Actors, Aborters> propOptions(opts.geoContext,
-                                                      opts.magFieldContext);
+      PropagatorOptions<propagator_t, Actors, Aborters> propOptions(
+          opts.geoContext, opts.magFieldContext);
       propOptions.setPlainOptions(opts.propagatorPlainOptions);
       propOptions.actionList.template get<GsfActor>()
           .m_cfg.bethe_heitler_approx = &m_betheHeitlerApproximation;
@@ -177,8 +173,8 @@ struct GaussianSumFitter {
       using Actors = ActionList<GsfActor>;
       using Aborters = AbortList<EndOfWorldReached>;
 
-      PropagatorOptions<Actors, Aborters> propOptions(opts.geoContext,
-                                                      opts.magFieldContext);
+      PropagatorOptions<propagator_t, Actors, Aborters> propOptions(
+          opts.geoContext, opts.magFieldContext);
 
       propOptions.setPlainOptions(opts.propagatorPlainOptions);
 

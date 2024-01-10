@@ -104,10 +104,10 @@ struct PointwiseMaterialInteraction {
       const propagator_state_t& state, const navigator_t& navigator,
       MaterialUpdateStage updateStage = MaterialUpdateStage::FullUpdate) {
     // We are at the start surface
-    if (surface == navigator.startSurface(state.navigation)) {
+    if (surface == state.options.navigator.startSurface) {
       updateStage = MaterialUpdateStage::PostUpdate;
       // Or is it the target surface ?
-    } else if (surface == navigator.targetSurface(state.navigation)) {
+    } else if (surface == state.options.navigator.targetSurface) {
       updateStage = MaterialUpdateStage::PreUpdate;
     }
 

@@ -13,10 +13,11 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/MagneticField/NullBField.hpp"
-#include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
-#include "Acts/Vertexing/TrackAtVertex.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
 
 namespace Acts {
@@ -44,7 +45,8 @@ struct ImpactParametersAndSigma {
 /// https://github.com/acts-project/acts/pull/2506
 /// TODO: Upload reference at a better place
 template <typename input_track_t, typename propagator_t,
-          typename propagator_options_t = PropagatorOptions<>>
+          typename propagator_options_t =
+              PropagatorOptions<propagator_t, ActionList<>, AbortList<>>>
 class ImpactPointEstimator {
  public:
   /// State struct

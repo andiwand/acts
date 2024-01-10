@@ -266,9 +266,10 @@ BOOST_AUTO_TEST_CASE(VolumeMaterialMapper_comparison_tests) {
 
   MagneticFieldContext mc;
   // Launch propagation and gather result
-  PropagatorOptions<ActionList<MaterialCollector>, AbortList<EndOfWorldReached>>
+  PropagatorOptions<decltype(prop), ActionList<MaterialCollector>,
+                    AbortList<EndOfWorldReached>>
       po(gc, mc);
-  po.maxStepSize = 1._mm;
+  po.stepper.maxStepSize = 1._mm;
   po.maxSteps = 1e6;
 
   const auto& result = prop.propagate(sctp, po).value();

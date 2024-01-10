@@ -11,6 +11,7 @@
 // Workaround for building on clang+libstdc++
 #include "Acts/Utilities/detail/ReferenceWrapperAnyCompat.hpp"
 
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/detail/GenericDenseEnvironmentExtension.hpp"
 
 namespace Acts {
@@ -20,14 +21,26 @@ namespace Acts {
 using DenseEnvironmentExtension =
     detail::GenericDenseEnvironmentExtension<double>;
 
-template <typename action_list_t = ActionList<>,
-          typename aborter_list_t = AbortList<>>
+template <typename propagator_t, typename action_list_t,
+          typename aborter_list_t>
 struct DenseStepperPropagatorOptions
-    : public PropagatorOptions<action_list_t, aborter_list_t> {
-  /// Copy Constructor
+    : public PropagatorOptions<propagator_t, action_list_t, aborter_list_t> {
+  /// Delete default constructor
+  DenseStepperPropagatorOptions() = delete;
+
+  /// PropagatorOptions copy except for aborters
+  template <typename other_action_list_t, typename other_aborter_list_t>
   DenseStepperPropagatorOptions(
-      const DenseStepperPropagatorOptions<action_list_t, aborter_list_t>&
-          dspo) = default;
+      const DenseStepperPropagatorOptions<propagator_t, other_action_list_t,
+                                          other_aborter_list_t>& po)
+      : PropagatorOptions<propagator_t, action_list_t, aborter_list_t>(po),
+        meanEnergyLoss{po.meanEnergyLoss},
+        includeGgradient{po.includeGgradient},
+        momentumCutOff{po.momentumCutOff} {}
+
+  /// Copy Constructor
+  DenseStepperPropagatorOptions(const DenseStepperPropagatorOptions& dspo) =
+      default;
 
   /// Constructor with GeometryContext
   ///
@@ -35,7 +48,31 @@ struct DenseStepperPropagatorOptions
   /// @param mctx The current magnetic fielc context object
   DenseStepperPropagatorOptions(const GeometryContext& gctx,
                                 const MagneticFieldContext& mctx)
-      : PropagatorOptions<action_list_t, aborter_list_t>(gctx, mctx) {}
+      : PropagatorOptions<propagator_t, action_list_t, aborter_list_t>(gctx,
+                                                                       mctx) {}
+
+  /// @brief Expand the Options with extended aborters
+  ///
+  /// @tparam extended_aborter_list_t Type of the new aborter list
+  ///
+  /// @param aborters The new aborter list to be used (internally)
+  template <typename extended_aborter_list_t>
+  DenseStepperPropagatorOptions<propagator_t, action_list_t,
+                                extended_aborter_list_t>
+  extend(extended_aborter_list_t aborters) const {
+    DenseStepperPropagatorOptions<propagator_t, action_list_t,
+                                  extended_aborter_list_t>
+        eoptions(*this);
+    eoptions.actionList = actionList;
+    eoptions.abortList = std::move(aborters);
+    return eoptions;
+  }
+
+  using PropagatorOptions<propagator_t, action_list_t,
+                          aborter_list_t>::setPlainOptions;
+
+  using PropagatorOptions<propagator_t, action_list_t,
+                          aborter_list_t>::actionList;
 
   /// Toggle between mean and mode evaluation of energy loss
   bool meanEnergyLoss = true;
@@ -45,33 +82,6 @@ struct DenseStepperPropagatorOptions
 
   /// Cut-off value for the momentum in SI units
   double momentumCutOff = 0.;
-
-  /// @brief Expand the Options with extended aborters
-  ///
-  /// @tparam extended_aborter_list_t Type of the new aborter list
-  ///
-  /// @param aborters The new aborter list to be used (internally)
-  template <typename extended_aborter_list_t>
-  DenseStepperPropagatorOptions<action_list_t, extended_aborter_list_t> extend(
-      extended_aborter_list_t aborters) const {
-    DenseStepperPropagatorOptions<action_list_t, extended_aborter_list_t>
-        eoptions(this->geoContext, this->magFieldContext);
-
-    // Copy the options over
-    eoptions.setPlainOptions(*this);
-
-    // Action / abort list
-    eoptions.actionList = std::move(this->actionList);
-    eoptions.abortList = std::move(aborters);
-
-    // Copy dense environment specific parameters
-    eoptions.meanEnergyLoss = meanEnergyLoss;
-    eoptions.includeGgradient = includeGgradient;
-    eoptions.momentumCutOff = momentumCutOff;
-
-    // And return the options
-    return eoptions;
-  }
 };
 
 }  // namespace Acts

@@ -643,17 +643,19 @@ class CombinatorialKalmanFilter {
       auto currentState =
           result.fittedStates->getTrackState(result.activeTips.back().first);
 
+      // Set targetSurface to nullptr for forward filtering; it's only needed
+      // after smoothing
+      state.options.navigator.startSurface = &currentState.referenceSurface();
+      state.options.navigator.targetSurface = nullptr;
+
       // Reset the stepping state
       stepper.resetState(state.stepping, currentState.filtered(),
                          currentState.filteredCovariance(),
                          currentState.referenceSurface(),
-                         state.options.maxStepSize);
+                         state.options.stepper);
 
       // Reset the navigation state
-      // Set targetSurface to nullptr for forward filtering; it's only needed
-      // after smoothing
-      state.navigation =
-          navigator.makeState(&currentState.referenceSurface(), nullptr);
+      state.navigation = navigator.makeState(state.options.navigator);
       navigator.initialize(state, stepper);
 
       // No Kalman filtering for the starting surface, but still need
@@ -1258,7 +1260,7 @@ class CombinatorialKalmanFilter {
             ->intersect(
                 state.geoContext, freeVector.segment<3>(eFreePos0),
                 state.options.direction * freeVector.segment<3>(eFreeDir0),
-                BoundaryCheck(true), state.options.surfaceTolerance)
+                BoundaryCheck(true), state.options.navigator.surfaceTolerance)
             .closest();
       };
 
@@ -1302,13 +1304,13 @@ class CombinatorialKalmanFilter {
         stepper.resetState(state.stepping, firstCreatedState.smoothed(),
                            firstCreatedState.smoothedCovariance(),
                            firstCreatedState.referenceSurface(),
-                           state.options.maxStepSize);
+                           state.options.stepper);
         reverseDirection = firstIntersection.pathLength() < 0;
       } else {
         stepper.resetState(state.stepping, lastCreatedMeasurement.smoothed(),
                            lastCreatedMeasurement.smoothedCovariance(),
                            lastCreatedMeasurement.referenceSurface(),
-                           state.options.maxStepSize);
+                           state.options.stepper);
         reverseDirection = lastIntersection.pathLength() < 0;
       }
       // Reverse the navigation direction if necessary
@@ -1327,10 +1329,13 @@ class CombinatorialKalmanFilter {
           "parameters at surface "
           << surface.geometryId() << ". Prepared to reach the target surface.");
 
+      // Set targetSurface to nullptr as it is handled manually in the actor
+      state.options.navigator.startSurface = &surface;
+      state.options.navigator.targetSurface = nullptr;
+
       // Reset the navigation state to enable propagation towards the target
       // surface
-      // Set targetSurface to nullptr as it is handled manually in the actor
-      state.navigation = navigator.makeState(&surface, nullptr);
+      state.navigation = navigator.makeState(state.options.navigator);
       navigator.initialize(state, stepper);
 
       detail::setupLoopProtection(state, stepper, result.pathLimitReached, true,
@@ -1435,8 +1440,8 @@ class CombinatorialKalmanFilter {
     using Aborters = AbortList<CombinatorialKalmanFilterAborter>;
 
     // Create relevant options for the propagation options
-    PropagatorOptions<Actors, Aborters> propOptions(tfOptions.geoContext,
-                                                    tfOptions.magFieldContext);
+    PropagatorOptions<propagator_t, Actors, Aborters> propOptions(
+        tfOptions.geoContext, tfOptions.magFieldContext);
 
     // Set the trivial propagator options
     propOptions.setPlainOptions(tfOptions.propagatorPlainOptions);

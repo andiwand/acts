@@ -14,8 +14,9 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/MagneticField/NullBField.hpp"
-#include "Acts/Propagator/EigenStepper.hpp"
-#include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Utilities/Result.hpp"
 #include "Acts/Vertexing/LinearizedTrack.hpp"
 
@@ -42,7 +43,8 @@ namespace Acts {
 /// @tparam propagator_t Propagator type
 /// @tparam propagator_options_t Propagator options type
 template <typename propagator_t,
-          typename propagator_options_t = PropagatorOptions<>>
+          typename propagator_options_t =
+              PropagatorOptions<propagator_t, ActionList<>, AbortList<>>>
 class HelicalTrackLinearizer {
  public:
   using Propagator_t = propagator_t;

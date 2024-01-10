@@ -8,6 +8,7 @@
 
 #include "Acts/EventData/detail/TransformationBoundToFree.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
+#include "Acts/Propagator/EigenStepperError.hpp"
 #include "Acts/Propagator/detail/CovarianceEngine.hpp"
 
 template <typename E, typename A>
@@ -19,8 +20,8 @@ template <typename E, typename A>
 auto Acts::EigenStepper<E, A>::makeState(
     std::reference_wrapper<const GeometryContext> gctx,
     std::reference_wrapper<const MagneticFieldContext> mctx,
-    const BoundTrackParameters& par, double ssize) const -> State {
-  return State{gctx, m_bField->makeCache(mctx), par, ssize};
+    const BoundTrackParameters& par, const Options& options) const -> State {
+  return State{gctx, m_bField->makeCache(mctx), par, options};
 }
 
 template <typename E, typename A>
@@ -28,13 +29,13 @@ void Acts::EigenStepper<E, A>::resetState(State& state,
                                           const BoundVector& boundParams,
                                           const BoundSquareMatrix& cov,
                                           const Surface& surface,
-                                          const double stepSize) const {
+                                          const Options& options) const {
   // Update the stepping state
   update(state,
          detail::transformBoundToFreeParameters(surface, state.geoContext,
                                                 boundParams),
          boundParams, cov, surface);
-  state.stepSize = ConstrainedStep(stepSize);
+  state.stepSize.setUser(options.maxStepSize);
   state.pathAccumulated = 0.;
 
   // Reinitialize the stepping jacobian
@@ -184,7 +185,7 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
               std::abs(sd.kQoP[0] - sd.kQoP[1] - sd.kQoP[2] + sd.kQoP[3]));
     error_estimate = std::max(error_estimate, 1e-20);
 
-    return success(error_estimate <= state.options.stepTolerance);
+    return success(error_estimate <= state.options.stepper.stepTolerance);
   };
 
   const double initialH =
@@ -204,21 +205,21 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
 
     const double stepSizeScaling =
         std::min(std::max(0.25f, std::sqrt(std::sqrt(static_cast<float>(
-                                     state.options.stepTolerance /
+                                     state.options.stepper.stepTolerance /
                                      std::abs(2. * error_estimate))))),
                  4.0f);
     h *= stepSizeScaling;
 
     // If step size becomes too small the particle remains at the initial
     // place
-    if (std::abs(h) < std::abs(state.options.stepSizeCutOff)) {
+    if (std::abs(h) < std::abs(state.options.stepper.stepSizeCutOff)) {
       // Not moving due to too low momentum needs an aborter
       return EigenStepperError::StepSizeStalled;
     }
 
     // If the parameter is off track too much or given stepSize is not
     // appropriate
-    if (nStepTrials > state.options.maxRungeKuttaStepTrials) {
+    if (nStepTrials > state.options.stepper.maxRungeKuttaStepTrials) {
       // Too many trials, have to abort
       return EigenStepperError::StepSizeAdjustmentFailed;
     }
@@ -254,11 +255,11 @@ Acts::Result<double> Acts::EigenStepper<E, A>::step(
     state.stepping.derivative.template segment<3>(4) = sd.k4;
   }
   state.stepping.pathAccumulated += h;
-  const double stepSizeScaling = std::min(
-      std::max(0.25f,
-               std::sqrt(std::sqrt(static_cast<float>(
-                   state.options.stepTolerance / std::abs(error_estimate))))),
-      4.0f);
+  const double stepSizeScaling =
+      std::min(std::max(0.25f, std::sqrt(std::sqrt(static_cast<float>(
+                                   state.options.stepper.stepTolerance /
+                                   std::abs(error_estimate))))),
+               4.0f);
   const double nextAccuracy = std::abs(h * stepSizeScaling);
   const double previousAccuracy = std::abs(state.stepping.stepSize.accuracy());
   const double initialStepLength = std::abs(initialH);

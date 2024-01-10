@@ -21,6 +21,7 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/NullBField.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 #include "Acts/Surfaces/BoundaryCheck.hpp"
 #include "Acts/Surfaces/Surface.hpp"
@@ -28,7 +29,6 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -51,6 +51,16 @@ class StraightLineStepper {
       std::tuple<CurvilinearTrackParameters, Jacobian, double>;
   using BField = NullBField;
 
+  struct Options : public StepperPlainOptions {
+    /// @brief Set the plain options
+    ///
+    /// @param pOptions The plain options
+    void setPlainOptions(const StepperPlainOptions& pOptions) {
+      // TODO is this safe?
+      static_cast<StepperPlainOptions&>(*this) = pOptions;
+    }
+  };
+
   /// State for track parameter propagation
   ///
   struct State {
@@ -67,13 +77,8 @@ class StraightLineStepper {
     /// @note the covariance matrix is copied when needed
     explicit State(const GeometryContext& gctx,
                    const MagneticFieldContext& mctx,
-                   const BoundTrackParameters& par,
-                   double ssize = std::numeric_limits<double>::max(),
-                   double stolerance = s_onSurfaceTolerance)
-        : particleHypothesis(par.particleHypothesis()),
-          stepSize(ssize),
-          tolerance(stolerance),
-          geoContext(gctx) {
+                   const BoundTrackParameters& par, const Options& options)
+        : particleHypothesis(par.particleHypothesis()), geoContext(gctx) {
       (void)mctx;
       pars.template segment<3>(eFreePos0) = par.position(gctx);
       pars.template segment<3>(eFreeDir0) = par.direction();
@@ -87,6 +92,7 @@ class StraightLineStepper {
         cov = BoundSquareMatrix(*par.covariance());
         jacToGlobal = surface.boundToFreeJacobian(gctx, par.parameters());
       }
+      stepSize.setUser(options.maxStepSize);
     }
 
     /// Jacobian from local to the global frame
@@ -120,9 +126,6 @@ class StraightLineStepper {
     // Previous step size for overstep estimation (ignored for SL stepper)
     double previousStepSize = 0.;
 
-    /// The tolerance for the stepping
-    double tolerance = s_onSurfaceTolerance;
-
     // Cache the geometry context of this propagation
     std::reference_wrapper<const GeometryContext> geoContext;
   };
@@ -136,9 +139,8 @@ class StraightLineStepper {
   State makeState(std::reference_wrapper<const GeometryContext> gctx,
                   std::reference_wrapper<const MagneticFieldContext> mctx,
                   const BoundTrackParameters& par,
-                  double ssize = std::numeric_limits<double>::max(),
-                  double stolerance = s_onSurfaceTolerance) const {
-    return State{gctx, mctx, par, ssize, stolerance};
+                  const Options& options) const {
+    return State{gctx, mctx, par, options};
   }
 
   /// @brief Resets the state

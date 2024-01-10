@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "Acts/Propagator/PropagatorOptions.hpp"
+
 namespace Acts {
 
 class Surface;
@@ -18,17 +20,18 @@ class Surface;
 /// should eventually optimise that the function call is not done
 ///
 struct VoidNavigator {
+  struct Options : public NavigatorPlainOptions {
+    /// @brief Set the plain options
+    ///
+    /// @param pOptions The plain options
+    void setPlainOptions(const NavigatorPlainOptions& pOptions) {
+      // TODO is this safe?
+      static_cast<NavigatorPlainOptions&>(*this) = pOptions;
+    }
+  };
+
   /// @brief Nested State struct, minimal requirement
   struct State {
-    /// Navigation state - external state: the start surface
-    const Surface* startSurface = nullptr;
-
-    /// Navigation state - external state: the current surface
-    const Surface* currentSurface = nullptr;
-
-    /// Navigation state - external state: the target surface
-    const Surface* targetSurface = nullptr;
-
     /// Indicator if the target is reached
     bool targetReached = false;
 
@@ -39,24 +42,13 @@ struct VoidNavigator {
   /// Unique typedef to publish to the Propagator
   using state_type = State;
 
-  State makeState(const Surface* startSurface,
-                  const Surface* targetSurface) const {
+  State makeState(const Options& /*options*/) const {
     State result;
-    result.startSurface = startSurface;
-    result.targetSurface = targetSurface;
     return result;
   }
 
-  const Surface* currentSurface(const State& state) const {
-    return state.currentSurface;
-  }
-
-  const Surface* startSurface(const State& state) const {
-    return state.startSurface;
-  }
-
-  const Surface* targetSurface(const State& state) const {
-    return state.targetSurface;
+  const Surface* currentSurface(const State& /*state*/) const {
+    return nullptr;
   }
 
   bool targetReached(const State& state) const { return state.targetReached; }
@@ -65,9 +57,7 @@ struct VoidNavigator {
     return state.navigationBreak;
   }
 
-  void currentSurface(State& state, const Surface* surface) const {
-    state.currentSurface = surface;
-  }
+  void currentSurface(State& /*state*/, const Surface* /*surface*/) const {}
 
   void targetReached(State& state, bool targetReached) const {
     state.targetReached = targetReached;

@@ -20,6 +20,7 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Intersection.hpp"
@@ -40,6 +41,16 @@ class AtlasStepper {
   using CurvilinearState =
       std::tuple<CurvilinearTrackParameters, Jacobian, double>;
 
+  struct Options : public StepperPlainOptions {
+    /// @brief Set the plain options
+    ///
+    /// @param pOptions The plain options
+    void setPlainOptions(const StepperPlainOptions& pOptions) {
+      // TODO is this safe?
+      static_cast<StepperPlainOptions&>(*this) = pOptions;
+    }
+  };
+
   /// @brief Nested State struct for the local caching
   struct State {
     /// Default constructor - deleted
@@ -57,12 +68,9 @@ class AtlasStepper {
     template <typename Parameters>
     State(const GeometryContext& gctx,
           MagneticFieldProvider::Cache fieldCacheIn, const Parameters& pars,
-          double ssize = std::numeric_limits<double>::max(),
-          double stolerance = s_onSurfaceTolerance)
+          const Options& options)
         : particleHypothesis(pars.particleHypothesis()),
           field(0., 0., 0.),
-          stepSize(ssize),
-          tolerance(stolerance),
           fieldCache(std::move(fieldCacheIn)),
           geoContext(gctx) {
       // The rest of this constructor is copy&paste of AtlasStepper::update() -
@@ -226,6 +234,8 @@ class AtlasStepper {
       }
       // now declare the state as ready
       state_ready = true;
+
+      stepSize.setUser(options.maxStepSize);
     }
 
     ParticleHypothesis particleHypothesis;
@@ -271,9 +281,6 @@ class AtlasStepper {
     // Previous step size for overstep estimation
     double previousStepSize = 0.;
 
-    /// The tolerance for the stepping
-    double tolerance = s_onSurfaceTolerance;
-
     /// It caches the current magnetic field cell and stays (and interpolates)
     ///  within as long as this is valid. See step() code for details.
     MagneticFieldProvider::Cache fieldCache;
@@ -296,9 +303,8 @@ class AtlasStepper {
   State makeState(std::reference_wrapper<const GeometryContext> gctx,
                   std::reference_wrapper<const MagneticFieldContext> mctx,
                   const BoundTrackParameters& par,
-                  double ssize = std::numeric_limits<double>::max(),
-                  double stolerance = s_onSurfaceTolerance) const {
-    return State{gctx, m_bField->makeCache(mctx), par, ssize, stolerance};
+                  const Options& options) const {
+    return State{gctx, m_bField->makeCache(mctx), par, options};
   }
 
   /// @brief Resets the state
@@ -308,16 +314,15 @@ class AtlasStepper {
   /// @param [in] cov Covariance matrix
   /// @param [in] surface Reset state will be on this surface
   /// @param [in] stepSize Step size
-  void resetState(
-      State& state, const BoundVector& boundParams,
-      const BoundSquareMatrix& cov, const Surface& surface,
-      const double stepSize = std::numeric_limits<double>::max()) const {
+  void resetState(State& state, const BoundVector& boundParams,
+                  const BoundSquareMatrix& cov, const Surface& surface,
+                  const Options& options) const {
     // Update the stepping state
     update(state,
            detail::transformBoundToFreeParameters(surface, state.geoContext,
                                                   boundParams),
            boundParams, cov, surface);
-    state.stepSize = ConstrainedStep(stepSize);
+    state.stepSize.setUser(options.maxStepSize);
     state.pathAccumulated = 0.;
 
     setIdentityJacobian(state);
@@ -1237,7 +1242,7 @@ class AtlasStepper {
           2. * h *
           (std::abs((A1 + A6) - (A3 + A4)) + std::abs((B1 + B6) - (B3 + B4)) +
            std::abs((C1 + C6) - (C3 + C4)));
-      if (std::abs(EST) > std::abs(state.options.stepTolerance)) {
+      if (std::abs(EST) > std::abs(state.options.stepper.stepTolerance)) {
         h = h * .5;
         // neutralize the sign of h again
         state.stepping.stepSize.setAccuracy(h * state.options.direction);

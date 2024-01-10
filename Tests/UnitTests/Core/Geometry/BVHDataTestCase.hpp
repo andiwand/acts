@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include "Acts/Surfaces/Surface.hpp"
-
 namespace bdata = boost::unit_test::data;
 using Ray = Acts::Ray<double, 3>;
 
@@ -81,17 +79,17 @@ BOOST_DATA_TEST_CASE(
   // now do the same through a propagator
   using SteppingLogger = Acts::detail::SteppingLogger;
   using Stepper = StraightLineStepper;
-  using PropagatorType = Propagator<Stepper, Navigator>;
+  using Propagator = Propagator<Stepper, Navigator>;
 
   Stepper stepper{};
   Navigator navigator({tg});
-  PropagatorType propagator(stepper, navigator);
+  Propagator propagator(stepper, navigator);
 
   using ActionList = Acts::ActionList<SteppingLogger>;
-  using AbortConditions = Acts::AbortList<>;
+  using AbortList = Acts::AbortList<>;
 
-  Acts::PropagatorOptions<ActionList, AbortConditions> options(tgContext,
-                                                               mfContext);
+  Acts::PropagatorOptions<Propagator, ActionList, AbortList> options(tgContext,
+                                                                     mfContext);
 
   options.pathLimit = 20_m;
 

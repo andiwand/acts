@@ -12,15 +12,16 @@
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/GenericBoundTrackParameters.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/VoidNavigator.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "Acts/Utilities/MultiIndex.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
 #include "Acts/Vertexing/TrackAtVertex.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/Trajectories.hpp"
 #include "ActsExamples/Validation/TrackClassification.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/Particle.hpp"
@@ -378,7 +379,8 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   // this, we propagate the reconstructed tracks to the PCA of the true vertex
   // position. Setting up propagator:
   Acts::EigenStepper<> stepper(m_cfg.bField);
-  using Propagator = Acts::Propagator<Acts::EigenStepper<>>;
+  using Propagator =
+      Acts::Propagator<Acts::EigenStepper<>, Acts::VoidNavigator>;
   auto propagator = std::make_shared<Propagator>(stepper);
 
   // Loop over reconstructed vertices and see if they can be matched to a true
@@ -602,7 +604,9 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
           const std::shared_ptr<Acts::PerigeeSurface> perigeeSurface =
               Acts::Surface::makeShared<Acts::PerigeeSurface>(truePos.head(3));
           // Setting the geometry/magnetic field context for the event
-          Acts::PropagatorOptions pOptions(ctx.geoContext, ctx.magFieldContext);
+          Acts::PropagatorOptions<Propagator, Acts::ActionList<>,
+                                  Acts::AbortList<>>
+              pOptions(ctx.geoContext, ctx.magFieldContext);
           // Lambda for propagating the tracks to the PCA
           auto propagateToVtx = [&](const auto& params)
               -> std::optional<Acts::BoundTrackParameters> {

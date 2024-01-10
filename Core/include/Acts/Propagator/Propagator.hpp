@@ -13,20 +13,15 @@
 #include "Acts/Utilities/detail/ReferenceWrapperAnyCompat.hpp"
 // clang-format on
 
-#include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/PdgParticle.hpp"
-#include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/TrackParametersConcept.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/MagneticField/MagneticFieldContext.hpp"
-#include "Acts/Propagator/AbortList.hpp"
-#include "Acts/Propagator/ActionList.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
 #include "Acts/Propagator/StepperConcept.hpp"
-#include "Acts/Propagator/VoidNavigator.hpp"
 #include "Acts/Propagator/detail/ParameterTraits.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
+#include "Acts/Utilities/detail/Extendable.hpp"
 
 #include <optional>
 
@@ -64,120 +59,6 @@ struct PropagatorResult : private detail::Extendable<result_list...> {
   double pathLength = 0.;
 };
 
-/// @brief Class holding the trivial options in propagator options
-///
-struct PropagatorPlainOptions {
-  /// Propagation direction
-  Direction direction = Direction::Forward;
-
-  /// Maximum number of steps for one propagate call
-  unsigned int maxSteps = 1000;
-
-  /// Absolute maximum path length
-  double pathLimit = std::numeric_limits<double>::max();
-
-  /// Required tolerance to reach surface
-  double surfaceTolerance = s_onSurfaceTolerance;
-
-  /// Loop protection step, it adapts the pathLimit
-  bool loopProtection = true;
-  double loopFraction = 0.5;  ///< Allowed loop fraction, 1 is a full loop
-
-  // Configurations for Stepper
-
-  /// Tolerance for the error of the integration
-  double stepTolerance = 1e-4;
-
-  /// Cut-off value for the step size
-  double stepSizeCutOff = 0.;
-
-  /// Absolute maximum step size
-  double maxStepSize = std::numeric_limits<double>::max();
-
-  /// Maximum number of Runge-Kutta steps for the stepper step call
-  unsigned int maxRungeKuttaStepTrials = 10000;
-};
-
-/// @brief Options for propagate() call
-///
-/// @tparam action_list_t List of action types called after each
-///    propagation step with the current propagation and stepper state
-///
-/// @tparam aborter_list_t List of abort conditions tested after each
-///    propagation step using the current propagation and stepper state
-///
-template <typename action_list_t = ActionList<>,
-          typename aborter_list_t = AbortList<>>
-struct PropagatorOptions : public PropagatorPlainOptions {
-  using action_list_type = action_list_t;
-  using aborter_list_type = aborter_list_t;
-
-  /// Delete default constructor
-  PropagatorOptions() = delete;
-
-  /// PropagatorOptions copy constructor
-  PropagatorOptions(
-      const PropagatorOptions<action_list_t, aborter_list_t>& po) = default;
-
-  /// PropagatorOptions with context
-  PropagatorOptions(const GeometryContext& gctx,
-                    const MagneticFieldContext& mctx)
-      : geoContext(gctx), magFieldContext(mctx) {}
-
-  /// @brief Expand the Options with extended aborters
-  ///
-  /// @tparam extended_aborter_list_t Type of the new aborter list
-  ///
-  /// @param aborters The new aborter list to be used (internally)
-  template <typename extended_aborter_list_t>
-  PropagatorOptions<action_list_t, extended_aborter_list_t> extend(
-      extended_aborter_list_t aborters) const {
-    PropagatorOptions<action_list_t, extended_aborter_list_t> eoptions(
-        geoContext, magFieldContext);
-
-    // Copy the options over
-    eoptions.setPlainOptions(*this);
-
-    // Action / abort list
-    eoptions.actionList = std::move(actionList);
-    eoptions.abortList = std::move(aborters);
-
-    // And return the options
-    return eoptions;
-  }
-
-  /// @brief Set the plain options
-  ///
-  /// @param pOptions The plain options
-  void setPlainOptions(const PropagatorPlainOptions& pOptions) {
-    // Copy the options over
-    direction = pOptions.direction;
-    maxSteps = pOptions.maxSteps;
-    surfaceTolerance = pOptions.surfaceTolerance;
-    pathLimit = direction * std::abs(pOptions.pathLimit);
-    loopProtection = pOptions.loopProtection;
-    loopFraction = pOptions.loopFraction;
-
-    // Stepper options
-    stepTolerance = pOptions.stepTolerance;
-    stepSizeCutOff = pOptions.stepSizeCutOff;
-    maxStepSize = pOptions.maxStepSize;
-    maxRungeKuttaStepTrials = pOptions.maxRungeKuttaStepTrials;
-  }
-
-  /// List of actions
-  action_list_t actionList;
-
-  /// List of abort conditions
-  aborter_list_t abortList;
-
-  /// The context object for the geometry
-  std::reference_wrapper<const GeometryContext> geoContext;
-
-  /// The context object for the magnetic field
-  std::reference_wrapper<const MagneticFieldContext> magFieldContext;
-};
-
 /// @brief Propagator for particles (optionally in a magnetic field)
 ///
 /// The Propagator works with a state objects given at function call
@@ -203,7 +84,7 @@ struct PropagatorOptions : public PropagatorPlainOptions {
 /// - a type mapping for: (initial track parameter type and destination
 ///   surface type) -> type of internal state object
 ///
-template <typename stepper_t, typename navigator_t = VoidNavigator>
+template <typename stepper_t, typename navigator_t>
 class Propagator final {
   /// Re-define bound track parameters dependent on the stepper
   using StepperBoundTrackParameters =
@@ -258,7 +139,6 @@ class Propagator final {
 
   /// @brief private Propagator state for navigation and debugging
   ///
-  /// @tparam parameters_t Type of the track parameters
   /// @tparam propagator_options_t Type of the Objections object
   ///
   /// This struct holds the common state information for propagating
@@ -267,14 +147,12 @@ class Propagator final {
   struct State {
     /// Create the propagator state from the options
     ///
-    /// @tparam propagator_options_t the type of the propagator options
-    ///
     /// @param topts The options handed over by the propagate call
     /// @param steppingIn Stepper state instance to begin with
     /// @param navigationIn Navigator state instance to begin with
-    State(const propagator_options_t& topts, StepperState steppingIn,
+    State(propagator_options_t topts, StepperState steppingIn,
           NavigatorState navigationIn)
-        : options(topts),
+        : options{std::move(topts)},
           stepping{std::move(steppingIn)},
           navigation{std::move(navigationIn)},
           geoContext(topts.geoContext) {}

@@ -15,20 +15,18 @@
 #include "Acts/Definitions/Tolerance.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/EventData/detail/CorrectedTransformationFreeToBound.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/DefaultExtension.hpp"
-#include "Acts/Propagator/DenseEnvironmentExtension.hpp"
-#include "Acts/Propagator/EigenStepperError.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/StepperExtensionList.hpp"
 #include "Acts/Propagator/detail/Auctioneer.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-#include <cmath>
 #include <functional>
-#include <limits>
 
 namespace Acts {
 
@@ -55,6 +53,16 @@ class EigenStepper {
   using CurvilinearState =
       std::tuple<CurvilinearTrackParameters, Jacobian, double>;
 
+  struct Options : public StepperPlainOptions {
+    /// @brief Set the plain options
+    ///
+    /// @param pOptions The plain options
+    void setPlainOptions(const StepperPlainOptions& pOptions) {
+      // TODO is this safe?
+      static_cast<StepperPlainOptions&>(*this) = pOptions;
+    }
+  };
+
   /// @brief State for track parameter propagation
   ///
   /// It contains the stepping information and is provided thread local
@@ -72,10 +80,8 @@ class EigenStepper {
     /// @note the covariance matrix is copied when needed
     explicit State(const GeometryContext& gctx,
                    MagneticFieldProvider::Cache fieldCacheIn,
-                   const BoundTrackParameters& par,
-                   double ssize = std::numeric_limits<double>::max())
+                   const BoundTrackParameters& par, const Options& options)
         : particleHypothesis(par.particleHypothesis()),
-          stepSize(ssize),
           fieldCache(std::move(fieldCacheIn)),
           geoContext(gctx) {
       pars.template segment<3>(eFreePos0) = par.position(gctx);
@@ -92,6 +98,8 @@ class EigenStepper {
         cov = BoundSquareMatrix(*par.covariance());
         jacToGlobal = surface.boundToFreeJacobian(gctx, par.parameters());
       }
+
+      stepSize.setUser(options.maxStepSize);
     }
 
     /// Internal free vector parameters
@@ -158,7 +166,7 @@ class EigenStepper {
   State makeState(std::reference_wrapper<const GeometryContext> gctx,
                   std::reference_wrapper<const MagneticFieldContext> mctx,
                   const BoundTrackParameters& par,
-                  double ssize = std::numeric_limits<double>::max()) const;
+                  const Options& options) const;
 
   /// @brief Resets the state
   ///
@@ -167,10 +175,9 @@ class EigenStepper {
   /// @param [in] cov Covariance matrix
   /// @param [in] surface The reference surface of the bound parameters
   /// @param [in] stepSize Step size
-  void resetState(
-      State& state, const BoundVector& boundParams,
-      const BoundSquareMatrix& cov, const Surface& surface,
-      const double stepSize = std::numeric_limits<double>::max()) const;
+  void resetState(State& state, const BoundVector& boundParams,
+                  const BoundSquareMatrix& cov, const Surface& surface,
+                  const Options& options) const;
 
   /// Get the field for the stepping, it checks first if the access is still
   /// within the Cell, and updates the cell if necessary.
