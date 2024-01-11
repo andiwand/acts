@@ -235,8 +235,6 @@ struct PropagatorState {
 
     Direction direction = Direction::Forward;
 
-    const Acts::Logger& logger = Acts::getDummyLogger();
-
     ActsScalar surfaceTolerance = s_onSurfaceTolerance;
   };
 
@@ -271,6 +269,17 @@ void step(stepper_state_t& sstate) {
   sstate.pos4[Acts::ePos2] += sstate.stepSize.value() * sstate.dir[Acts::eMom2];
   // create navigation parameters
   return;
+}
+
+/// @brief Method for testing parameters in @c Navigator::Options
+///
+/// @param [in] state Navigator state
+/// @param [in] navSurf Number of navigation surfaces
+/// @param [in] navLay Number of navigation layers
+/// @param [in] navBound Number of navigation boundaries
+/// @param [in] extSurf Number of external surfaces
+bool testNavigatorOptions(Navigator::State& state, std::size_t extSurf) {
+  return ((state.options.externalSurfaces.size() == extSurf));
 }
 
 /// @brief Method for testing vectors in @c Navigator::State
@@ -314,8 +323,8 @@ bool testNavigatorStatePointers(
       (state.targetVolume == targetVol) && (state.targetLayer == targetLay) &&
       (state.targetSurface == targetSurf));
 }
-// the surface cache & the creation of the geometry
 
+// the surface cache & the creation of the geometry
 CylindricalTrackingGeometry cGeometry(tgContext);
 auto tGeometry = cGeometry();
 
