@@ -65,9 +65,9 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::execute(
     // Set up track density used during vertex seeding
     Acts::AdaptiveGridTrackDensity::Config trkDensityCfg;
     // Bin extent in z-direction
-    trkDensityCfg.spatialBinExtent = 15. * Acts::UnitConstants::um;
+    trkDensityCfg.spatialBinExtent = 7. * Acts::UnitConstants::um;
     // Bin extent in t-direction
-    trkDensityCfg.temporalBinExtent = 19. * Acts::UnitConstants::mm;
+    trkDensityCfg.temporalBinExtent = 5. * Acts::UnitConstants::mm;
     trkDensityCfg.useTime = m_cfg.useTime;
     Acts::AdaptiveGridTrackDensity trkDensity(trkDensityCfg);
 
