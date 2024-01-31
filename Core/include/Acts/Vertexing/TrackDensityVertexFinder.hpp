@@ -59,9 +59,8 @@ class TrackDensityVertexFinder {
   /// @param vertexingOptions Vertexing options
   /// @param state State for fulfilling interfaces
   ///
-  /// @return Vector of vertices, filled with a single
-  ///         vertex (for consistent interfaces)
-  Result<std::vector<Vertex<InputTrack_t>>> find(
+  /// @return Result containing the vertex candidate
+  Result<std::optional<Vertex<InputTrack_t>>> find(
       const std::vector<const InputTrack_t*>& trackVector,
       const VertexingOptions<InputTrack_t>& vertexingOptions,
       State& state) const;

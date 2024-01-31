@@ -195,7 +195,7 @@ class IterativeVertexFinder {
   ///
   /// @param seedTracks Seeding tracks
   /// @param vertexingOptions Vertexing options
-  Result<Vertex<InputTrack_t>> getVertexSeed(
+  Result<std::optional<Vertex<InputTrack_t>>> getVertexSeed(
       const std::vector<const InputTrack_t*>& seedTracks,
       const VertexingOptions<InputTrack_t>& vertexingOptions) const;
 

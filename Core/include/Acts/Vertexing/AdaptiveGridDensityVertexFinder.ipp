@@ -10,7 +10,7 @@ template <typename vfitter_t>
 auto Acts::AdaptiveGridDensityVertexFinder<vfitter_t>::find(
     const std::vector<const InputTrack_t*>& trackVector,
     const VertexingOptions<InputTrack_t>& vertexingOptions, State& state) const
-    -> Result<std::vector<Vertex<InputTrack_t>>> {
+    -> Result<std::optional<Vertex<InputTrack_t>>> {
   // Remove density contributions from tracks removed from track collection
   if (m_cfg.cacheGridStateForTrackRemoval && state.isInitialized &&
       !state.tracksToRemove.empty()) {
@@ -43,10 +43,9 @@ auto Acts::AdaptiveGridDensityVertexFinder<vfitter_t>::find(
 
   if (state.mainDensityMap.empty()) {
     // No tracks passed selection
-    // Return empty seed, i.e. vertex at constraint position
+    // Return empty seed
     // (Note: Upstream finder should check for this break condition)
-    std::vector<Vertex<InputTrack_t>> seedVec{vertexingOptions.constraint};
-    return seedVec;
+    return std::nullopt;
   }
 
   double z = 0;
@@ -90,9 +89,7 @@ auto Acts::AdaptiveGridDensityVertexFinder<vfitter_t>::find(
 
   returnVertex.setFullCovariance(seedCov);
 
-  std::vector<Vertex<InputTrack_t>> seedVec{returnVertex};
-
-  return seedVec;
+  return returnVertex;
 }
 
 template <typename vfitter_t>

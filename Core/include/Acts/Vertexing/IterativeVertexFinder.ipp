@@ -24,18 +24,16 @@ auto Acts::IterativeVertexFinder<vfitter_t, sfinder_t>::find(
   while (seedTracks.size() > 1 && nInterations < m_cfg.maxVertices) {
     /// Do seeding
     auto seedRes = getVertexSeed(seedTracks, vertexingOptions);
-
     if (!seedRes.ok()) {
       return seedRes.error();
     }
+    const auto& seedOptional = *seedRes;
 
-    const auto& seedVertex = *seedRes;
-
-    if (seedVertex.fullPosition()[eZ] ==
-        vertexingOptions.constraint.position().z()) {
+    if (!seedOptional.has_value()) {
       ACTS_DEBUG("No more seed found. Break and stop primary vertex finding.");
       break;
     }
+    const auto& seedVertex = *seedOptional;
 
     /// End seeding
     /// Now take only tracks compatible with current seed
@@ -159,7 +157,7 @@ template <typename vfitter_t, typename sfinder_t>
 auto Acts::IterativeVertexFinder<vfitter_t, sfinder_t>::getVertexSeed(
     const std::vector<const InputTrack_t*>& seedTracks,
     const VertexingOptions<InputTrack_t>& vertexingOptions) const
-    -> Result<Vertex<InputTrack_t>> {
+    -> Result<std::optional<Vertex<InputTrack_t>>> {
   typename sfinder_t::State finderState;
   auto res = m_cfg.seedFinder.find(seedTracks, vertexingOptions, finderState);
 
@@ -168,20 +166,12 @@ auto Acts::IterativeVertexFinder<vfitter_t, sfinder_t>::getVertexSeed(
                << seedTracks.size());
     return VertexingError::SeedingError;
   }
+  const auto& seedOptional = *res;
 
-  const auto& vertexCollection = *res;
-
-  if (vertexCollection.empty()) {
-    ACTS_ERROR("Empty seed collection was returned. Number of input tracks: "
-               << seedTracks.size());
-    return VertexingError::SeedingError;
+  if (!seedOptional) {
+    return std::optional<Vertex<InputTrack_t>>();
   }
-
-  ACTS_DEBUG("Found " << vertexCollection.size() << " seeds");
-
-  // retrieve the seed vertex as the last element in
-  // the seed vertexCollection
-  Vertex<InputTrack_t> seedVertex = vertexCollection.back();
+  const Vertex<InputTrack_t>& seedVertex = *seedOptional;
 
   ACTS_DEBUG("Use " << seedTracks.size() << " tracks for vertex seed finding.")
   ACTS_DEBUG(
