@@ -35,7 +35,7 @@ struct DenseStepperPropagatorOptions
                                           other_aborter_list_t>& po)
       : PropagatorOptions<propagator_t, action_list_t, aborter_list_t>(po),
         meanEnergyLoss{po.meanEnergyLoss},
-        includeGgradient{po.includeGgradient},
+        includeGradient{po.includeGgradient},
         momentumCutOff{po.momentumCutOff} {}
 
   /// Copy Constructor

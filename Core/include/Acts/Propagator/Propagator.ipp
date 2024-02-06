@@ -7,6 +7,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "Acts/EventData/TrackParametersConcept.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/PropagatorError.hpp"
 #include "Acts/Propagator/detail/LoopProtection.hpp"
@@ -327,10 +329,15 @@ Acts::Result<Acts::BoundTrackParameters>
 Acts::detail::BasePropagatorHelper<derived_t>::propagateToSurface(
     const BoundTrackParameters& start, const Surface& target,
     const Options& options) const {
-  auto res = static_cast<const derived_t*>(this)
-                 ->template propagate<BoundTrackParameters, PropagatorOptions<>,
-                                      SurfaceReached, PathLimitReached>(
-                     start, target, options);
+  PropagatorOptions<derived_t, ActionList<>, AbortList<>> concreteOptions(
+      options.geoContext, options.magFieldContext);
+  concreteOptions.setPlainOptions(options);
+
+  auto res =
+      static_cast<const derived_t*>(this)
+          ->template propagate<BoundTrackParameters, decltype(concreteOptions),
+                               SurfaceReached, PathLimitReached>(
+              start, target, concreteOptions);
 
   if (res.ok()) {
     // @TODO: Return optional?
