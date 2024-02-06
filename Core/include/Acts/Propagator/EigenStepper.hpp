@@ -427,6 +427,11 @@ class EigenStepper {
   /// Overstep limit
   double m_overstepLimit;
 };
+
+template <typename navigator_t>
+struct SupportsBoundParameters<EigenStepper<>, navigator_t>
+    : public std::true_type {};
+
 }  // namespace Acts
 
 #include "Acts/Propagator/EigenStepper.ipp"
