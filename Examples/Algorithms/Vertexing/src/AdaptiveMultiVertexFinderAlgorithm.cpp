@@ -141,7 +141,7 @@ ActsExamples::AdaptiveMultiVertexFinderAlgorithm::executeAfterSeederChoice(
     // considered as merged. The default value 3 is tuned for comparing the
     // vertices' z-coordinates. Since we consider 4 dimensions here, we need to
     // multiply the value by 4 and thus we set it to 3 * 4 = 12.
-    // finderConfig.maxMergeVertexSignificance = 12.;
+    finderConfig.maxMergeVertexSignificance = 12.;
   }
 
   // Instantiate the finder
