@@ -421,7 +421,6 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
             particleAtVtx.insert(particle);
             SimBarcode vtxId =
                 particle.particleId().setParticle(0).setSubParticle(0);
-            std::cout << "particleId: " << particle << " vtxId: " << vtxId << std::endl;
             contributingTruthVertices.push_back(vtxId);
             foundMatchingParams = true;
             break;
@@ -444,9 +443,6 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
     for (const SimBarcode& vtxId : contributingTruthVertices) {
       ++fmap[vtxId];
     }
-    for (const auto& [vtxId, count] : fmap) {
-      std::cout << "summary vtxId: " << vtxId << " count: " << count << std::endl;
-    }
     int maxOccurrence = -1;
     SimBarcode maxOccurrenceId = -1;
     for (auto it : fmap) {
@@ -455,7 +451,6 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
         maxOccurrence = it.second;
       }
     }
-    std::cout << "maxOccurrenceId: " << maxOccurrenceId << std::endl;
 
     // Count number of reconstructible tracks on truth vertex
     int nTracksOnTruthVertex = 0;
