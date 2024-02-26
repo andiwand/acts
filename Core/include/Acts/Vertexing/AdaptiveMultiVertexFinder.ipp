@@ -528,14 +528,26 @@ auto Acts::AdaptiveMultiVertexFinder<vfitter_t, sfinder_t>::isMergedVertex(
 
     double significance = 0;
     if (!m_cfg.do3dSplitting) {
-      const double deltaZPos = otherPos[eZ] - candidatePos[eZ];
-      const double sumVarZ = otherCov(eZ, eZ) + candidateCov(eZ, eZ);
-      if (sumVarZ <= 0) {
-        // TODO FIXME this should never happen
-        continue;
+      if (m_cfg.useTime) {
+        const Vector2 deltaZT = otherPos.tail<2>() - candidatePos.tail<2>();
+        SquareMatrix2 sumCovZT = candidateCov.bottomRightCorner<2, 2>() +
+                                 otherCov.bottomRightCorner<2, 2>();
+        auto sumCovZTInverse = safeInverse(sumCovZT);
+        if (!sumCovZTInverse) {
+          // TODO FIXME this should never happen
+          continue;
+        }
+        significance = std::sqrt(deltaZT.dot(*sumCovZTInverse * deltaZT));
+      } else {
+        const double deltaZPos = otherPos[eZ] - candidatePos[eZ];
+        const double sumVarZ = otherCov(eZ, eZ) + candidateCov(eZ, eZ);
+        if (sumVarZ <= 0) {
+          // TODO FIXME this should never happen
+          continue;
+        }
+        // Use only z significance
+        significance = std::abs(deltaZPos) / std::sqrt(sumVarZ);
       }
-      // Use only z significance
-      significance = std::abs(deltaZPos) / std::sqrt(sumVarZ);
     } else {
       if (m_cfg.useTime) {
         // Use 4D information for significance
