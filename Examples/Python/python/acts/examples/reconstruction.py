@@ -1767,6 +1767,7 @@ def addVertexFitting(
     associatedParticles = associatedParticles if associatedParticles is not None else ""
     inputParticles = "particles_input"
     selectedParticles = "particles_selected"
+    inputVertices = "vertices_input"
 
     if vertexFinder == VertexFinder.Truth:
         findVertices = TruthVertexFinder(
@@ -1821,6 +1822,7 @@ def addVertexFitting(
         s.addWriter(
             VertexPerformanceWriter(
                 level=customLogLevel(),
+                inputTruthVertices=inputVertices,
                 inputAllTruthParticles=inputParticles,
                 inputSelectedTruthParticles=selectedParticles,
                 inputMeasurementParticlesMap="measurement_particles_map",

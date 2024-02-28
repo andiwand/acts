@@ -122,12 +122,10 @@ struct CompareVertexId {
   constexpr bool operator()(const SimVertex& lhs, const SimVertex& rhs) const {
     return lhs.vertexId() < rhs.vertexId();
   }
-  constexpr bool operator()(ActsFatras::Barcode lhs,
-                            const SimVertex& rhs) const {
+  constexpr bool operator()(SimVertexBarcode lhs, const SimVertex& rhs) const {
     return lhs < rhs.vertexId();
   }
-  constexpr bool operator()(const SimVertex& lhs,
-                            ActsFatras::Barcode rhs) const {
+  constexpr bool operator()(const SimVertex& lhs, SimVertexBarcode rhs) const {
     return lhs.vertexId() < rhs;
   }
 };

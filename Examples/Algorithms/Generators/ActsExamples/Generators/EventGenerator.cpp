@@ -23,6 +23,9 @@ ActsExamples::EventGenerator::EventGenerator(const Config& cfg,
   if (m_cfg.outputParticles.empty()) {
     throw std::invalid_argument("Missing output particles collection");
   }
+  if (m_cfg.outputVertices.empty()) {
+    throw std::invalid_argument("Missing output vertices collection");
+  }
   if (m_cfg.generators.empty()) {
     throw std::invalid_argument("No generators are configured");
   }
@@ -31,6 +34,7 @@ ActsExamples::EventGenerator::EventGenerator(const Config& cfg,
   }
 
   m_outputParticles.initialize(m_cfg.outputParticles);
+  m_outputVertices.initialize(m_cfg.outputVertices);
 }
 
 std::string ActsExamples::EventGenerator::name() const {

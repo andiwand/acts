@@ -50,6 +50,7 @@ namespace Acts::Python {
 
 void addGenerators(Context& ctx) {
   auto mex = ctx.get("examples");
+
   {
     using Config = ActsExamples::EventGenerator::Config;
     auto gen = py::class_<ActsExamples::EventGenerator, ActsExamples::IReader,
@@ -64,7 +65,7 @@ void addGenerators(Context& ctx) {
         ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
         std::shared_ptr<
             ActsExamples::EventGenerator::PrimaryVertexPositionGenerator>>(
-        gen, "PrimaryVertexPositionGenerator");
+        gen, "VertexGenerator");
     py::class_<
         ActsExamples::EventGenerator::ParticlesGenerator,
         std::shared_ptr<ActsExamples::EventGenerator::ParticlesGenerator>>(
@@ -100,7 +101,7 @@ void addGenerators(Context& ctx) {
       ActsExamples::GaussianPrimaryVertexPositionGenerator,
       ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
       std::shared_ptr<ActsExamples::GaussianPrimaryVertexPositionGenerator>>(
-      mex, "GaussianPrimaryVertexPositionGenerator")
+      mex, "GaussianVertexGenerator")
       .def(py::init<>())
       .def(py::init([](const Acts::Vector4& stddev, const Acts::Vector4& mean) {
              ActsExamples::GaussianPrimaryVertexPositionGenerator g;
@@ -119,7 +120,7 @@ void addGenerators(Context& ctx) {
       ActsExamples::FixedPrimaryVertexPositionGenerator,
       ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
       std::shared_ptr<ActsExamples::FixedPrimaryVertexPositionGenerator>>(
-      mex, "FixedPrimaryVertexPositionGenerator")
+      mex, "FixedVertexGenerator")
       .def(py::init<>())
       .def(py::init([](const Acts::Vector4& v) {
              ActsExamples::FixedPrimaryVertexPositionGenerator g;
@@ -222,4 +223,5 @@ void addGenerators(Context& ctx) {
            py::arg("mean"))
       .def_readwrite("mean", &ActsExamples::PoissonMultiplicityGenerator::mean);
 }
+
 }  // namespace Acts::Python

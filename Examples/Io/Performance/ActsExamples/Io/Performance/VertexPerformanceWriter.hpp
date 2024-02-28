@@ -14,6 +14,7 @@
 #include "Acts/Vertexing/Vertex.hpp"
 #include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -45,6 +46,8 @@ class VertexPerformanceWriter final
   using HitParticlesMap = IndexMultimap<ActsFatras::Barcode>;
 
   struct Config {
+    /// Input truth vertex collection.
+    std::string inputTruthVertices;
     /// All input truth particle collection.
     std::string inputAllTruthParticles;
     /// Selected input truth particle collection.
@@ -216,17 +219,15 @@ class VertexPerformanceWriter final
 
   int getNumberOfTruePriVertices(const SimParticleContainer& collection) const;
 
+  ReadDataHandle<SimVertexContainer> m_inputTruthVertices{
+      this, "InputTruthVertices"};
   ReadDataHandle<SimParticleContainer> m_inputAllTruthParticles{
       this, "InputAllTruthParticles"};
-
   ReadDataHandle<SimParticleContainer> m_inputSelectedTruthParticles{
       this, "InputSelectedTruthParticles"};
-
   ReadDataHandle<ConstTrackContainer> m_inputTracks{this, "InputTracks"};
-
   ReadDataHandle<SimParticleContainer> m_inputAssociatedTruthParticles{
       this, "InputAssociatedTruthParticles"};
-
   ReadDataHandle<HitParticlesMap> m_inputMeasurementParticlesMap{
       this, "InputMeasurementParticlesMap"};
 };
