@@ -33,7 +33,7 @@ class SimVertexBarcode {
   constexpr Value value() const { return m_id.value(); }
 
   /// Return the barcode.
-  SimBarcode barcode() const { return m_id; }
+  constexpr SimBarcode barcode() const { return m_id; }
 
   /// Return the primary vertex identifier.
   constexpr Value vertexPrimary() const { return m_id.vertexPrimary(); }
@@ -109,7 +109,7 @@ struct SimVertex {
   SimVertex& operator=(const SimVertex&) = default;
   SimVertex& operator=(SimVertex&&) = default;
 
-  SimVertexBarcode vertexId() const { return id; }
+  constexpr SimVertexBarcode vertexId() const { return id; }
   /// The vertex three-position.
   auto position() const { return position4.head<3>(); }
   /// The vertex time.
