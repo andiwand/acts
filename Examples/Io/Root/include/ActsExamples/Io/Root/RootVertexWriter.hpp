@@ -1,6 +1,6 @@
 // This file is part of the Acts project.
 //
-// Copyright (C) 2017-2024 CERN for the benefit of the Acts project
+// Copyright (C) 2024 CERN for the benefit of the Acts project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -83,10 +83,12 @@ class RootVertexWriter final : public WriterT<SimVertexContainer> {
   /// Production process type, i.e. what generated the vertex.
   std::vector<std::uint32_t> m_process;
   /// Production position components in mm.
-  std::vector<float> m_vx;
-  std::vector<float> m_vy;
-  std::vector<float> m_vz;
-  std::vector<float> m_vt;
+  std::vector<double> m_vx;
+  std::vector<double> m_vy;
+  std::vector<double> m_vz;
+  std::vector<double> m_vt;
+  /// Outgoing particles from the vertex.
+  std::vector<std::vector<double>> m_outgoingParticles;
   // Decoded vertex identifier; see Barcode definition for details.
   std::vector<std::uint32_t> m_vertexPrimary;
   std::vector<std::uint32_t> m_vertexSecondary;

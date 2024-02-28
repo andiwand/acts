@@ -58,6 +58,7 @@ RootVertexWriter::RootVertexWriter(const RootVertexWriter::Config& cfg,
   m_outputTree->Branch("vy", &m_vy);
   m_outputTree->Branch("vz", &m_vz);
   m_outputTree->Branch("vt", &m_vt);
+  m_outputTree->Branch("outgoing_particles", &m_outgoingParticles);
   m_outputTree->Branch("vertex_primary", &m_vertexPrimary);
   m_outputTree->Branch("vertex_secondary", &m_vertexSecondary);
   m_outputTree->Branch("generation", &m_generation);
@@ -90,14 +91,17 @@ ProcessCode RootVertexWriter::writeT(const AlgorithmContext& ctx,
     m_vertexId.push_back(vertex.vertexId().value());
     m_process.push_back(static_cast<uint32_t>(vertex.process));
     // position
-    m_vx.push_back(Acts::clampValue<float>(vertex.position4.x() /
-                                           Acts::UnitConstants::mm));
-    m_vy.push_back(Acts::clampValue<float>(vertex.position4.y() /
-                                           Acts::UnitConstants::mm));
-    m_vz.push_back(Acts::clampValue<float>(vertex.position4.z() /
-                                           Acts::UnitConstants::mm));
-    m_vt.push_back(Acts::clampValue<float>(vertex.position4.w() /
-                                           Acts::UnitConstants::mm));
+    m_vx.push_back(vertex.position4.x() / Acts::UnitConstants::mm);
+    m_vy.push_back(vertex.position4.y() / Acts::UnitConstants::mm);
+    m_vz.push_back(vertex.position4.z() / Acts::UnitConstants::mm);
+    m_vt.push_back(vertex.position4.w() / Acts::UnitConstants::mm);
+    // TODO ingoing particles
+    // outgoing particles
+    std::vector<double> outgoing;
+    for (const auto& particle : vertex.outgoing) {
+      outgoing.push_back(static_cast<double>(particle.value()));
+    }
+    m_outgoingParticles.push_back(std::move(outgoing));
     // decoded barcode components
     m_vertexPrimary.push_back(vertex.vertexId().vertexPrimary());
     m_vertexSecondary.push_back(vertex.vertexId().vertexSecondary());
@@ -112,6 +116,7 @@ ProcessCode RootVertexWriter::writeT(const AlgorithmContext& ctx,
   m_vy.clear();
   m_vz.clear();
   m_vt.clear();
+  m_outgoingParticles.clear();
   m_vertexPrimary.clear();
   m_vertexSecondary.clear();
   m_generation.clear();

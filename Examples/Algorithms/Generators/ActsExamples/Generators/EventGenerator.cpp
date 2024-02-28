@@ -96,6 +96,7 @@ ActsExamples::ProcessCode ActsExamples::EventGenerator::read(
         // move particle to the vertex
         const auto pos4 = (vertexPosition + vertex.position4).eval();
         ACTS_VERBOSE(" - vertex at " << pos4.transpose());
+        vertex.position4 = pos4;
       };
       for (auto& vertex : newVertices) {
         updateVertexInPlace(vertex);

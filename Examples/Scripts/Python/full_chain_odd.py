@@ -99,7 +99,7 @@ else:
     addPythia8(
         s,
         hardProcess=["Top:qqbar2ttbar=on"],
-        npileup=50,
+        npileup=0,
         vtxGen=acts.examples.GaussianVertexGenerator(
             mean=acts.Vector4(0, 0, 0, 0),
             stddev=acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns),
@@ -107,7 +107,6 @@ else:
         rnd=rnd,
         outputDirRoot=outputDir,
         # outputDirCsv=outputDir,
-        logLevel=acts.logging.VERBOSE,
     )
 if g4_simulation:
     if s.config.numThreads != 1:
@@ -254,7 +253,6 @@ addVertexFitting(
     useTime=False,
     vertexFinder=VertexFinder.AMVF,
     outputDirRoot=outputDir,
-    logLevel=acts.logging.VERBOSE,
 )
 shutil.move(
     outputDir / "performance_vertexing.root", outputDir / "performance_amvf_grid_notime.root"

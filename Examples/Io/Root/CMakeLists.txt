@@ -18,6 +18,7 @@ add_library(
   src/RootTrackSummaryWriter.cpp
   src/RootBFieldWriter.cpp
   src/RootAthenaNTupleReader.cpp
+  src/RootVertexReader.cpp
   src/RootVertexWriter.cpp
 )
 target_include_directories(

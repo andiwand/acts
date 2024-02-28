@@ -101,6 +101,7 @@ void register_csv_bfield_writer_binding(
 }  // namespace
 
 namespace Acts::Python {
+
 void addOutput(Context& ctx) {
   auto [m, mex] = ctx.get("main", "examples");
 
@@ -424,4 +425,5 @@ void addOutput(Context& ctx) {
                              "CsvExaTrkXGraphWriter", inputGraph, outputDir,
                              outputStem);
 }
+
 }  // namespace Acts::Python
