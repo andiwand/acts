@@ -43,6 +43,7 @@
 #include "ActsExamples/Io/Root/RootTrackParameterWriter.hpp"
 #include "ActsExamples/Io/Root/RootTrackStatesWriter.hpp"
 #include "ActsExamples/Io/Root/RootTrackSummaryWriter.hpp"
+#include "ActsExamples/Io/Root/RootVertexWriter.hpp"
 #include "ActsExamples/MaterialMapping/IMaterialWriter.hpp"
 #include "ActsExamples/Plugins/Obj/ObjPropagationStepsWriter.hpp"
 #include "ActsExamples/Plugins/Obj/ObjTrackingGeometryWriter.hpp"
@@ -176,6 +177,10 @@ void addOutput(Context& ctx) {
   ACTS_PYTHON_DECLARE_WRITER(ActsExamples::RootParticleWriter, mex,
                              "RootParticleWriter", inputParticles,
                              inputFinalParticles, inputSimHits, filePath,
+                             fileMode, treeName);
+
+  ACTS_PYTHON_DECLARE_WRITER(ActsExamples::RootVertexWriter, mex,
+                             "RootVertexWriter", inputVertices, filePath,
                              fileMode, treeName);
 
   ACTS_PYTHON_DECLARE_WRITER(ActsExamples::TrackFinderPerformanceWriter, mex,

@@ -14,6 +14,7 @@ from acts.examples.simulation import (
 )
 from acts.examples.reconstruction import (
     addSeeding,
+    SeedingAlgorithm,
     TruthSeedRanges,
     addCKFTracks,
     TrackSelectorConfig,
@@ -28,6 +29,7 @@ from acts.examples.reconstruction import (
 )
 from common import getOpenDataDetectorDirectory
 from acts.examples.odd import getOpenDataDetector
+import shutil
 
 parser = argparse.ArgumentParser(description="Full chain with the OpenDataDetector")
 
@@ -88,16 +90,16 @@ if not ttbar:
         ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
         vtxGen=acts.examples.GaussianVertexGenerator(
             mean=acts.Vector4(0, 0, 0, 0),
-            stddev=acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns),
+            stddev=acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 50.0 * u.mm, 180.0 * u.ps),
         ),
-        multiplicity=200,
+        multiplicity=50,
         rnd=rnd,
     )
 else:
     addPythia8(
         s,
         hardProcess=["Top:qqbar2ttbar=on"],
-        npileup=50,
+        npileup=0,
         vtxGen=acts.examples.GaussianVertexGenerator(
             mean=acts.Vector4(0, 0, 0, 0),
             stddev=acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns),
@@ -105,6 +107,7 @@ else:
         rnd=rnd,
         outputDirRoot=outputDir,
         # outputDirCsv=outputDir,
+        logLevel=acts.logging.VERBOSE,
     )
 if g4_simulation:
     if s.config.numThreads != 1:
@@ -168,6 +171,7 @@ addSeeding(
     TruthSeedRanges(pt=(1.0 * u.GeV, None), eta=(-3.0, 3.0), nHits=(9, None))
     if ttbar
     else TruthSeedRanges(),
+    seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
     initialSigmas=[
         1 * u.mm,
         1 * u.mm,
@@ -232,11 +236,44 @@ else:
         # outputDirCsv=outputDir,
     )
 
+s.addAlgorithm(
+    acts.examples.TracksToParameters(
+        level=acts.logging.INFO,
+        inputTracks="tracks",
+        outputTrackParameters="trackParameters",
+    )
+)
+
 addVertexFitting(
     s,
     field,
-    vertexFinder=VertexFinder.Iterative,
+    trackParameters="trackParameters",
+    outputProtoVertices="amvf_notime_protovertices",
+    outputVertices="amvf_notime_fittedVertices",
+    seeder=acts.VertexSeedFinder.AdaptiveGridSeeder,
+    useTime=False,
+    vertexFinder=VertexFinder.AMVF,
     outputDirRoot=outputDir,
+    logLevel=acts.logging.VERBOSE,
+)
+shutil.move(
+    outputDir / "performance_vertexing.root", outputDir / "performance_amvf_grid_notime.root"
+)
+
+addVertexFitting(
+    s,
+    field,
+    trackParameters="trackParameters",
+    outputProtoVertices="amvf_time_protovertices",
+    outputVertices="amvf_time_fittedVertices",
+    seeder=acts.VertexSeedFinder.AdaptiveGridSeeder,
+    useTime=True,
+    vertexFinder=VertexFinder.AMVF,
+    outputDirRoot=outputDir,
+    logLevel=acts.logging.VERBOSE,
+)
+shutil.move(
+    outputDir / "performance_vertexing.root", outputDir / "performance_amvf_grid_time.root"
 )
 
 s.run()

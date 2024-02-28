@@ -8,6 +8,7 @@
 
 #include "ActsExamples/Generators/EventGenerator.hpp"
 
+#include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/Particle.hpp"
@@ -44,6 +45,7 @@ ActsExamples::EventGenerator::availableEvents() const {
 ActsExamples::ProcessCode ActsExamples::EventGenerator::read(
     const AlgorithmContext& ctx) {
   SimParticleContainer particles;
+  SimVertexContainer vertices;
 
   auto rng = m_cfg.randomNumbers->spawnGenerator(ctx);
 
@@ -59,16 +61,16 @@ ActsExamples::ProcessCode ActsExamples::EventGenerator::read(
       // generate primary vertex position
       auto vertexPosition = (*generate.vertex)(rng);
       // generate particles associated to this vertex
-      auto vertexParticles = (*generate.particles)(rng);
+      auto [newVertices, newParticles] = (*generate.particles)(rng);
 
       ACTS_VERBOSE("Generate vertex at " << vertexPosition.transpose());
 
-      auto updateParticleInPlace = [&](ActsFatras::Particle& particle) {
+      auto updateParticleInPlace = [&](SimParticle& particle) {
         // only set the primary vertex, leave everything else as-is
         // using the number of primary vertices as the index ensures
         // that barcode=0 is not used, since it is used elsewhere
         // to signify elements w/o an associated particle.
-        const auto pid = ActsFatras::Barcode(particle.particleId())
+        const auto pid = SimBarcode(particle.particleId())
                              .setVertexPrimary(nPrimaryVertices);
         // move particle to the vertex
         const auto pos4 = (vertexPosition + particle.fourPosition()).eval();
@@ -76,15 +78,31 @@ ActsExamples::ProcessCode ActsExamples::EventGenerator::read(
         // `withParticleId` returns a copy because it changes the identity
         particle = particle.withParticleId(pid).setPosition4(pos4);
       };
-      for (auto& vertexParticle : vertexParticles) {
+      for (auto& vertexParticle : newParticles) {
         updateParticleInPlace(vertexParticle);
+      }
+
+      auto updateVertexInPlace = [&](SimVertex& vertex) {
+        // only set the primary vertex, leave everything else as-is
+        // using the number of primary vertices as the index ensures
+        // that barcode=0 is not used, since it is used elsewhere
+        // to signify elements w/o an associated particle.
+        vertex.id = SimVertexBarcode(vertex.vertexId())
+                        .setVertexPrimary(nPrimaryVertices);
+        // move particle to the vertex
+        const auto pos4 = (vertexPosition + vertex.position4).eval();
+        ACTS_VERBOSE(" - vertex at " << pos4.transpose());
+      };
+      for (auto& vertex : newVertices) {
+        updateVertexInPlace(vertex);
       }
 
       ACTS_VERBOSE("event=" << ctx.eventNumber << " generator=" << iGenerate
                             << " primary_vertex=" << nPrimaryVertices
-                            << " n_particles=" << vertexParticles.size());
+                            << " n_particles=" << newParticles.size());
 
-      particles.merge(std::move(vertexParticles));
+      particles.merge(std::move(newParticles));
+      vertices.merge(std::move(newVertices));
     }
   }
 
@@ -94,5 +112,6 @@ ActsExamples::ProcessCode ActsExamples::EventGenerator::read(
 
   // move generated event to the store
   m_outputParticles(ctx, std::move(particles));
+  m_outputVertices(ctx, std::move(vertices));
   return ProcessCode::SUCCESS;
 }

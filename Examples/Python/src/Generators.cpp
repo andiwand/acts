@@ -60,9 +60,11 @@ void addGenerators(Context& ctx) {
                    .def_property_readonly(
                        "config", &ActsExamples::EventGenerator::config);
 
-    py::class_<ActsExamples::EventGenerator::VertexGenerator,
-               std::shared_ptr<ActsExamples::EventGenerator::VertexGenerator>>(
-        gen, "VertexGenerator");
+    py::class_<
+        ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
+        std::shared_ptr<
+            ActsExamples::EventGenerator::PrimaryVertexPositionGenerator>>(
+        gen, "PrimaryVertexPositionGenerator");
     py::class_<
         ActsExamples::EventGenerator::ParticlesGenerator,
         std::shared_ptr<ActsExamples::EventGenerator::ParticlesGenerator>>(
@@ -76,10 +78,12 @@ void addGenerators(Context& ctx) {
     using Generator = EventGenerator::Generator;
     py::class_<Generator>(gen, "Generator")
         .def(py::init<>())
-        .def(py::init<std::shared_ptr<EventGenerator::MultiplicityGenerator>,
-                      std::shared_ptr<EventGenerator::VertexGenerator>,
-                      std::shared_ptr<EventGenerator::ParticlesGenerator>>(),
-             py::arg("multiplicity"), py::arg("vertex"), py::arg("particles"))
+        .def(
+            py::init<
+                std::shared_ptr<EventGenerator::MultiplicityGenerator>,
+                std::shared_ptr<EventGenerator::PrimaryVertexPositionGenerator>,
+                std::shared_ptr<EventGenerator::ParticlesGenerator>>(),
+            py::arg("multiplicity"), py::arg("vertex"), py::arg("particles"))
         .def_readwrite("multiplicity", &Generator::multiplicity)
         .def_readwrite("vertex", &Generator::vertex)
         .def_readwrite("particles", &Generator::particles);
@@ -87,37 +91,44 @@ void addGenerators(Context& ctx) {
     py::class_<Config>(gen, "Config")
         .def(py::init<>())
         .def_readwrite("outputParticles", &Config::outputParticles)
+        .def_readwrite("outputVertices", &Config::outputVertices)
         .def_readwrite("generators", &Config::generators)
         .def_readwrite("randomNumbers", &Config::randomNumbers);
   }
 
-  py::class_<ActsExamples::GaussianVertexGenerator,
-             ActsExamples::EventGenerator::VertexGenerator,
-             std::shared_ptr<ActsExamples::GaussianVertexGenerator>>(
-      mex, "GaussianVertexGenerator")
+  py::class_<
+      ActsExamples::GaussianPrimaryVertexPositionGenerator,
+      ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
+      std::shared_ptr<ActsExamples::GaussianPrimaryVertexPositionGenerator>>(
+      mex, "GaussianPrimaryVertexPositionGenerator")
       .def(py::init<>())
       .def(py::init([](const Acts::Vector4& stddev, const Acts::Vector4& mean) {
-             ActsExamples::GaussianVertexGenerator g;
+             ActsExamples::GaussianPrimaryVertexPositionGenerator g;
              g.stddev = stddev;
              g.mean = mean;
              return g;
            }),
            py::arg("stddev"), py::arg("mean"))
-      .def_readwrite("stddev", &ActsExamples::GaussianVertexGenerator::stddev)
-      .def_readwrite("mean", &ActsExamples::GaussianVertexGenerator::mean);
+      .def_readwrite(
+          "stddev",
+          &ActsExamples::GaussianPrimaryVertexPositionGenerator::stddev)
+      .def_readwrite(
+          "mean", &ActsExamples::GaussianPrimaryVertexPositionGenerator::mean);
 
-  py::class_<ActsExamples::FixedVertexGenerator,
-             ActsExamples::EventGenerator::VertexGenerator,
-             std::shared_ptr<ActsExamples::FixedVertexGenerator>>(
-      mex, "FixedVertexGenerator")
+  py::class_<
+      ActsExamples::FixedPrimaryVertexPositionGenerator,
+      ActsExamples::EventGenerator::PrimaryVertexPositionGenerator,
+      std::shared_ptr<ActsExamples::FixedPrimaryVertexPositionGenerator>>(
+      mex, "FixedPrimaryVertexPositionGenerator")
       .def(py::init<>())
       .def(py::init([](const Acts::Vector4& v) {
-             ActsExamples::FixedVertexGenerator g;
+             ActsExamples::FixedPrimaryVertexPositionGenerator g;
              g.fixed = v;
              return g;
            }),
            py::arg("fixed"))
-      .def_readwrite("fixed", &ActsExamples::FixedVertexGenerator::fixed);
+      .def_readwrite("fixed",
+                     &ActsExamples::FixedPrimaryVertexPositionGenerator::fixed);
 
   py::class_<ActsExamples::SimParticle>(mex, "SimParticle");
   py::class_<ActsExamples::SimParticleContainer>(mex, "SimParticleContainer");

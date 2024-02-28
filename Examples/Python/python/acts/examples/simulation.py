@@ -11,6 +11,7 @@ from acts.examples import (
     CsvParticleWriter,
     ParticlesPrinter,
     RootParticleWriter,
+    RootVertexWriter,
 )
 
 # Defaults (given as `None` here) use class defaults defined in
@@ -130,12 +131,14 @@ def addParticleGun(
             )
         ],
         outputParticles="particles_input",
+        outputVertices="vertices_input",
         randomNumbers=rnd,
     )
 
     s.addReader(evGen)
 
     s.addWhiteboardAlias("particles", evGen.config.outputParticles)
+    s.addWhiteboardAlias("vertices", evGen.config.outputVertices)
 
     if printParticles:
         s.addAlgorithm(
@@ -169,6 +172,14 @@ def addParticleGun(
                 level=customLogLevel(),
                 inputParticles=evGen.config.outputParticles,
                 filePath=str(outputDirRoot / "particles.root"),
+            )
+        )
+
+        s.addWriter(
+            RootVertexWriter(
+                level=customLogLevel(),
+                inputVertices=evGen.config.outputVertices,
+                filePath=str(outputDirRoot / "vertices.root"),
             )
         )
 
