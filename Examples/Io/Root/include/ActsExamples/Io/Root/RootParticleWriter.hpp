@@ -95,27 +95,27 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
   /// Production process type, i.e. what generated the particle.
   std::vector<std::uint32_t> m_process;
   /// Production position components in mm.
-  std::vector<double> m_vx;
-  std::vector<double> m_vy;
-  std::vector<double> m_vz;
-  std::vector<double> m_vt;
+  std::vector<float> m_vx;
+  std::vector<float> m_vy;
+  std::vector<float> m_vz;
+  std::vector<float> m_vt;
   /// Total momentum in GeV
-  std::vector<double> m_p;
+  std::vector<float> m_p;
   /// Momentum components in GeV.
-  std::vector<double> m_px;
-  std::vector<double> m_py;
-  std::vector<double> m_pz;
+  std::vector<float> m_px;
+  std::vector<float> m_py;
+  std::vector<float> m_pz;
   /// Mass in GeV.
-  std::vector<double> m_m;
+  std::vector<float> m_m;
   /// Charge in e.
-  std::vector<double> m_q;
+  std::vector<float> m_q;
   // Derived kinematic quantities
   /// Direction pseudo-rapidity.
-  std::vector<double> m_eta;
+  std::vector<float> m_eta;
   /// Direction angle in the transverse plane.
-  std::vector<double> m_phi;
+  std::vector<float> m_phi;
   /// Transverse momentum in GeV.
-  std::vector<double> m_pt;
+  std::vector<float> m_pt;
   // Decoded particle identifier; see Barcode definition for details.
   std::vector<std::uint32_t> m_vertexPrimary;
   std::vector<std::uint32_t> m_vertexSecondary;
@@ -125,11 +125,11 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
 
   // Optional information depending on input collections.
   /// Total energy loss in GeV.
-  std::vector<double> m_eLoss;
+  std::vector<float> m_eLoss;
   /// Accumulated material
-  std::vector<double> m_pathInX0;
+  std::vector<float> m_pathInX0;
   /// Accumulated material
-  std::vector<double> m_pathInL0;
+  std::vector<float> m_pathInL0;
   /// Number of hits.
   std::vector<std::int32_t> m_numberOfHits;
 };

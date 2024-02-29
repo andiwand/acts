@@ -91,10 +91,14 @@ ProcessCode RootVertexWriter::writeT(const AlgorithmContext& ctx,
     m_vertexId.push_back(vertex.vertexId().value());
     m_process.push_back(static_cast<uint32_t>(vertex.process));
     // position
-    m_vx.push_back(vertex.position4.x() / Acts::UnitConstants::mm);
-    m_vy.push_back(vertex.position4.y() / Acts::UnitConstants::mm);
-    m_vz.push_back(vertex.position4.z() / Acts::UnitConstants::mm);
-    m_vt.push_back(vertex.position4.w() / Acts::UnitConstants::mm);
+    m_vx.push_back(Acts::clampValue<float>(vertex.position4.x() /
+                                           Acts::UnitConstants::mm));
+    m_vy.push_back(Acts::clampValue<float>(vertex.position4.y() /
+                                           Acts::UnitConstants::mm));
+    m_vz.push_back(Acts::clampValue<float>(vertex.position4.z() /
+                                           Acts::UnitConstants::mm));
+    m_vt.push_back(Acts::clampValue<float>(vertex.position4.w() /
+                                           Acts::UnitConstants::mm));
     // TODO ingoing particles
     // outgoing particles
     std::vector<double> outgoing;

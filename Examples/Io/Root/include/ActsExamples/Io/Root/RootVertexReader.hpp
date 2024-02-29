@@ -95,10 +95,10 @@ class RootVertexReader : public IReader {
 
   std::vector<std::uint64_t>* m_vertexId = new std::vector<std::uint64_t>;
   std::vector<std::uint32_t>* m_process = new std::vector<std::uint32_t>;
-  std::vector<double>* m_vx = new std::vector<double>;
-  std::vector<double>* m_vy = new std::vector<double>;
-  std::vector<double>* m_vz = new std::vector<double>;
-  std::vector<double>* m_vt = new std::vector<double>;
+  std::vector<float>* m_vx = new std::vector<float>;
+  std::vector<float>* m_vy = new std::vector<float>;
+  std::vector<float>* m_vz = new std::vector<float>;
+  std::vector<float>* m_vt = new std::vector<float>;
   std::vector<std::uint32_t>* m_vertexPrimary = new std::vector<std::uint32_t>;
   std::vector<std::uint32_t>* m_vertexSecondary =
       new std::vector<std::uint32_t>;
