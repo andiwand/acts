@@ -12,7 +12,6 @@
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/Generators/EventGenerator.hpp"
 
@@ -24,7 +23,6 @@
 namespace Pythia8 {
 class Pythia;
 }
-
 namespace ActsExamples {
 
 class Pythia8Generator : public EventGenerator::ParticlesGenerator {
@@ -44,7 +42,7 @@ class Pythia8Generator : public EventGenerator::ParticlesGenerator {
     bool printLongEventListing = false;
     /// Turn on/off the labeling of secondary vertices
     /// TODO this is essentially broken as the current code will label any kind
-    /// of displaced vertex as secondary
+    /// of decay as secondary
     bool labelSecondaries = false;
   };
 

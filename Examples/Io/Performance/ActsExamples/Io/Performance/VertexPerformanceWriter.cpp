@@ -241,8 +241,7 @@ int ActsExamples::VertexPerformanceWriter::getNumberOfTruePriVertices(
 }
 
 ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
-    const AlgorithmContext& ctx,
-    const std::vector<Acts::Vertex<Acts::BoundTrackParameters>>& vertices) {
+    const AlgorithmContext& ctx, const std::vector<Acts::Vertex>& vertices) {
   // Exclusive access to the tree while writing
   std::lock_guard<std::mutex> lock(m_writeMutex);
 
@@ -400,7 +399,8 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   auto findTruthParticle =
       [&](const auto& tracksAtVtx) -> std::optional<SimParticle> {
     // Track parameters before the vertex fit
-    Acts::BoundTrackParameters origTrack = *(tracksAtVtx.originalParams);
+    Acts::BoundTrackParameters origTrack =
+        *(tracksAtVtx.originalParams.template as<Acts::BoundTrackParameters>());
 
     // Finding the matching parameters in the container of all track
     // parameters. This allows us to identify the corresponding particle,
@@ -658,13 +658,14 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
       innerTruthQOverP.push_back(trueMom[2]);
 
       // Save track parameters before the vertex fit
-      const auto paramsAtVtx = propagateToVtx(*(trk.originalParams));
+      const auto paramsAtVtx = propagateToVtx(
+          *(trk.originalParams.as<Acts::BoundTrackParameters>()));
       if (paramsAtVtx != std::nullopt) {
         Acts::ActsVector<3> recoMom =
             paramsAtVtx->parameters().segment(Acts::eBoundPhi, 3);
         const Acts::ActsMatrix<3, 3>& momCov =
-            paramsAtVtx->covariance()->block<3, 3>(Acts::eBoundPhi,
-                                                   Acts::eBoundPhi);
+            paramsAtVtx->covariance()->template block<3, 3>(Acts::eBoundPhi,
+                                                            Acts::eBoundPhi);
         innerRecoPhi.push_back(recoMom[0]);
         innerRecoTheta.push_back(recoMom[1]);
         innerRecoQOverP.push_back(recoMom[2]);
