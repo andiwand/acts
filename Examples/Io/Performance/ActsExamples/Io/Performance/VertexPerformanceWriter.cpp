@@ -245,21 +245,21 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   // Exclusive access to the tree while writing
   std::lock_guard<std::mutex> lock(m_writeMutex);
 
-  m_nRecoVtx = vertices.size();
-
-  ACTS_DEBUG("Number of reco vertices in event: " << m_nRecoVtx);
+  // Read truth particle input collection
+  const auto& allTruthParticles = m_inputAllTruthParticles(ctx);
 
   // Read truth vertex input collection
   const auto& truthVertices = m_inputTruthVertices(ctx);
-  // Read truth particle input collection
-  const auto& allTruthParticles = m_inputAllTruthParticles(ctx);
   // Get number of generated true primary vertices
-  m_nTrueVtx = getNumberOfTruePriVertices(allTruthParticles);
+  m_nTrueVtx = truthVertices.size();
+
+  m_nRecoVtx = vertices.size();
 
   ACTS_VERBOSE("Total number of generated truth particles in event : "
                << allTruthParticles.size());
   ACTS_VERBOSE(
       "Total number of generated truth primary vertices : " << m_nTrueVtx);
+  ACTS_DEBUG("Number of reco vertices in event: " << m_nRecoVtx);
 
   // Read selected truth particle input collection
   const auto& selectedTruthParticles = m_inputSelectedTruthParticles(ctx);
