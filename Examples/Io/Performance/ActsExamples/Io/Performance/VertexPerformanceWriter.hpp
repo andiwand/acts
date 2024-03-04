@@ -31,7 +31,13 @@ class Barcode;
 }  // namespace ActsFatras
 
 namespace ActsExamples {
-struct AlgorithmContext;
+
+enum class RecoVertexClassification {
+  Unknown = 0,
+  Clean,
+  Merged,
+  Split,
+};
 
 /// @class VertexPerformanceWriter
 ///
@@ -69,14 +75,12 @@ class VertexPerformanceWriter final
     std::string treeName = "vertextree";
     /// File access mode.
     std::string fileMode = "RECREATE";
-    /// Minimum fraction of tracks matched between truth
-    /// and reco vertices to be matched for resolution plots.
-    double minTrackVtxMatchFraction = 0.5;
-    /// Minimum fraction of hits associated to particle to consider
+    /// Minimum fraction of track weight matched between truth
+    /// and reco vertices to consider as truth matched.
+    double vertexMatchThreshold = 0.7;
+    /// Minimum fraction of hits associated to particle to consider track
     /// as truth matched.
-    double truthMatchProbMin = 0.5;
-    /// Whether information about tracks is available
-    bool useTracks = true;
+    double trackMatchThreshold = 0.5;
     /// minimum track weight for track to be considered as part of the fit
     double minTrkWeight = 0.1;
   };
@@ -150,8 +154,12 @@ class VertexPerformanceWriter final
   std::vector<double> m_covYT;
   std::vector<double> m_covZT;
 
-  // Sum pT^2 of all tracks associated with the vertex
+  /// Sum pT^2 of all tracks associated with the vertex
   std::vector<double> m_sumPt2;
+
+  /// Classification of the reconstructed vertex
+  /// see RecoVertexClassification
+  std::vector<int> m_recoVertexClassification;
 
   //--------------------------------------------------------------
   // Track-related variables are contained in a vector of vectors: The inner
@@ -220,8 +228,8 @@ class VertexPerformanceWriter final
 
   int getNumberOfTruePriVertices(const SimParticleContainer& collection) const;
 
-  ReadDataHandle<SimVertexContainer> m_inputTruthVertices{
-      this, "InputTruthVertices"};
+  ReadDataHandle<SimVertexContainer> m_inputTruthVertices{this,
+                                                          "InputTruthVertices"};
   ReadDataHandle<SimParticleContainer> m_inputAllTruthParticles{
       this, "InputAllTruthParticles"};
   ReadDataHandle<SimParticleContainer> m_inputSelectedTruthParticles{
