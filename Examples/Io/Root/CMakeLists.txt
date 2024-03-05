@@ -39,8 +39,6 @@ ROOT_GENERATE_DICTIONARY(
 set_target_properties(
   ActsExamplesIoRootDict PROPERTIES CXX_CLANG_TIDY "")
 
-ROOT_GENERATE_DICTIONARY(ActsDicts MODULE ActsExamplesIoRoot LINKDEF LinkDef.h)
-
 install(
   TARGETS ActsExamplesIoRoot
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
