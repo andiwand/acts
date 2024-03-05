@@ -133,6 +133,11 @@ auto ActsExamples::AdaptiveMultiVertexFinderAlgorithm::makeVertexFinder() const
   finderConfig.tracksMaxZinterval = 1. * Acts::UnitConstants::mm;
   finderConfig.maxIterations = 500;
   finderConfig.useTime = m_cfg.useTime;
+  // Reset the maximum significance that two vertices can have before they
+  // are considered as merged.
+  finderConfig.tracksMaxSignificance = 5;
+  finderConfig.doFullSplitting = false;
+  finderConfig.maxMergeVertexSignificance = 3;
   finderConfig.extractParameters
       .template connect<&Acts::InputTrack::extractParameters>();
 
