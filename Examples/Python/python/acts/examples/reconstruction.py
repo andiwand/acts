@@ -1732,7 +1732,6 @@ def addVertexFitting(
     field,
     tracks: Optional[str] = "tracks",
     trackParameters: Optional[str] = None,
-    associatedParticles: Optional[str] = None,
     outputProtoVertices: str = "protovertices",
     outputVertices: str = "fittedVertices",
     seeder: Optional[acts.VertexSeedFinder] = acts.VertexSeedFinder.GaussianSeeder,
@@ -1796,7 +1795,6 @@ def addVertexFitting(
         trackParameters = converter.config.outputTrackParameters
 
     tracks = tracks if tracks is not None else ""
-    associatedParticles = associatedParticles if associatedParticles is not None else ""
     inputParticles = "particles_input"
     selectedParticles = "particles_selected"
     inputVertices = "vertices_input"
@@ -1846,11 +1844,6 @@ def addVertexFitting(
         outputDirRoot = Path(outputDirRoot)
         if not outputDirRoot.exists():
             outputDirRoot.mkdir()
-        if associatedParticles == selectedParticles:
-            warnings.warn(
-                "Using VertexPerformanceWriter with smeared particles is not necessarily supported. "
-                "Please get in touch with us"
-            )
         s.addWriter(
             VertexPerformanceWriter(
                 level=customLogLevel(),
@@ -1859,7 +1852,6 @@ def addVertexFitting(
                 inputSelectedTruthParticles=selectedParticles,
                 inputMeasurementParticlesMap="measurement_particles_map",
                 inputTracks=tracks,
-                inputAssociatedTruthParticles=associatedParticles,
                 inputVertices=outputVertices,
                 bField=field,
                 treeName="vertexing",

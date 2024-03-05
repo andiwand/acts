@@ -80,14 +80,8 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
   m_inputAllTruthParticles.initialize(m_cfg.inputAllTruthParticles);
   m_inputSelectedTruthParticles.initialize(m_cfg.inputSelectedTruthParticles);
 
-  if (!m_cfg.inputAssociatedTruthParticles.empty()) {
-    m_inputAssociatedTruthParticles.initialize(
-        m_cfg.inputAssociatedTruthParticles);
-  } else {
-    m_inputMeasurementParticlesMap.initialize(
-        m_cfg.inputMeasurementParticlesMap);
-    m_inputTracks.initialize(m_cfg.inputTracks);
-  }
+  m_inputMeasurementParticlesMap.initialize(m_cfg.inputMeasurementParticlesMap);
+  m_inputTracks.initialize(m_cfg.inputTracks);
 
   // Setup ROOT I/O
   auto path = m_cfg.filePath;
@@ -140,6 +134,8 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
 
     m_outputTree->Branch("sumPt2", &m_sumPt2);
 
+    m_outputTree->Branch("recoVertexTotalTrackWeight",
+                         &m_recoVertexTotalTrackWeight);
     m_outputTree->Branch("recoVertexClassification",
                          &m_recoVertexClassification);
 
@@ -176,7 +172,7 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
     m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
     m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
 
-    m_outputTree->Branch("trkVtxMatch", &m_trackVtxMatchFraction);
+    m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
 
     m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
     m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
@@ -285,41 +281,6 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   // Get the event number
   m_eventNr = ctx.eventNumber;
 
-  // The i-th entry in associatedTruthParticles corresponds to the i-th entry in
-  // trackParameters. If we know the truth particles associated to the track
-  // parameters a priori:
-  if (!m_cfg.inputAssociatedTruthParticles.empty()) {
-    for (const auto& track : m_inputTracks(ctx)) {
-      if (!track.hasReferenceSurface()) {
-        ACTS_ERROR("Track " << track.tipIndex() << " has no reference surface");
-      } else {
-        trackParameters.push_back(track.createParametersAtReference());
-      }
-    }
-
-    // Read track-associated truth particle input collection
-    associatedTruthParticles =
-        std::vector<SimParticle>(m_inputAssociatedTruthParticles(ctx).begin(),
-                                 m_inputAssociatedTruthParticles(ctx).end());
-
-    auto mismatchMsg = [&](auto level, const auto& extra) {
-      ACTS_LOG(level,
-               "Number of fitted tracks and associated truth particles do not "
-               "match. ("
-                   << trackParameters.size()
-                   << " != " << associatedTruthParticles.size()
-                   << ") Not able to match fitted tracks at reconstructed "
-                      "vertex to truth vertex."
-                   << extra);
-    };
-
-    if (associatedTruthParticles.size() < trackParameters.size()) {
-      mismatchMsg(Acts::Logging::ERROR, " Switch to hit based truth matching.");
-    } else if (associatedTruthParticles.size() > trackParameters.size()) {
-      mismatchMsg(Acts::Logging::INFO,
-                  " This is likely due to track efficiency < 1");
-    }
-  }
   // If we don't know which truth particle corresponds to which track a
   // priori, we check how many hits particles and tracks share. We match the
   // particle to the track if a fraction of more than truthMatchProbMin of
@@ -327,7 +288,7 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   // all tracksatVertex have matching parameters in trackParameters in this
   // case. Equivalently, one could say that not all tracksAtVertex will be
   // assigned to a truth particle.
-  else {
+  {
     std::vector<ParticleHitCount> particleHitCounts;
 
     const auto& hitParticlesMap = m_inputMeasurementParticlesMap(ctx);
@@ -432,6 +393,7 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
 
   struct ToTruthMatching {
     std::optional<SimVertexBarcode> vertexId;
+    double totalTrackWeight{};
     double matchFraction{};
 
     RecoVertexClassification classification{RecoVertexClassification::Unknown};
@@ -455,13 +417,13 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
     // to the reconstructed vertex
     std::vector<std::pair<SimVertexBarcode, double>> contributingTruthVertices;
 
-    double totalWeight = 0;
+    double totalTrackWeight = 0;
     for (const auto& trk : tracksAtVtx) {
       if (trk.trackWeight < m_cfg.minTrkWeight) {
         continue;
       }
 
-      totalWeight += trk.trackWeight;
+      totalTrackWeight += trk.trackWeight;
 
       std::optional<SimParticle> particleOpt = findTruthParticle(trk);
       if (!particleOpt.has_value()) {
@@ -490,61 +452,49 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
     double sumPt2 = calcSumPt2(vtx);
 
     double vertexMatchFraction =
-        (double)fmap[maxOccurrenceId].second / totalWeight;
+        fmap[maxOccurrenceId].second / totalTrackWeight;
+    RecoVertexClassification recoVertexClassification =
+        RecoVertexClassification::Unknown;
 
     if (vertexMatchFraction >= m_cfg.vertexMatchThreshold) {
-      // This is a clean vertex.
-
-      // Double check if something is already matched to this truth vertex.
-      // This should not happen as we assume vertexMatchThreshold to be >=50% so
-      // there is not space for a second vertex to be matched to the same truth.
-      if (truthToRecoMatching.find(maxOccurrenceId) !=
-          truthToRecoMatching.end()) {
-        ACTS_ERROR(
-            "Truth vertex already matched to another reconstructed vertex. "
-            "That should never happen.");
-      }
-
-      recoToTruthMatching.push_back({maxOccurrenceId, vertexMatchFraction,
-                                     RecoVertexClassification::Clean});
-      truthToRecoMatching[maxOccurrenceId] = {vtxIndex, sumPt2};
+      recoVertexClassification = RecoVertexClassification::Clean;
     } else {
-      // Matching fraction is below threshold, so we have to decide if this is a
-      // split or merged vertex.
-      if (auto it = truthToRecoMatching.find(maxOccurrenceId);
-          it != truthToRecoMatching.end()) {
-        // This truth vertex is already matched to a reconstructed vertex so we
-        // are dealing with a split vertex.
+      recoVertexClassification = RecoVertexClassification::Merged;
+    }
 
-        // We have to decide which of the two reconstructed vertices is the
-        // split vertex.
-        if (sumPt2 <= it->second.recoSumPt2) {
-          // Since the sumPt2 is smaller we can simply call this a split vertex
+    recoToTruthMatching.push_back({maxOccurrenceId, totalTrackWeight,
+                                   vertexMatchFraction,
+                                   recoVertexClassification});
 
-          recoToTruthMatching.push_back({maxOccurrenceId, vertexMatchFraction,
-                                         RecoVertexClassification::Split});
-        } else {
-          // The sumPt2 is larger, so we call the other vertex a split vertex.
+    auto& recoToTruth = recoToTruthMatching.back();
 
-          auto& otherRecoToTruthMatching =
-              recoToTruthMatching.at(it->second.recoIndex);
+    // We have to decide if this reco vertex is a split vertex.
+    if (auto it = truthToRecoMatching.find(maxOccurrenceId);
+        it != truthToRecoMatching.end()) {
+      // This truth vertex is already matched to a reconstructed vertex so we
+      // are dealing with a split vertex.
 
-          recoToTruthMatching.push_back(
-              {maxOccurrenceId, vertexMatchFraction,
-               otherRecoToTruthMatching.classification});
-          truthToRecoMatching[maxOccurrenceId] = {vtxIndex, sumPt2};
+      // We have to decide which of the two reconstructed vertices is the
+      // split vertex.
+      if (sumPt2 <= it->second.recoSumPt2) {
+        // Since the sumPt2 is smaller we can simply call this a split vertex
 
-          otherRecoToTruthMatching.classification =
-              RecoVertexClassification::Split;
-        }
+        recoToTruth.classification = RecoVertexClassification::Split;
+
+        // Keep the existing truth to reco matching
       } else {
-        // This truth vertex is not yet matched to a reconstructed vertex so we
-        // are dealing with a merged vertex.
+        // The sumPt2 is larger, so we call the other vertex a split vertex.
 
-        recoToTruthMatching.push_back({maxOccurrenceId, vertexMatchFraction,
-                                       RecoVertexClassification::Merged});
-        truthToRecoMatching[maxOccurrenceId] = {vtxIndex, sumPt2};
+        auto& otherRecoToTruth = recoToTruthMatching.at(it->second.recoIndex);
+        // Swap the classification
+        recoToTruth.classification = otherRecoToTruth.classification;
+        otherRecoToTruth.classification = RecoVertexClassification::Split;
+
+        // Overwrite the truth to reco matching
+        it->second = {vtxIndex, sumPt2};
       }
+    } else {
+      truthToRecoMatching[maxOccurrenceId] = {vtxIndex, sumPt2};
     }
   }
 
@@ -610,6 +560,9 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
     double sumPt2 = calcSumPt2(vtx);
     m_sumPt2.push_back(sumPt2);
 
+    double totalTrackWeight = toTruthMatching.totalTrackWeight;
+    m_recoVertexTotalTrackWeight.push_back(totalTrackWeight);
+
     RecoVertexClassification recoVertexClassification =
         toTruthMatching.classification;
     m_recoVertexClassification.push_back(
@@ -638,7 +591,7 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
         }
         m_nTracksOnTruthVertex.push_back(nTracksOnTruthVertex);
 
-        m_trackVtxMatchFraction.push_back(toTruthMatching.matchFraction);
+        m_truthVertexMatchRatio.push_back(toTruthMatching.matchFraction);
 
         m_vertexPrimary.push_back(truthVertex.vertexId().vertexPrimary());
         m_vertexSecondary.push_back(truthVertex.vertexId().vertexSecondary());
@@ -668,9 +621,10 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
         truthInfoWritten = true;
       }
     }
-    if (truthInfoWritten) {
+    if (!truthInfoWritten) {
       m_nTracksOnTruthVertex.push_back(-1);
-      m_trackVtxMatchFraction.push_back(-1);
+
+      m_truthVertexMatchRatio.push_back(-1);
 
       m_vertexPrimary.push_back(-1);
       m_vertexSecondary.push_back(-1);
@@ -906,10 +860,11 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   m_covYT.clear();
   m_covZT.clear();
   m_sumPt2.clear();
+  m_recoVertexTotalTrackWeight.clear();
   m_recoVertexClassification.clear();
   m_nTracksOnTruthVertex.clear();
   m_nTracksOnRecoVertex.clear();
-  m_trackVtxMatchFraction.clear();
+  m_truthVertexMatchRatio.clear();
 
   m_truthPhi.clear();
   m_truthTheta.clear();

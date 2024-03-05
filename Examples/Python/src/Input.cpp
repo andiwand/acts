@@ -34,7 +34,7 @@ using namespace pybind11::literals;
 using namespace ActsExamples;
 
 namespace Acts::Python {
-    
+
 void addInput(Context& ctx) {
   auto mex = ctx.get("examples");
 

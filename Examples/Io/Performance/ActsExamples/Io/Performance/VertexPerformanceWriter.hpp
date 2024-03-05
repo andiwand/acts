@@ -60,9 +60,6 @@ class VertexPerformanceWriter final
     std::string inputSelectedTruthParticles;
     /// Tracks object from track finidng.
     std::string inputTracks;
-    /// Optional. Truth particles associated to tracks. Using 1:1 matching if
-    /// given.
-    std::string inputAssociatedTruthParticles;
     /// Input hit-particles map collection.
     std::string inputMeasurementParticlesMap;
     /// Input vertex collection.
@@ -157,6 +154,9 @@ class VertexPerformanceWriter final
   /// Sum pT^2 of all tracks associated with the vertex
   std::vector<double> m_sumPt2;
 
+  /// Sum of track weights associated with the vertex
+  std::vector<double> m_recoVertexTotalTrackWeight;
+
   /// Classification of the reconstructed vertex
   /// see RecoVertexClassification
   std::vector<int> m_recoVertexClassification;
@@ -211,7 +211,7 @@ class VertexPerformanceWriter final
   std::vector<int> m_nTracksOnTruthVertex;
   std::vector<int> m_nTracksOnRecoVertex;
 
-  std::vector<double> m_trackVtxMatchFraction;
+  std::vector<double> m_truthVertexMatchRatio;
 
   /// Number of reconstructed vertices
   int m_nRecoVtx = -1;
