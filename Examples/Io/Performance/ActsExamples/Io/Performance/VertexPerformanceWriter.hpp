@@ -115,17 +115,17 @@ class VertexPerformanceWriter final
   std::vector<int> m_vertexPrimary;
   std::vector<int> m_vertexSecondary;
 
-  // True 4D vertex position
-  std::vector<double> m_truthX;
-  std::vector<double> m_truthY;
-  std::vector<double> m_truthZ;
-  std::vector<double> m_truthT;
-
   // Reconstructed 4D vertex position
   std::vector<double> m_recoX;
   std::vector<double> m_recoY;
   std::vector<double> m_recoZ;
   std::vector<double> m_recoT;
+
+  // True 4D vertex position
+  std::vector<double> m_truthX;
+  std::vector<double> m_truthY;
+  std::vector<double> m_truthZ;
+  std::vector<double> m_truthT;
 
   // Difference of reconstructed and true vertex 4D position
   std::vector<double> m_resX;
@@ -171,41 +171,47 @@ class VertexPerformanceWriter final
   //               (truthPhi of 1st trk belonging to vtx 2,
   //                truthPhi of 2nd trk belonging to vtx 2, ...),
   //                ...)
-  //
+
+  // Track weights from vertex fit, will be set to 1 if we do unweighted vertex
+  // fitting
+  std::vector<std::vector<double>> m_trkWeight;
+
+  // Reconstructed track momenta at the vertex before and after the vertex fit
+  std::vector<std::vector<double>> m_recoPhi;
+  std::vector<std::vector<double>> m_recoTheta;
+  std::vector<std::vector<double>> m_recoQOverP;
+
+  std::vector<std::vector<double>> m_recoPhiFitted;
+  std::vector<std::vector<double>> m_recoThetaFitted;
+  std::vector<std::vector<double>> m_recoQOverPFitted;
+
+  std::vector<std::vector<std::uint64_t>> m_particleId;
+
   // True track momenta at the vertex
   std::vector<std::vector<double>> m_truthPhi;
   std::vector<std::vector<double>> m_truthTheta;
   std::vector<std::vector<double>> m_truthQOverP;
 
-  // Reconstructed track momenta at the vertex before and after the vertex fit
-  std::vector<std::vector<double>> m_recoPhi;
-  std::vector<std::vector<double>> m_recoPhiFitted;
-  std::vector<std::vector<double>> m_recoTheta;
-  std::vector<std::vector<double>> m_recoThetaFitted;
-  std::vector<std::vector<double>> m_recoQOverP;
-  std::vector<std::vector<double>> m_recoQOverPFitted;
-
   // Difference between reconstructed momenta and true momenta
   std::vector<std::vector<double>> m_resPhi;
-  std::vector<std::vector<double>> m_resPhiFitted;
   std::vector<std::vector<double>> m_resTheta;
-  std::vector<std::vector<double>> m_resThetaFitted;
   std::vector<std::vector<double>> m_resQOverP;
+
+  std::vector<std::vector<double>> m_resPhiFitted;
+  std::vector<std::vector<double>> m_resThetaFitted;
   std::vector<std::vector<double>> m_resQOverPFitted;
+
   std::vector<std::vector<double>> m_momOverlap;
   std::vector<std::vector<double>> m_momOverlapFitted;
 
   // Pulls
   std::vector<std::vector<double>> m_pullPhi;
-  std::vector<std::vector<double>> m_pullPhiFitted;
   std::vector<std::vector<double>> m_pullTheta;
-  std::vector<std::vector<double>> m_pullThetaFitted;
   std::vector<std::vector<double>> m_pullQOverP;
-  std::vector<std::vector<double>> m_pullQOverPFitted;
 
-  // Track weights from vertex fit, will be set to 1 if we do unweighted vertex
-  // fitting
-  std::vector<std::vector<double>> m_trkWeight;
+  std::vector<std::vector<double>> m_pullPhiFitted;
+  std::vector<std::vector<double>> m_pullThetaFitted;
+  std::vector<std::vector<double>> m_pullQOverPFitted;
 
   // Number of tracks associated with truth/reconstructed vertex
   std::vector<int> m_nTracksOnTruthVertex;
