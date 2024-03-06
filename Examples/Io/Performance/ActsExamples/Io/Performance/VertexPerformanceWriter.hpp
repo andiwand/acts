@@ -161,6 +161,26 @@ class VertexPerformanceWriter final
   /// see RecoVertexClassification
   std::vector<int> m_recoVertexClassification;
 
+  // Number of tracks associated with truth/reconstructed vertex
+  std::vector<int> m_nTracksOnTruthVertex;
+  std::vector<int> m_nTracksOnRecoVertex;
+
+  std::vector<double> m_truthVertexMatchRatio;
+
+  /// Number of reconstructed vertices
+  int m_nRecoVtx = -1;
+  /// Number of true vertices
+  int m_nTrueVtx = -1;
+  /// Number of merged vertices
+  int m_nMergedVtx = -1;
+  /// Number of split vertices
+  int m_nSplitVtx = -1;
+  /// Number of vertices in detector acceptance
+  int m_nVtxDetAcceptance = -1;
+  /// Max. number of reconstructable vertices (detector acceptance + tracking
+  /// efficiency)
+  int m_nVtxReconstructable = -1;
+
   //--------------------------------------------------------------
   // Track-related variables are contained in a vector of vectors: The inner
   // vectors contain the values of all tracks corresponding to one vertex. The
@@ -212,22 +232,6 @@ class VertexPerformanceWriter final
   std::vector<std::vector<double>> m_pullPhiFitted;
   std::vector<std::vector<double>> m_pullThetaFitted;
   std::vector<std::vector<double>> m_pullQOverPFitted;
-
-  // Number of tracks associated with truth/reconstructed vertex
-  std::vector<int> m_nTracksOnTruthVertex;
-  std::vector<int> m_nTracksOnRecoVertex;
-
-  std::vector<double> m_truthVertexMatchRatio;
-
-  /// Number of reconstructed vertices
-  int m_nRecoVtx = -1;
-  /// Number of true vertices
-  int m_nTrueVtx = -1;
-  /// Number of vertices in detector acceptance
-  int m_nVtxDetAcceptance = -1;
-  /// Max. number of reconstructable vertices (detector acceptance + tracking
-  /// efficiency)
-  int m_nVtxReconstructable = -1;
 
   int getNumberOfReconstructableVertices(
       const SimParticleContainer& collection) const;

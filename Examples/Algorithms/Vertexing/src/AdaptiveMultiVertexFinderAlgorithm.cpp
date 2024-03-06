@@ -136,7 +136,7 @@ auto ActsExamples::AdaptiveMultiVertexFinderAlgorithm::makeVertexFinder() const
   // Reset the maximum significance that two vertices can have before they
   // are considered as merged.
   finderConfig.tracksMaxSignificance = 5;
-  finderConfig.doFullSplitting = true;
+  finderConfig.doFullSplitting = false;
   finderConfig.maxMergeVertexSignificance = 3;
   finderConfig.extractParameters
       .template connect<&Acts::InputTrack::extractParameters>();

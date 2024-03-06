@@ -137,6 +137,18 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
     m_outputTree->Branch("recoVertexClassification",
                          &m_recoVertexClassification);
 
+    m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
+    m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
+
+    m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
+
+    m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
+    m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
+    m_outputTree->Branch("nMergedVtx", &m_nMergedVtx);
+    m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
+    m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
+    m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
+
     m_outputTree->Branch("trk_weight", &m_trkWeight);
 
     m_outputTree->Branch("trk_recoPhi", &m_recoPhi);
@@ -167,16 +179,6 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
     m_outputTree->Branch("trk_pullThetaFitted", &m_pullThetaFitted);
     m_outputTree->Branch("trk_pullQOverP", &m_pullQOverP);
     m_outputTree->Branch("trk_pullQOverPFitted", &m_pullQOverPFitted);
-
-    m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
-    m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
-
-    m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
-
-    m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
-    m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
-    m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
-    m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
   }
 }
 
@@ -257,6 +259,8 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   m_nTrueVtx = truthVertices.size();
 
   m_nRecoVtx = vertices.size();
+  m_nMergedVtx = 0;
+  m_nSplitVtx = 0;
 
   ACTS_VERBOSE("Total number of generated truth particles in event : "
                << allTruthParticles.size());
@@ -566,6 +570,12 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
         toTruthMatching.classification;
     m_recoVertexClassification.push_back(
         static_cast<int>(recoVertexClassification));
+
+    if (recoVertexClassification == RecoVertexClassification::Merged) {
+      ++m_nMergedVtx;
+    } else if (recoVertexClassification == RecoVertexClassification::Split) {
+      ++m_nSplitVtx;
+    }
 
     unsigned int nTracksOnRecoVertex =
         std::count_if(tracksAtVtx.begin(), tracksAtVtx.end(), weightHighEnough);
