@@ -313,7 +313,8 @@ std::pair<std::size_t, std::size_t> Sequencer::determineEventsRange() const {
   // since we use event ranges (and not just num events) they might not
   // overlap
   if (end < beg) {
-    ACTS_ERROR("Available events ranges from readers do not overlap");
+    ACTS_ERROR("Available events ranges from readers do not overlap (beg="
+               << beg << ", end=" << end << ")");
     return kInvalidEventsRange;
   }
   // configured readers without available events makes no sense
@@ -621,10 +622,9 @@ void Sequencer::fpeReport() const {
 
     std::vector<std::reference_wrapper<const Acts::FpeMonitor::Result::FpeInfo>>
         sorted;
-    std::transform(
-        merged.stackTraces().begin(), merged.stackTraces().end(),
-        std::back_inserter(sorted),
-        [](const auto& f) -> const auto& { return f; });
+    std::transform(merged.stackTraces().begin(), merged.stackTraces().end(),
+                   std::back_inserter(sorted),
+                   [](const auto& f) -> const auto& { return f; });
     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
       return a.get().count > b.get().count;
     });
