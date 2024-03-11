@@ -49,7 +49,6 @@ def runDigitization(
             level=s.config.logLevel,
             particleCollection="particles_input",
             filePath=str(particlesInput),
-            orderedEvents=False,
         )
         s.addReader(evGen)
 

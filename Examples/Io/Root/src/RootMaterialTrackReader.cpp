@@ -90,8 +90,8 @@ ActsExamples::RootMaterialTrackReader::RootMaterialTrackReader(
             << " events this corresponds to a batch size of: " << m_batchSize
             << std::endl;
 
-  // If the events are not in order, get the entry numbers for ordered events
-  if (!m_cfg.orderedEvents) {
+  // If the events are not ordered, we need to sort the entry numbers
+  {
     if (!eventIdPresent) {
       throw std::invalid_argument{
           "'event_id' branch is missing in your tree. This is not compatible "
@@ -103,6 +103,7 @@ ActsExamples::RootMaterialTrackReader::RootMaterialTrackReader(
     TMath::Sort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
                 m_entryNumbers.data(), false);
   }
+
   m_outputMaterialTracks.initialize(m_cfg.collection);
 }
 
@@ -155,9 +156,7 @@ ActsExamples::ProcessCode ActsExamples::RootMaterialTrackReader::read(
     for (std::size_t ib = 0; ib < m_batchSize; ++ib) {
       // Read the correct entry: startEntry + ib
       auto entry = m_batchSize * context.eventNumber + ib;
-      if (!m_cfg.orderedEvents && entry < m_entryNumbers.size()) {
-        entry = m_entryNumbers[entry];
-      }
+      entry = m_entryNumbers.at(entry);
       ACTS_VERBOSE("Reading event: " << context.eventNumber
                                      << " with stored entry: " << entry);
       m_inputChain->GetEntry(entry);

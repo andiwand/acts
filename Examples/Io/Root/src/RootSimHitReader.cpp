@@ -174,6 +174,9 @@ ActsExamples::ProcessCode ActsExamples::RootSimHitReader::read(
     hits.insert(hit);
   }
 
+  ACTS_DEBUG("Read " << hits.size() << " hits for event "
+                     << context.eventNumber);
+
   m_outputSimHits(context, std::move(hits));
 
   // Return success flag

@@ -96,8 +96,8 @@ ActsExamples::RootTrackSummaryReader::RootTrackSummaryReader(
   m_events = m_inputChain->GetEntries();
   ACTS_DEBUG("The full chain has " << m_events << " entries.");
 
-  // If the events are not in order, get the entry numbers for ordered events
-  if (!m_cfg.orderedEvents) {
+  // If the events are not ordered, we need to sort them
+  {
     m_entryNumbers.resize(m_events);
     m_inputChain->Draw("event_nr", "", "goff");
     // Sort to get the entry numbers of the ordered events
@@ -174,10 +174,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
     SimParticleContainer truthParticleCollection;
 
     // Read the correct entry
-    auto entry = context.eventNumber;
-    if (!m_cfg.orderedEvents && entry < m_entryNumbers.size()) {
-      entry = m_entryNumbers[entry];
-    }
+    auto entry = m_entryNumbers.at(context.eventNumber);
     m_inputChain->GetEntry(entry);
     ACTS_INFO("Reading event: " << context.eventNumber
                                 << " stored as entry: " << entry);

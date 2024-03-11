@@ -43,8 +43,6 @@ class RootSimHitReader : public IReader {
     std::string treeName = "hits";
     ///< The name of the input file
     std::string filePath;
-    /// Whether the events are ordered or not
-    bool orderedEvents = true;
   };
 
   RootSimHitReader(const RootSimHitReader &) = delete;

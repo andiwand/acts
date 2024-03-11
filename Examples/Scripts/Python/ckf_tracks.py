@@ -70,7 +70,6 @@ def runCKFTracks(
                 level=acts.logging.INFO,
                 filePath=str(inputParticlePath.resolve()),
                 particleCollection="particles_input",
-                orderedEvents=False,
             )
         )
 

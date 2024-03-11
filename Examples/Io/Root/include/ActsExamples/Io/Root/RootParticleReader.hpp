@@ -41,8 +41,6 @@ class RootParticleReader : public IReader {
     std::string treeName = "particles";
     /// The name of the input file
     std::string filePath;
-    /// Whether the events are ordered or not
-    bool orderedEvents = true;
   };
 
   /// Constructor

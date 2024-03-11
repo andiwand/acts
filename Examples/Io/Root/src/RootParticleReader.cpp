@@ -73,8 +73,8 @@ RootParticleReader::RootParticleReader(const RootParticleReader::Config& config,
   m_events = m_inputChain->GetEntries();
   ACTS_DEBUG("The full chain has " << m_events << " entries.");
 
-  // If the events are not in order, get the entry numbers for ordered events
-  if (!m_cfg.orderedEvents) {
+  // If the events are not ordered, we need to sort the entry numbers
+  {
     m_entryNumbers.resize(m_events);
     m_inputChain->Draw("event_id", "", "goff");
     // Sort to get the entry numbers of the ordered events
@@ -127,13 +127,10 @@ ProcessCode RootParticleReader::read(const AlgorithmContext& context) {
   SimParticleContainer particles;
 
   // Read the correct entry
-  auto entry = context.eventNumber;
-  if (!m_cfg.orderedEvents && entry < m_entryNumbers.size()) {
-    entry = m_entryNumbers[entry];
-  }
+  auto entry = m_entryNumbers.at(context.eventNumber);
   m_inputChain->GetEntry(entry);
-  ACTS_INFO("Reading event: " << context.eventNumber
-                              << " stored as entry: " << entry);
+  ACTS_DEBUG("Reading event: " << context.eventNumber
+                               << " stored as entry: " << entry);
 
   unsigned int nParticles = m_particleId->size();
 
@@ -155,6 +152,9 @@ ProcessCode RootParticleReader::read(const AlgorithmContext& context) {
 
     particles.insert(p);
   }
+
+  ACTS_DEBUG("Read " << particles.size() << " particles for event "
+                     << context.eventNumber);
 
   // Write the collections to the EventStore
   m_outputParticles(context, std::move(particles));
