@@ -23,6 +23,7 @@
 namespace Pythia8 {
 class Pythia;
 }
+
 namespace ActsExamples {
 
 class Pythia8Generator : public EventGenerator::ParticlesGenerator {
@@ -43,7 +44,9 @@ class Pythia8Generator : public EventGenerator::ParticlesGenerator {
     /// Turn on/off the labeling of secondary vertices
     /// TODO this is essentially broken as the current code will label any kind
     /// of decay as secondary
-    bool labelSecondaries = false;
+    bool labelSecondaries = true;
+    /// The spatial threshold to consider a particle originating from a vertex
+    double spatialVertexThreshold = 1.0 * Acts::UnitConstants::um;
   };
 
   Pythia8Generator(const Config& cfg, Acts::Logging::Level lvl);

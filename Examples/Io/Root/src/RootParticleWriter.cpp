@@ -156,7 +156,7 @@ ActsExamples::ProcessCode ActsExamples::RootParticleWriter::writeT(
       // get the final particle
       auto it = finalParticles->find(particle);
       if (it == finalParticles->end()) {
-        ACTS_ERROR("Could not find final particle for "
+        ACTS_DEBUG("Could not find final particle for "
                    << particle.particleId() << " in event " << ctx.eventNumber);
       } else {
         const auto& finalParticle = *it;

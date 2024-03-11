@@ -1333,7 +1333,7 @@ def addTrackWriters(
                 # since the unselected CKF track might have a majority particle not in the
                 # filtered particle collection. This could be avoided when a separate track
                 # selection algorithm is used.
-                inputParticles="particles_selected",
+                inputParticles="particles",
                 inputSimHits="simhits",
                 inputMeasurementParticlesMap="measurement_particles_map",
                 inputMeasurementSimHitsMap="measurement_simhits_map",
@@ -1351,7 +1351,7 @@ def addTrackWriters(
                 # since the unselected CKF track might have a majority particle not in the
                 # filtered particle collection. This could be avoided when a separate track
                 # selection algorithm is used.
-                inputParticles="particles_selected",
+                inputParticles="particles",
                 inputMeasurementParticlesMap="measurement_particles_map",
                 filePath=str(outputDirRoot / f"tracksummary_{name}.root"),
                 treeName="tracksummary",

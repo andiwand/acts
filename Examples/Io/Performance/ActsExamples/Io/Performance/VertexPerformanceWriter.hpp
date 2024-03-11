@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
+#include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
@@ -46,8 +47,7 @@ enum class RecoVertexClassification {
 /// reconstructable primary vertices after track fitting.
 /// Additionally it matches the reco vertices to their truth vertices
 /// and write out the difference in x,y and z position.
-class VertexPerformanceWriter final
-    : public WriterT<std::vector<Acts::Vertex>> {
+class VertexPerformanceWriter final : public WriterT<VertexContainer> {
  public:
   using HitParticlesMap = IndexMultimap<ActsFatras::Barcode>;
 
@@ -100,7 +100,7 @@ class VertexPerformanceWriter final
   /// @brief Write method called by the base class
   /// @param [in] ctx is the algorithm context for event information
   ProcessCode writeT(const AlgorithmContext& ctx,
-                     const std::vector<Acts::Vertex>& vertices) override;
+                     const VertexContainer& vertices) override;
 
  private:
   Config m_cfg;             ///< The config class

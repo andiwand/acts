@@ -244,7 +244,7 @@ int ActsExamples::VertexPerformanceWriter::getNumberOfTruePriVertices(
 }
 
 ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
-    const AlgorithmContext& ctx, const std::vector<Acts::Vertex>& vertices) {
+    const AlgorithmContext& ctx, const VertexContainer& vertices) {
   const double nan = std::numeric_limits<double>::quiet_NaN();
 
   // Exclusive access to the tree while writing

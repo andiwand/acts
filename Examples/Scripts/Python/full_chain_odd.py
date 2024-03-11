@@ -11,6 +11,7 @@ from acts.examples.simulation import (
     addGeant4,
     ParticleSelectorConfig,
     addDigitization,
+    addParticleSelection,
 )
 from acts.examples.reconstruction import (
     addSeeding,
@@ -162,6 +163,23 @@ addDigitization(
     # outputDirCsv=outputDir,
     rnd=rnd,
 )
+
+addParticleSelection(
+    s,
+    ParticleSelectorConfig(
+        rho=(0.0, 24 * u.mm),
+        absZ=(0.0, 1.0 * u.m),
+        eta=(-3.0, 3.0),
+        # using something close to 1 to include for sure
+        pt=(0.999 * u.GeV, None),
+        measurements=(7, None),
+        removeNeutral=True,
+    ),
+    inputParticles="particles_input",
+    outputParticles="particles_selected",
+    inputMeasurementParticlesMap="measurement_particles_map",
+)
+s.addWhiteboardAlias("particles", "particles_selected")
 
 addSeeding(
     s,
