@@ -34,6 +34,12 @@ class MyTrackFinding {
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {
     using TrackContainer = typename std::decay_t<decltype(trackContainer)>;
+
+    (void)initialParameters;
+
+    std::vector<typename TrackContainer::TrackProxy> tracks;
+
+    return tracks;
   }
 
  private:

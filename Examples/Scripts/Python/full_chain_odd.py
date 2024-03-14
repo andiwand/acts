@@ -23,6 +23,7 @@ from acts.examples.reconstruction import (
     addSeeding,
     TruthSeedRanges,
     addCKFTracks,
+    addMyTrackFinding,
     TrackSelectorConfig,
     addAmbiguityResolution,
     AmbiguityResolutionConfig,
@@ -249,16 +250,10 @@ if seedFilter_ML:
         # outputDirCsv=outputDir,
     )
 
-addCKFTracks(
+addMyTrackFinding(
     s,
     trackingGeometry,
     field,
-    TrackSelectorConfig(
-        pt=(1.0 * u.GeV if ttbar else 0.0, None),
-        absEta=(None, 3.0),
-        loc0=(-4.0 * u.mm, 4.0 * u.mm),
-        nMeasurementsMin=7,
-    ),
     outputDirRoot=outputDir,
     writeCovMat=True,
     # outputDirCsv=outputDir,

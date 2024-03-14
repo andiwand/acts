@@ -22,6 +22,7 @@
 #include "ActsExamples/TrackFinding/GbtsSeedingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/HoughTransformSeeder.hpp"
 #include "ActsExamples/TrackFinding/MuonHoughSeeder.hpp"
+#include "ActsExamples/TrackFinding/MyTrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SeedingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SeedingOrthogonalAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
@@ -333,6 +334,11 @@ void addTrackFinding(Context& ctx) {
     ACTS_PYTHON_MEMBER(maxSteps);
     ACTS_PYTHON_STRUCT_END();
   }
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(
+      ActsExamples::MyTrackFindingAlgorithm, mex, "MyTrackFindingAlgorithm",
+      inputMeasurements, inputSourceLinks, inputInitialTrackParameters,
+      outputTracks, trackingGeometry, magneticField, maxSteps);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::TrajectoriesToPrototracks, mex,
                                 "TrajectoriesToPrototracks", inputTrajectories,
