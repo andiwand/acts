@@ -25,8 +25,8 @@ class MyTrackFinding {
 
   MyTrackFinding(const Config& cfg) : m_cfg(cfg) {}
 
-  template <typename source_link_iterator_t, typename start_parameters_t,
-            typename track_container_t, template <typename> class holder_t,
+  template <typename start_parameters_t, typename track_container_t,
+            template <typename> class holder_t,
             typename parameters_t = BoundTrackParameters>
   auto findTracks(
       const start_parameters_t& initialParameters,
@@ -34,8 +34,6 @@ class MyTrackFinding {
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {
     using TrackContainer = typename std::decay_t<decltype(trackContainer)>;
-    using SourceLinkAccessor =
-        SourceLinkAccessorDelegate<source_link_iterator_t>;
   }
 
  private:

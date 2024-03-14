@@ -16,6 +16,8 @@
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
+#include <tbb/combinable.h>
+
 namespace Acts {
 class MagneticFieldProvider;
 class TrackingGeometry;
@@ -24,7 +26,7 @@ class TrackingGeometry;
 namespace ActsExamples {
 struct AlgorithmContext;
 
-class TrackFindingAlgorithm final : public IAlgorithm {
+class MyTrackFindingAlgorithm final : public IAlgorithm {
  public:
   struct Config {
     /// Input measurements collection.
@@ -48,20 +50,30 @@ class TrackFindingAlgorithm final : public IAlgorithm {
   ///
   /// @param config is the config struct to configure the algorithm
   /// @param level is the logging level
-  TrackFindingAlgorithm(Config config, Acts::Logging::Level level);
+  MyTrackFindingAlgorithm(Config config, Acts::Logging::Level level);
 
   /// Framework execute method of the track finding algorithm
   ///
   /// @param ctx is the algorithm context that holds event-wise information
   /// @return a process code to steer the algorithm flow
-  ActsExamples::ProcessCode execute(
-      const ActsExamples::AlgorithmContext& ctx) const final;
+  ProcessCode execute(const AlgorithmContext& ctx) const final;
+
+  ProcessCode finalize() final;
 
   /// Get readonly access to the config parameters
   const Config& config() const { return m_cfg; }
 
  private:
   Config m_cfg;
+
+  mutable std::atomic<std::size_t> m_nTotalSeeds{0};
+  mutable std::atomic<std::size_t> m_nFailedSeeds{0};
+
+  mutable tbb::combinable<Acts::VectorMultiTrajectory::Statistics>
+      m_memoryStatistics{[]() {
+        auto mtj = std::make_shared<Acts::VectorMultiTrajectory>();
+        return mtj->statistics();
+      }};
 
   ReadDataHandle<MeasurementContainer> m_inputMeasurements{this,
                                                            "InputMeasurements"};
