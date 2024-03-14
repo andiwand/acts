@@ -45,18 +45,15 @@
 #include <TFile.h>
 #include <TTree.h>
 
-namespace ActsExamples {
-struct AlgorithmContext;
-}  // namespace ActsExamples
-
 using Acts::VectorHelpers::eta;
 using Acts::VectorHelpers::perp;
 using Acts::VectorHelpers::phi;
 using Acts::VectorHelpers::theta;
 
-ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
-    const ActsExamples::VertexPerformanceWriter::Config& config,
-    Acts::Logging::Level level)
+namespace ActsExamples {
+
+VertexPerformanceWriter::VertexPerformanceWriter(
+    const VertexPerformanceWriter::Config& config, Acts::Logging::Level level)
     : WriterT(config.inputVertices, "VertexPerformanceWriter", level),
       m_cfg(config) {
   if (m_cfg.filePath.empty()) {
@@ -93,102 +90,101 @@ ActsExamples::VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree = new TTree(m_cfg.treeName.c_str(), m_cfg.treeName.c_str());
   if (m_outputTree == nullptr) {
     throw std::bad_alloc();
-  } else {
-    m_outputTree->Branch("event_nr", &m_eventNr);
-
-    m_outputTree->Branch("vertex_primary", &m_vertexPrimary);
-    m_outputTree->Branch("vertex_secondary", &m_vertexSecondary);
-
-    m_outputTree->Branch("recoX", &m_recoX);
-    m_outputTree->Branch("recoY", &m_recoY);
-    m_outputTree->Branch("recoZ", &m_recoZ);
-    m_outputTree->Branch("recoT", &m_recoT);
-
-    m_outputTree->Branch("truthX", &m_truthX);
-    m_outputTree->Branch("truthY", &m_truthY);
-    m_outputTree->Branch("truthZ", &m_truthZ);
-    m_outputTree->Branch("truthT", &m_truthT);
-
-    m_outputTree->Branch("resX", &m_resX);
-    m_outputTree->Branch("resY", &m_resY);
-    m_outputTree->Branch("resZ", &m_resZ);
-    m_outputTree->Branch("resT", &m_resT);
-
-    m_outputTree->Branch("pullX", &m_pullX);
-    m_outputTree->Branch("pullY", &m_pullY);
-    m_outputTree->Branch("pullZ", &m_pullZ);
-    m_outputTree->Branch("pullT", &m_pullT);
-
-    m_outputTree->Branch("covXX", &m_covXX);
-    m_outputTree->Branch("covYY", &m_covYY);
-    m_outputTree->Branch("covZZ", &m_covZZ);
-    m_outputTree->Branch("covTT", &m_covTT);
-    m_outputTree->Branch("covXY", &m_covXY);
-    m_outputTree->Branch("covXZ", &m_covXZ);
-    m_outputTree->Branch("covXT", &m_covXT);
-    m_outputTree->Branch("covYZ", &m_covYZ);
-    m_outputTree->Branch("covYT", &m_covYT);
-    m_outputTree->Branch("covZT", &m_covZT);
-
-    m_outputTree->Branch("sumPt2", &m_sumPt2);
-
-    m_outputTree->Branch("recoVertexTotalTrackWeight",
-                         &m_recoVertexTotalTrackWeight);
-    m_outputTree->Branch("recoVertexClassification",
-                         &m_recoVertexClassification);
-
-    m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
-    m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
-
-    m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
-
-    m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
-    m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
-    m_outputTree->Branch("nMergedVtx", &m_nMergedVtx);
-    m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
-    m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
-    m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
-
-    m_outputTree->Branch("trk_weight", &m_trkWeight);
-
-    m_outputTree->Branch("trk_recoPhi", &m_recoPhi);
-    m_outputTree->Branch("trk_recoPhiFitted", &m_recoPhiFitted);
-    m_outputTree->Branch("trk_recoTheta", &m_recoTheta);
-    m_outputTree->Branch("trk_recoThetaFitted", &m_recoThetaFitted);
-    m_outputTree->Branch("trk_recoQOverP", &m_recoQOverP);
-    m_outputTree->Branch("trk_recoQOverPFitted", &m_recoQOverPFitted);
-
-    m_outputTree->Branch("trk_particleId", &m_particleId);
-
-    m_outputTree->Branch("trk_truthPhi", &m_truthPhi);
-    m_outputTree->Branch("trk_truthTheta", &m_truthTheta);
-    m_outputTree->Branch("trk_truthQOverP", &m_truthQOverP);
-
-    m_outputTree->Branch("trk_resPhi", &m_resPhi);
-    m_outputTree->Branch("trk_resPhiFitted", &m_resPhiFitted);
-    m_outputTree->Branch("trk_resTheta", &m_resTheta);
-    m_outputTree->Branch("trk_resThetaFitted", &m_resThetaFitted);
-    m_outputTree->Branch("trk_resQOverP", &m_resQOverP);
-    m_outputTree->Branch("trk_resQOverPFitted", &m_resQOverPFitted);
-    m_outputTree->Branch("trk_momOverlap", &m_momOverlap);
-    m_outputTree->Branch("trk_momOverlapFitted", &m_momOverlapFitted);
-
-    m_outputTree->Branch("trk_pullPhi", &m_pullPhi);
-    m_outputTree->Branch("trk_pullPhiFitted", &m_pullPhiFitted);
-    m_outputTree->Branch("trk_pullTheta", &m_pullTheta);
-    m_outputTree->Branch("trk_pullThetaFitted", &m_pullThetaFitted);
-    m_outputTree->Branch("trk_pullQOverP", &m_pullQOverP);
-    m_outputTree->Branch("trk_pullQOverPFitted", &m_pullQOverPFitted);
   }
+
+  m_outputTree->Branch("event_nr", &m_eventNr);
+
+  m_outputTree->Branch("recoX", &m_recoX);
+  m_outputTree->Branch("recoY", &m_recoY);
+  m_outputTree->Branch("recoZ", &m_recoZ);
+  m_outputTree->Branch("recoT", &m_recoT);
+
+  m_outputTree->Branch("covXX", &m_covXX);
+  m_outputTree->Branch("covYY", &m_covYY);
+  m_outputTree->Branch("covZZ", &m_covZZ);
+  m_outputTree->Branch("covTT", &m_covTT);
+  m_outputTree->Branch("covXY", &m_covXY);
+  m_outputTree->Branch("covXZ", &m_covXZ);
+  m_outputTree->Branch("covXT", &m_covXT);
+  m_outputTree->Branch("covYZ", &m_covYZ);
+  m_outputTree->Branch("covYT", &m_covYT);
+  m_outputTree->Branch("covZT", &m_covZT);
+
+  m_outputTree->Branch("vertex_primary", &m_vertexPrimary);
+  m_outputTree->Branch("vertex_secondary", &m_vertexSecondary);
+
+  m_outputTree->Branch("truthX", &m_truthX);
+  m_outputTree->Branch("truthY", &m_truthY);
+  m_outputTree->Branch("truthZ", &m_truthZ);
+  m_outputTree->Branch("truthT", &m_truthT);
+
+  m_outputTree->Branch("resX", &m_resX);
+  m_outputTree->Branch("resY", &m_resY);
+  m_outputTree->Branch("resZ", &m_resZ);
+  m_outputTree->Branch("resT", &m_resT);
+
+  m_outputTree->Branch("pullX", &m_pullX);
+  m_outputTree->Branch("pullY", &m_pullY);
+  m_outputTree->Branch("pullZ", &m_pullZ);
+  m_outputTree->Branch("pullT", &m_pullT);
+
+  m_outputTree->Branch("sumPt2", &m_sumPt2);
+
+  m_outputTree->Branch("recoVertexTotalTrackWeight",
+                       &m_recoVertexTotalTrackWeight);
+  m_outputTree->Branch("recoVertexClassification", &m_recoVertexClassification);
+
+  m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
+  m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
+
+  m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
+
+  m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
+  m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
+  m_outputTree->Branch("nMergedVtx", &m_nMergedVtx);
+  m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
+  m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
+  m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
+
+  m_outputTree->Branch("trk_weight", &m_trkWeight);
+
+  m_outputTree->Branch("trk_recoPhi", &m_recoPhi);
+  m_outputTree->Branch("trk_recoTheta", &m_recoTheta);
+  m_outputTree->Branch("trk_recoQOverP", &m_recoQOverP);
+  m_outputTree->Branch("trk_recoPhiFitted", &m_recoPhiFitted);
+  m_outputTree->Branch("trk_recoThetaFitted", &m_recoThetaFitted);
+  m_outputTree->Branch("trk_recoQOverPFitted", &m_recoQOverPFitted);
+
+  m_outputTree->Branch("trk_particleId", &m_particleId);
+
+  m_outputTree->Branch("trk_truthPhi", &m_truthPhi);
+  m_outputTree->Branch("trk_truthTheta", &m_truthTheta);
+  m_outputTree->Branch("trk_truthQOverP", &m_truthQOverP);
+
+  m_outputTree->Branch("trk_resPhi", &m_resPhi);
+  m_outputTree->Branch("trk_resTheta", &m_resTheta);
+  m_outputTree->Branch("trk_resQOverP", &m_resQOverP);
+  m_outputTree->Branch("trk_momOverlap", &m_momOverlap);
+  m_outputTree->Branch("trk_resPhiFitted", &m_resPhiFitted);
+  m_outputTree->Branch("trk_resThetaFitted", &m_resThetaFitted);
+  m_outputTree->Branch("trk_resQOverPFitted", &m_resQOverPFitted);
+  m_outputTree->Branch("trk_momOverlapFitted", &m_momOverlapFitted);
+
+  m_outputTree->Branch("trk_pullPhi", &m_pullPhi);
+  m_outputTree->Branch("trk_pullTheta", &m_pullTheta);
+  m_outputTree->Branch("trk_pullQOverP", &m_pullQOverP);
+  m_outputTree->Branch("trk_pullPhiFitted", &m_pullPhiFitted);
+  m_outputTree->Branch("trk_pullThetaFitted", &m_pullThetaFitted);
+  m_outputTree->Branch("trk_pullQOverPFitted", &m_pullQOverPFitted);
 }
 
-ActsExamples::VertexPerformanceWriter::~VertexPerformanceWriter() {
+VertexPerformanceWriter::~VertexPerformanceWriter() {
   if (m_outputFile != nullptr) {
     m_outputFile->Close();
   }
 }
 
-ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::finalize() {
+ProcessCode VertexPerformanceWriter::finalize() {
   m_outputFile->cd();
   m_outputTree->Write();
   m_outputFile->Close();
@@ -196,7 +192,7 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::finalize() {
   return ProcessCode::SUCCESS;
 }
 
-int ActsExamples::VertexPerformanceWriter::getNumberOfReconstructableVertices(
+int VertexPerformanceWriter::getNumberOfReconstructableVertices(
     const SimParticleContainer& collection) const {
   // map for finding frequency
   std::map<int, int> fmap;
@@ -225,7 +221,7 @@ int ActsExamples::VertexPerformanceWriter::getNumberOfReconstructableVertices(
   return reconstructableTruthVertices.size();
 }
 
-int ActsExamples::VertexPerformanceWriter::getNumberOfTruePriVertices(
+int VertexPerformanceWriter::getNumberOfTruePriVertices(
     const SimParticleContainer& collection) const {
   // Vector to store indices of all primary vertices
   std::set<int> allPriVtxIds;
@@ -243,8 +239,8 @@ int ActsExamples::VertexPerformanceWriter::getNumberOfTruePriVertices(
   return allPriVtxIds.size();
 }
 
-ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
-    const AlgorithmContext& ctx, const VertexContainer& vertices) {
+ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
+                                            const VertexContainer& vertices) {
   const double nan = std::numeric_limits<double>::quiet_NaN();
 
   // Exclusive access to the tree while writing
@@ -874,12 +870,22 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   // fill the variables
   m_outputTree->Fill();
 
-  m_vertexPrimary.clear();
-  m_vertexSecondary.clear();
   m_recoX.clear();
   m_recoY.clear();
   m_recoZ.clear();
   m_recoT.clear();
+  m_covXX.clear();
+  m_covYY.clear();
+  m_covZZ.clear();
+  m_covTT.clear();
+  m_covXY.clear();
+  m_covXZ.clear();
+  m_covXT.clear();
+  m_covYZ.clear();
+  m_covYT.clear();
+  m_covZT.clear();
+  m_vertexPrimary.clear();
+  m_vertexSecondary.clear();
   m_truthX.clear();
   m_truthY.clear();
   m_truthZ.clear();
@@ -892,16 +898,6 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
   m_pullY.clear();
   m_pullZ.clear();
   m_pullT.clear();
-  m_covXX.clear();
-  m_covYY.clear();
-  m_covZZ.clear();
-  m_covTT.clear();
-  m_covXY.clear();
-  m_covXZ.clear();
-  m_covXT.clear();
-  m_covYZ.clear();
-  m_covYT.clear();
-  m_covZT.clear();
   m_sumPt2.clear();
   m_recoVertexTotalTrackWeight.clear();
   m_recoVertexClassification.clear();
@@ -937,3 +933,5 @@ ActsExamples::ProcessCode ActsExamples::VertexPerformanceWriter::writeT(
 
   return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

@@ -111,15 +111,27 @@ class VertexPerformanceWriter final : public WriterT<VertexContainer> {
   /// The event number
   std::uint32_t m_eventNr{0};
 
-  // Truth vertex ID
-  std::vector<int> m_vertexPrimary;
-  std::vector<int> m_vertexSecondary;
-
   // Reconstructed 4D vertex position
   std::vector<double> m_recoX;
   std::vector<double> m_recoY;
   std::vector<double> m_recoZ;
   std::vector<double> m_recoT;
+
+  // Vertex covariance
+  std::vector<double> m_covXX;
+  std::vector<double> m_covYY;
+  std::vector<double> m_covZZ;
+  std::vector<double> m_covTT;
+  std::vector<double> m_covXY;
+  std::vector<double> m_covXZ;
+  std::vector<double> m_covXT;
+  std::vector<double> m_covYZ;
+  std::vector<double> m_covYT;
+  std::vector<double> m_covZT;
+
+  // Truth vertex ID
+  std::vector<int> m_vertexPrimary;
+  std::vector<int> m_vertexSecondary;
 
   // True 4D vertex position
   std::vector<double> m_truthX;
@@ -138,18 +150,6 @@ class VertexPerformanceWriter final : public WriterT<VertexContainer> {
   std::vector<double> m_pullY;
   std::vector<double> m_pullZ;
   std::vector<double> m_pullT;
-
-  // Vertex covariance
-  std::vector<double> m_covXX;
-  std::vector<double> m_covYY;
-  std::vector<double> m_covZZ;
-  std::vector<double> m_covTT;
-  std::vector<double> m_covXY;
-  std::vector<double> m_covXZ;
-  std::vector<double> m_covXT;
-  std::vector<double> m_covYZ;
-  std::vector<double> m_covYT;
-  std::vector<double> m_covZT;
 
   /// Sum pT^2 of all tracks associated with the vertex
   std::vector<double> m_sumPt2;
