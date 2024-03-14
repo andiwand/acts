@@ -94,6 +94,13 @@ VertexPerformanceWriter::VertexPerformanceWriter(
 
   m_outputTree->Branch("event_nr", &m_eventNr);
 
+  m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
+  m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
+  m_outputTree->Branch("nMergedVtx", &m_nMergedVtx);
+  m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
+  m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
+  m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
+
   m_outputTree->Branch("recoX", &m_recoX);
   m_outputTree->Branch("recoY", &m_recoY);
   m_outputTree->Branch("recoZ", &m_recoZ);
@@ -110,8 +117,19 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("covYT", &m_covYT);
   m_outputTree->Branch("covZT", &m_covZT);
 
+  m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
+  m_outputTree->Branch("recoVertexTotalTrackWeight",
+                       &m_recoVertexTotalTrackWeight);
+  m_outputTree->Branch("sumPt2", &m_sumPt2);
+
   m_outputTree->Branch("vertex_primary", &m_vertexPrimary);
   m_outputTree->Branch("vertex_secondary", &m_vertexSecondary);
+
+  m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
+
+  m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
+
+  m_outputTree->Branch("recoVertexClassification", &m_recoVertexClassification);
 
   m_outputTree->Branch("truthX", &m_truthX);
   m_outputTree->Branch("truthY", &m_truthY);
@@ -127,24 +145,6 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("pullY", &m_pullY);
   m_outputTree->Branch("pullZ", &m_pullZ);
   m_outputTree->Branch("pullT", &m_pullT);
-
-  m_outputTree->Branch("sumPt2", &m_sumPt2);
-
-  m_outputTree->Branch("recoVertexTotalTrackWeight",
-                       &m_recoVertexTotalTrackWeight);
-  m_outputTree->Branch("recoVertexClassification", &m_recoVertexClassification);
-
-  m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
-  m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
-
-  m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
-
-  m_outputTree->Branch("nRecoVtx", &m_nRecoVtx);
-  m_outputTree->Branch("nTrueVtx", &m_nTrueVtx);
-  m_outputTree->Branch("nMergedVtx", &m_nMergedVtx);
-  m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
-  m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
-  m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
 
   m_outputTree->Branch("trk_weight", &m_trkWeight);
 
@@ -884,8 +884,14 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   m_covYZ.clear();
   m_covYT.clear();
   m_covZT.clear();
+  m_nTracksOnRecoVertex.clear();
+  m_recoVertexTotalTrackWeight.clear();
+  m_sumPt2.clear();
   m_vertexPrimary.clear();
   m_vertexSecondary.clear();
+  m_truthVertexMatchRatio.clear();
+  m_nTracksOnTruthVertex.clear();
+  m_recoVertexClassification.clear();
   m_truthX.clear();
   m_truthY.clear();
   m_truthZ.clear();
@@ -898,12 +904,6 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   m_pullY.clear();
   m_pullZ.clear();
   m_pullT.clear();
-  m_sumPt2.clear();
-  m_recoVertexTotalTrackWeight.clear();
-  m_recoVertexClassification.clear();
-  m_nTracksOnTruthVertex.clear();
-  m_nTracksOnRecoVertex.clear();
-  m_truthVertexMatchRatio.clear();
 
   m_trkWeight.clear();
   m_recoPhi.clear();

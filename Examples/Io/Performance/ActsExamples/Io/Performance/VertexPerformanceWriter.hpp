@@ -111,6 +111,20 @@ class VertexPerformanceWriter final : public WriterT<VertexContainer> {
   /// The event number
   std::uint32_t m_eventNr{0};
 
+  /// Number of reconstructed vertices
+  int m_nRecoVtx = -1;
+  /// Number of true vertices
+  int m_nTrueVtx = -1;
+  /// Number of merged vertices
+  int m_nMergedVtx = -1;
+  /// Number of split vertices
+  int m_nSplitVtx = -1;
+  /// Number of vertices in detector acceptance
+  int m_nVtxDetAcceptance = -1;
+  /// Max. number of reconstructable vertices (detector acceptance + tracking
+  /// efficiency)
+  int m_nVtxReconstructable = -1;
+
   // Reconstructed 4D vertex position
   std::vector<double> m_recoX;
   std::vector<double> m_recoY;
@@ -129,9 +143,26 @@ class VertexPerformanceWriter final : public WriterT<VertexContainer> {
   std::vector<double> m_covYT;
   std::vector<double> m_covZT;
 
+  /// Number of tracks associated with the reconstructed vertex
+  std::vector<int> m_nTracksOnRecoVertex;
+
+  /// Sum of track weights associated with the vertex
+  std::vector<double> m_recoVertexTotalTrackWeight;
+
+  // Sum pT^2 of all tracks associated with the vertex
+  std::vector<double> m_sumPt2;
+
   // Truth vertex ID
   std::vector<int> m_vertexPrimary;
   std::vector<int> m_vertexSecondary;
+
+  std::vector<double> m_truthVertexMatchRatio;
+
+  /// Number of tracks associated with the truth vertex
+  std::vector<int> m_nTracksOnTruthVertex;
+
+  /// Classification of the reconstructed vertex see RecoVertexClassification
+  std::vector<int> m_recoVertexClassification;
 
   // True 4D vertex position
   std::vector<double> m_truthX;
@@ -150,36 +181,6 @@ class VertexPerformanceWriter final : public WriterT<VertexContainer> {
   std::vector<double> m_pullY;
   std::vector<double> m_pullZ;
   std::vector<double> m_pullT;
-
-  /// Sum pT^2 of all tracks associated with the vertex
-  std::vector<double> m_sumPt2;
-
-  /// Sum of track weights associated with the vertex
-  std::vector<double> m_recoVertexTotalTrackWeight;
-
-  /// Classification of the reconstructed vertex
-  /// see RecoVertexClassification
-  std::vector<int> m_recoVertexClassification;
-
-  // Number of tracks associated with truth/reconstructed vertex
-  std::vector<int> m_nTracksOnTruthVertex;
-  std::vector<int> m_nTracksOnRecoVertex;
-
-  std::vector<double> m_truthVertexMatchRatio;
-
-  /// Number of reconstructed vertices
-  int m_nRecoVtx = -1;
-  /// Number of true vertices
-  int m_nTrueVtx = -1;
-  /// Number of merged vertices
-  int m_nMergedVtx = -1;
-  /// Number of split vertices
-  int m_nSplitVtx = -1;
-  /// Number of vertices in detector acceptance
-  int m_nVtxDetAcceptance = -1;
-  /// Max. number of reconstructable vertices (detector acceptance + tracking
-  /// efficiency)
-  int m_nVtxReconstructable = -1;
 
   //--------------------------------------------------------------
   // Track-related variables are contained in a vector of vectors: The inner
