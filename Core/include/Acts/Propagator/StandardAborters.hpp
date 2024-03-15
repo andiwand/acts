@@ -185,4 +185,25 @@ struct EndOfWorldReached {
   }
 };
 
+struct AnySurfaceReached {
+  template <typename propagator_state_t, typename stepper_t,
+            typename navigator_t>
+  bool operator()(propagator_state_t& state, const stepper_t& stepper,
+                  const navigator_t& navigator, const Logger& logger) const {
+    (void)stepper;
+    (void)logger;
+
+    const Surface* startSurface = navigator.startSurface(state.navigation);
+    const Surface* targetSurface = navigator.targetSurface(state.navigation);
+    const Surface* currentSurface = navigator.currentSurface(state.navigation);
+
+    if (currentSurface != nullptr && currentSurface != startSurface &&
+        currentSurface != targetSurface) {
+      return true;
+    }
+
+    return false;
+  }
+};
+
 }  // namespace Acts

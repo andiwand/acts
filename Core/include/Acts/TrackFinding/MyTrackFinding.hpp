@@ -10,6 +10,16 @@
 
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/Geometry/DetectorElementBase.hpp"
+#include "Acts/Geometry/TrackingGeometry.hpp"
+#include "Acts/MagneticField/MagneticFieldProvider.hpp"
+#include "Acts/Material/ISurfaceMaterial.hpp"
+#include "Acts/Propagator/AbortList.hpp"
+#include "Acts/Propagator/ActionList.hpp"
+#include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/StandardAborters.hpp"
+#include "Acts/Utilities/CalibrationContext.hpp"
+#include "Acts/Utilities/Logger.hpp"
 
 namespace Acts {
 
@@ -18,24 +28,83 @@ using SourceLinkAccessorDelegate =
     Delegate<std::pair<source_link_iterator_t, source_link_iterator_t>(
         const Surface&)>;
 
-template <typename propagator_t, typename traj_t>
+template <typename propagator_t, typename traj_t,
+          typename source_link_iterator_t>
 class MyTrackFinding {
  public:
-  struct Config {};
+  using SourceLinkAccessor = SourceLinkAccessorDelegate<source_link_iterator_t>;
 
-  MyTrackFinding(const Config& cfg) : m_cfg(cfg) {}
+  struct Config {
+    propagator_t propagator;
+  };
+
+  struct Options {
+    Options(const GeometryContext& gctx, const MagneticFieldContext& mctx,
+            std::reference_wrapper<const CalibrationContext> cctx,
+            SourceLinkAccessor sourceLinkAccessor_)
+        : geoContext(gctx),
+          magFieldContext(mctx),
+          calibrationContext(cctx),
+          sourceLinkAccessor(std::move(sourceLinkAccessor_)) {}
+
+    /// Context object for the geometry
+    std::reference_wrapper<const GeometryContext> geoContext;
+    /// Context object for the magnetic field
+    std::reference_wrapper<const MagneticFieldContext> magFieldContext;
+    /// context object for the calibration
+    std::reference_wrapper<const CalibrationContext> calibrationContext;
+
+    SourceLinkAccessor sourceLinkAccessor;
+  };
+
+  MyTrackFinding(const Config& cfg, std::unique_ptr<const Logger> logger =
+                                        getDefaultLogger("CKF", Logging::INFO))
+      : m_cfg(cfg), m_logger(std::move(logger)) {}
 
   template <typename start_parameters_t, typename track_container_t,
             template <typename> class holder_t,
             typename parameters_t = BoundTrackParameters>
   auto findTracks(
-      const start_parameters_t& initialParameters,
+      const start_parameters_t& initialParameters, const Options& options,
       TrackContainer<track_container_t, traj_t, holder_t>& trackContainer) const
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {
     using TrackContainer = typename std::decay_t<decltype(trackContainer)>;
 
-    (void)initialParameters;
+    PropagatorOptions<ActionList<>, AbortList<AnySurfaceReached>> pOptions(
+        options.geoContext, options.magFieldContext);
+
+    auto pState = m_cfg.propagator.makeState(initialParameters, pOptions);
+
+    while (true) {
+      pState.navigation.startSurface = pState.navigation.currentSurface;
+      m_cfg.propagator.propagate(pState);
+
+      const Surface* surface = pState.navigation.currentSurface;
+
+      if (surface == nullptr) {
+        break;
+      }
+      ACTS_VERBOSE("surface reached");
+
+      const DetectorElementBase* detectorElement =
+          surface->associatedDetectorElement();
+      const ISurfaceMaterial* material = surface->surfaceMaterial();
+
+      if (material != nullptr) {
+        ACTS_VERBOSE("surface has material");
+      }
+
+      if (detectorElement != nullptr) {
+        ACTS_VERBOSE("surface has detector element");
+
+        auto [slBegin, slEnd] = options.sourceLinkAccessor(*surface);
+
+        ACTS_VERBOSE("found " << std::distance(slBegin, slEnd)
+                              << " source links");
+      }
+    }
+    ACTS_VERBOSE("track finding done");
 
     std::vector<typename TrackContainer::TrackProxy> tracks;
 
@@ -44,6 +113,9 @@ class MyTrackFinding {
 
  private:
   Config m_cfg;
+  std::unique_ptr<const Logger> m_logger;
+
+  const Logger& logger() const { return *m_logger; }
 };
 
 }  // namespace Acts

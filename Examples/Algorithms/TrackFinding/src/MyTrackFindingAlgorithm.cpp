@@ -79,7 +79,17 @@ ProcessCode MyTrackFindingAlgorithm::execute(
       slAccessorDelegate;
   slAccessorDelegate.connect<&IndexSourceLinkAccessor::range>(&slAccessor);
 
-  Acts::MyTrackFinding<Propagator, Acts::VectorMultiTrajectory> finder({});
+  using Finder = Acts::MyTrackFinding<Propagator, Acts::VectorMultiTrajectory,
+                                      IndexSourceLinkAccessor::Iterator>;
+
+  Finder finder(
+      {
+          .propagator = propagator,
+      },
+      logger().cloneWithSuffix("Finder"));
+
+  Finder::Options options(ctx.geoContext, ctx.magFieldContext, ctx.calibContext,
+                          slAccessorDelegate);
 
   // Perform the track finding for all initial parameters
   ACTS_DEBUG("Invoke track finding with " << initialParameters.size()
@@ -105,7 +115,8 @@ ProcessCode MyTrackFindingAlgorithm::execute(
     // Clear trackContainerTemp and trackStateContainerTemp
     tracksTemp.clear();
 
-    auto result = finder.findTracks(initialParameters.at(iseed), tracksTemp);
+    auto result =
+        finder.findTracks(initialParameters.at(iseed), options, tracksTemp);
     m_nTotalSeeds++;
     nSeed++;
 

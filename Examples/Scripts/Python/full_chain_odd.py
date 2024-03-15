@@ -146,14 +146,14 @@ else:
             MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
             EtaConfig(-3.0, 3.0),
             PhiConfig(0.0, 360.0 * u.degree),
-            ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
+            ParticleConfig(1, acts.PdgParticle.eMuon, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
                     0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
                 ),
             ),
-            multiplicity=200,
+            multiplicity=1,
             rnd=rnd,
         )
     else:
@@ -257,6 +257,7 @@ addMyTrackFinding(
     outputDirRoot=outputDir,
     writeCovMat=True,
     # outputDirCsv=outputDir,
+    logLevel=acts.logging.VERBOSE,
 )
 
 if ambiguity_MLSolver:
