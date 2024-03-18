@@ -467,6 +467,20 @@ class Propagator final
   propagate(const parameters_t& start, const Surface& target,
             const propagator_options_t& options) const;
 
+  template <typename parameters_t, typename propagator_options_t,
+            typename path_aborter_t = PathLimitReached>
+  auto makeState(const parameters_t& start,
+                 const propagator_options_t& options) const;
+
+  template <typename parameters_t, typename propagator_options_t,
+            typename target_aborter_t = SurfaceReached,
+            typename path_aborter_t = PathLimitReached>
+  auto makeState(const parameters_t& start, const Surface& target,
+                 const propagator_options_t& options) const;
+
+  template <typename propagator_state_t>
+  void initialize(propagator_state_t& state) const;
+
   /// @brief Propagate track parameters
   ///
   /// This function performs the propagation of the track parameters according
@@ -483,17 +497,6 @@ class Propagator final
   /// @return Propagation result
   template <typename propagator_state_t>
   Result<void> propagate(propagator_state_t& state) const;
-
-  template <typename parameters_t, typename propagator_options_t,
-            typename path_aborter_t = PathLimitReached>
-  auto makeState(const parameters_t& start,
-                 const propagator_options_t& options) const;
-
-  template <typename parameters_t, typename propagator_options_t,
-            typename target_aborter_t = SurfaceReached,
-            typename path_aborter_t = PathLimitReached>
-  auto makeState(const parameters_t& start, const Surface& target,
-                 const propagator_options_t& options) const;
 
   template <typename propagator_state_t, typename propagator_options_t>
   Result<

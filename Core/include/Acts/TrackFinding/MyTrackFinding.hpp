@@ -10,8 +10,10 @@
 
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/EventData/TrackStateProxy.hpp"
 #include "Acts/Geometry/DetectorElementBase.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
+#include "Acts/Geometry/TrackingVolume.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Material/ISurfaceMaterial.hpp"
 #include "Acts/Propagator/AbortList.hpp"
@@ -70,22 +72,34 @@ class MyTrackFinding {
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {
     using TrackContainer = typename std::decay_t<decltype(trackContainer)>;
+    using TrackProxy = typename TrackContainer::TrackProxy;
+    using IndexType = typename TrackContainer::IndexType;
+    using PM = TrackStatePropMask;
+
+    auto& trackStateContainer = trackContainer.trackStateContainer();
+
+    TrackProxy track = trackContainer.makeTrack();
 
     PropagatorOptions<ActionList<>, AbortList<AnySurfaceReached>> pOptions(
         options.geoContext, options.magFieldContext);
 
     auto pState = m_cfg.propagator.makeState(initialParameters, pOptions);
 
-    while (true) {
+    m_cfg.propagator.initialize(pState);
+
+    IndexType tipIndex = TrackContainer::kInvalid;
+
+    for (size_t i = 0; i < 100; ++i) {
       pState.navigation.startSurface = pState.navigation.currentSurface;
       m_cfg.propagator.propagate(pState);
 
       const Surface* surface = pState.navigation.currentSurface;
+      const TrackingVolume* volume = pState.navigation.currentVolume;
 
-      if (surface == nullptr) {
+      if (surface == nullptr || volume == nullptr) {
         break;
       }
-      ACTS_VERBOSE("surface reached");
+      ACTS_VERBOSE("surface reached " << surface->geometryId());
 
       const DetectorElementBase* detectorElement =
           surface->associatedDetectorElement();
@@ -102,12 +116,31 @@ class MyTrackFinding {
 
         ACTS_VERBOSE("found " << std::distance(slBegin, slEnd)
                               << " source links");
+
+        if (slBegin != slEnd) {
+          auto boundRes =
+              m_cfg.propagator.stepper().boundState(pState.stepping, *surface);
+
+          const auto& [boundParams, jacobian, pathLength] = *boundRes;
+
+          PM mask = PM::Predicted | PM::Jacobian;
+          auto trackState = trackStateContainer.makeTrackState(mask, tipIndex);
+          trackState.predicted() = boundParams.parameters();
+          trackState.predictedCovariance() = *boundParams.covariance();
+          trackState.jacobian() = jacobian;
+          trackState.setReferenceSurface(
+              boundParams.referenceSurface().getSharedPtr());
+
+          tipIndex = trackState.index();
+        }
       }
     }
     ACTS_VERBOSE("track finding done");
 
-    std::vector<typename TrackContainer::TrackProxy> tracks;
+    track.tipIndex() = tipIndex;
 
+    std::vector<typename TrackContainer::TrackProxy> tracks;
+    tracks.push_back(track);
     return tracks;
   }
 
