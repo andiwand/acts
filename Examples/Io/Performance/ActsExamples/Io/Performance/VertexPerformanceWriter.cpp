@@ -342,9 +342,6 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   ACTS_INFO("Total number of reco track-associated truth primary vertices : "
             << m_nVtxReconstructable);
 
-  // Loop over all reco vertices and find associated truth particles
-  std::vector<SimParticleContainer> truthParticlesAtVtxContainer;
-
   // We compare the reconstructed momenta to the true momenta at the vertex. For
   // this, we propagate the reconstructed tracks to the PCA of the true vertex
   // position. Setting up propagator:
