@@ -1,6 +1,6 @@
 // This file is part of the Acts project.
 //
-// Copyright (C) 2019-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2019-2024 CERN for the benefit of the Acts project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,16 +15,18 @@
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
-#include "Acts/Utilities/Enumerate.hpp"
+#include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/MultiIndex.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
+#include "Acts/Utilities/Zip.hpp"
 #include "Acts/Vertexing/TrackAtVertex.hpp"
-#include "Acts/Vertexing/Vertex.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
+#include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/Trajectories.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Validation/TrackClassification.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/Particle.hpp"
@@ -32,6 +34,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <ios>
 #include <limits>
 #include <map>
@@ -52,6 +55,57 @@ using Acts::VectorHelpers::theta;
 
 namespace ActsExamples {
 
+namespace {
+
+std::uint32_t getNumberOfReconstructableVertices(
+    const SimParticleContainer& collection) {
+  // map for finding frequency
+  std::map<std::uint32_t, std::uint32_t> fmap;
+
+  std::vector<std::uint32_t> reconstructableTruthVertices;
+
+  // traverse the array for frequency
+  for (const SimParticle& p : collection) {
+    std::uint32_t generation = p.particleId().generation();
+    if (generation > 0) {
+      // truthparticle from secondary vtx
+      continue;
+    }
+    std::uint32_t priVtxId = p.particleId().vertexPrimary();
+    fmap[priVtxId]++;
+  }
+
+  // iterate over the map
+  for (const auto& [priVtxId, occurrence] : fmap) {
+    // Require at least 2 tracks
+    if (occurrence > 1) {
+      reconstructableTruthVertices.push_back(priVtxId);
+    }
+  }
+
+  return reconstructableTruthVertices.size();
+}
+
+std::uint32_t getNumberOfTruePriVertices(
+    const SimParticleContainer& collection) {
+  // Vector to store indices of all primary vertices
+  std::set<std::uint32_t> allPriVtxIds;
+  for (const SimParticle& p : collection) {
+    std::uint32_t priVtxId = p.particleId().vertexPrimary();
+    std::uint32_t generation = p.particleId().generation();
+    if (generation > 0) {
+      // truthparticle from secondary vtx
+      continue;
+    }
+    // Insert to set, removing duplicates
+    allPriVtxIds.insert(priVtxId);
+  }
+  // Size of set corresponds to total number of primary vertices
+  return allPriVtxIds.size();
+}
+
+}  // namespace
+
 VertexPerformanceWriter::VertexPerformanceWriter(
     const VertexPerformanceWriter::Config& config, Acts::Logging::Level level)
     : WriterT(config.inputVertices, "VertexPerformanceWriter", level),
@@ -65,26 +119,29 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   if (m_cfg.inputTruthVertices.empty()) {
     throw std::invalid_argument("Collection with truth vertices missing");
   }
-  if (m_cfg.inputAllTruthParticles.empty()) {
-    throw std::invalid_argument("Collection with all truth particles missing");
+  if (m_cfg.inputParticles.empty()) {
+    throw std::invalid_argument("Collection with particles missing");
   }
-  if (m_cfg.inputSelectedTruthParticles.empty()) {
-    throw std::invalid_argument(
-        "Collection with selected truth particles missing");
+  if (m_cfg.inputSelectedParticles.empty()) {
+    throw std::invalid_argument("Collection with selected particles missing");
+  }
+  if (m_cfg.inputTrackParticleMatching.empty()) {
+    throw std::invalid_argument("Missing input track particles matching");
   }
 
   m_inputTruthVertices.initialize(m_cfg.inputTruthVertices);
-  m_inputAllTruthParticles.initialize(m_cfg.inputAllTruthParticles);
-  m_inputSelectedTruthParticles.initialize(m_cfg.inputSelectedTruthParticles);
+  m_inputParticles.initialize(m_cfg.inputParticles);
+  m_inputSelectedParticles.initialize(m_cfg.inputSelectedParticles);
+  m_inputTrackParticleMatching.initialize(m_cfg.inputTrackParticleMatching);
 
-  m_inputMeasurementParticlesMap.initialize(m_cfg.inputMeasurementParticlesMap);
-  m_inputTracks.initialize(m_cfg.inputTracks);
+  if (m_cfg.useTracks) {
+    m_inputTracks.initialize(m_cfg.inputTracks);
+  }
 
   // Setup ROOT I/O
-  auto path = m_cfg.filePath;
-  m_outputFile = TFile::Open(path.c_str(), m_cfg.fileMode.c_str());
+  m_outputFile = TFile::Open(m_cfg.filePath.c_str(), m_cfg.fileMode.c_str());
   if (m_outputFile == nullptr) {
-    throw std::ios_base::failure("Could not open '" + path + "'");
+    throw std::ios_base::failure("Could not open '" + m_cfg.filePath + "'");
   }
   m_outputFile->cd();
   m_outputTree = new TTree(m_cfg.treeName.c_str(), m_cfg.treeName.c_str());
@@ -100,6 +157,12 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("nSplitVtx", &m_nSplitVtx);
   m_outputTree->Branch("nVtxDetectorAcceptance", &m_nVtxDetAcceptance);
   m_outputTree->Branch("nVtxReconstructable", &m_nVtxReconstructable);
+
+  m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
+
+  m_outputTree->Branch("recoVertexTrackWeights", &m_recoVertexTrackWeights);
+
+  m_outputTree->Branch("sumPt2", &m_sumPt2);
 
   m_outputTree->Branch("recoX", &m_recoX);
   m_outputTree->Branch("recoY", &m_recoY);
@@ -117,14 +180,15 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("covYT", &m_covYT);
   m_outputTree->Branch("covZT", &m_covZT);
 
-  m_outputTree->Branch("nTracksRecoVtx", &m_nTracksOnRecoVertex);
-  m_outputTree->Branch("recoVertexTotalTrackWeight",
-                       &m_recoVertexTotalTrackWeight);
-  m_outputTree->Branch("sumPt2", &m_sumPt2);
+  m_outputTree->Branch("seedX", &m_seedX);
+  m_outputTree->Branch("seedY", &m_seedY);
+  m_outputTree->Branch("seedZ", &m_seedZ);
+  m_outputTree->Branch("seedT", &m_seedT);
 
   m_outputTree->Branch("vertex_primary", &m_vertexPrimary);
   m_outputTree->Branch("vertex_secondary", &m_vertexSecondary);
 
+  m_outputTree->Branch("truthVertexTrackWeights", &m_truthVertexTrackWeights);
   m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
 
   m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
@@ -141,6 +205,9 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("resZ", &m_resZ);
   m_outputTree->Branch("resT", &m_resT);
 
+  m_outputTree->Branch("resSeedZ", &m_resSeedZ);
+  m_outputTree->Branch("resSeedT", &m_resSeedT);
+
   m_outputTree->Branch("pullX", &m_pullX);
   m_outputTree->Branch("pullY", &m_pullY);
   m_outputTree->Branch("pullZ", &m_pullZ);
@@ -151,11 +218,12 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("trk_recoPhi", &m_recoPhi);
   m_outputTree->Branch("trk_recoTheta", &m_recoTheta);
   m_outputTree->Branch("trk_recoQOverP", &m_recoQOverP);
+
   m_outputTree->Branch("trk_recoPhiFitted", &m_recoPhiFitted);
   m_outputTree->Branch("trk_recoThetaFitted", &m_recoThetaFitted);
   m_outputTree->Branch("trk_recoQOverPFitted", &m_recoQOverPFitted);
 
-  m_outputTree->Branch("trk_particleId", &m_particleId);
+  m_outputTree->Branch("trk_particleId", &m_trkParticleId);
 
   m_outputTree->Branch("trk_truthPhi", &m_truthPhi);
   m_outputTree->Branch("trk_truthTheta", &m_truthTheta);
@@ -165,6 +233,7 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("trk_resTheta", &m_resTheta);
   m_outputTree->Branch("trk_resQOverP", &m_resQOverP);
   m_outputTree->Branch("trk_momOverlap", &m_momOverlap);
+
   m_outputTree->Branch("trk_resPhiFitted", &m_resPhiFitted);
   m_outputTree->Branch("trk_resThetaFitted", &m_resThetaFitted);
   m_outputTree->Branch("trk_resQOverPFitted", &m_resQOverPFitted);
@@ -173,6 +242,7 @@ VertexPerformanceWriter::VertexPerformanceWriter(
   m_outputTree->Branch("trk_pullPhi", &m_pullPhi);
   m_outputTree->Branch("trk_pullTheta", &m_pullTheta);
   m_outputTree->Branch("trk_pullQOverP", &m_pullQOverP);
+
   m_outputTree->Branch("trk_pullPhiFitted", &m_pullPhiFitted);
   m_outputTree->Branch("trk_pullThetaFitted", &m_pullThetaFitted);
   m_outputTree->Branch("trk_pullQOverPFitted", &m_pullQOverPFitted);
@@ -192,187 +262,64 @@ ProcessCode VertexPerformanceWriter::finalize() {
   return ProcessCode::SUCCESS;
 }
 
-int VertexPerformanceWriter::getNumberOfReconstructableVertices(
-    const SimParticleContainer& collection) const {
-  // map for finding frequency
-  std::map<int, int> fmap;
-
-  std::vector<int> reconstructableTruthVertices;
-
-  // traverse the array for frequency
-  for (const auto& p : collection) {
-    int secVtxId = p.particleId().vertexSecondary();
-    if (secVtxId != 0) {
-      // truthparticle from secondary vtx
-      continue;
-    }
-    int priVtxId = p.particleId().vertexPrimary();
-    fmap[priVtxId]++;
-  }
-
-  // iterate over the map
-  for (auto it : fmap) {
-    // Require at least 2 tracks
-    if (it.second > 1) {
-      reconstructableTruthVertices.push_back(it.first);
-    }
-  }
-
-  return reconstructableTruthVertices.size();
-}
-
-int VertexPerformanceWriter::getNumberOfTruePriVertices(
-    const SimParticleContainer& collection) const {
-  // Vector to store indices of all primary vertices
-  std::set<int> allPriVtxIds;
-  for (const auto& p : collection) {
-    int priVtxId = p.particleId().vertexPrimary();
-    int secVtxId = p.particleId().vertexSecondary();
-    if (secVtxId != 0) {
-      // truthparticle from secondary vtx
-      continue;
-    }
-    // Insert to set, removing duplicates
-    allPriVtxIds.insert(priVtxId);
-  }
-  // Size of set corresponds to total number of primary vertices
-  return allPriVtxIds.size();
-}
-
-ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
-                                            const VertexContainer& vertices) {
+ProcessCode VertexPerformanceWriter::writeT(
+    const AlgorithmContext& ctx, const std::vector<Acts::Vertex>& vertices) {
   const double nan = std::numeric_limits<double>::quiet_NaN();
 
-  // Exclusive access to the tree while writing
-  std::lock_guard<std::mutex> lock(m_writeMutex);
-
-  // Read truth particle input collection
-  const auto& allTruthParticles = m_inputAllTruthParticles(ctx);
-
   // Read truth vertex input collection
-  const auto& truthVertices = m_inputTruthVertices(ctx);
-  // Get number of generated true primary vertices
-  m_nTrueVtx = truthVertices.size();
+  const SimVertexContainer& truthVertices = m_inputTruthVertices(ctx);
+  // Read truth particle input collection
+  const SimParticleContainer& particles = m_inputParticles(ctx);
+  const SimParticleContainer& selectedParticles = m_inputSelectedParticles(ctx);
+  const TrackParticleMatching& trackParticleMatching =
+      m_inputTrackParticleMatching(ctx);
 
-  m_nRecoVtx = vertices.size();
-  m_nMergedVtx = 0;
-  m_nSplitVtx = 0;
+  const ConstTrackContainer* tracks = nullptr;
+  SimParticleContainer recoParticles;
 
-  ACTS_VERBOSE("Total number of generated truth particles in event : "
-               << allTruthParticles.size());
-  ACTS_VERBOSE(
-      "Total number of generated truth primary vertices : " << m_nTrueVtx);
-  ACTS_DEBUG("Number of reco vertices in event: " << m_nRecoVtx);
-
-  // Read selected truth particle input collection
-  const auto& selectedTruthParticles = m_inputSelectedTruthParticles(ctx);
-  // Get number of detector-accepted true primary vertices
-  m_nVtxDetAcceptance = getNumberOfTruePriVertices(selectedTruthParticles);
-
-  ACTS_VERBOSE("Total number of selected truth particles in event : "
-               << selectedTruthParticles.size());
-  ACTS_VERBOSE("Total number of detector-accepted truth primary vertices : "
-               << m_nVtxDetAcceptance);
-
-  TrackParametersContainer trackParameters;
-  std::vector<SimParticle> associatedTruthParticles;
-
-  // Get the event number
-  m_eventNr = ctx.eventNumber;
-
-  // If we don't know which truth particle corresponds to which track a
-  // priori, we check how many hits particles and tracks share. We match the
-  // particle to the track if a fraction of more than truthMatchProbMin of
-  // hits that contribute to the track come from the particle. Note that not
-  // all tracksatVertex have matching parameters in trackParameters in this
-  // case. Equivalently, one could say that not all tracksAtVertex will be
-  // assigned to a truth particle.
-  {
-    std::vector<ParticleHitCount> particleHitCounts;
-
-    const auto& hitParticlesMap = m_inputMeasurementParticlesMap(ctx);
-
-    for (const auto& track : m_inputTracks(ctx)) {
-      if (!track.hasReferenceSurface()) {
-        continue;
-      }
-
-      identifyContributingParticles(hitParticlesMap, track, particleHitCounts);
-      ActsFatras::Barcode majorityParticleId =
-          particleHitCounts.front().particleId;
-      std::size_t nMajorityHits = particleHitCounts.front().hitCount;
-
-      if ((double)nMajorityHits / track.nMeasurements() <
-          m_cfg.trackMatchThreshold) {
-        continue;
-      }
-
-      auto it = std::find_if(allTruthParticles.begin(), allTruthParticles.end(),
-                             [&](const auto& tp) {
-                               return tp.particleId() == majorityParticleId;
-                             });
-
-      if (it == allTruthParticles.end()) {
-        continue;
-      }
-
-      trackParameters.push_back(track.createParametersAtReference());
-      const auto& majorityParticle = *it;
-      associatedTruthParticles.push_back(majorityParticle);
+  auto findParticle = [&](ConstTrackProxy track) -> std::optional<SimParticle> {
+    // Get the truth-matched particle
+    auto imatched = trackParticleMatching.find(track.index());
+    if (imatched == trackParticleMatching.end() ||
+        !imatched->second.particle.has_value()) {
+      ACTS_DEBUG("No truth particle associated with this track, index = "
+                 << track.index() << " tip index = " << track.tipIndex());
+      return {};
     }
-  }
 
-  if (trackParameters.size() != associatedTruthParticles.size()) {
-    ACTS_ERROR(
-        "Number of track parameters and associated truth particles do not "
-        "match. ("
-        << trackParameters.size() << " != " << associatedTruthParticles.size()
-        << ").");
-  }
+    const TrackMatchEntry& particleMatch = imatched->second;
 
-  // Get number of track-associated true primary vertices
-  m_nVtxReconstructable =
-      getNumberOfReconstructableVertices(SimParticleContainer(
-          associatedTruthParticles.begin(), associatedTruthParticles.end()));
+    auto iparticle = particles.find(particleMatch.particle->value());
+    if (iparticle == particles.end()) {
+      ACTS_DEBUG(
+          "Truth particle found but not monitored with this track, index = "
+          << track.index() << " tip index = " << track.tipIndex()
+          << " and this barcode = " << particleMatch.particle->value());
+      return {};
+    }
 
-  ACTS_INFO(
-      "Total number of reconstructed tracks : " << trackParameters.size());
-  ACTS_INFO("Total number of reco track-associated truth particles in event : "
-            << associatedTruthParticles.size());
-  ACTS_INFO("Total number of reco track-associated truth primary vertices : "
-            << m_nVtxReconstructable);
+    return *iparticle;
+  };
 
-  // We compare the reconstructed momenta to the true momenta at the vertex. For
-  // this, we propagate the reconstructed tracks to the PCA of the true vertex
-  // position. Setting up propagator:
-  Acts::EigenStepper<> stepper(m_cfg.bField);
-  using Propagator = Acts::Propagator<Acts::EigenStepper<>>;
-  auto propagator = std::make_shared<Propagator>(stepper);
-
-  auto findTruthParticle =
-      [&](const auto& tracksAtVtx) -> std::optional<SimParticle> {
+  auto findTrack = [&](const Acts::TrackAtVertex& trkAtVtx)
+      -> std::optional<ConstTrackProxy> {
     // Track parameters before the vertex fit
-    Acts::BoundTrackParameters origTrack =
-        *(tracksAtVtx.originalParams.template as<Acts::BoundTrackParameters>());
+    const Acts::BoundTrackParameters& origTrack =
+        *trkAtVtx.originalParams.as<Acts::BoundTrackParameters>();
 
     // Finding the matching parameters in the container of all track
-    // parameters. This allows us to identify the corresponding particle,
-    // since we expect trackParameters and associatedTruthParticles to
-    // align.
-    for (std::size_t i = 0; i < trackParameters.size(); ++i) {
-      const auto& params = trackParameters[i].parameters();
+    // parameters. This allows us to identify the corresponding particle.
+    // TODO this should not be necessary if the tracks at vertex would keep
+    // this information
+    for (ConstTrackProxy inputTrk : *tracks) {
+      const auto& params = inputTrk.parameters();
+
       if (origTrack.parameters() == params) {
-        return associatedTruthParticles[i];
+        return inputTrk;
       }
     }
 
     return std::nullopt;
-  };
-
-  // Get number of contributing tracks (i.e., tracks with a weight above
-  // threshold)
-  auto weightHighEnough = [this](const Acts::TrackAtVertex& trkAtVtx) {
-    return trkAtVtx.trackWeight > m_cfg.minTrkWeight;
   };
 
   auto calcSumPt2 = [this](const Acts::Vertex& vtx) {
@@ -386,6 +333,90 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
     }
     return sumPt2;
   };
+
+  auto weightHighEnough = [this](const Acts::TrackAtVertex& trkAtVtx) {
+    return trkAtVtx.trackWeight > m_cfg.minTrkWeight;
+  };
+
+  // Helper function for computing the pull
+  auto pull =
+      [this](const Acts::ActsScalar& diff, const Acts::ActsScalar& variance,
+             const std::string& variableStr, const bool& afterFit = true) {
+        if (variance <= 0) {
+          std::string tempStr;
+          if (afterFit) {
+            tempStr = "after";
+          } else {
+            tempStr = "before";
+          }
+          ACTS_WARNING("Nonpositive variance "
+                       << tempStr << " vertex fit: Var(" << variableStr
+                       << ") = " << variance << " <= 0.");
+          return std::numeric_limits<double>::quiet_NaN();
+        }
+        double std = std::sqrt(variance);
+        return diff / std;
+      };
+
+  if (m_cfg.useTracks) {
+    tracks = &m_inputTracks(ctx);
+
+    for (ConstTrackProxy track : *tracks) {
+      if (!track.hasReferenceSurface()) {
+        ACTS_DEBUG("No reference surface on this track, index = "
+                   << track.index() << " tip index = " << track.tipIndex());
+        continue;
+      }
+
+      if (std::optional<SimParticle> particle = findParticle(track);
+          particle.has_value()) {
+        recoParticles.insert(*particle);
+      }
+    }
+  } else {
+    // if not using tracks, then all truth particles are associated with the
+    // vertex
+    recoParticles = particles;
+  }
+
+  // Exclusive access to the tree while writing
+  std::lock_guard<std::mutex> lock(m_writeMutex);
+
+  m_nRecoVtx = vertices.size();
+  m_nMergedVtx = 0;
+  m_nSplitVtx = 0;
+
+  ACTS_DEBUG("Number of reco vertices in event: " << m_nRecoVtx);
+
+  // Get number of generated true primary vertices
+  m_nTrueVtx = getNumberOfTruePriVertices(particles);
+  // Get number of detector-accepted true primary vertices
+  m_nVtxDetAcceptance = getNumberOfTruePriVertices(selectedParticles);
+
+  ACTS_DEBUG("Number of truth particles in event : " << particles.size());
+  ACTS_DEBUG("Number of truth primary vertices : " << m_nTrueVtx);
+  ACTS_DEBUG("Number of detector-accepted truth primary vertices : "
+             << m_nVtxDetAcceptance);
+
+  // Get the event number
+  m_eventNr = ctx.eventNumber;
+
+  // Get number of track-associated true primary vertices
+  m_nVtxReconstructable = getNumberOfReconstructableVertices(recoParticles);
+
+  ACTS_INFO("Number of reconstructed tracks : "
+            << ((tracks != nullptr) ? tracks->size() : 0));
+  ACTS_INFO("Number of reco track-associated truth particles in event : "
+            << recoParticles.size());
+  ACTS_INFO("Maximum number of reconstructible primary vertices : "
+            << m_nVtxReconstructable);
+
+  // We compare the reconstructed momenta to the true momenta at the vertex. For
+  // this, we propagate the reconstructed tracks to the PCA of the true vertex
+  // position. Setting up propagator:
+  Acts::EigenStepper<> stepper(m_cfg.bField);
+  using Propagator = Acts::Propagator<Acts::EigenStepper<>>;
+  auto propagator = std::make_shared<Propagator>(stepper);
 
   struct ToTruthMatching {
     std::optional<SimVertexBarcode> vertexId;
@@ -414,14 +445,20 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
     std::vector<std::pair<SimVertexBarcode, double>> contributingTruthVertices;
 
     double totalTrackWeight = 0;
-    for (const auto& trk : tracksAtVtx) {
+    for (const Acts::TrackAtVertex& trk : tracksAtVtx) {
       if (trk.trackWeight < m_cfg.minTrkWeight) {
         continue;
       }
 
       totalTrackWeight += trk.trackWeight;
 
-      std::optional<SimParticle> particleOpt = findTruthParticle(trk);
+      std::optional<ConstTrackProxy> trackOpt = findTrack(trk);
+      if (!trackOpt.has_value()) {
+        ACTS_DEBUG("Track has no matching input track.");
+        continue;
+      }
+      const ConstTrackProxy& inputTrk = *trackOpt;
+      std::optional<SimParticle> particleOpt = findParticle(inputTrk);
       if (!particleOpt.has_value()) {
         ACTS_VERBOSE("Track has no matching truth particle.");
       } else {
@@ -499,28 +536,10 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   for (const auto& [vtxIndex, vtx] : Acts::enumerate(vertices)) {
     // Reconstructed tracks that contribute to the reconstructed vertex
     const auto& tracksAtVtx = vtx.tracks();
+    // Input tracks matched to `tracksAtVtx`
+    std::vector<std::uint32_t> trackIndices;
 
     const auto& toTruthMatching = recoToTruthMatching[vtxIndex];
-
-    // Helper function for computing the pull
-    auto pull =
-        [&](const Acts::ActsScalar& diff, const Acts::ActsScalar& variance,
-            const std::string& variableStr, const bool& afterFit = true) {
-          if (variance <= 0) {
-            std::string tempStr;
-            if (afterFit) {
-              tempStr = "after";
-            } else {
-              tempStr = "before";
-            }
-            ACTS_WARNING("Nonpositive variance "
-                         << tempStr << " vertex fit: Var(" << variableStr
-                         << ") = " << variance << " <= 0.");
-            return std::numeric_limits<double>::quiet_NaN();
-          }
-          double std = std::sqrt(variance);
-          return diff / std;
-        };
 
     m_recoX.push_back(vtx.fullPosition()[Acts::FreeIndices::eFreePos0]);
     m_recoY.push_back(vtx.fullPosition()[Acts::FreeIndices::eFreePos1]);
@@ -556,8 +575,8 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
     double sumPt2 = calcSumPt2(vtx);
     m_sumPt2.push_back(sumPt2);
 
-    double totalTrackWeight = toTruthMatching.totalTrackWeight;
-    m_recoVertexTotalTrackWeight.push_back(totalTrackWeight);
+    double recoVertexTrackWeights = toTruthMatching.totalTrackWeight;
+    m_recoVertexTrackWeights.push_back(recoVertexTrackWeights);
 
     RecoVertexClassification recoVertexClassification =
         toTruthMatching.classification;
@@ -586,7 +605,7 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
 
         // Count number of reconstructible tracks on truth vertex
         int nTracksOnTruthVertex = 0;
-        for (const auto& particle : selectedTruthParticles) {
+        for (const auto& particle : selectedParticles) {
           if (particle.particleId().vertexId() == truthVertex.vertexId()) {
             ++nTracksOnTruthVertex;
           }
@@ -663,7 +682,7 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
     auto& innerRecoThetaFitted = m_recoThetaFitted.emplace_back();
     auto& innerRecoQOverPFitted = m_recoQOverPFitted.emplace_back();
 
-    auto& innerParticleId = m_particleId.emplace_back();
+    auto& innerTrkParticleId = m_trkParticleId.emplace_back();
 
     auto& innerTruthPhi = m_truthPhi.emplace_back();
     auto& innerTruthTheta = m_truthTheta.emplace_back();
@@ -721,7 +740,7 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
       return std::make_optional(paramsAtVtx);
     };
 
-    for (const auto& trk : tracksAtVtx) {
+    for (const Acts::TrackAtVertex& trk : tracksAtVtx) {
       if (trk.trackWeight < m_cfg.minTrkWeight) {
         continue;
       }
@@ -731,11 +750,16 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
       Acts::Vector3 trueUnitDir = Acts::Vector3::Zero();
       Acts::Vector3 trueMom = Acts::Vector3::Zero();
 
-      const auto& particleOpt = findTruthParticle(trk);
-      if (particleOpt.has_value()) {
-        const auto& particle = *particleOpt;
+      std::optional<SimParticle> particleOpt;
+      std::optional<ConstTrackProxy> trackOpt = findTrack(trk);
+      if (trackOpt.has_value()) {
+        particleOpt = findParticle(*trackOpt);
+      }
 
-        innerParticleId.push_back(particle.particleId().value());
+      if (particleOpt.has_value()) {
+        const SimParticle& particle = *particleOpt;
+
+        innerTrkParticleId.push_back(particle.particleId().value());
 
         trueUnitDir = particle.direction();
         trueMom.head<2>() = Acts::makePhiThetaFromDirection(trueUnitDir);
@@ -747,7 +771,7 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
       } else {
         ACTS_VERBOSE("Track has no matching truth particle.");
 
-        innerParticleId.push_back(-1);
+        innerTrkParticleId.push_back(-1);
 
         innerTruthPhi.push_back(nan);
         innerTruthTheta.push_back(nan);
@@ -867,6 +891,8 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   // fill the variables
   m_outputTree->Fill();
 
+  m_nTracksOnRecoVertex.clear();
+  m_recoVertexTrackWeights.clear();
   m_recoX.clear();
   m_recoY.clear();
   m_recoZ.clear();
@@ -881,14 +907,15 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   m_covYZ.clear();
   m_covYT.clear();
   m_covZT.clear();
-  m_nTracksOnRecoVertex.clear();
-  m_recoVertexTotalTrackWeight.clear();
-  m_sumPt2.clear();
+  m_seedX.clear();
+  m_seedY.clear();
+  m_seedZ.clear();
+  m_seedT.clear();
   m_vertexPrimary.clear();
   m_vertexSecondary.clear();
+  m_truthVertexTrackWeights.clear();
   m_truthVertexMatchRatio.clear();
   m_nTracksOnTruthVertex.clear();
-  m_recoVertexClassification.clear();
   m_truthX.clear();
   m_truthY.clear();
   m_truthZ.clear();
@@ -897,11 +924,13 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   m_resY.clear();
   m_resZ.clear();
   m_resT.clear();
+  m_resSeedZ.clear();
+  m_resSeedT.clear();
   m_pullX.clear();
   m_pullY.clear();
   m_pullZ.clear();
   m_pullT.clear();
-
+  m_sumPt2.clear();
   m_trkWeight.clear();
   m_recoPhi.clear();
   m_recoTheta.clear();
@@ -909,17 +938,17 @@ ProcessCode VertexPerformanceWriter::writeT(const AlgorithmContext& ctx,
   m_recoPhiFitted.clear();
   m_recoThetaFitted.clear();
   m_recoQOverPFitted.clear();
-  m_particleId.clear();
+  m_trkParticleId.clear();
   m_truthPhi.clear();
   m_truthTheta.clear();
   m_truthQOverP.clear();
   m_resPhi.clear();
   m_resTheta.clear();
   m_resQOverP.clear();
+  m_momOverlap.clear();
   m_resPhiFitted.clear();
   m_resThetaFitted.clear();
   m_resQOverPFitted.clear();
-  m_momOverlap.clear();
   m_momOverlapFitted.clear();
   m_pullPhi.clear();
   m_pullTheta.clear();

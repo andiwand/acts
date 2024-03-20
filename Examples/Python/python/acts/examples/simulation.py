@@ -347,6 +347,14 @@ def addPythia8(
             )
         )
 
+        s.addWriter(
+            acts.examples.RootVertexWriter(
+                level=customLogLevel(),
+                inputVertices=evGen.config.outputVertices,
+                filePath=str(outputDirRoot / "pythia8_vertices.root"),
+            )
+        )
+
     return s
 
 

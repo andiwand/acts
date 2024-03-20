@@ -1847,12 +1847,12 @@ def addVertexFitting(
         s.addWriter(
             VertexPerformanceWriter(
                 level=customLogLevel(),
-                inputTruthVertices=inputVertices,
-                inputAllTruthParticles=inputParticles,
-                inputSelectedTruthParticles=selectedParticles,
-                inputMeasurementParticlesMap="measurement_particles_map",
-                inputTracks=tracks,
                 inputVertices=outputVertices,
+                inputTracks=tracks,
+                inputTruthVertices=inputVertices,
+                inputParticles=inputParticles,
+                inputSelectedParticles=selectedParticles,
+                inputTrackParticleMatching="track_particle_matching",
                 bField=field,
                 treeName="vertexing",
                 filePath=str(outputDirRoot / "performance_vertexing.root"),
