@@ -23,9 +23,11 @@
 #include <TMathBase.h>
 #include <TTree.h>
 
-ActsExamples::RootMaterialTrackReader::RootMaterialTrackReader(
-    const Config& config, Acts::Logging::Level level)
-    : ActsExamples::IReader(),
+namespace ActsExamples {
+
+RootMaterialTrackReader::RootMaterialTrackReader(const Config& config,
+                                                 Acts::Logging::Level level)
+    : IReader(),
       m_logger{Acts::getDefaultLogger(name(), level)},
       m_cfg(config) {
   if (m_cfg.fileList.empty()) {
@@ -104,10 +106,10 @@ ActsExamples::RootMaterialTrackReader::RootMaterialTrackReader(
                 m_entryNumbers.data(), false);
   }
 
-  m_outputMaterialTracks.initialize(m_cfg.collection);
+  m_outputMaterialTracks.initialize(m_cfg.outputMaterialTracks);
 }
 
-ActsExamples::RootMaterialTrackReader::~RootMaterialTrackReader() {
+RootMaterialTrackReader::~RootMaterialTrackReader() {
   delete m_inputChain;
 
   delete m_step_x;
@@ -130,17 +132,16 @@ ActsExamples::RootMaterialTrackReader::~RootMaterialTrackReader() {
   delete m_sur_pathCorrection;
 }
 
-std::string ActsExamples::RootMaterialTrackReader::name() const {
+std::string RootMaterialTrackReader::name() const {
   return "RootMaterialTrackReader";
 }
 
-std::pair<std::size_t, std::size_t>
-ActsExamples::RootMaterialTrackReader::availableEvents() const {
+std::pair<std::size_t, std::size_t> RootMaterialTrackReader::availableEvents()
+    const {
   return {0u, m_events};
 }
 
-ActsExamples::ProcessCode ActsExamples::RootMaterialTrackReader::read(
-    const ActsExamples::AlgorithmContext& context) {
+ProcessCode RootMaterialTrackReader::read(const AlgorithmContext& context) {
   ACTS_DEBUG("Trying to read recorded material from tracks.");
   // read in the material track
   if (m_inputChain != nullptr && context.eventNumber < m_events) {
@@ -231,5 +232,7 @@ ActsExamples::ProcessCode ActsExamples::RootMaterialTrackReader::read(
     m_outputMaterialTracks(context, std::move(mtrackCollection));
   }
   // Return success flag
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

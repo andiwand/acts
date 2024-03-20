@@ -28,7 +28,6 @@
 class TChain;
 
 namespace ActsExamples {
-struct AlgorithmContext;
 
 /// @class RootParticleReader
 ///

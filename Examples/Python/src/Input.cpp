@@ -48,8 +48,8 @@ void addInput(Context& ctx) {
                              filePath);
 
   ACTS_PYTHON_DECLARE_READER(ActsExamples::RootMaterialTrackReader, mex,
-                             "RootMaterialTrackReader", collection, treeName,
-                             fileList, readCachedSurfaceInformation);
+                             "RootMaterialTrackReader", outputMaterialTracks,
+                             treeName, fileList, readCachedSurfaceInformation);
 
   ACTS_PYTHON_DECLARE_READER(ActsExamples::RootTrackSummaryReader, mex,
                              "RootTrackSummaryReader", outputTracks,

@@ -24,10 +24,11 @@
 #include <TChain.h>
 #include <TMathBase.h>
 
-ActsExamples::RootTrackSummaryReader::RootTrackSummaryReader(
-    const ActsExamples::RootTrackSummaryReader::Config& config,
-    Acts::Logging::Level level)
-    : ActsExamples::IReader(),
+namespace ActsExamples {
+
+RootTrackSummaryReader::RootTrackSummaryReader(
+    const RootTrackSummaryReader::Config& config, Acts::Logging::Level level)
+    : IReader(),
       m_logger{Acts::getDefaultLogger(name(), level)},
       m_cfg(config) {
   m_inputChain = new TChain(m_cfg.treeName.c_str());
@@ -106,12 +107,12 @@ ActsExamples::RootTrackSummaryReader::RootTrackSummaryReader(
   }
 }
 
-std::pair<std::size_t, std::size_t>
-ActsExamples::RootTrackSummaryReader::availableEvents() const {
+std::pair<std::size_t, std::size_t> RootTrackSummaryReader::availableEvents()
+    const {
   return {0u, m_events};
 }
 
-ActsExamples::RootTrackSummaryReader::~RootTrackSummaryReader() {
+RootTrackSummaryReader::~RootTrackSummaryReader() {
   delete m_multiTrajNr;
   delete m_subTrajNr;
   delete m_nStates;
@@ -155,8 +156,7 @@ ActsExamples::RootTrackSummaryReader::~RootTrackSummaryReader() {
   delete m_err_eT_fit;
 }
 
-ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
-    const ActsExamples::AlgorithmContext& context) {
+ProcessCode RootTrackSummaryReader::read(const AlgorithmContext& context) {
   ACTS_DEBUG("Trying to read recorded tracks.");
 
   // read in the fitted track parameters and particles
@@ -226,5 +226,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
     ACTS_WARNING("Could not read in event.");
   }
   // Return success flag
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples
