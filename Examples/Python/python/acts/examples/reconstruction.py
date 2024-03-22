@@ -1248,8 +1248,6 @@ def addCKFTracks(
         writeStates=writeTrajectories,
         writeSummary=writeTrajectories,
         writeCKFperformance=True,
-        writeFinderPerformance=False,
-        writeFitterPerformance=False,
         logLevel=logLevel,
         writeCovMat=writeCovMat,
     )
@@ -1312,8 +1310,6 @@ def addTrackWriters(
     writeStates: bool = True,
     writeSummary: bool = True,
     writeCKFperformance: bool = True,
-    writeFinderPerformance: bool = True,
-    writeFitterPerformance: bool = True,
     logLevel: Optional[acts.logging.Level] = None,
     writeCovMat=False,
 ):
@@ -1333,9 +1329,9 @@ def addTrackWriters(
                 # since the unselected CKF track might have a majority particle not in the
                 # filtered particle collection. This could be avoided when a separate track
                 # selection algorithm is used.
-                inputParticles="particles",
+                inputParticles="particles_selected",
+                inputTrackParticleMatching="track_particle_matching",
                 inputSimHits="simhits",
-                inputMeasurementParticlesMap="measurement_particles_map",
                 inputMeasurementSimHitsMap="measurement_simhits_map",
                 filePath=str(outputDirRoot / f"trackstates_{name}.root"),
                 treeName="trackstates",
@@ -1351,8 +1347,8 @@ def addTrackWriters(
                 # since the unselected CKF track might have a majority particle not in the
                 # filtered particle collection. This could be avoided when a separate track
                 # selection algorithm is used.
-                inputParticles="particles",
-                inputMeasurementParticlesMap="measurement_particles_map",
+                inputParticles="particles_selected",
+                inputTrackParticleMatching="track_particle_matching",
                 filePath=str(outputDirRoot / f"tracksummary_{name}.root"),
                 treeName="tracksummary",
                 writeCovMat=writeCovMat,
@@ -1363,38 +1359,13 @@ def addTrackWriters(
             # Write CKF performance data
             ckfPerfWriter = acts.examples.CKFPerformanceWriter(
                 level=customLogLevel(),
-                inputParticles="truth_seeds_selected",
                 inputTracks=tracks,
-                inputMeasurementParticlesMap="measurement_particles_map",
+                inputParticles="truth_seeds_selected",
+                inputTrackParticleMatching="track_particle_matching",
+                inputParticleTrackMatching="particle_track_matching",
                 filePath=str(outputDirRoot / f"performance_{name}.root"),
             )
             s.addWriter(ckfPerfWriter)
-
-        if writeFinderPerformance:
-            s.addWriter(
-                acts.examples.TrackFinderPerformanceWriter(
-                    level=acts.logging.INFO,
-                    inputProtoTracks="prototracks",
-                    inputParticles="truth_seeds_selected",
-                    inputMeasurementParticlesMap="measurement_particles_map",
-                    filePath=str(
-                        outputDirRoot / f"performance_track_finder_{name}.root"
-                    ),
-                )
-            )
-
-        if writeFitterPerformance:
-            s.addWriter(
-                acts.examples.TrackFitterPerformanceWriter(
-                    level=acts.logging.INFO,
-                    inputParticles="truth_seeds_selected",
-                    inputTracks=tracks,
-                    inputMeasurementParticlesMap="measurement_particles_map",
-                    filePath=str(
-                        outputDirRoot / f"performance_track_fitter_{name}.root"
-                    ),
-                )
-            )
 
     if outputDirCsv is not None:
         outputDirCsv = Path(outputDirCsv)
@@ -1611,8 +1582,6 @@ def addAmbiguityResolution(
         writeStates=writeTrajectories,
         writeSummary=writeTrajectories,
         writeCKFperformance=True,
-        writeFinderPerformance=False,
-        writeFitterPerformance=False,
         logLevel=logLevel,
         writeCovMat=writeCovMat,
     )
@@ -1670,8 +1639,6 @@ def addAmbiguityResolutionML(
         writeStates=writeTrajectories,
         writeSummary=writeTrajectories,
         writeCKFperformance=True,
-        writeFinderPerformance=False,
-        writeFitterPerformance=False,
         logLevel=logLevel,
     )
 
@@ -1716,8 +1683,6 @@ def addAmbiguityResolutionMLDBScan(
         writeStates=writeTrajectories,
         writeSummary=writeTrajectories,
         writeCKFperformance=True,
-        writeFinderPerformance=False,
-        writeFitterPerformance=False,
         logLevel=logLevel,
     )
 
