@@ -893,6 +893,7 @@ ProcessCode VertexPerformanceWriter::writeT(
 
   m_nTracksOnRecoVertex.clear();
   m_recoVertexTrackWeights.clear();
+  m_recoVertexClassification.clear();
   m_recoX.clear();
   m_recoY.clear();
   m_recoZ.clear();
