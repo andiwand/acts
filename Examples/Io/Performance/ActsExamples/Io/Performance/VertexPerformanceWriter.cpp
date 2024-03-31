@@ -194,8 +194,7 @@ VertexPerformanceWriter::VertexPerformanceWriter(
 
   m_outputTree->Branch("truthVertexTrackWeights", &m_truthVertexTrackWeights);
   m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
-  m_outputTree->Branch("recoVertexTrackContaminationWeights",
-                       &m_recoVertexTrackContaminationWeights);
+  m_outputTree->Branch("recoVertexContamination", &m_recoVertexContamination);
 
   m_outputTree->Branch("recoVertexClassification", &m_recoVertexClassification);
 
@@ -637,12 +636,11 @@ ProcessCode VertexPerformanceWriter::writeT(
           toTruthMatching.truthMajorityTrackWeights;
       m_truthVertexTrackWeights.push_back(truthVertexTrackWeights);
 
-      m_truthVertexMatchRatio.push_back(toTruthMatching.matchFraction);
+      double truthVertexMatchRatio = toTruthMatching.matchFraction;
+      m_truthVertexMatchRatio.push_back(truthVertexMatchRatio);
 
-      double recoVertexTrackContaminationWeights =
-          recoVertexTrackWeights - truthVertexTrackWeights;
-      m_recoVertexTrackContaminationWeights.push_back(
-          recoVertexTrackContaminationWeights);
+      double recoVertexContamination = 1 - truthVertexMatchRatio;
+      m_recoVertexContamination.push_back(recoVertexContamination);
 
       RecoVertexClassification recoVertexClassification =
           toTruthMatching.classification;
@@ -686,7 +684,7 @@ ProcessCode VertexPerformanceWriter::writeT(
 
       m_truthVertexTrackWeights.push_back(nan);
       m_truthVertexMatchRatio.push_back(nan);
-      m_recoVertexTrackContaminationWeights.push_back(nan);
+      m_recoVertexContamination.push_back(nan);
 
       m_recoVertexClassification.push_back(
           static_cast<int>(RecoVertexClassification::Unknown));
@@ -958,7 +956,7 @@ ProcessCode VertexPerformanceWriter::writeT(
   m_truthVertexDensity.clear();
   m_truthVertexTrackWeights.clear();
   m_truthVertexMatchRatio.clear();
-  m_recoVertexTrackContaminationWeights.clear();
+  m_recoVertexContamination.clear();
   m_recoVertexClassification.clear();
   m_truthX.clear();
   m_truthY.clear();

@@ -177,8 +177,8 @@ class VertexPerformanceWriter final
   std::vector<double> m_truthVertexTrackWeights;
   /// Fraction of track weight matched between truth and reco vertices
   std::vector<double> m_truthVertexMatchRatio;
-  /// Sum of the incorrectly assigned track weights on the reco vertex
-  std::vector<double> m_recoVertexTrackContaminationWeights;
+  /// Fraction of incorrectly assigned track weight to the reco vertex
+  std::vector<double> m_recoVertexContamination;
 
   /// Classification of the reconstructed vertex see RecoVertexClassification
   std::vector<int> m_recoVertexClassification;
