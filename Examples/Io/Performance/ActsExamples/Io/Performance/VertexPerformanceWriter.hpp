@@ -170,8 +170,8 @@ class VertexPerformanceWriter final
   /// Number of tracks associated with the truth vertex
   std::vector<int> m_nTracksOnTruthVertex;
 
-  /// Truth-based vertex density for the reconstructed vertex
-  std::vector<double> m_truthVertexDensity;
+  /// Truth-based primary vertex density for the reconstructed vertex
+  std::vector<double> m_truthPrimaryVertexDensity;
 
   /// Sum of the track weights associated with the truth vertex
   std::vector<double> m_truthVertexTrackWeights;

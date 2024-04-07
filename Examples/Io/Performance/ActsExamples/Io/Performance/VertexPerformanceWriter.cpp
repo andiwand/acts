@@ -190,7 +190,8 @@ VertexPerformanceWriter::VertexPerformanceWriter(
 
   m_outputTree->Branch("nTracksTruthVtx", &m_nTracksOnTruthVertex);
 
-  m_outputTree->Branch("truthVertexDensity", &m_truthVertexDensity);
+  m_outputTree->Branch("truthPrimaryVertexDensity",
+                       &m_truthPrimaryVertexDensity);
 
   m_outputTree->Branch("truthVertexTrackWeights", &m_truthVertexTrackWeights);
   m_outputTree->Branch("truthVertexMatchRatio", &m_truthVertexMatchRatio);
@@ -361,18 +362,21 @@ ProcessCode VertexPerformanceWriter::writeT(
         return diff / std;
       };
 
-  auto calculateTruthVertexDensity = [this,
-                                      truthVertices](const Acts::Vertex& vtx) {
-    double z = vtx.fullPosition()[Acts::CoordinateIndices::eZ];
-    int count = 0;
-    for (const SimVertex& truthVertex : truthVertices) {
-      double zTruth = truthVertex.position4[Acts::CoordinateIndices::eZ];
-      if (std::abs(z - zTruth) <= m_cfg.vertexDensityWindow) {
-        ++count;
-      }
-    }
-    return count / (2 * m_cfg.vertexDensityWindow);
-  };
+  auto calculateTruthPrimaryVertexDensity =
+      [this, truthVertices](const Acts::Vertex& vtx) {
+        double z = vtx.fullPosition()[Acts::CoordinateIndices::eZ];
+        int count = 0;
+        for (const SimVertex& truthVertex : truthVertices) {
+          if (truthVertex.vertexId().vertexSecondary()) {
+            continue;
+          }
+          double zTruth = truthVertex.position4[Acts::CoordinateIndices::eZ];
+          if (std::abs(z - zTruth) <= m_cfg.vertexDensityWindow) {
+            ++count;
+          }
+        }
+        return count / (2 * m_cfg.vertexDensityWindow);
+      };
 
   if (m_cfg.useTracks) {
     tracks = &m_inputTracks(ctx);
@@ -629,8 +633,9 @@ ProcessCode VertexPerformanceWriter::writeT(
       }
       m_nTracksOnTruthVertex.push_back(nTracksOnTruthVertex);
 
-      double truthVertexDensity = calculateTruthVertexDensity(vtx);
-      m_truthVertexDensity.push_back(truthVertexDensity);
+      double truthPrimaryVertexDensity =
+          calculateTruthPrimaryVertexDensity(vtx);
+      m_truthPrimaryVertexDensity.push_back(truthPrimaryVertexDensity);
 
       double truthVertexTrackWeights =
           toTruthMatching.truthMajorityTrackWeights;
@@ -680,7 +685,7 @@ ProcessCode VertexPerformanceWriter::writeT(
 
       m_nTracksOnTruthVertex.push_back(-1);
 
-      m_truthVertexDensity.push_back(nan);
+      m_truthPrimaryVertexDensity.push_back(nan);
 
       m_truthVertexTrackWeights.push_back(nan);
       m_truthVertexMatchRatio.push_back(nan);
@@ -953,7 +958,7 @@ ProcessCode VertexPerformanceWriter::writeT(
   m_vertexPrimary.clear();
   m_vertexSecondary.clear();
   m_nTracksOnTruthVertex.clear();
-  m_truthVertexDensity.clear();
+  m_truthPrimaryVertexDensity.clear();
   m_truthVertexTrackWeights.clear();
   m_truthVertexMatchRatio.clear();
   m_recoVertexContamination.clear();
