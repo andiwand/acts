@@ -367,7 +367,7 @@ ProcessCode VertexPerformanceWriter::writeT(
         double z = vtx.fullPosition()[Acts::CoordinateIndices::eZ];
         int count = 0;
         for (const SimVertex& truthVertex : truthVertices) {
-          if (truthVertex.vertexId().vertexSecondary()) {
+          if (truthVertex.vertexId().vertexSecondary() != 0) {
             continue;
           }
           double zTruth = truthVertex.position4[Acts::CoordinateIndices::eZ];
