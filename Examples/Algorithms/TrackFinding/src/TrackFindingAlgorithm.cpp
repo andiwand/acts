@@ -302,8 +302,6 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   auto trackStateContainerTemp =
       std::make_shared<Acts::VectorMultiTrajectory>();
 
-  trackStateContainerTemp->reserve(100000);
-
   TrackContainer tracks(trackContainer, trackStateContainer);
   TrackContainer tracksTemp(trackContainerTemp, trackStateContainerTemp);
 
