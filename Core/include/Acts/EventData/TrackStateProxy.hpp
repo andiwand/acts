@@ -832,6 +832,18 @@ class TrackStateProxy {
     setProjectorBitset(meas.subspace().fullProjectorBits());
   }
 
+  template <bool RO = ReadOnly, typename = std::enable_if_t<!RO>>
+  void setCalibrated(const Acts::VariableSizeMeasurementProxy<
+                     MeasurementContainer, BoundIndices, 6>& meas) {
+    allocateCalibrated(meas.size());
+    assert(hasCalibrated());
+
+    effectiveCalibrated() = meas.parameters();
+    effectiveCalibratedCovariance() = meas.covariance();
+
+    setProjectorBitset(meas.subspace().fullProjectorBits());
+  }
+
   /// Allocate storage to be able to store a measurement of size @p measdim.
   /// This must be called **before** setting the measurement content.
   void allocateCalibrated(std::size_t measdim) {

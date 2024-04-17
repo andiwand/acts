@@ -31,7 +31,8 @@ void ActsExamples::PassThroughCalibrator::calibrate(
   assert((idxSourceLink.index() < measurements.size()) &&
          "Source link index is outside the container bounds");
 
-  const auto& meas = measurements.getMeasurementSize(idxSourceLink.index());
+  const auto& meas =
+      measurements.getMeasurement<Acts::BoundIndices, 6>(idxSourceLink.index());
 
   trackState.setCalibrated(meas);
 }

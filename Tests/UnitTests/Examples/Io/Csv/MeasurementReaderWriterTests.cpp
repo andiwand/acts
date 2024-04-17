@@ -133,8 +133,8 @@ BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
       std::is_same_v<std::decay_t<decltype(measRead)>, decltype(measOriginal)>);
   BOOST_REQUIRE(measRead.size() == measOriginal.size());
   for (std::size_t i = 0; i < measRead.size(); ++i) {
-    const auto &a = measRead.getBoundMeasurement(i);
-    const auto &b = measOriginal.getBoundMeasurement(i);
+    const auto &a = measRead.getBoundVariableMeasurement(i);
+    const auto &b = measOriginal.getBoundVariableMeasurement(i);
     if (a.size() == b.size()) {
       CHECK_CLOSE_REL(a.parameters(), b.parameters(), 1e-4);
     }

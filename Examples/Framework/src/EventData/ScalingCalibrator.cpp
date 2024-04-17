@@ -151,7 +151,8 @@ void ActsExamples::ScalingCalibrator::calibrate(
   const Cluster& cl = clusters->at(idxSourceLink.index());
   ConstantTuple ct = m_calib_maps.at(mgid).at(cl.sizeLoc0, cl.sizeLoc1);
 
-  const auto& meas = measurements[idxSourceLink.index()];
+  const auto& meas =
+      measurements.getBoundVariableMeasurement(idxSourceLink.index());
 
   Measurement measCopy = meas;
   measCopy.parameters()[Acts::eBoundLoc0] += ct.x_offset;

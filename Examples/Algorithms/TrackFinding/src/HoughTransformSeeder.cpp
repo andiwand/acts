@@ -525,7 +525,8 @@ void ActsExamples::HoughTransformSeeder::addMeasurements(
         // are transformed to the bound space where we do know their location.
         // if the local parameters are not measured, this results in a
         // zero location, which is a reasonable default fall-back.
-        const auto& meas = measurements.getMeasurementSize(sourceLink.index());
+        const auto& meas =
+            measurements.getBoundVariableMeasurement(sourceLink.index());
 
         Acts::Vector2 localPos = meas.parameters().segment<2>(Acts::eBoundLoc0);
 
