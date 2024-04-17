@@ -243,4 +243,92 @@ std::ostream& operator<<(std::ostream& os,
   return std::visit([&](const auto& m) { return (os << m); }, vm);
 }
 
+class MeasurementContainer {
+ public:
+  MeasurementContainer() = default;
+
+  std::size_t size() const { return m_entries.size(); }
+
+  void reserve(std::size_t size) {
+    m_entries.reserve(size);
+    m_numbers.reserve(size * 2 * 2);
+  }
+
+  template <typename indices_t, std::size_t kSize, typename parameters_t,
+            typename covariance_t>
+  void addMeasurement(SourceLink source,
+                      const std::array<indices_t, kSize>& indices,
+                      const parameters_t& params, const covariance_t& cov) {
+    std::array<std::uint8_t, 8> subspace{};
+    for (std::size_t i = 0; i < kSize; ++i) {
+      subspace[i] = static_cast<std::uint8_t>(indices[i]);
+    }
+
+    m_entries.push_back({kSize, std::move(source), subspace, m_numbers.size()});
+    m_numbers.insert(m_numbers.end(), params.data(),
+                     params.data() + params.size());
+    m_numbers.insert(m_numbers.end(), cov.data(), cov.data() + cov.size());
+  }
+
+  void addMeasurement(const BoundVariantMeasurement& m) {
+    std::visit(
+        [this](const auto& m) {
+          addMeasurement(m.sourceLink(), m.indices(), m.parameters(),
+                         m.covariance());
+        },
+        m);
+  }
+
+  std::size_t getMeasurementSize(std::size_t index) const {
+    return m_entries.at(index).size;
+  }
+
+  template <typename indices_t, std::size_t kSize>
+  Measurement<indices_t, kSize> getMeasurement(std::size_t index) const {
+    const auto& entry = m_entries.at(index);
+    const auto* params = m_numbers.data() + entry.offset;
+    const auto* cov = params + entry.size;
+
+    std::array<indices_t, kSize> subspace{};
+    for (std::size_t i = 0; i < kSize; ++i) {
+      subspace[i] = static_cast<indices_t>(entry.subspace[i]);
+    }
+
+    return {entry.source, subspace,
+            Eigen::Map<const Eigen::Matrix<double, kSize, 1>>(params, kSize),
+            Eigen::Map<const Eigen::Matrix<double, kSize, kSize>>(cov, kSize,
+                                                                  kSize)};
+  }
+
+  BoundVariantMeasurement getBoundMeasurement(std::size_t index) const {
+    switch (getMeasurementSize(index)) {
+      case 1:
+        return getMeasurement<BoundIndices, 1>(index);
+      case 2:
+        return getMeasurement<BoundIndices, 2>(index);
+      case 3:
+        return getMeasurement<BoundIndices, 3>(index);
+      case 4:
+        return getMeasurement<BoundIndices, 4>(index);
+      case 5:
+        return getMeasurement<BoundIndices, 5>(index);
+      case 6:
+        return getMeasurement<BoundIndices, 6>(index);
+      default:
+        throw std::runtime_error("Unsupported measurement size");
+    }
+  }
+
+ private:
+  struct Entry {
+    std::size_t size;
+    SourceLink source;
+    std::array<std::uint8_t, 8> subspace;
+    std::size_t offset;
+  };
+
+  std::vector<Entry> m_entries;
+  std::vector<double> m_numbers;
+};
+
 }  // namespace Acts

@@ -227,7 +227,7 @@ ActsExamples::ProcessCode ActsExamples::PlanarSteppingAlgorithm::execute(
       // add to output containers. since the input is already geometry-order,
       // new elements in geometry containers can just be appended at the end.
       clusters.emplace_hint(clusters.end(), moduleGeoId, std::move(cluster));
-      measurements.emplace_back(std::move(meas));
+      measurements.addMeasurement(std::move(meas));
       // no hit merging -> only one mapping per digitized hit.
       hitParticlesMap.emplace_hint(hitParticlesMap.end(), hitIdx,
                                    simHit.particleId());

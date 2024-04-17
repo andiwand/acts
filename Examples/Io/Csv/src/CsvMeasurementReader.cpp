@@ -270,7 +270,7 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementReader::read(
 
   MeasurementContainer measurements;
   for (auto& [_, meas] : orderedMeasurements) {
-    measurements.emplace_back(std::move(meas));
+    measurements.addMeasurement(meas);
   }
 
   // Generate measurement-particles-map

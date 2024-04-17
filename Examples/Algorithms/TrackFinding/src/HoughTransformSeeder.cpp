@@ -538,7 +538,7 @@ void ActsExamples::HoughTransformSeeder::addMeasurements(
                   cov.block<2, 2>(Acts::eBoundLoc0, Acts::eBoundLoc0);
               return std::make_pair(lpar, lcov);
             },
-            measurements[sourceLink.index()]);
+            measurements.getBoundMeasurement(sourceLink.index()));
 
         // transform local position to global coordinates
         Acts::Vector3 globalFakeMom(1, 1, 1);

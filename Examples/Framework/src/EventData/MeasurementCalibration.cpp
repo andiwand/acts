@@ -35,7 +35,7 @@ void ActsExamples::PassThroughCalibrator::calibrate(
         trackState.allocateCalibrated(meas.size());
         trackState.setCalibrated(meas);
       },
-      (measurements)[idxSourceLink.index()]);
+      measurements.getBoundMeasurement(idxSourceLink.index()));
 }
 
 ActsExamples::MeasurementCalibratorAdapter::MeasurementCalibratorAdapter(

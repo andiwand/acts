@@ -91,7 +91,7 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementWriter::writeT(
                           << " measurements in this event.");
 
   for (Index measIdx = 0u; measIdx < measurements.size(); ++measIdx) {
-    const auto& measurement = measurements[measIdx];
+    const auto& measurement = measurements.getBoundMeasurement(measIdx);
 
     auto simHitIndices = makeRange(measurementSimHitsMap.equal_range(measIdx));
     for (auto [_, simHitIdx] : simHitIndices) {

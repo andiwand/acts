@@ -22,6 +22,6 @@ using Measurement = ::Acts::BoundVariantMeasurement;
 /// In contrast to the source links, the measurements themself must not be
 /// orderable. The source links stored in the measurements are treated
 /// as opaque here and no ordering is enforced on the stored measurements.
-using MeasurementContainer = std::vector<Measurement>;
+using MeasurementContainer = ::Acts::MeasurementContainer;
 
 }  // namespace ActsExamples

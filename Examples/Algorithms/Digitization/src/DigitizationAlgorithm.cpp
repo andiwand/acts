@@ -265,7 +265,7 @@ ActsExamples::ProcessCode ActsExamples::DigitizationAlgorithm::execute(
             // be added at the end.
             sourceLinks.insert(sourceLinks.end(), sourceLink);
 
-            measurements.emplace_back(
+            measurements.addMeasurement(
                 createMeasurement(dParameters, sourceLink));
             clusters.emplace_back(std::move(dParameters.cluster));
             // this digitization does hit merging so there can be more than one

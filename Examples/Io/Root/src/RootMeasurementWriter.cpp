@@ -115,7 +115,7 @@ ActsExamples::ProcessCode ActsExamples::RootMeasurementWriter::writeT(
   std::lock_guard<std::mutex> lock(m_writeMutex);
 
   for (Index hitIdx = 0u; hitIdx < measurements.size(); ++hitIdx) {
-    const auto& meas = measurements[hitIdx];
+    const auto& meas = measurements.getBoundMeasurement(hitIdx);
 
     std::visit(
         [&](const auto& m) {

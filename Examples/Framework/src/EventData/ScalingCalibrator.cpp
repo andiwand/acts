@@ -178,5 +178,5 @@ void ActsExamples::ScalingCalibrator::calibrate(
         trackState.allocateCalibrated(cmeas.size());
         trackState.setCalibrated(cmeas);
       },
-      (measurements)[idxSourceLink.index()]);
+      measurements.getBoundMeasurement(idxSourceLink.index()));
 }

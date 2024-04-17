@@ -56,7 +56,7 @@ BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
     auto m = Acts::makeMeasurement(Acts::SourceLink{sl}, p, c, Acts::eBoundLoc0,
                                    Acts::eBoundLoc1);
 
-    measOriginal.push_back(m);
+    measOriginal.addMeasurement(m);
 
     ActsExamples::Cluster cl;
 
@@ -143,8 +143,9 @@ BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
   static_assert(
       std::is_same_v<std::decay_t<decltype(measRead)>, decltype(measOriginal)>);
   BOOST_REQUIRE(measRead.size() == measOriginal.size());
-  for (const auto &[a, b] : Acts::zip(measRead, measOriginal)) {
-    std::visit(checkMeasurementClose, a, b);
+  for (std::size_t i = 0; i < measRead.size(); ++i) {
+    std::visit(checkMeasurementClose, measRead.getBoundMeasurement(i),
+               measOriginal.getBoundMeasurement(i));
   }
 
   static_assert(std::is_same_v<std::decay_t<decltype(clusterRead)>,
