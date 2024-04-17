@@ -286,13 +286,16 @@ class MeasurementContainer {
   template <typename indices_t, std::size_t kSize>
   Measurement<indices_t, kSize> getMeasurement(std::size_t index) const {
     const auto& entry = m_entries.at(index);
-    const auto* params = m_numbers.data() + entry.offset;
-    const auto* cov = params + entry.size;
+
+    assert(entry.size == kSize);
 
     std::array<indices_t, kSize> subspace{};
     for (std::size_t i = 0; i < kSize; ++i) {
       subspace[i] = static_cast<indices_t>(entry.subspace[i]);
     }
+
+    const auto* params = m_numbers.data() + entry.offset;
+    const auto* cov = params + kSize;
 
     return {entry.source, subspace,
             Eigen::Map<const Eigen::Matrix<double, kSize, 1>>(params, kSize),
