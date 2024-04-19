@@ -16,13 +16,13 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Io/Root/RootUtility.hpp"
 #include "ActsFatras/EventData/Particle.hpp"
 
 #include <iostream>
 #include <stdexcept>
 
 #include <TChain.h>
-#include <TMathBase.h>
 
 namespace ActsExamples {
 
@@ -97,13 +97,12 @@ RootTrackSummaryReader::RootTrackSummaryReader(
   m_events = m_inputChain->GetEntries();
   ACTS_DEBUG("The full chain has " << m_events << " entries.");
 
-  // If the events are not ordered, we need to sort them
+  // Sort the entry numbers of the events
   {
     m_entryNumbers.resize(m_events);
     m_inputChain->Draw("event_nr", "", "goff");
-    // Sort to get the entry numbers of the ordered events
-    TMath::Sort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
-                m_entryNumbers.data(), false);
+    RootUtility::stableSort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
+                            m_entryNumbers.data(), false);
   }
 }
 

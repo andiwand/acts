@@ -15,9 +15,7 @@
 
 #include <boost/algorithm/string.hpp>
 
-namespace Acts {
-
-namespace Test {
+namespace Acts::Test {
 
 /// This is a test function that tests the validity of an obj stream
 /// It tests for special characters that are not allowed to be contained
@@ -122,7 +120,7 @@ struct PlyElement {
 ///
 /// @return a vector of failure messages
 inline static std::vector<std::string> testPlyString(const std::string& tString,
-                                                     bool triMesh = false) {
+                                                     bool /*triMesh*/ = false) {
   std::vector<std::string> errorStrings;
   const std::string w = "[ Invalid ply : ";
 
@@ -221,11 +219,7 @@ inline static std::vector<std::string> testPlyString(const std::string& tString,
     }
   }
 
-  (void)triMesh;
-
   return errorStrings;
 }
 
-}  // namespace Test
-
-}  // namespace Acts
+}  // namespace Acts::Test

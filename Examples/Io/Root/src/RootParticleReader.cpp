@@ -12,6 +12,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Io/Root/RootUtility.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 
 #include <algorithm>
@@ -20,7 +21,6 @@
 #include <stdexcept>
 
 #include <TChain.h>
-#include <TMathBase.h>
 
 namespace ActsExamples {
 
@@ -73,13 +73,12 @@ RootParticleReader::RootParticleReader(const RootParticleReader::Config& config,
   m_events = m_inputChain->GetEntries();
   ACTS_DEBUG("The full chain has " << m_events << " entries.");
 
-  // If the events are not ordered, we need to sort the entry numbers
+  // Sort the entry numbers of the events
   {
     m_entryNumbers.resize(m_events);
     m_inputChain->Draw("event_id", "", "goff");
-    // Sort to get the entry numbers of the ordered events
-    TMath::Sort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
-                m_entryNumbers.data(), false);
+    RootUtility::stableSort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
+                            m_entryNumbers.data(), false);
   }
 }
 
@@ -146,7 +145,7 @@ ProcessCode RootParticleReader::read(const AlgorithmContext& context) {
                    (*m_vy)[i] * Acts::UnitConstants::mm,
                    (*m_vz)[i] * Acts::UnitConstants::mm,
                    (*m_vt)[i] * Acts::UnitConstants::mm);
-    // NOTE: depends on the normalization done in setDirection
+    // NOTE: direction is normalized inside `setDirection`
     p.setDirection((*m_px)[i], (*m_py)[i], (*m_pz)[i]);
     p.setAbsoluteMomentum((*m_p)[i] * Acts::UnitConstants::GeV);
 
