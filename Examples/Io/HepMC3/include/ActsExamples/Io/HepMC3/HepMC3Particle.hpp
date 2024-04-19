@@ -22,11 +22,6 @@ namespace ActsExamples::HepMC3Particle {
 /// @return corresponding Acts barcode
 SimBarcode barcode(const HepMC3::ConstGenParticlePtr& particle);
 
-/// @brief Returns the barcode translated into Acts
-/// @param particle HepMC3::GenParticle particle
-/// @return corresponding Acts barcode
-SimBarcode barcode(const HepMC3::ConstGenParticlePtr& particle);
-
 /// @brief Returns the particle translated into Acts
 /// @param particle HepMC3::GenParticle particle
 /// @return corresponding Acts particle

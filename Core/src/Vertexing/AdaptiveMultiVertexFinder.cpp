@@ -521,7 +521,7 @@ Result<bool> AdaptiveMultiVertexFinder::isMergedVertex(
         auto sumCovZTInverse = safeInverse(sumCovZT);
         if (!sumCovZTInverse) {
           ACTS_ERROR("Vertex z-t covariance matrix is singular.");
-          ACTS_ERROR("SumCovZT:\n" << sumCovZT);
+          ACTS_ERROR("sumCovZT:\n" << sumCovZT);
           return Result<bool>::failure(VertexingError::SingularMatrix);
         }
         significance = std::sqrt(deltaZT.dot(*sumCovZTInverse * deltaZT));
