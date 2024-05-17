@@ -6,28 +6,40 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/Geometry/GeometryIdentifier.hpp"
+
+#include <algorithm>
+
 namespace Acts {
 
+template <typename Derived>
 template <typename traj_t>
 Result<
     std::pair<typename std::vector<typename traj_t::TrackStateProxy>::iterator,
               typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
-MeasurementSelector::select(
-    std::vector<typename traj_t::TrackStateProxy>& candidates, bool& isOutlier,
-    const Logger& logger) const {
+MeasurementSelector<Derived>::select(
+    const Surface& surface, traj_t* fittedStates, std::size_t prevTipIndex,
+    const BoundTrackParameters& boundParams,
+    typename std::vector<typename traj_t::TrackStateProxy>& candidates,
+    bool& isOutlier, const Logger& logger) const {
   using Result = Result<std::pair<
       typename std::vector<typename traj_t::TrackStateProxy>::iterator,
       typename std::vector<typename traj_t::TrackStateProxy>::iterator>>;
 
   ACTS_VERBOSE("Invoked MeasurementSelector");
 
-  // Return error if no measurement
-  if (candidates.empty()) {
+  auto measurements = Derived::measurements(surface, logger);
+
+  if (measurements.begin() == measurements.end()) {
+    // TODO no measurements on this surface, what to do?
     return CombinatorialKalmanFilterError::MeasurementSelectionFailed;
   }
 
+  // TODO the surface dependent cuts could be delegated to the derived class
+
   // Get geoID of this surface
-  auto geoID = candidates.front().referenceSurface().geometryId();
+  GeometryIdentifier geoID = surface.geometryId();
   // Find the appropriate cuts
   auto cuts = m_config.find(geoID);
   if (cuts == m_config.end()) {
@@ -49,52 +61,36 @@ MeasurementSelector::select(
     return CombinatorialKalmanFilterError::MeasurementSelectionFailed;
   }
 
+  unsigned int measurementSize = Derived::measurementSize(surface, logger);
+  BoundMatrix projector = Derived::projector(surface, logger);
+
+  // TODO cache vector
+  std::vector<double> chi2s;
+  chi2s.reserve(candidates.size());
+
   double minChi2 = std::numeric_limits<double>::max();
   std::size_t minIndex = std::numeric_limits<std::size_t>::max();
-
-  isOutlier = false;
-
-  // Loop over all measurements to select the compatible measurements
-  // Sort track states which do not satisfy the chi2 cut to the end.
-  // When done trackStateIterEnd will point to the first element that
-  // does not satisfy the chi2 cut.
   std::size_t passedCandidates = 0ul;
-  for (std::size_t i(0ul); i < candidates.size(); ++i) {
-    auto& trackState = candidates[i];
 
-    // This abuses an incorrectly sized vector / matrix to access the
-    // data pointer! This works (don't use the matrix as is!), but be
-    // careful!
+  // Calculate the chi2 for each measurement
+  for (const auto& [i, measurement] : enumerate(measurements)) {
     double chi2 = calculateChi2(
-        trackState
-            .template calibrated<MultiTrajectoryTraits::MeasurementSizeMax>()
-            .data(),
-        trackState
-            .template calibratedCovariance<
-                MultiTrajectoryTraits::MeasurementSizeMax>()
-            .data(),
-        trackState.predicted(), trackState.predictedCovariance(),
-        trackState.projector(), trackState.calibratedSize());
-    trackState.chi2() = chi2;
+        measurementSize, Derived::extractCalibrated(measurement),
+        Derived::extractCalibratedCovariance(measurement),
+        boundParams.parameters(), boundParams.covariance(), projector);
+    chi2s.push_back(chi2);
 
     if (chi2 < minChi2) {
       minChi2 = chi2;
       minIndex = i;
     }
 
-    // only consider track states which pass the chi2 cut
-    if (chi2 >= maxChi2Cut) {
-      continue;
+    if (chi2 <= maxChi2Cut) {
+      passedCandidates++;
     }
-
-    if (passedCandidates != i) {
-      std::swap(candidates[passedCandidates], candidates[i]);
-      if (minIndex == i) {
-        minIndex = passedCandidates;
-      }
-    }
-    ++passedCandidates;
   }
+
+  isOutlier = false;
 
   // If there are no measurements below the chi2 cut off, return the
   // measurement with the best chi2 and tag it as an outlier
@@ -111,9 +107,9 @@ MeasurementSelector::select(
                                           candidates.begin() + minIndex + 1));
   }
 
-  std::sort(
-      candidates.begin(), candidates.begin() + passedCandidates,
-      [](const auto& tsa, const auto& tsb) { return tsa.chi2() < tsb.chi2(); });
+  // TODO partial sort
+
+  // TODO create candidates
 
   if (passedCandidates <= numMeasurementsCut) {
     ACTS_VERBOSE("Number of selected measurements: "
@@ -129,11 +125,12 @@ MeasurementSelector::select(
       candidates.begin(), candidates.begin() + numMeasurementsCut));
 }
 
+template <typename Derived>
 template <typename traj_t, typename cut_value_t>
-cut_value_t MeasurementSelector::getCut(
+cut_value_t MeasurementSelector<Derived>::getCut(
     const typename traj_t::TrackStateProxy& trackState,
-    const Acts::MeasurementSelector::Config::Iterator selector,
-    const std::vector<cut_value_t>& cuts, const Logger& logger) {
+    const Config::Iterator selector, const std::vector<cut_value_t>& cuts,
+    const Logger& logger) {
   const auto& etaBins = selector->etaBins;
   if (etaBins.empty()) {
     return cuts[0];  // shortcut if no etaBins

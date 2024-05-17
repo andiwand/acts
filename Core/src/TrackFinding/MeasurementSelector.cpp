@@ -9,59 +9,40 @@
 #include "Acts/TrackFinding/MeasurementSelector.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/MeasurementHelpers.hpp"
 
 #include <algorithm>
 
-namespace Acts {
+double Acts::calculateChi2(unsigned int calibratedSize,
+                           const double* calibratedRaw,
+                           const double* calibratedCovarianceRaw,
+                           const BoundVector& predicted,
+                           const BoundMatrix& predictedCovariance,
+                           const BoundMatrix& projector) {
+  return visit_measurement(calibratedSize, [&](auto N) -> double {
+    constexpr std::size_t kMeasurementSize = decltype(N)::value;
 
-MeasurementSelector::MeasurementSelector()
-    : m_config{{GeometryIdentifier(), MeasurementSelectorCuts{}}} {}
+    typename TrackStateTraits<kMeasurementSize, true>::Measurement calibrated{
+        calibratedRaw};
 
-MeasurementSelector::MeasurementSelector(const MeasurementSelectorCuts& cuts)
-    : m_config{{GeometryIdentifier(), cuts}} {}
+    typename TrackStateTraits<kMeasurementSize, true>::MeasurementCovariance
+        calibratedCovariance{calibratedCovarianceRaw};
 
-MeasurementSelector::MeasurementSelector(Config config)
-    : m_config(std::move(config)) {}
+    using ParametersVector = ActsVector<kMeasurementSize>;
 
-double MeasurementSelector::calculateChi2(
-    const double* fullCalibrated, const double* fullCalibratedCovariance,
-    TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                     false>::Parameters predicted,
-    TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                     false>::Covariance predictedCovariance,
-    TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                     false>::Projector projector,
-    unsigned int calibratedSize) const {
-  return visit_measurement(
-      calibratedSize,
-      [&fullCalibrated, &fullCalibratedCovariance, &predicted,
-       &predictedCovariance, &projector](auto N) -> double {
-        constexpr std::size_t kMeasurementSize = decltype(N)::value;
+    // Take the projector (measurement mapping function)
+    const auto H =
+        projector.template topLeftCorner<kMeasurementSize, eBoundSize>().eval();
 
-        typename TrackStateTraits<kMeasurementSize, true>::Measurement
-            calibrated{fullCalibrated};
+    // Get the residuals
+    ParametersVector res = calibrated - H * predicted;
 
-        typename TrackStateTraits<kMeasurementSize, true>::MeasurementCovariance
-            calibratedCovariance{fullCalibratedCovariance};
-
-        using ParametersVector = ActsVector<kMeasurementSize>;
-
-        // Take the projector (measurement mapping function)
-        const auto H =
-            projector.template topLeftCorner<kMeasurementSize, eBoundSize>()
-                .eval();
-
-        // Get the residuals
-        ParametersVector res = calibrated - H * predicted;
-
-        // Get the chi2
-        return (res.transpose() *
-                (calibratedCovariance + H * predictedCovariance * H.transpose())
-                    .inverse() *
-                res)
-            .eval()(0, 0);
-      });
+    // Get the chi2
+    return (res.transpose() *
+            (calibratedCovariance + H * predictedCovariance * H.transpose())
+                .inverse() *
+            res)
+        .eval()(0, 0);
+  });
 }
-
-}  // namespace Acts

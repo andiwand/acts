@@ -101,7 +101,7 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     /// Type erased track finder function.
     std::shared_ptr<TrackFinderFunction> findTracks;
     /// CKF measurement selector config
-    Acts::MeasurementSelector::Config measurementSelectorCfg;
+    Acts::MeasurementSelectorConfig measurementSelectorCfg;
     /// Track selector config
     std::optional<std::variant<Acts::TrackSelector::Config,
                                Acts::TrackSelector::EtaBinnedConfig>>

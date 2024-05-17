@@ -43,6 +43,14 @@ struct MeasurementSelectorCuts {
   std::vector<std::size_t> numMeasurementsCutOff{1};
 };
 
+using MeasurementSelectorConfig = GeometryHierarchyMap<MeasurementSelectorCuts>;
+
+double calculateChi2(unsigned int calibratedSize, const double* calibratedRaw,
+                     const double* calibratedCovarianceRaw,
+                     const BoundVector& predicted,
+                     const BoundMatrix& predictedCovariance,
+                     const BoundMatrix& projector);
+
 /// @brief Measurement selection struct selecting those measurements compatible
 /// with the given track parameter against provided criteria on one surface
 ///
@@ -51,7 +59,7 @@ struct MeasurementSelectorCuts {
 ///
 /// If there is no compatible measurement, the measurement with the minimum
 /// chi2 will be selected and the status will be tagged as an outlier
-///
+template <typename Derived>
 class MeasurementSelector {
  public:
   /// Geometry-dependent cut configuration.
@@ -59,22 +67,24 @@ class MeasurementSelector {
   /// Different components on the geometry can require different cut settings.
   /// The configuration must either contain explicit settings for all geometry
   /// components that are used or contain a global default.
-  using Config = Acts::GeometryHierarchyMap<MeasurementSelectorCuts>;
+  using Config = MeasurementSelectorConfig;
 
   /// @brief Default constructor
   ///
   /// This will use the default configuration for the cuts.
-  MeasurementSelector();
+  MeasurementSelector()
+      : m_config{{GeometryIdentifier(), MeasurementSelectorCuts{}}} {}
 
   /// @brief Constructor with cuts
   ///
   /// @param cuts The cuts to use
-  explicit MeasurementSelector(const MeasurementSelectorCuts& cuts);
+  explicit MeasurementSelector(const MeasurementSelectorCuts& cuts)
+      : m_config{{GeometryIdentifier(), cuts}} {}
 
   /// @brief Constructor with config
   ///
   /// @param config a config instance
-  explicit MeasurementSelector(Config config);
+  explicit MeasurementSelector(Config config) : m_config(std::move(config)) {}
 
   /// @brief Function that select the measurements compatible with
   /// the given track parameter on a surface
@@ -84,31 +94,21 @@ class MeasurementSelector {
   /// @param logger The logger wrapper
   ///
   /// @return Pair of iterators into @a candidates marking the range of selected candidates
-  ///
-
   template <typename traj_t>
   Result<std::pair<
       typename std::vector<typename traj_t::TrackStateProxy>::iterator,
       typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
-  select(std::vector<typename traj_t::TrackStateProxy>& candidates,
+  select(const Surface& surface, traj_t* fittedStates, std::size_t prevTipIndex,
+         const BoundTrackParameters& boundParams,
+         typename std::vector<typename traj_t::TrackStateProxy>& candidates,
          bool& isOutlier, const Logger& logger) const;
 
  private:
   template <typename traj_t, typename cut_value_t>
-  static cut_value_t getCut(
-      const typename traj_t::TrackStateProxy& trackState,
-      const Acts::MeasurementSelector::Config::Iterator selector,
-      const std::vector<cut_value_t>& cuts, const Logger& logger);
-
-  double calculateChi2(
-      const double* fullCalibrated, const double* fullCalibratedCovariance,
-      TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                       false>::Parameters predicted,
-      TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                       false>::Covariance predictedCovariance,
-      TrackStateTraits<MultiTrajectoryTraits::MeasurementSizeMax,
-                       false>::Projector projector,
-      unsigned int calibratedSize) const;
+  static cut_value_t getCut(const typename traj_t::TrackStateProxy& trackState,
+                            const Config::Iterator selector,
+                            const std::vector<cut_value_t>& cuts,
+                            const Logger& logger);
 
   Config m_config;
 };

@@ -73,19 +73,37 @@ namespace ActsExamples {
 
 namespace {
 
-class MeasurementSelector {
+class MeasurementSelector
+    : public Acts::MeasurementSelector<MeasurementSelector> {
  public:
+  using Base = Acts::MeasurementSelector<MeasurementSelector>;
   using Traj = Acts::VectorMultiTrajectory;
 
-  explicit MeasurementSelector(Acts::MeasurementSelector selector)
-      : m_selector(std::move(selector)) {}
+  /// @brief Default constructor
+  ///
+  /// This will use the default configuration for the cuts.
+  MeasurementSelector() : Base() {}
+
+  /// @brief Constructor with cuts
+  ///
+  /// @param cuts The cuts to use
+  explicit MeasurementSelector(const Acts::MeasurementSelectorCuts& cuts)
+      : Base(cuts) {}
+
+  /// @brief Constructor with config
+  ///
+  /// @param config a config instance
+  explicit MeasurementSelector(Config config) : Base(std::move(config)) {}
 
   void setSeed(const std::optional<SimSeed>& seed) { m_seed = seed; }
 
   Acts::Result<std::pair<std::vector<Traj::TrackStateProxy>::iterator,
                          std::vector<Traj::TrackStateProxy>::iterator>>
-  select(std::vector<Traj::TrackStateProxy>& candidates, bool& isOutlier,
-         const Acts::Logger& logger) const {
+  select(const Acts::Surface& surface, Traj* fittedStates,
+         std::size_t prevTipIndex,
+         const Acts::BoundTrackParameters& boundParams,
+         typename std::vector<typename Traj::TrackStateProxy>& candidates,
+         bool& isOutlier, const Acts::Logger& logger) const {
     if (m_seed.has_value()) {
       std::vector<Traj::TrackStateProxy> newCandidates;
 
@@ -100,12 +118,11 @@ class MeasurementSelector {
       }
     }
 
-    return m_selector.select<Acts::VectorMultiTrajectory>(candidates, isOutlier,
-                                                          logger);
+    return Base::select<Traj>(surface, fittedStates, prevTipIndex, boundParams,
+                              candidates, isOutlier, logger);
   }
 
  private:
-  Acts::MeasurementSelector m_selector;
   std::optional<SimSeed> m_seed;
 
   bool isSeedCandidate(const Traj::TrackStateProxy& candidate) const {
@@ -298,8 +315,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   PassThroughCalibrator pcalibrator;
   MeasurementCalibratorAdapter calibrator(pcalibrator, measurements);
   Acts::GainMatrixUpdater kfUpdater;
-  MeasurementSelector measSel{
-      Acts::MeasurementSelector(m_cfg.measurementSelectorCfg)};
+  MeasurementSelector measSel{m_cfg.measurementSelectorCfg};
 
   using Extensions =
       Acts::CombinatorialKalmanFilterExtensions<Acts::VectorMultiTrajectory>;
@@ -316,12 +332,6 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
       &measSel);
   extensions.branchStopper.connect<&BranchStopper::operator()>(&branchStopper);
 
-  IndexSourceLinkAccessor slAccessor;
-  slAccessor.container = &sourceLinks;
-  Acts::SourceLinkAccessorDelegate<IndexSourceLinkAccessor::Iterator>
-      slAccessorDelegate;
-  slAccessorDelegate.connect<&IndexSourceLinkAccessor::range>(&slAccessor);
-
   Acts::PropagatorPlainOptions firstPropOptions;
   firstPropOptions.maxSteps = m_cfg.maxSteps;
   firstPropOptions.direction = Acts::Direction::Forward;
@@ -332,12 +342,12 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
   // Set the CombinatorialKalmanFilter options
   TrackFindingAlgorithm::TrackFinderOptions firstOptions(
-      ctx.geoContext, ctx.magFieldContext, ctx.calibContext, slAccessorDelegate,
-      extensions, firstPropOptions);
+      ctx.geoContext, ctx.magFieldContext, ctx.calibContext, extensions,
+      firstPropOptions);
 
   TrackFindingAlgorithm::TrackFinderOptions secondOptions(
-      ctx.geoContext, ctx.magFieldContext, ctx.calibContext, slAccessorDelegate,
-      extensions, secondPropOptions);
+      ctx.geoContext, ctx.magFieldContext, ctx.calibContext, extensions,
+      secondPropOptions);
   secondOptions.targetSurface = pSurface.get();
 
   Acts::Propagator<Acts::EigenStepper<>, Acts::Navigator> extrapolator(
