@@ -1,15 +1,15 @@
 // This file is part of the Acts project.
 //
-// Copyright (C) 2020-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2020-2024 CERN for the benefit of the Acts project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "Acts/Vertexing/AdaptiveGridDensityVertexFinder.hpp"
+#include "Acts/Vertexing/SparseGridDensityVertexFinder.hpp"
 
 Acts::Result<std::vector<Acts::Vertex>>
-Acts::AdaptiveGridDensityVertexFinder::find(
+Acts::SparseGridDensityVertexFinder::find(
     const std::vector<InputTrack>& trackVector,
     const VertexingOptions& vertexingOptions,
     IVertexFinder::State& anyState) const {
@@ -81,8 +81,6 @@ Acts::AdaptiveGridDensityVertexFinder::find(
   Vector4 seedPos =
       vertexingOptions.constraint.fullPosition() + Vector4(0., 0., z, t);
 
-  Vertex returnVertex = Vertex(seedPos);
-
   SquareMatrix4 seedCov = vertexingOptions.constraint.fullCovariance();
 
   if (zWidth != 0.) {
@@ -90,12 +88,12 @@ Acts::AdaptiveGridDensityVertexFinder::find(
     seedCov(2, 2) = zWidth * zWidth;
   }
 
+  Vertex returnVertex = seedPos;
   returnVertex.setFullCovariance(seedCov);
-
   return std::vector<Vertex>{returnVertex};
 }
 
-bool Acts::AdaptiveGridDensityVertexFinder::doesPassTrackSelection(
+bool Acts::SparseGridDensityVertexFinder::doesPassTrackSelection(
     const BoundTrackParameters& trk) const {
   // Get required track parameters
   const double d0 = trk.parameters()[BoundIndices::eBoundLoc0];
@@ -121,12 +119,12 @@ bool Acts::AdaptiveGridDensityVertexFinder::doesPassTrackSelection(
 
   // Calculate track density quantities to check if track can easily
   // be considered as 2-dim Gaussian distribution without causing problems
-  double constantTerm =
+  const double constantTerm =
       -(d0 * d0 * covZZ + z0 * z0 * covDD + 2. * d0 * z0 * covDZ) /
       (2. * covDeterminant);
   const double linearTerm = (d0 * covDZ + z0 * covDD) / covDeterminant;
   const double quadraticTerm = -covDD / (2. * covDeterminant);
-  double discriminant =
+  const double discriminant =
       linearTerm * linearTerm -
       4. * quadraticTerm * (constantTerm + 2. * m_cfg.z0SignificanceCut);
   if (discriminant < 0) {

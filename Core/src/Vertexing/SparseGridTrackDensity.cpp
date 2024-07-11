@@ -1,12 +1,12 @@
 // This file is part of the Acts project.
 //
-// Copyright (C) 2020-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2020-2024 CERN for the benefit of the Acts project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#include "Acts/Vertexing/AdaptiveGridTrackDensity.hpp"
+#include "Acts/Vertexing/SparseGridTrackDensity.hpp"
 
 #include "Acts/Utilities/AlgebraHelpers.hpp"
 #include "Acts/Vertexing/VertexingError.hpp"
@@ -37,19 +37,19 @@ double multivariateGaussian(const ActsVector<nDim>& args,
 
 }  // namespace
 
-double AdaptiveGridTrackDensity::getBinCenter(std::int32_t bin,
-                                              double binExtent) {
+double SparseGridTrackDensity::getBinCenter(std::int32_t bin,
+                                            double binExtent) {
   return bin * binExtent;
 }
 
-std::int32_t AdaptiveGridTrackDensity::getBin(double value, double binExtent) {
+std::int32_t SparseGridTrackDensity::getBin(double value, double binExtent) {
   return static_cast<int>(std::floor(value / binExtent - 0.5) + 1);
 }
 
-std::uint32_t AdaptiveGridTrackDensity::getTrkGridSize(
+std::uint32_t SparseGridTrackDensity::getTrkGridSize(
     double sigma, double nTrkSigmas, double binExtent,
     const GridSizeRange& trkGridSizeRange) {
-  std::uint32_t size =
+  auto size =
       static_cast<std::uint32_t>(std::ceil(2 * nTrkSigmas * sigma / binExtent));
   // Make sure the grid size is odd
   if (size % 2 == 0) {
@@ -65,35 +65,35 @@ std::uint32_t AdaptiveGridTrackDensity::getTrkGridSize(
   return size;
 }
 
-std::int32_t AdaptiveGridTrackDensity::getSpatialBin(double value) const {
+std::int32_t SparseGridTrackDensity::getSpatialBin(double value) const {
   return getBin(value, m_cfg.spatialBinExtent);
 }
 
-std::int32_t AdaptiveGridTrackDensity::getTemporalBin(double value) const {
+std::int32_t SparseGridTrackDensity::getTemporalBin(double value) const {
   if (!m_cfg.useTime) {
     return 0;
   }
   return getBin(value, m_cfg.temporalBinExtent);
 }
 
-double AdaptiveGridTrackDensity::getSpatialBinCenter(std::int32_t bin) const {
+double SparseGridTrackDensity::getSpatialBinCenter(std::int32_t bin) const {
   return getBinCenter(bin, m_cfg.spatialBinExtent);
 }
 
-double AdaptiveGridTrackDensity::getTemporalBinCenter(std::int32_t bin) const {
+double SparseGridTrackDensity::getTemporalBinCenter(std::int32_t bin) const {
   if (!m_cfg.useTime) {
     return 0.;
   }
   return getBinCenter(bin, m_cfg.temporalBinExtent);
 }
 
-std::uint32_t AdaptiveGridTrackDensity::getSpatialTrkGridSize(
+std::uint32_t SparseGridTrackDensity::getSpatialTrkGridSize(
     double sigma) const {
   return getTrkGridSize(sigma, m_cfg.nSpatialTrkSigmas, m_cfg.spatialBinExtent,
                         m_cfg.spatialTrkGridSizeRange);
 }
 
-std::uint32_t AdaptiveGridTrackDensity::getTemporalTrkGridSize(
+std::uint32_t SparseGridTrackDensity::getTemporalTrkGridSize(
     double sigma) const {
   if (!m_cfg.useTime) {
     return 1;
@@ -103,33 +103,32 @@ std::uint32_t AdaptiveGridTrackDensity::getTemporalTrkGridSize(
                         m_cfg.temporalTrkGridSizeRange);
 }
 
-AdaptiveGridTrackDensity::AdaptiveGridTrackDensity(const Config& cfg)
-    : m_cfg(cfg) {
+SparseGridTrackDensity::SparseGridTrackDensity(const Config& cfg) : m_cfg(cfg) {
   if (m_cfg.spatialTrkGridSizeRange.first &&
       m_cfg.spatialTrkGridSizeRange.first.value() % 2 == 0) {
     throw std::invalid_argument(
-        "AdaptiveGridTrackDensity: spatialTrkGridSizeRange.first must be odd");
+        "SparseGridTrackDensity: spatialTrkGridSizeRange.first must be odd");
   }
   if (m_cfg.spatialTrkGridSizeRange.second &&
       m_cfg.spatialTrkGridSizeRange.second.value() % 2 == 0) {
     throw std::invalid_argument(
-        "AdaptiveGridTrackDensity: spatialTrkGridSizeRange.second must be odd");
+        "SparseGridTrackDensity: spatialTrkGridSizeRange.second must be odd");
   }
   if (m_cfg.temporalTrkGridSizeRange.first &&
       m_cfg.temporalTrkGridSizeRange.first.value() % 2 == 0) {
     throw std::invalid_argument(
-        "AdaptiveGridTrackDensity: temporalTrkGridSizeRange.first must be odd");
+        "SparseGridTrackDensity: temporalTrkGridSizeRange.first must be odd");
   }
   if (m_cfg.temporalTrkGridSizeRange.second &&
       m_cfg.temporalTrkGridSizeRange.second.value() % 2 == 0) {
     throw std::invalid_argument(
-        "AdaptiveGridTrackDensity: temporalTrkGridSizeRange.second must be "
+        "SparseGridTrackDensity: temporalTrkGridSizeRange.second must be "
         "odd");
   }
 }
 
-AdaptiveGridTrackDensity::DensityMap::const_iterator
-AdaptiveGridTrackDensity::highestDensityEntry(
+SparseGridTrackDensity::DensityMap::const_iterator
+SparseGridTrackDensity::highestDensityEntry(
     const DensityMap& densityMap) const {
   auto maxEntry = std::max_element(
       std::begin(densityMap), std::end(densityMap),
@@ -137,8 +136,8 @@ AdaptiveGridTrackDensity::highestDensityEntry(
   return maxEntry;
 }
 
-Result<AdaptiveGridTrackDensity::ZTPosition>
-AdaptiveGridTrackDensity::getMaxZTPosition(DensityMap& densityMap) const {
+Result<SparseGridTrackDensity::ZTPosition>
+SparseGridTrackDensity::getMaxZTPosition(DensityMap& densityMap) const {
   if (densityMap.empty()) {
     return VertexingError::EmptyInput;
   }
@@ -159,9 +158,8 @@ AdaptiveGridTrackDensity::getMaxZTPosition(DensityMap& densityMap) const {
   return std::make_pair(maxZ, maxT);
 }
 
-Result<AdaptiveGridTrackDensity::ZTPositionAndWidth>
-AdaptiveGridTrackDensity::getMaxZTPositionAndWidth(
-    DensityMap& densityMap) const {
+Result<SparseGridTrackDensity::ZTPositionAndWidth>
+SparseGridTrackDensity::getMaxZTPositionAndWidth(DensityMap& densityMap) const {
   // Get z value where the density is the highest
   auto maxZTRes = getMaxZTPosition(densityMap);
   if (!maxZTRes.ok()) {
@@ -179,7 +177,7 @@ AdaptiveGridTrackDensity::getMaxZTPositionAndWidth(
   return maxZTAndWidth;
 }
 
-AdaptiveGridTrackDensity::DensityMap AdaptiveGridTrackDensity::addTrack(
+SparseGridTrackDensity::DensityMap SparseGridTrackDensity::addTrack(
     const BoundTrackParameters& trk, DensityMap& mainDensityMap) const {
   ActsVector<3> impactParams = trk.impactParameters();
   ActsSquareMatrix<3> cov = trk.impactParameterCovariance().value();
@@ -213,14 +211,14 @@ AdaptiveGridTrackDensity::DensityMap AdaptiveGridTrackDensity::addTrack(
   return trackDensityMap;
 }
 
-void AdaptiveGridTrackDensity::subtractTrack(const DensityMap& trackDensityMap,
-                                             DensityMap& mainDensityMap) const {
+void SparseGridTrackDensity::subtractTrack(const DensityMap& trackDensityMap,
+                                           DensityMap& mainDensityMap) const {
   for (const auto& [bin, density] : trackDensityMap) {
     mainDensityMap[bin] -= density;
   }
 }
 
-AdaptiveGridTrackDensity::DensityMap AdaptiveGridTrackDensity::createTrackGrid(
+SparseGridTrackDensity::DensityMap SparseGridTrackDensity::createTrackGrid(
     const Vector3& impactParams, const Bin& centralBin,
     const SquareMatrix3& cov, std::uint32_t spatialTrkGridSize,
     std::uint32_t temporalTrkGridSize) const {
@@ -268,7 +266,7 @@ AdaptiveGridTrackDensity::DensityMap AdaptiveGridTrackDensity::createTrackGrid(
   return trackDensityMap;
 }
 
-Result<double> AdaptiveGridTrackDensity::estimateSeedWidth(
+Result<double> SparseGridTrackDensity::estimateSeedWidth(
     const DensityMap& densityMap, const ZTPosition& maxZT) const {
   if (densityMap.empty()) {
     return VertexingError::EmptyInput;
@@ -334,7 +332,7 @@ Result<double> AdaptiveGridTrackDensity::estimateSeedWidth(
   return std::isnormal(width) ? width : 0.0;
 }
 
-AdaptiveGridTrackDensity::Bin AdaptiveGridTrackDensity::highestDensitySumBin(
+SparseGridTrackDensity::Bin SparseGridTrackDensity::highestDensitySumBin(
     DensityMap& densityMap) const {
   // The global maximum
   auto firstMax = highestDensityEntry(densityMap);
@@ -384,13 +382,13 @@ AdaptiveGridTrackDensity::Bin AdaptiveGridTrackDensity::highestDensitySumBin(
   return binFirstMax;
 }
 
-double AdaptiveGridTrackDensity::getDensitySum(const DensityMap& densityMap,
-                                               const Bin& bin) const {
+double SparseGridTrackDensity::getDensitySum(const DensityMap& densityMap,
+                                             const Bin& bin) const {
   auto valueOrZero = [&densityMap](const Bin& b) {
     if (auto it = densityMap.find(b); it != densityMap.end()) {
       return it->second;
     }
-    return 0.0f;
+    return 0.0;
   };
 
   // Add density from the bin.

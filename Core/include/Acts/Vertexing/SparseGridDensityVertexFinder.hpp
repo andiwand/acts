@@ -8,39 +8,41 @@
 
 #pragma once
 
-#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Utilities/Result.hpp"
 #include "Acts/Vertexing/DummyVertexFitter.hpp"
-#include "Acts/Vertexing/GaussianGridTrackDensity.hpp"
 #include "Acts/Vertexing/IVertexFinder.hpp"
+#include "Acts/Vertexing/SparseGridTrackDensity.hpp"
+#include "Acts/Vertexing/TrackAtVertex.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
 #include "Acts/Vertexing/VertexingOptions.hpp"
 
-#include <map>
+#include <unordered_map>
 
 namespace Acts {
 
-/// @class GridDensityVertexFinder
 /// @brief Vertex finder that makes use of a track density grid.
-/// Each single track is modelled as a 2(!)-dim Gaussian distribution grid
+///
+/// Each single track is modelled as a 2-dim Gaussian distribution grid
 /// in the d0-z0 plane, but only the overlap with the z-axis (i.e. a 1-dim
 /// density vector) needs to be calculated. All track contributions along the
-/// beam axis (main density grid) a superimposed and the z-value of the bin
+/// beam axis (main density vector) are superimposed and the z-value of the bin
 /// with the highest track density is returned as a vertex candidate.
-class GridDensityVertexFinder final : public IVertexFinder {
+/// Unlike the GridDensityVertexFinder, this seeder implements an adaptive
+/// version where the density grid grows bigger with added tracks.
+class SparseGridDensityVertexFinder final : public IVertexFinder {
  public:
-  using MainGridVector = GaussianGridTrackDensity::MainGridVector;
-  using TrackGridVector = GaussianGridTrackDensity::TrackGridVector;
+  using DensityMap = SparseGridTrackDensity::DensityMap;
 
   /// @brief The Config struct
   struct Config {
     ///@param gDensity The grid density
-    Config(GaussianGridTrackDensity gDensity) : gridDensity(gDensity) {}
+    explicit Config(const SparseGridTrackDensity& gDensity)
+        : gridDensity(gDensity) {}
 
     // The grid density object
-    GaussianGridTrackDensity gridDensity;
+    SparseGridTrackDensity gridDensity;
 
     // Cache the main grid and the density contributions (trackGrid and z-bin)
     // for every single track.
@@ -67,19 +69,14 @@ class GridDensityVertexFinder final : public IVertexFinder {
   ///
   /// Only needed if cacheGridStateForTrackRemoval == true
   struct State {
-    State(MainGridVector mainGrid_) : mainGrid(std::move(mainGrid_)) {}
+    // Map from the z bin values to the corresponding track density
+    DensityMap mainDensityMap;
 
-    // The main density grid
-    MainGridVector mainGrid;
-    // Map to store z-bin and track grid (i.e. the density contribution of
-    // a single track to the main grid) for every single track
-    std::map<InputTrack, std::pair<int, TrackGridVector>> binAndTrackGridMap;
-
-    // Map to store bool if track has passed track selection or not
-    std::map<InputTrack, bool> trackSelectionMap;
+    // Map from input track to corresponding track density map
+    std::unordered_map<InputTrack, DensityMap> trackDensities;
 
     // Store tracks that have been removed from track collection. These
-    // track will be removed from the main grid
+    // tracks will be removed from the main grid
     std::vector<InputTrack> tracksToRemove;
 
     bool isInitialized = false;
@@ -102,9 +99,7 @@ class GridDensityVertexFinder final : public IVertexFinder {
 
   IVertexFinder::State makeState(
       const Acts::MagneticFieldContext& /*mctx*/) const override {
-    return IVertexFinder::State{
-        std::in_place_type<State>,
-        MainGridVector{m_cfg.gridDensity.config().mainGridSize}};
+    return IVertexFinder::State{State{}};
   }
 
   void setTracksToRemove(
@@ -117,13 +112,7 @@ class GridDensityVertexFinder final : public IVertexFinder {
   /// @brief Constructor for user-defined InputTrack type
   ///
   /// @param cfg Configuration object
-  GridDensityVertexFinder(const Config& cfg) : m_cfg(cfg) {
-    if (!m_cfg.extractParameters.connected()) {
-      throw std::invalid_argument(
-          "GridDensityVertexFinder: "
-          "No track parameter extractor provided.");
-    }
-  }
+  explicit SparseGridDensityVertexFinder(const Config& cfg) : m_cfg(cfg) {}
 
  private:
   /// @brief Checks if a track passes the selection criteria for seeding
