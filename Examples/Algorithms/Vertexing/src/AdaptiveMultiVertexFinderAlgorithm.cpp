@@ -30,6 +30,7 @@
 #include "Acts/Vertexing/Vertex.hpp"
 #include "Acts/Vertexing/VertexingOptions.hpp"
 #include "ActsExamples/EventData/ProtoVertex.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -39,6 +40,7 @@
 #include <ostream>
 #include <stdexcept>
 #include <system_error>
+#include <unordered_map>
 #include <utility>
 
 #include "TruthVertexSeeder.hpp"
@@ -50,6 +52,7 @@ namespace {
 
 std::unique_ptr<ActsExamples::TruthVertexSeeder> makeTruthVertexSeeder(
     const AdaptiveMultiVertexFinderAlgorithm::Config& cfg,
+    const SimParticleContainer& truthParticles,
     const SimVertexContainer& truthVertices, const Acts::Logger& logger) {
   using Seeder = ActsExamples::TruthVertexSeeder;
 
@@ -57,13 +60,31 @@ std::unique_ptr<ActsExamples::TruthVertexSeeder> makeTruthVertexSeeder(
   seederConfig.useXY = false;
   seederConfig.useTime = cfg.useTime;
 
+  std::map<SimVertexBarcode, std::size_t> vertexParticleCount;
+
   for (const auto& truthVertex : truthVertices) {
     // Skip secondary vertices
     if (truthVertex.vertexId().vertexSecondary() != 0) {
       continue;
     }
     seederConfig.vertices.push_back(truthVertex);
+
+    // Count the number of particles associated with each vertex
+    std::size_t particleCount = 0;
+    for (const auto& particle : truthParticles) {
+      if (particle.particleId().vertexId() == truthVertex.vertexId()) {
+        ++particleCount;
+      }
+    }
+    vertexParticleCount[truthVertex.vertexId()] = particleCount;
   }
+
+  // sort by number of particles
+  std::sort(seederConfig.vertices.begin(), seederConfig.vertices.end(),
+            [&vertexParticleCount](const auto& lhs, const auto& rhs) {
+              return vertexParticleCount[lhs.vertexId()] >
+                     vertexParticleCount[rhs.vertexId()];
+            });
 
   ACTS_INFO("Got " << truthVertices.size() << " truth vertices and selected "
                    << seederConfig.vertices.size() << " in event");
@@ -117,13 +138,15 @@ AdaptiveMultiVertexFinderAlgorithm::AdaptiveMultiVertexFinderAlgorithm(
 
   // Sanitize the configuration
   if (m_cfg.seedFinder != SeedFinder::TruthSeeder &&
-      !m_cfg.inputTruthVertices.empty()) {
-    ACTS_INFO(
-        "Ignoring input truth vertices as seed finder is not TruthSeeder");
+      (!m_cfg.inputTruthParticles.empty() ||
+       !m_cfg.inputTruthVertices.empty())) {
+    ACTS_INFO("Ignoring truth input as seed finder is not TruthSeeder");
+    m_cfg.inputTruthVertices.clear();
     m_cfg.inputTruthVertices.clear();
   }
 
   m_inputTrackParameters.initialize(m_cfg.inputTrackParameters);
+  m_inputTruthParticles.maybeInitialize(m_cfg.inputTruthParticles);
   m_inputTruthVertices.maybeInitialize(m_cfg.inputTruthVertices);
   m_outputProtoVertices.initialize(m_cfg.outputProtoVertices);
   m_outputVertices.initialize(m_cfg.outputVertices);
@@ -134,7 +157,7 @@ AdaptiveMultiVertexFinderAlgorithm::makeVertexSeeder() const {
   if (m_cfg.seedFinder == SeedFinder::TruthSeeder) {
     // Note that the default config will not generate any vertices. We need the
     // event context to get the truth vertices.
-    return makeTruthVertexSeeder(m_cfg, {}, logger());
+    return makeTruthVertexSeeder(m_cfg, {}, {}, logger());
   }
 
   if (m_cfg.seedFinder == SeedFinder::GaussianSeeder) {
@@ -294,10 +317,12 @@ ProcessCode AdaptiveMultiVertexFinderAlgorithm::execute(
     // In case of the truth seeder, we need to wire the truth vertices into the
     // vertex finder
 
+    const auto& truthParticles = m_inputTruthParticles(ctx);
     const auto& truthVertices = m_inputTruthVertices(ctx);
 
     // Build a new vertex seeder with the truth vertices
-    auto vertexSeeder = makeTruthVertexSeeder(m_cfg, truthVertices, logger());
+    auto vertexSeeder =
+        makeTruthVertexSeeder(m_cfg, truthParticles, truthVertices, logger());
 
     // Build a new vertex finder with the new seeder
     temporaryVertexFinder.emplace(makeVertexFinder(std::move(vertexSeeder)));

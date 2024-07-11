@@ -1983,6 +1983,7 @@ def addVertexFitting(
             seedFinder=seeder,
             bField=field,
             inputTrackParameters=trackParameters,
+            inputTruthParticles=selectedParticles,
             inputTruthVertices=inputTruthVertices,
             outputProtoVertices=outputProtoVertices,
             outputVertices=outputVertices,
@@ -2010,7 +2011,6 @@ def addVertexFitting(
                 inputSelectedParticles=selectedParticles,
                 inputTrackParticleMatching="track_particle_matching",
                 bField=field,
-                vertexMatchThreshold=0.0,
                 treeName="vertexing",
                 filePath=str(outputDirRoot / "performance_vertexing.root"),
             )
