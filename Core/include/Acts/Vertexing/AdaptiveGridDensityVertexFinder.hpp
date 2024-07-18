@@ -112,6 +112,9 @@ class AdaptiveGridDensityVertexFinder final : public IVertexFinder {
   /// @param cfg Configuration object
   AdaptiveGridDensityVertexFinder(const Config& cfg) : m_cfg(cfg) {}
 
+  /// @brief Get the configuration object
+  const Config& getConfig() const { return m_cfg; }
+
  private:
   /// @brief Checks if a track passes the selection criteria for seeding
   ///

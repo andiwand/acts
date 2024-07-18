@@ -234,6 +234,7 @@ else:
             ),
             multiplicity=args.gun_multiplicity,
             rnd=rnd,
+            outputDirRoot=outputDir if args.output_root else None,
         )
     else:
         addPythia8(
@@ -403,11 +404,36 @@ if args.reco:
             outputDirCsv=outputDir if args.output_csv else None,
             writeCovMat=True,
         )
+    
+    s.addAlgorithm(
+        acts.examples.TracksToParameters(
+            level=acts.logging.INFO,
+            inputTracks="tracks",
+            outputTrackParameters="track_parameters",
+        )
+    )
 
     addVertexFitting(
         s,
         field,
-        vertexFinder=VertexFinder.Iterative,
+        trackParameters="track_parameters",
+        outputProtoVertices="amvf_grid_notime_protovertices",
+        outputVertices="amvf_grid_notime_fittedVertices",
+        vertexFinder=VertexFinder.AMVF,
+        seeder=acts.VertexSeedFinder.AdaptiveGridSeeder,
+        useTime=False,
+        outputDirRoot=outputDir if args.output_root else None,
+    )
+
+    addVertexFitting(
+        s,
+        field,
+        trackParameters="track_parameters",
+        outputProtoVertices="amvf_grid_time_protovertices",
+        outputVertices="amvf_grid_time_fittedVertices",
+        vertexFinder=VertexFinder.AMVF,
+        seeder=acts.VertexSeedFinder.AdaptiveGridSeeder,
+        useTime=True,
         outputDirRoot=outputDir if args.output_root else None,
     )
 

@@ -7,6 +7,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Utilities/Result.hpp"
@@ -134,6 +135,9 @@ class AdaptiveGridTrackDensity {
   /// @param binExtent Bin extent
   /// @return Bin center
   static double getBinCenter(std::int32_t bin, double binExtent);
+
+  /// @brief Returns the configuration object
+  const Config& getConfig() const { return m_cfg; }
 
  private:
   Config m_cfg;

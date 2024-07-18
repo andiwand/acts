@@ -9,7 +9,13 @@
 #include "Acts/Vertexing/AdaptiveMultiVertexFinder.hpp"
 
 #include "Acts/Utilities/AlgebraHelpers.hpp"
+#include "Acts/Vertexing/AdaptiveGridDensityVertexFinder.hpp"
+#include "Acts/Vertexing/AdaptiveGridTrackDensity.hpp"
+#include "Acts/Vertexing/GridDensityVertexFinder.hpp"
 #include "Acts/Vertexing/VertexingError.hpp"
+
+#include <fstream>
+#include <memory>
 
 namespace Acts {
 
@@ -47,6 +53,30 @@ Acts::Result<std::vector<Acts::Vertex>> AdaptiveMultiVertexFinder::find(
     // Retrieve seed vertex from all remaining seedTracks
     auto seedResult = doSeeding(seedTracks, currentConstraint, vertexingOptions,
                                 seedFinderState, removedSeedTracks);
+
+    if (iteration == 0) {
+      auto seeder =
+          std::dynamic_pointer_cast<const AdaptiveGridDensityVertexFinder>(
+              m_cfg.seedFinder);
+      const auto& gridDensity = seeder->getConfig().gridDensity;
+
+      auto seederState =
+          seedFinderState.as<AdaptiveGridDensityVertexFinder::State>();
+
+      std::string filename = m_cfg.useTime ? "seeder-grid-2D.csv" : "seeder-grid-1D.csv";
+      std::ofstream file(filename);
+      file << "z,t,density"
+           << "\n";
+      for (const auto& [key, value] : seederState.mainDensityMap) {
+        double z = gridDensity.getBinCenter(
+            key.first, gridDensity.getConfig().spatialBinExtent);
+        double t = gridDensity.getBinCenter(
+            key.second, gridDensity.getConfig().temporalBinExtent);
+        file << z << "," << t << "," << value << "\n";
+      }
+      file.close();
+    }
+
     if (!seedResult.ok()) {
       return seedResult.error();
     }
