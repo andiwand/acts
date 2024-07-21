@@ -94,6 +94,13 @@ void addGenerators(Context& ctx) {
              return g;
            }),
            py::arg("stddev"), py::arg("mean"))
+      .def(py::init([](const Acts::Vector4& stddev, const Acts::Vector4& mean) {
+             ActsExamples::GaussianPrimaryVertexPositionGenerator g;
+             g.stddev = stddev.head<3>();
+             g.mean = mean.head<3>();
+             return g;
+           }),
+           py::arg("stddev"), py::arg("mean"))
       .def_readwrite(
           "stddev",
           &ActsExamples::GaussianPrimaryVertexPositionGenerator::stddev)
