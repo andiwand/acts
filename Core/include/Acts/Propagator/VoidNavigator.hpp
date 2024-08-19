@@ -1,6 +1,6 @@
 // This file is part of the Acts project.
 //
-// Copyright (C) 2018-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2018-2024 CERN for the benefit of the Acts project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,9 +8,11 @@
 
 #pragma once
 
+#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Propagator/NavigatorOptions.hpp"
-namespace Acts {
 
+namespace Acts {
+class GeometryContext;
 class Surface;
 
 /// @brief The void navigator struct as a default navigator
@@ -32,7 +34,12 @@ struct VoidNavigator {
     Options options;
   };
 
-  State makeState(const Options& options) const {
+  State makeState(const GeometryContext& gctx, const Vector3& position,
+                  const Vector3& direction, const Options& options) const {
+    (void)gctx;
+    (void)position;
+    (void)direction;
+
     State state;
     state.options = options;
     return state;
@@ -55,16 +62,6 @@ struct VoidNavigator {
   void targetReached(State& /*state*/, bool /*targetReached*/) const {}
 
   void navigationBreak(State& /*state*/, bool /*navigationBreak*/) const {}
-
-  /// Navigation call - void
-  ///
-  /// @tparam propagator_state_t is the type of Propagatgor state
-  /// @tparam stepper_t Type of the Stepper
-  ///
-  /// Empty call, compiler should optimise that
-  template <typename propagator_state_t, typename stepper_t>
-  void initialize(propagator_state_t& /*state*/,
-                  const stepper_t& /*stepper*/) const {}
 
   /// Navigation call - void
   ///

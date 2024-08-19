@@ -19,10 +19,10 @@ Acts::EigenStepper<E, A>::EigenStepper(
     : m_bField(std::move(bField)) {}
 
 template <typename E, typename A>
-auto Acts::EigenStepper<E, A>::makeState(
-    std::reference_wrapper<const GeometryContext> gctx,
-    std::reference_wrapper<const MagneticFieldContext> mctx,
-    const BoundTrackParameters& par, double ssize) const -> State {
+auto Acts::EigenStepper<E, A>::makeState(const GeometryContext& gctx,
+                                         const MagneticFieldContext& mctx,
+                                         const BoundTrackParameters& par,
+                                         double ssize) const -> State {
   return State{gctx, m_bField->makeCache(mctx), par, ssize};
 }
 
@@ -100,8 +100,9 @@ bool Acts::EigenStepper<E, A>::prepareCurvilinearState(
 }
 
 template <typename E, typename A>
-auto Acts::EigenStepper<E, A>::curvilinearState(
-    State& state, bool transportCov) const -> CurvilinearState {
+auto Acts::EigenStepper<E, A>::curvilinearState(State& state,
+                                                bool transportCov) const
+    -> CurvilinearState {
   return detail::curvilinearState(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
       state.jacToGlobal, state.pars, state.particleHypothesis,

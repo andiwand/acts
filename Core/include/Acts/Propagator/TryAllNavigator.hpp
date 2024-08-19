@@ -95,13 +95,52 @@ class TryAllNavigatorBase {
   TryAllNavigatorBase(Config cfg, std::unique_ptr<const Logger> _logger)
       : m_cfg(std::move(cfg)), m_logger{std::move(_logger)} {}
 
-  State makeState(const Options& options) const {
+  State makeState(const GeometryContext& gctx, const Vector3& position,
+                  const Vector3& direction, const Options& options) const {
     assert(options.startSurface != nullptr && "Start surface must be set");
 
     State state;
     state.options = options;
     state.startSurface = options.startSurface;
     state.targetSurface = options.targetSurface;
+
+    ACTS_VERBOSE("initialize");
+
+    const TrackingVolume* startVolume = nullptr;
+
+    if (state.startSurface != nullptr &&
+        state.startSurface->associatedLayer() != nullptr) {
+      ACTS_VERBOSE(
+          "Fast start initialization through association from Surface.");
+      const auto* startLayer = state.startSurface->associatedLayer();
+      startVolume = startLayer->trackingVolume();
+    } else {
+      ACTS_VERBOSE("Slow start initialization through search.");
+      ACTS_VERBOSE("Starting from position " << toString(position)
+                                             << " and direction "
+                                             << toString(direction));
+      startVolume =
+          m_cfg.trackingGeometry->lowestTrackingVolume(gctx, position);
+    }
+
+    // Initialize current volume, layer and surface
+    {
+      state.currentVolume = startVolume;
+      if (state.currentVolume != nullptr) {
+        ACTS_VERBOSE(volInfo(state) << "Start volume resolved.");
+      } else {
+        ACTS_ERROR("Start volume not resolved.");
+      }
+
+      state.currentSurface = state.startSurface;
+      if (state.currentSurface != nullptr) {
+        ACTS_VERBOSE(volInfo(state) << "Current surface set to start surface "
+                                    << state.currentSurface->geometryId());
+      } else {
+        ACTS_VERBOSE(volInfo(state) << "No start surface set.");
+      }
+    }
+
     return state;
   }
 
@@ -150,79 +189,27 @@ class TryAllNavigatorBase {
     state.navigationBreak = navigationBreak;
   }
 
-  /// @brief Initialize call - start of navigation
-  ///
-  /// @tparam propagator_state_t The state type of the propagator
-  /// @tparam stepper_t The type of stepper used for the propagation
-  ///
-  /// @param [in,out] state is the propagation state object
-  /// @param [in] stepper Stepper in use
-  template <typename propagator_state_t, typename stepper_t>
-  void initialize(propagator_state_t& state, const stepper_t& stepper) const {
-    ACTS_VERBOSE("initialize");
-
-    const TrackingVolume* startVolume = nullptr;
-
-    if (state.navigation.startSurface != nullptr &&
-        state.navigation.startSurface->associatedLayer() != nullptr) {
-      ACTS_VERBOSE(
-          "Fast start initialization through association from Surface.");
-      const auto* startLayer = state.navigation.startSurface->associatedLayer();
-      startVolume = startLayer->trackingVolume();
-    } else {
-      ACTS_VERBOSE("Slow start initialization through search.");
-      ACTS_VERBOSE("Starting from position "
-                   << toString(stepper.position(state.stepping))
-                   << " and direction "
-                   << toString(stepper.direction(state.stepping)));
-      startVolume = m_cfg.trackingGeometry->lowestTrackingVolume(
-          state.geoContext, stepper.position(state.stepping));
-    }
-
-    // Initialize current volume, layer and surface
-    {
-      state.navigation.currentVolume = startVolume;
-      if (state.navigation.currentVolume != nullptr) {
-        ACTS_VERBOSE(volInfo(state) << "Start volume resolved.");
-      } else {
-        ACTS_ERROR("Start volume not resolved.");
-      }
-
-      state.navigation.currentSurface = state.navigation.startSurface;
-      if (state.navigation.currentSurface != nullptr) {
-        ACTS_VERBOSE(volInfo(state)
-                     << "Current surface set to start surface "
-                     << state.navigation.currentSurface->geometryId());
-      } else {
-        ACTS_VERBOSE(volInfo(state) << "No start surface set.");
-      }
-    }
-  }
-
  protected:
   /// Helper method to initialize navigation candidates for the current volume.
-  template <typename propagator_state_t>
-  void initializeVolumeCandidates(propagator_state_t& state) const {
-    const TrackingVolume* volume = state.navigation.currentVolume;
+  void initializeVolumeCandidates(State& state) const {
+    const TrackingVolume* volume = state.currentVolume;
     ACTS_VERBOSE(volInfo(state) << "Initialize volume");
 
     if (volume == nullptr) {
-      state.navigation.navigationBreak = true;
+      state.navigationBreak = true;
       ACTS_VERBOSE(volInfo(state) << "No volume set. Good luck.");
       return;
     }
 
     emplaceAllVolumeCandidates(
-        state.navigation.navigationCandidates, *volume, m_cfg.resolveSensitive,
+        state.navigationCandidates, *volume, m_cfg.resolveSensitive,
         m_cfg.resolveMaterial, m_cfg.resolvePassive,
         m_cfg.boundaryToleranceSurfaceApproach, logger());
   }
 
-  template <typename propagator_state_t>
-  std::string volInfo(const propagator_state_t& state) const {
-    return (state.navigation.currentVolume != nullptr
-                ? state.navigation.currentVolume->volumeName()
-                : "No Volume") +
+  std::string volInfo(const State& state) const {
+    return (state.currentVolume != nullptr ? state.currentVolume->volumeName()
+                                           : "No Volume") +
            " | ";
   }
 
@@ -268,23 +255,6 @@ class TryAllNavigator : public TryAllNavigatorBase {
   using TryAllNavigatorBase::targetReached;
   using TryAllNavigatorBase::targetSurface;
 
-  using TryAllNavigatorBase::initialize;
-
-  /// @brief Initialize call - start of navigation
-  ///
-  /// @tparam propagator_state_t The state type of the propagator
-  /// @tparam stepper_t The type of stepper used for the propagation
-  ///
-  /// @param [in,out] state is the propagation state object
-  /// @param [in] stepper Stepper in use
-  template <typename propagator_state_t, typename stepper_t>
-  void initialize(propagator_state_t& state, const stepper_t& stepper) const {
-    TryAllNavigatorBase::initialize(state, stepper);
-
-    // Initialize navigation candidates for the start volume
-    reinitializeCandidates(state);
-  }
-
   /// @brief Navigator pre step call
   ///
   /// This determines the next surface to be targeted and sets the step length
@@ -297,12 +267,12 @@ class TryAllNavigator : public TryAllNavigatorBase {
   /// @param [in] stepper Stepper in use
   template <typename propagator_state_t, typename stepper_t>
   void preStep(propagator_state_t& state, const stepper_t& stepper) const {
-    ACTS_VERBOSE(volInfo(state) << "pre step");
+    ACTS_VERBOSE(volInfo(state.navigation) << "pre step");
 
     // Navigator preStep always resets the current surface
     state.navigation.currentSurface = nullptr;
 
-    ACTS_VERBOSE(volInfo(state) << "intersect candidates");
+    ACTS_VERBOSE(volInfo(state.navigation) << "intersect candidates");
 
     Vector3 position = stepper.position(state.stepping);
     Vector3 direction =
@@ -326,7 +296,7 @@ class TryAllNavigator : public TryAllNavigatorBase {
           state.options.surfaceTolerance)[index];
 
       if (intersection.pathLength() < 0) {
-        ACTS_VERBOSE(volInfo(state) << "handle overstepping");
+        ACTS_VERBOSE(volInfo(state.navigation) << "handle overstepping");
 
         nearLimit = std::min(nearLimit, intersection.pathLength() -
                                             state.options.surfaceTolerance);
@@ -357,8 +327,9 @@ class TryAllNavigator : public TryAllNavigatorBase {
     std::sort(intersectionCandidates.begin(), intersectionCandidates.end(),
               detail::IntersectionCandidate::forwardOrder);
 
-    ACTS_VERBOSE(volInfo(state) << "found " << intersectionCandidates.size()
-                                << " intersections");
+    ACTS_VERBOSE(volInfo(state.navigation)
+                 << "found " << intersectionCandidates.size()
+                 << " intersections");
 
     bool intersectionFound = false;
 
@@ -373,7 +344,7 @@ class TryAllNavigator : public TryAllNavigatorBase {
           state.options.surfaceTolerance, logger());
 
       if (surfaceStatus == IntersectionStatus::onSurface) {
-        ACTS_ERROR(volInfo(state)
+        ACTS_ERROR(volInfo(state.navigation)
                    << "We are on surface " << surface.geometryId()
                    << " before trying to reach it. This should not happen. "
                       "Good luck.");
@@ -381,7 +352,7 @@ class TryAllNavigator : public TryAllNavigatorBase {
       }
 
       if (surfaceStatus == IntersectionStatus::reachable) {
-        ACTS_VERBOSE(volInfo(state)
+        ACTS_VERBOSE(volInfo(state.navigation)
                      << "Surface reachable, step size updated to "
                      << stepper.outputStepSize(state.stepping));
         intersectionFound = true;
@@ -392,9 +363,10 @@ class TryAllNavigator : public TryAllNavigatorBase {
     if (!intersectionFound) {
       stepper.releaseStepSize(state.stepping, ConstrainedStep::actor);
 
-      ACTS_VERBOSE(volInfo(state) << "no intersections found. advance without "
-                                     "constraints. step size is "
-                                  << stepper.outputStepSize(state.stepping));
+      ACTS_VERBOSE(volInfo(state.navigation)
+                   << "no intersections found. advance without "
+                      "constraints. step size is "
+                   << stepper.outputStepSize(state.stepping));
     }
 
     state.navigation.intersectionCandidates = std::move(intersectionCandidates);
@@ -416,13 +388,13 @@ class TryAllNavigator : public TryAllNavigatorBase {
   ///         aborters or if we should target again.
   template <typename propagator_state_t, typename stepper_t>
   void postStep(propagator_state_t& state, const stepper_t& stepper) const {
-    ACTS_VERBOSE(volInfo(state) << "post step");
+    ACTS_VERBOSE(volInfo(state.navigation) << "post step");
 
     assert(state.navigation.currentSurface == nullptr &&
            "Current surface must be reset.");
 
     if (state.navigation.intersectionCandidates.empty()) {
-      ACTS_VERBOSE(volInfo(state) << "no intersections.");
+      ACTS_VERBOSE(volInfo(state.navigation) << "no intersections.");
       return;
     }
 
@@ -445,13 +417,13 @@ class TryAllNavigator : public TryAllNavigatorBase {
     }
 
     if (hitCandidates.empty()) {
-      ACTS_VERBOSE(volInfo(state) << "Staying focussed on surface.");
+      ACTS_VERBOSE(volInfo(state.navigation) << "Staying focussed on surface.");
       return;
     }
 
     state.navigation.intersectionCandidates.clear();
 
-    ACTS_VERBOSE(volInfo(state)
+    ACTS_VERBOSE(volInfo(state.navigation)
                  << "Found " << hitCandidates.size()
                  << " intersections on surface without bounds check.");
 
@@ -473,18 +445,18 @@ class TryAllNavigator : public TryAllNavigatorBase {
       trueHitCandidates.emplace_back(candidate);
     }
 
-    ACTS_VERBOSE(volInfo(state)
+    ACTS_VERBOSE(volInfo(state.navigation)
                  << "Found " << trueHitCandidates.size()
                  << " intersections on surface with bounds check.");
 
     if (trueHitCandidates.empty()) {
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "Surface successfully hit, but outside bounds.");
       return;
     }
 
     if (trueHitCandidates.size() > 1) {
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "Only using first intersection within bounds.");
     }
 
@@ -492,20 +464,22 @@ class TryAllNavigator : public TryAllNavigatorBase {
     const auto& intersection = candidate.intersection;
     const Surface& surface = *intersection.object();
 
-    ACTS_VERBOSE(volInfo(state) << "Surface successfully hit, storing it.");
+    ACTS_VERBOSE(volInfo(state.navigation)
+                 << "Surface successfully hit, storing it.");
     // Set in navigation state, so actors and aborters can access it
     state.navigation.currentSurface = &surface;
     if (state.navigation.currentSurface) {
-      ACTS_VERBOSE(volInfo(state) << "Current surface set to surface "
-                                  << surface.geometryId());
+      ACTS_VERBOSE(volInfo(state.navigation)
+                   << "Current surface set to surface "
+                   << surface.geometryId());
     }
 
     if (candidate.template checkType<Surface>()) {
-      ACTS_VERBOSE(volInfo(state) << "This is a surface");
+      ACTS_VERBOSE(volInfo(state.navigation) << "This is a surface");
     } else if (candidate.template checkType<Layer>()) {
-      ACTS_VERBOSE(volInfo(state) << "This is a layer");
+      ACTS_VERBOSE(volInfo(state.navigation) << "This is a layer");
     } else if (candidate.template checkType<BoundarySurface>()) {
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "This is a boundary. Reinitialize navigation");
 
       const auto& boundary = *candidate.template object<BoundarySurface>();
@@ -514,20 +488,19 @@ class TryAllNavigator : public TryAllNavigatorBase {
           state.geoContext, stepper.position(state.stepping),
           state.options.direction * stepper.direction(state.stepping));
 
-      ACTS_VERBOSE(volInfo(state) << "Switched volume");
+      ACTS_VERBOSE(volInfo(state.navigation) << "Switched volume");
 
-      reinitializeCandidates(state);
+      reinitializeCandidates(state.navigation);
     } else {
-      ACTS_ERROR(volInfo(state) << "Unknown intersection type");
+      ACTS_ERROR(volInfo(state.navigation) << "Unknown intersection type");
     }
   }
 
  private:
   /// Helper method to reset and reinitialize the navigation candidates.
-  template <typename propagator_state_t>
-  void reinitializeCandidates(propagator_state_t& state) const {
-    state.navigation.navigationCandidates.clear();
-    state.navigation.intersectionCandidates.clear();
+  void reinitializeCandidates(State& state) const {
+    state.navigationCandidates.clear();
+    state.intersectionCandidates.clear();
 
     initializeVolumeCandidates(state);
   }
@@ -586,13 +559,14 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
                                                Logging::INFO))
       : TryAllNavigatorBase(std::move(cfg), std::move(logger)) {}
 
-  State makeState(const Options& options) const {
+  State makeState(const GeometryContext& gctx, const Vector3& position,
+                  const Vector3& direction, const Options& options) const {
     assert(options.startSurface != nullptr && "Start surface must be set");
 
-    State state;
+    State state =
+        TryAllNavigatorBase::makeState(gctx, position, direction, options);
     state.options = options;
-    state.startSurface = options.startSurface;
-    state.targetSurface = options.targetSurface;
+
     return state;
   }
 
@@ -635,18 +609,18 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
   /// @param [in] stepper Stepper in use
   template <typename propagator_state_t, typename stepper_t>
   void preStep(propagator_state_t& state, const stepper_t& stepper) const {
-    ACTS_VERBOSE(volInfo(state) << "pre step");
+    ACTS_VERBOSE(volInfo(state.navigation) << "pre step");
 
     // Navigator preStep always resets the current surface
     state.navigation.currentSurface = nullptr;
 
-    ACTS_VERBOSE(volInfo(state) << "handle active candidates");
+    ACTS_VERBOSE(volInfo(state.navigation) << "handle active candidates");
 
     // Check next navigation candidate
     while (state.navigation.activeCandidateIndex !=
            state.navigation.activeCandidates.size()) {
       // Screen output how much is left to try
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << (state.navigation.activeCandidates.size() -
                        state.navigation.activeCandidateIndex)
                    << " out of " << state.navigation.activeCandidates.size()
@@ -658,8 +632,9 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
       BoundaryTolerance boundaryTolerance = candidate.boundaryTolerance;
 
       // Screen output which surface you are on
-      ACTS_VERBOSE(volInfo(state) << "Next surface candidate will be "
-                                  << surface.geometryId());
+      ACTS_VERBOSE(volInfo(state.navigation)
+                   << "Next surface candidate will be "
+                   << surface.geometryId());
 
       // Estimate the surface status
       auto surfaceStatus = stepper.updateSurfaceStatus(
@@ -668,7 +643,7 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
           state.options.surfaceTolerance, logger());
 
       if (surfaceStatus == IntersectionStatus::onSurface) {
-        ACTS_ERROR(volInfo(state)
+        ACTS_ERROR(volInfo(state.navigation)
                    << "We are on surface " << surface.geometryId()
                    << " before trying to reach it. This should not happen. "
                       "Good luck.");
@@ -677,14 +652,15 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
       }
 
       if (surfaceStatus == IntersectionStatus::reachable) {
-        ACTS_VERBOSE(volInfo(state)
+        ACTS_VERBOSE(volInfo(state.navigation)
                      << "Surface reachable, step size updated to "
                      << stepper.outputStepSize(state.stepping));
         break;
       }
 
-      ACTS_VERBOSE(volInfo(state) << "Surface " << surface.geometryId()
-                                  << " unreachable, skip.");
+      ACTS_VERBOSE(volInfo(state.navigation)
+                   << "Surface " << surface.geometryId()
+                   << " unreachable, skip.");
       ++state.navigation.activeCandidateIndex;
     }
 
@@ -694,7 +670,7 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
 
       stepper.releaseStepSize(state.stepping, ConstrainedStep::actor);
 
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "blindly step forwards. step size updated to "
                    << stepper.outputStepSize(state.stepping));
 
@@ -718,14 +694,14 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
   ///         aborters or if we should target again.
   template <typename propagator_state_t, typename stepper_t>
   void postStep(propagator_state_t& state, const stepper_t& stepper) const {
-    ACTS_VERBOSE(volInfo(state) << "post step");
+    ACTS_VERBOSE(volInfo(state.navigation) << "post step");
 
     assert(state.navigation.currentSurface == nullptr &&
            "Current surface must be reset.");
 
     if (state.navigation.activeCandidateIndex ==
         state.navigation.activeCandidates.size()) {
-      ACTS_VERBOSE(volInfo(state) << "evaluate blind step");
+      ACTS_VERBOSE(volInfo(state.navigation) << "evaluate blind step");
 
       state.navigation.activeCandidates.clear();
 
@@ -772,14 +748,14 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
 
       state.navigation.activeCandidateIndex = 0;
 
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "Found " << state.navigation.activeCandidates.size()
                    << " intersections");
     }
 
     if (state.navigation.activeCandidateIndex !=
         state.navigation.activeCandidates.size()) {
-      ACTS_VERBOSE(volInfo(state) << "handle active candidates");
+      ACTS_VERBOSE(volInfo(state.navigation) << "handle active candidates");
 
       std::vector<detail::IntersectionCandidate> hitCandidates;
 
@@ -804,7 +780,8 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
       }
 
       if (hitCandidates.empty()) {
-        ACTS_VERBOSE(volInfo(state) << "Staying focussed on surface.");
+        ACTS_VERBOSE(volInfo(state.navigation)
+                     << "Staying focussed on surface.");
         return;
       }
 
@@ -828,18 +805,18 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
         trueHitCandidates.emplace_back(candidate);
       }
 
-      ACTS_VERBOSE(volInfo(state)
+      ACTS_VERBOSE(volInfo(state.navigation)
                    << "Found " << trueHitCandidates.size()
                    << " intersections on surface with bounds check.");
 
       if (trueHitCandidates.empty()) {
-        ACTS_VERBOSE(volInfo(state)
+        ACTS_VERBOSE(volInfo(state.navigation)
                      << "Surface successfully hit, but outside bounds.");
         return;
       }
 
       if (trueHitCandidates.size() > 1) {
-        ACTS_VERBOSE(volInfo(state)
+        ACTS_VERBOSE(volInfo(state.navigation)
                      << "Only using first intersection within bounds.");
       }
 
@@ -849,20 +826,22 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
 
       state.navigation.lastIntersection = intersection;
 
-      ACTS_VERBOSE(volInfo(state) << "Surface successfully hit, storing it.");
+      ACTS_VERBOSE(volInfo(state.navigation)
+                   << "Surface successfully hit, storing it.");
       // Set in navigation state, so actors and aborters can access it
       state.navigation.currentSurface = &surface;
       if (state.navigation.currentSurface) {
-        ACTS_VERBOSE(volInfo(state) << "Current surface set to surface "
-                                    << surface.geometryId());
+        ACTS_VERBOSE(volInfo(state.navigation)
+                     << "Current surface set to surface "
+                     << surface.geometryId());
       }
 
       if (candidate.template checkType<Surface>()) {
-        ACTS_VERBOSE(volInfo(state) << "This is a surface");
+        ACTS_VERBOSE(volInfo(state.navigation) << "This is a surface");
       } else if (candidate.template checkType<Layer>()) {
-        ACTS_VERBOSE(volInfo(state) << "This is a layer");
+        ACTS_VERBOSE(volInfo(state.navigation) << "This is a layer");
       } else if (candidate.template checkType<BoundarySurface>()) {
-        ACTS_VERBOSE(volInfo(state)
+        ACTS_VERBOSE(volInfo(state.navigation)
                      << "This is a boundary. Reinitialize navigation");
 
         const auto& boundary = *candidate.template object<BoundarySurface>();
@@ -871,11 +850,11 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
             state.geoContext, stepper.position(state.stepping),
             state.options.direction * stepper.direction(state.stepping));
 
-        ACTS_VERBOSE(volInfo(state) << "Switched volume");
+        ACTS_VERBOSE(volInfo(state.navigation) << "Switched volume");
 
         reinitializeCandidates(state);
       } else {
-        ACTS_ERROR(volInfo(state) << "Unknown intersection type");
+        ACTS_ERROR(volInfo(state.navigation) << "Unknown intersection type");
       }
     }
   }

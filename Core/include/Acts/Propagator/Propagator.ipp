@@ -119,12 +119,12 @@ auto Acts::Propagator<S, N>::propagate(const parameters_t& start,
 template <typename S, typename N>
 template <typename parameters_t, typename propagator_options_t,
           typename target_aborter_t, typename path_aborter_t>
-auto Acts::Propagator<S, N>::propagate(const parameters_t& start,
-                                       const Surface& target,
-                                       const propagator_options_t& options)
-    const -> Result<action_list_t_result_t<
-              StepperBoundTrackParameters,
-              typename propagator_options_t::action_list_type>> {
+auto Acts::Propagator<S, N>::propagate(
+    const parameters_t& start, const Surface& target,
+    const propagator_options_t& options) const
+    -> Result<action_list_t_result_t<
+        StepperBoundTrackParameters,
+        typename propagator_options_t::action_list_type>> {
   static_assert(Concepts::BoundTrackParametersConcept<parameters_t>,
                 "Parameters do not fulfill bound parameters concept.");
 
@@ -170,7 +170,10 @@ auto Acts::Propagator<S, N>::makeState(
       eOptions,
       m_stepper.makeState(eOptions.geoContext, eOptions.magFieldContext, start,
                           eOptions.stepping.maxStepSize),
-      m_navigator.makeState(eOptions.navigation)};
+      m_navigator.makeState(
+          eOptions.geoContext, start.position(eOptions.geoContext),
+          eOptions.direction * start.position(eOptions.geoContext),
+          eOptions.navigation)};
 
   static_assert(
       Concepts::has_method<const S, Result<double>, Concepts::Stepper::step_t,
@@ -178,7 +181,10 @@ auto Acts::Propagator<S, N>::makeState(
       "Step method of the Stepper is not compatible with the propagator "
       "state");
 
-  initialize<StateType, path_aborter_t>(state);
+  // Apply the loop protection - it resets the internal path limit
+  detail::setupLoopProtection(
+      state, m_stepper, state.options.abortList.template get<path_aborter_t>(),
+      false, logger());
 
   return state;
 }
@@ -213,7 +219,10 @@ auto Acts::Propagator<S, N>::makeState(
       eOptions,
       m_stepper.makeState(eOptions.geoContext, eOptions.magFieldContext, start,
                           eOptions.stepping.maxStepSize),
-      m_navigator.makeState(eOptions.navigation)};
+      m_navigator.makeState(
+          eOptions.geoContext, start.position(eOptions.geoContext),
+          eOptions.direction * start.position(eOptions.geoContext),
+          eOptions.navigation)};
 
   static_assert(
       Concepts::has_method<const S, Result<double>, Concepts::Stepper::step_t,
@@ -221,7 +230,10 @@ auto Acts::Propagator<S, N>::makeState(
       "Step method of the Stepper is not compatible with the propagator "
       "state");
 
-  initialize<StateType, path_aborter_t>(state);
+  // Apply the loop protection - it resets the internal path limit
+  detail::setupLoopProtection(
+      state, m_stepper, state.options.abortList.template get<path_aborter_t>(),
+      false, logger());
 
   return state;
 }
@@ -274,13 +286,12 @@ auto Acts::Propagator<S, N>::makeResult(propagator_state_t state,
 
 template <typename S, typename N>
 template <typename propagator_state_t, typename propagator_options_t>
-auto Acts::Propagator<S, N>::makeResult(propagator_state_t state,
-                                        Result<void> propagationResult,
-                                        const Surface& target,
-                                        const propagator_options_t& /*options*/)
-    const -> Result<action_list_t_result_t<
-              StepperBoundTrackParameters,
-              typename propagator_options_t::action_list_type>> {
+auto Acts::Propagator<S, N>::makeResult(
+    propagator_state_t state, Result<void> propagationResult,
+    const Surface& target, const propagator_options_t& /*options*/) const
+    -> Result<action_list_t_result_t<
+        StepperBoundTrackParameters,
+        typename propagator_options_t::action_list_type>> {
   // Type of track parameters produced at the end of the propagation
   using ReturnParameterType = StepperBoundTrackParameters;
 
@@ -313,18 +324,6 @@ auto Acts::Propagator<S, N>::makeResult(propagator_state_t state,
     result.transportJacobian = std::get<Jacobian>(bs);
   }
   return Result<ResultType>::success(std::move(result));
-}
-
-template <typename S, typename N>
-template <typename propagator_state_t, typename path_aborter_t>
-void Acts::Propagator<S, N>::initialize(propagator_state_t& state) const {
-  // Navigator initialize state call
-  m_navigator.initialize(state, m_stepper);
-
-  // Apply the loop protection - it resets the internal path limit
-  detail::setupLoopProtection(
-      state, m_stepper, state.options.abortList.template get<path_aborter_t>(),
-      false, logger());
 }
 
 template <typename S, typename N>

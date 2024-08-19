@@ -79,9 +79,27 @@ class DirectNavigator {
                                                 Logging::INFO))
       : m_logger{std::move(_logger)} {}
 
-  State makeState(const Options& options) const {
+  State makeState(const GeometryContext& gctx, const Vector3& position,
+                  const Vector3& direction, const Options& options) const {
+    (void)position;
+    (void)direction;
+
     State state;
     state.options = options;
+
+    ACTS_VERBOSE("Initialize. Surface sequence for navigation:");
+    for (auto surface : state.options.surfaces) {
+      ACTS_VERBOSE(surface->geometryId()
+                   << " - " << surface->center(gctx).transpose());
+    }
+
+    // We set the current surface to the start surface
+    state.currentSurface = state.options.startSurface;
+    if (state.currentSurface != nullptr) {
+      ACTS_VERBOSE("Current surface set to start surface "
+                   << state.currentSurface->geometryId());
+    }
+
     return state;
   }
 
@@ -123,29 +141,6 @@ class DirectNavigator {
 
   void navigationBreak(State& state, bool navigationBreak) const {
     state.navigationBreak = navigationBreak;
-  }
-
-  /// @brief Initialize call - start of propagation
-  ///
-  /// @tparam propagator_state_t The state type of the propagator
-  /// @tparam stepper_t The type of stepper used for the propagation
-  ///
-  /// @param [in,out] state is the propagation state object
-  template <typename propagator_state_t, typename stepper_t>
-  void initialize(propagator_state_t& state,
-                  const stepper_t& /*stepper*/) const {
-    ACTS_VERBOSE("Initialize. Surface sequence for navigation:");
-    for (auto surface : state.navigation.options.surfaces) {
-      ACTS_VERBOSE(surface->geometryId()
-                   << " - " << surface->center(state.geoContext).transpose());
-    }
-
-    // We set the current surface to the start surface
-    state.navigation.currentSurface = state.navigation.options.startSurface;
-    if (state.navigation.currentSurface) {
-      ACTS_VERBOSE("Current surface set to start surface "
-                   << state.navigation.currentSurface->geometryId());
-    }
   }
 
   /// @brief Navigator pre step call

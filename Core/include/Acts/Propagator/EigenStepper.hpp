@@ -181,8 +181,7 @@ class EigenStepper {
   /// @param [in] config The configuration of the stepper
   explicit EigenStepper(const Config& config) : m_bField(config.bField) {}
 
-  State makeState(std::reference_wrapper<const GeometryContext> gctx,
-                  std::reference_wrapper<const MagneticFieldContext> mctx,
+  State makeState(const GeometryContext& gctx, const MagneticFieldContext& mctx,
                   const BoundTrackParameters& par,
                   double ssize = std::numeric_limits<double>::max()) const;
 

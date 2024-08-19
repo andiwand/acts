@@ -119,8 +119,6 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
 
     auto state = propagator.makeState(start, options);
 
-    navigator.initialize(state, stepper);
-
     navigator.preStep(state, stepper);
     auto preStepState = state.navigation;
     BOOST_CHECK_EQUAL(preStepState.currentSurface, nullptr);
@@ -168,7 +166,6 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
 
     auto state = propagator.makeState(start, options);
 
-    navigator.initialize(state, stepper);
     auto initState = state.navigation;
     BOOST_CHECK_EQUAL(initState.currentDetector, detector.get());
     BOOST_CHECK_EQUAL(

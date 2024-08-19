@@ -554,8 +554,10 @@ class KalmanFitter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &st.referenceSurface();
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state, stepper);
+      state.navigation = navigator.makeState(
+          state.geoContext, stepper.position(state.stepping),
+          state.options.direction * stepper.direction(state.stepping),
+          navigationOptions);
 
       // Update material effects for last measurement state in reversed
       // direction
@@ -1034,8 +1036,10 @@ class KalmanFitter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &surface;
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state, stepper);
+      state.navigation = navigator.makeState(
+          state.geoContext, stepper.position(state.stepping),
+          state.options.direction * stepper.direction(state.stepping),
+          navigationOptions);
 
       return Result<void>::success();
     }
@@ -1089,8 +1093,8 @@ class KalmanFitter {
            const KalmanFitterOptions<traj_t>& kfOptions,
            TrackContainer<track_container_t, traj_t, holder_t>& trackContainer)
       const -> std::enable_if_t<
-                !_isdn, Result<typename TrackContainer<
-                            track_container_t, traj_t, holder_t>::TrackProxy>> {
+          !_isdn, Result<typename TrackContainer<track_container_t, traj_t,
+                                                 holder_t>::TrackProxy>> {
     // To be able to find measurements later, we put them into a map
     // We need to copy input SourceLinks anyway, so the map can own them.
     ACTS_VERBOSE("Preparing " << std::distance(it, end)
@@ -1180,8 +1184,8 @@ class KalmanFitter {
            const std::vector<const Surface*>& sSequence,
            TrackContainer<track_container_t, traj_t, holder_t>& trackContainer)
       const -> std::enable_if_t<
-                _isdn, Result<typename TrackContainer<track_container_t, traj_t,
-                                                      holder_t>::TrackProxy>> {
+          _isdn, Result<typename TrackContainer<track_container_t, traj_t,
+                                                holder_t>::TrackProxy>> {
     // To be able to find measurements later, we put them into a map
     // We need to copy input SourceLinks anyway, so the map can own them.
     ACTS_VERBOSE("Preparing " << std::distance(it, end)

@@ -663,8 +663,10 @@ class CombinatorialKalmanFilter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &currentState.referenceSurface();
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state, stepper);
+      state.navigation = navigator.makeState(
+          state.geoContext, stepper.position(state.stepping),
+          state.options.direction * stepper.direction(state.stepping),
+          navigationOptions);
 
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
