@@ -9,8 +9,10 @@
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Surfaces/DiscSurface.hpp"
@@ -18,7 +20,9 @@
 #include "Acts/Surfaces/RadialBounds.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/StrawSurface.hpp"
+#include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Tests/CommonHelpers/BenchmarkTools.hpp"
+#include "Acts/Utilities/UnitVectors.hpp"
 
 #include <cmath>
 #include <random>
@@ -60,29 +64,92 @@ auto aCylinder = Surface::makeShared<CylinderSurface>(at, std::move(cb));
 // Define a Straw surface
 auto aStraw = Surface::makeShared<StrawSurface>(at, 50_cm, 2_m);
 
+// The number of repeat surfaces
+unsigned int nRepeatSurface = 10;
+
 // The origin of our attempts for plane, disc and cylinder
 Vector3 origin(0., 0., 0.);
 
 // The origin for straw/line attempts
 Vector3 originStraw(0.3_m, -0.2_m, 11_m);
 
+SurfaceMultiIntersection intersect(const GeometryContext& gctx,
+                                   const Surface& surface,
+                                   const Vector3& position,
+                                   const Vector3& direction,
+                                   const BoundaryTolerance& tolerance) {
+  if (surface.type() == Surface::Plane) {
+    return static_cast<const PlaneSurface&>(surface).intersect(
+        gctx, position, direction, tolerance);
+  }
+  if (surface.type() == Surface::Disc) {
+    return static_cast<const DiscSurface&>(surface).intersect(
+        gctx, position, direction, tolerance);
+  }
+  if (surface.type() == Surface::Cylinder) {
+    return static_cast<const CylinderSurface&>(surface).intersect(
+        gctx, position, direction, tolerance);
+  }
+  if (surface.type() == Surface::Straw) {
+    return static_cast<const StrawSurface&>(surface).intersect(
+        gctx, position, direction, tolerance);
+  }
+  return surface.intersect(gctx, position, direction, tolerance);
+}
+
 template <typename surface_t>
-MicroBenchmarkResult intersectionTest(const surface_t& surface, double phi,
-                                      double theta) {
-  // Shoot at it
-  double cosPhi = std::cos(phi);
-  double sinPhi = std::sin(phi);
-  double cosTheta = std::cos(theta);
-  double sinTheta = std::sin(theta);
-
-  Vector3 direction(cosPhi * sinTheta, sinPhi * sinTheta, cosTheta);
-
+MicroBenchmarkResult intersectionTest(const surface_t& surface,
+                                      const Vector3& direction) {
   return Acts::Test::microBenchmark(
-      [&] {
+      [&]() -> SurfaceMultiIntersection {
         return surface.intersect(tgContext, origin, direction,
                                  boundaryTolerance);
       },
       nrepts);
+}
+
+MicroBenchmarkResult intersectionTest2(const Surface& surface,
+                                       const Vector3& direction) {
+  return Acts::Test::microBenchmark(
+      [&]() -> SurfaceMultiIntersection {
+        return intersect(tgContext, surface, origin, direction,
+                         boundaryTolerance);
+      },
+      nrepts);
+}
+
+MicroBenchmarkResult multipleIntersectionTest(
+    const std::vector<const Surface*>& surface, const Vector3& direction) {
+  std::vector<SurfaceMultiIntersection> intersections;
+
+  return Acts::Test::microBenchmark(
+      [&]() -> const std::vector<SurfaceMultiIntersection>& {
+        intersections.clear();
+        for (const Surface* s : surface) {
+          auto intersection =
+              s->intersect(tgContext, origin, direction, boundaryTolerance);
+          intersections.push_back(intersection);
+        }
+        return intersections;
+      },
+      nrepts / 10);
+}
+
+MicroBenchmarkResult multipleIntersectionTest2(
+    const std::vector<const Surface*>& surface, const Vector3& direction) {
+  std::vector<SurfaceMultiIntersection> intersections;
+
+  return Acts::Test::microBenchmark(
+      [&]() -> const std::vector<SurfaceMultiIntersection>& {
+        intersections.clear();
+        for (const Surface* s : surface) {
+          auto intersection =
+              intersect(tgContext, *s, origin, direction, boundaryTolerance);
+          intersections.push_back(intersection);
+        }
+        return intersections;
+      },
+      nrepts / 10);
 }
 
 BOOST_DATA_TEST_CASE(
@@ -97,28 +164,118 @@ BOOST_DATA_TEST_CASE(
     phi, theta, index) {
   (void)index;
 
+  Vector3 direction = makeDirectionFromPhiTheta(phi, theta);
+
   std::cout << std::endl
-            << "Benchmarking theta=" << theta << ", phi=" << phi << "..."
-            << std::endl;
+            << "Single surface intersections benchmarking theta=" << theta
+            << ", phi=" << phi << ", boundaryTolerance=" << boundaryTolerance
+            << "..." << std::endl;
   if (testPlane) {
     std::cout << "- Plane: "
-              << intersectionTest<PlaneSurface>(*aPlane, phi, theta)
+              << intersectionTest<PlaneSurface>(*aPlane, direction)
               << std::endl;
   }
   if (testDisc) {
-    std::cout << "- Disc: " << intersectionTest<DiscSurface>(*aDisc, phi, theta)
+    std::cout << "- Disc: " << intersectionTest<DiscSurface>(*aDisc, direction)
               << std::endl;
   }
   if (testCylinder) {
     std::cout << "- Cylinder: "
-              << intersectionTest<CylinderSurface>(*aCylinder, phi, theta)
+              << intersectionTest<CylinderSurface>(*aCylinder, direction)
               << std::endl;
   }
   if (testStraw) {
     std::cout << "- Straw: "
-              << intersectionTest<StrawSurface>(*aStraw, phi, theta + M_PI)
+              << intersectionTest<StrawSurface>(*aStraw, direction)
               << std::endl;
   }
+  std::cout << "Done." << std::endl;
+
+  std::cout << std::endl
+            << "Single virtual surface intersections benchmarking theta="
+            << theta << ", phi=" << phi
+            << ", boundaryTolerance=" << boundaryTolerance << "..."
+            << std::endl;
+  if (testPlane) {
+    std::cout << "- Plane: " << intersectionTest<Surface>(*aPlane, direction)
+              << std::endl;
+  }
+  if (testDisc) {
+    std::cout << "- Disc: " << intersectionTest<Surface>(*aDisc, direction)
+              << std::endl;
+  }
+  if (testCylinder) {
+    std::cout << "- Cylinder: "
+              << intersectionTest<Surface>(*aCylinder, direction) << std::endl;
+  }
+  if (testStraw) {
+    std::cout << "- Straw: " << intersectionTest<Surface>(*aStraw, direction)
+              << std::endl;
+  }
+  std::cout << "Done." << std::endl;
+
+  std::cout << std::endl
+            << "Single de-virtual surface intersections benchmarking theta="
+            << theta << ", phi=" << phi
+            << ", boundaryTolerance=" << boundaryTolerance << "..."
+            << std::endl;
+  if (testPlane) {
+    std::cout << "- Plane: " << intersectionTest2(*aPlane, direction)
+              << std::endl;
+  }
+  if (testDisc) {
+    std::cout << "- Disc: " << intersectionTest2(*aDisc, direction)
+              << std::endl;
+  }
+  if (testCylinder) {
+    std::cout << "- Cylinder: " << intersectionTest2(*aCylinder, direction)
+              << std::endl;
+  }
+  if (testStraw) {
+    std::cout << "- Straw: " << intersectionTest2(*aStraw, direction)
+              << std::endl;
+  }
+  std::cout << "Done." << std::endl;
+
+  std::vector<const Surface*> surfaces;
+  if (testPlane) {
+    for (unsigned int i = 0; i < nRepeatSurface; i++) {
+      surfaces.push_back(aPlane.get());
+    }
+  }
+  if (testDisc) {
+    for (unsigned int i = 0; i < nRepeatSurface; i++) {
+      surfaces.push_back(aDisc.get());
+    }
+  }
+  if (testCylinder) {
+    for (unsigned int i = 0; i < nRepeatSurface; i++) {
+      surfaces.push_back(aCylinder.get());
+    }
+  }
+  if (testStraw) {
+    for (unsigned int i = 0; i < nRepeatSurface; i++) {
+      surfaces.push_back(aStraw.get());
+    }
+  }
+
+  std::cout << std::endl
+            << "Multiple virtual surface intersections benchmarking theta="
+            << theta << ", phi=" << phi
+            << ", boundaryTolerance=" << boundaryTolerance << "..."
+            << std::endl;
+  std::cout << "- All: " << multipleIntersectionTest(surfaces, direction)
+            << std::endl;
+  std::cout << "Done." << std::endl;
+
+  std::cout << std::endl
+            << "Multiple de-virtual surface intersections benchmarking theta="
+            << theta << ", phi=" << phi
+            << ", boundaryTolerance=" << boundaryTolerance << "..."
+            << std::endl;
+  std::cout << "- All: " << multipleIntersectionTest2(surfaces, direction)
+            << std::endl;
+  std::cout << "Done." << std::endl;
 }
 
 }  // namespace Acts::Test

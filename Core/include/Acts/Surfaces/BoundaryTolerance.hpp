@@ -11,8 +11,10 @@
 #include "Acts/Definitions/Algebra.hpp"
 
 #include <cmath>
+#include <iosfwd>
 #include <iterator>
 #include <optional>
+#include <ostream>
 #include <variant>
 #include <vector>
 
@@ -58,10 +60,27 @@ namespace Acts {
 class BoundaryTolerance {
  public:
   /// Infinite tolerance i.e. no boundary check
-  struct Infinite {};
+  struct Infinite {
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const Infinite& infinite) {
+      infinite.toStream(os);
+      return os;
+    }
+  };
 
   /// No tolerance i.e. exact boundary check
-  struct None {};
+  struct None {
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os, const None& none) {
+      none.toStream(os);
+      return os;
+    }
+  };
 
   /// Absolute tolerance in bound coordinates
   struct AbsoluteBound {
@@ -71,6 +90,15 @@ class BoundaryTolerance {
     AbsoluteBound() = default;
     AbsoluteBound(double tolerance0_, double tolerance1_)
         : tolerance0(tolerance0_), tolerance1(tolerance1_) {}
+
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const AbsoluteBound& bound) {
+      bound.toStream(os);
+      return os;
+    }
   };
 
   /// Absolute tolerance in Cartesian coordinates
@@ -81,6 +109,15 @@ class BoundaryTolerance {
     AbsoluteCartesian() = default;
     AbsoluteCartesian(double tolerance0_, double tolerance1_)
         : tolerance0(tolerance0_), tolerance1(tolerance1_) {}
+
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const AbsoluteCartesian& cartesian) {
+      cartesian.toStream(os);
+      return os;
+    }
   };
 
   /// Absolute tolerance in Euclidean distance
@@ -89,6 +126,15 @@ class BoundaryTolerance {
 
     AbsoluteEuclidean() = default;
     explicit AbsoluteEuclidean(double tolerance_) : tolerance(tolerance_) {}
+
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const AbsoluteEuclidean& euclidean) {
+      euclidean.toStream(os);
+      return os;
+    }
   };
 
   /// Chi2 tolerance in bound coordinates
@@ -99,6 +145,14 @@ class BoundaryTolerance {
     Chi2Bound() = default;
     Chi2Bound(const SquareMatrix2& weight_, double maxChi2_)
         : maxChi2(maxChi2_), weight(weight_) {}
+
+    void toStream(std::ostream& os) const;
+
+   private:
+    friend std::ostream& operator<<(std::ostream& os, const Chi2Bound& chi2) {
+      chi2.toStream(os);
+      return os;
+    }
   };
 
   /// Underlying variant type
@@ -120,6 +174,8 @@ class BoundaryTolerance {
 
   /// Construct from variant
   BoundaryTolerance(Variant variant);
+
+  void toStream(std::ostream& os) const;
 
   /// Check if the tolerance is infinite.
   bool isInfinite() const;
@@ -178,6 +234,12 @@ class BoundaryTolerance {
   template <typename T>
   const T* getVariantPtr() const {
     return holdsVariant<T>() ? &getVariant<T>() : nullptr;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const BoundaryTolerance& tolerance) {
+    tolerance.toStream(os);
+    return os;
   }
 };
 

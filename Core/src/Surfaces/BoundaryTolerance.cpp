@@ -16,6 +16,30 @@
 
 namespace Acts {
 
+void BoundaryTolerance::None::toStream(std::ostream& os) const {
+  os << "None";
+}
+
+void BoundaryTolerance::Infinite::toStream(std::ostream& os) const {
+  os << "Infinite";
+}
+
+void BoundaryTolerance::AbsoluteBound::toStream(std::ostream& os) const {
+  os << "AbsoluteBound(" << tolerance0 << ", " << tolerance1 << ")";
+}
+
+void BoundaryTolerance::AbsoluteCartesian::toStream(std::ostream& os) const {
+  os << "AbsoluteCartesian(" << tolerance0 << ", " << tolerance1 << ")";
+}
+
+void BoundaryTolerance::AbsoluteEuclidean::toStream(std::ostream& os) const {
+  os << "AbsoluteEuclidean(" << tolerance << ")";
+}
+
+void BoundaryTolerance::Chi2Bound::toStream(std::ostream& os) const {
+  os << "Chi2Bound(" << maxChi2 << ", " << weight << ")";
+}
+
 BoundaryTolerance::BoundaryTolerance(const Infinite& infinite)
     : m_variant{infinite} {}
 
@@ -35,6 +59,11 @@ BoundaryTolerance::BoundaryTolerance(const Chi2Bound& chi2Bound)
 
 BoundaryTolerance::BoundaryTolerance(Variant variant)
     : m_variant{std::move(variant)} {}
+
+void BoundaryTolerance::toStream(std::ostream& os) const {
+  std::visit([&os](const auto& tolerance) { tolerance.toStream(os); },
+             m_variant);
+}
 
 bool BoundaryTolerance::isInfinite() const {
   return holdsVariant<Infinite>();
