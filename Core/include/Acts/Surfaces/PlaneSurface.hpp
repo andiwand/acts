@@ -124,6 +124,10 @@ class PlaneSurface : public RegularSurface {
   /// Return method for bounds object of this surfrace
   const SurfaceBounds& bounds() const override;
 
+  bool insideBounds(const Vector2& lposition,
+                    const BoundaryTolerance& boundaryTolerance =
+                        BoundaryTolerance::None()) const final;
+
   /// Local to global transformation
   ///
   /// @note For planar surfaces the momentum direction is ignored in the local to global
@@ -194,6 +198,11 @@ class PlaneSurface : public RegularSurface {
       const BoundaryTolerance& boundaryTolerance =
           BoundaryTolerance::Infinite(),
       ActsScalar tolerance = s_onSurfaceTolerance) const final;
+
+  inline SurfaceMultiIntersection intersectImpl(
+      const GeometryContext& gctx, const Vector3& position,
+      const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+      ActsScalar tolerance) const;
 
   /// Return a Polyhedron for the surfaces
   ///

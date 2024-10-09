@@ -68,6 +68,9 @@ class SurfaceBounds {
   virtual bool inside(const Vector2& lposition,
                       const BoundaryTolerance& boundaryTolerance) const = 0;
 
+  inline bool insideImpl(const Vector2& lposition,
+                      const BoundaryTolerance& boundaryTolerance) const;
+
   /// Output Method for std::ostream, to be overloaded by child classes
   ///
   /// @param os is the outstream in which the string dump is done

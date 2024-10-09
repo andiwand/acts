@@ -14,6 +14,7 @@
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Surfaces/SurfaceImpl.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 
@@ -110,6 +111,21 @@ void Acts::Layer::closeGeometry(const IMaterialDecorator* materialDecorator,
   }
 }
 
+inline Acts::SurfaceMultiIntersection intersectImpl(
+    const Acts::Surface& surface, const Acts::GeometryContext& gctx,
+    const Acts::Vector3& position, const Acts::Vector3& direction,
+    const Acts::BoundaryTolerance& boundaryTolerance,
+    Acts::ActsScalar tolerance) {
+  switch (surface.type()) {
+    case Acts::Surface::SurfaceType::Plane:
+      return static_cast<const Acts::PlaneSurface*>(&surface)->intersectImpl(
+          gctx, position, direction, boundaryTolerance, tolerance);
+    default:
+      return surface.intersect(gctx, position, direction, boundaryTolerance,
+                               tolerance);
+  }
+}
+
 boost::container::small_vector<Acts::SurfaceIntersection, 10>
 Acts::Layer::compatibleSurfaces(
     const GeometryContext& gctx, const Vector3& position,
@@ -163,7 +179,9 @@ Acts::Layer::compatibleSurfaces(
     }
     // the surface intersection
     SurfaceIntersection sfi =
-        sf.intersect(gctx, position, direction, boundaryTolerance).closest();
+        intersectImpl(sf, gctx, position, direction, boundaryTolerance,
+                      s_onSurfaceTolerance)
+            .closest();
     if (sfi.isValid() &&
         detail::checkPathLength(sfi.pathLength(), nearLimit, farLimit) &&
         isUnique(sfi)) {

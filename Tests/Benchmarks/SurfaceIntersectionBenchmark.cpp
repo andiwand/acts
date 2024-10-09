@@ -10,17 +10,20 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Definitions/Tolerance.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Surfaces/DiscSurface.hpp"
+#include "Acts/Surfaces/LineSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/RadialBounds.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/StrawSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Surfaces/SurfaceImpl.hpp"
 #include "Acts/Tests/CommonHelpers/BenchmarkTools.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
 
@@ -35,11 +38,11 @@ namespace Acts::Test {
 // Some randomness & number crunching
 unsigned int ntests = 10;
 unsigned int nrepts = 2000;
-const BoundaryTolerance boundaryTolerance = BoundaryTolerance::Infinite();
+const BoundaryTolerance boundaryTolerance = BoundaryTolerance::None();
 const bool testPlane = true;
-const bool testDisc = true;
-const bool testCylinder = true;
-const bool testStraw = true;
+const bool testDisc = false;
+const bool testCylinder = false;
+const bool testStraw = false;
 
 // Create a test context
 GeometryContext tgContext = GeometryContext();
@@ -73,30 +76,6 @@ Vector3 origin(0., 0., 0.);
 // The origin for straw/line attempts
 Vector3 originStraw(0.3_m, -0.2_m, 11_m);
 
-SurfaceMultiIntersection intersect(const GeometryContext& gctx,
-                                   const Surface& surface,
-                                   const Vector3& position,
-                                   const Vector3& direction,
-                                   const BoundaryTolerance& tolerance) {
-  if (surface.type() == Surface::Plane) {
-    return static_cast<const PlaneSurface&>(surface).intersect(
-        gctx, position, direction, tolerance);
-  }
-  if (surface.type() == Surface::Disc) {
-    return static_cast<const DiscSurface&>(surface).intersect(
-        gctx, position, direction, tolerance);
-  }
-  if (surface.type() == Surface::Cylinder) {
-    return static_cast<const CylinderSurface&>(surface).intersect(
-        gctx, position, direction, tolerance);
-  }
-  if (surface.type() == Surface::Straw) {
-    return static_cast<const StrawSurface&>(surface).intersect(
-        gctx, position, direction, tolerance);
-  }
-  return surface.intersect(gctx, position, direction, tolerance);
-}
-
 template <typename surface_t>
 MicroBenchmarkResult intersectionTest(const surface_t& surface,
                                       const Vector3& direction) {
@@ -112,8 +91,8 @@ MicroBenchmarkResult intersectionTest2(const Surface& surface,
                                        const Vector3& direction) {
   return Acts::Test::microBenchmark(
       [&]() -> SurfaceMultiIntersection {
-        return intersect(tgContext, surface, origin, direction,
-                         boundaryTolerance);
+        return surface.intersectImpl(tgContext, origin, direction,
+                                     boundaryTolerance, s_onSurfaceTolerance);
       },
       nrepts);
 }
@@ -144,7 +123,8 @@ MicroBenchmarkResult multipleIntersectionTest2(
         intersections.clear();
         for (const Surface* s : surface) {
           auto intersection =
-              intersect(tgContext, *s, origin, direction, boundaryTolerance);
+              s->intersectImpl(tgContext, origin, direction, boundaryTolerance,
+                               s_onSurfaceTolerance);
           intersections.push_back(intersection);
         }
         return intersections;
@@ -197,19 +177,27 @@ BOOST_DATA_TEST_CASE(
             << ", boundaryTolerance=" << boundaryTolerance << "..."
             << std::endl;
   if (testPlane) {
-    std::cout << "- Plane: " << intersectionTest<Surface>(*aPlane, direction)
+    std::cout << "- Plane: "
+              << intersectionTest(dynamic_cast<const Surface&>(*aPlane),
+                                  direction)
               << std::endl;
   }
   if (testDisc) {
-    std::cout << "- Disc: " << intersectionTest<Surface>(*aDisc, direction)
+    std::cout << "- Disc: "
+              << intersectionTest(dynamic_cast<const Surface&>(*aDisc),
+                                  direction)
               << std::endl;
   }
   if (testCylinder) {
     std::cout << "- Cylinder: "
-              << intersectionTest<Surface>(*aCylinder, direction) << std::endl;
+              << intersectionTest(dynamic_cast<const Surface&>(*aCylinder),
+                                  direction)
+              << std::endl;
   }
   if (testStraw) {
-    std::cout << "- Straw: " << intersectionTest<Surface>(*aStraw, direction)
+    std::cout << "- Straw: "
+              << intersectionTest(dynamic_cast<const Surface&>(*aStraw),
+                                  direction)
               << std::endl;
   }
   std::cout << "Done." << std::endl;

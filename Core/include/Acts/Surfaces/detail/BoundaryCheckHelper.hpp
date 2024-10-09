@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/detail/VerticesHelper.hpp"
 
 namespace Acts::detail {

@@ -15,6 +15,7 @@
 #include "Acts/Surfaces/EllipseBounds.hpp"
 #include "Acts/Surfaces/InfiniteBounds.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
+#include "Acts/Surfaces/PlaneSurfaceImpl.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 #include "Acts/Surfaces/SurfaceError.hpp"
 #include "Acts/Surfaces/detail/FacesHelper.hpp"
@@ -85,6 +86,12 @@ const Acts::SurfaceBounds& Acts::PlaneSurface::bounds() const {
     return (*m_bounds.get());
   }
   return s_noBounds;
+}
+
+bool Acts::PlaneSurface::insideBounds(
+    const Vector2& lposition,
+    const BoundaryTolerance& boundaryTolerance) const {
+  return bounds().inside(lposition, boundaryTolerance);
 }
 
 Acts::Polyhedron Acts::PlaneSurface::polyhedronRepresentation(
@@ -160,27 +167,7 @@ Acts::SurfaceMultiIntersection Acts::PlaneSurface::intersect(
     const GeometryContext& gctx, const Vector3& position,
     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
     ActsScalar tolerance) const {
-  // Get the contextual transform
-  const auto& gctxTransform = transform(gctx);
-  // Use the intersection helper for planar surfaces
-  auto intersection =
-      PlanarHelper::intersect(gctxTransform, position, direction, tolerance);
-  auto status = intersection.status();
-  // Evaluate boundary check if requested (and reachable)
-  if (intersection.status() != Intersection3D::Status::unreachable) {
-    // Built-in local to global for speed reasons
-    const auto& tMatrix = gctxTransform.matrix();
-    // Create the reference vector in local
-    const Vector3 vecLocal(intersection.position() - tMatrix.block<3, 1>(0, 3));
-    if (!insideBounds(tMatrix.block<3, 2>(0, 0).transpose() * vecLocal,
-                      boundaryTolerance)) {
-      status = Intersection3D::Status::missed;
-    }
-  }
-  return {{Intersection3D(intersection.position(), intersection.pathLength(),
-                          status),
-           Intersection3D::invalid()},
-          this};
+  return intersectImpl(gctx, position, direction, boundaryTolerance, tolerance);
 }
 
 Acts::ActsMatrix<2, 3> Acts::PlaneSurface::localCartesianToBoundLocalDerivative(

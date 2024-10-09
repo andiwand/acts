@@ -84,6 +84,9 @@ class RectangleBounds : public PlanarBounds {
   bool inside(const Vector2& lposition,
               const BoundaryTolerance& boundaryTolerance) const final;
 
+  inline bool insideImpl(const Vector2& lposition,
+                         const BoundaryTolerance& boundaryTolerance) const;
+
   /// Return the vertices
   ///
   /// @param quarterSegments is the number of segments used to describe curved

@@ -14,6 +14,7 @@
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Surfaces/SurfaceImpl.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
@@ -41,9 +42,9 @@ Acts::Intersection3D::Status updateSingleSurfaceStatus(
                << surface.geometryId() << " index " << static_cast<int>(index));
 
   auto sIntersection =
-      surface.intersect(state.geoContext, stepper.position(state),
-                        navDir * stepper.direction(state), boundaryTolerance,
-                        surfaceTolerance)[index];
+      surface.intersectImpl(state.geoContext, stepper.position(state),
+                            navDir * stepper.direction(state),
+                            boundaryTolerance, surfaceTolerance)[index];
 
   // The intersection is on surface already
   if (sIntersection.status() == Intersection3D::Status::onSurface) {
