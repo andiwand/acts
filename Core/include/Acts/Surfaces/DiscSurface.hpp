@@ -295,6 +295,11 @@ class DiscSurface : public RegularSurface {
           BoundaryTolerance::Infinite(),
       ActsScalar tolerance = s_onSurfaceTolerance) const final;
 
+  inline SurfaceMultiIntersection intersectImpl(
+      const GeometryContext& gctx, const Vector3& position,
+      const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+      ActsScalar tolerance) const;
+
   /// Implement the binningValue
   ///
   /// @param gctx The current geometry context object, e.g. alignment

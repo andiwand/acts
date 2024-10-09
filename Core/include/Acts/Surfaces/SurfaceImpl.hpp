@@ -6,6 +6,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#pragma once
+
+#include "Acts/Surfaces/DiscSurfaceImpl.hpp"
 #include "Acts/Surfaces/PlaneSurfaceImpl.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 
@@ -18,6 +21,9 @@ inline SurfaceMultiIntersection Surface::intersectImpl(
   switch (type()) {
     case SurfaceType::Plane:
       return static_cast<const PlaneSurface*>(this)->intersectImpl(
+          gctx, position, direction, boundaryTolerance, tolerance);
+    case SurfaceType::Disc:
+      return static_cast<const DiscSurface*>(this)->intersectImpl(
           gctx, position, direction, boundaryTolerance, tolerance);
     default:
       return intersect(gctx, position, direction, boundaryTolerance, tolerance);

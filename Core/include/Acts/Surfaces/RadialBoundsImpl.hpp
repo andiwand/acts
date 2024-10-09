@@ -8,16 +8,18 @@
 
 #pragma once
 
-#include "Acts/Surfaces/RectangleBounds.hpp"
+#include "Acts/Surfaces/RadialBounds.hpp"
 #include "Acts/Surfaces/detail/BoundaryCheckHelper.hpp"
 
 namespace Acts {
 
-inline bool RectangleBounds::insideImpl(
-    const Vector2& localPosition,
+inline bool RadialBounds::insideImpl(
+    const Vector2& lposition,
     const BoundaryTolerance& boundaryTolerance) const {
-  return detail::insideAlignedBox(m_min, m_max, boundaryTolerance,
-                                  localPosition, std::nullopt);
+  return detail::insideAlignedBox(Vector2(get(eMinR), -get(eHalfPhiSector)),
+                                  Vector2(get(eMaxR), get(eHalfPhiSector)),
+                                  boundaryTolerance, shifted(lposition),
+                                  std::nullopt);
 }
 
 }  // namespace Acts

@@ -79,6 +79,9 @@ class RadialBounds : public DiscBounds {
   bool inside(const Vector2& lposition,
               const BoundaryTolerance& boundaryTolerance) const final;
 
+  inline bool insideImpl(const Vector2& lposition,
+                         const BoundaryTolerance& boundaryTolerance) const;
+
   /// Outstream operator
   ///
   /// @param sl is the ostream to be dumped into

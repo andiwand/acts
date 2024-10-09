@@ -40,9 +40,9 @@ unsigned int ntests = 10;
 unsigned int nrepts = 2000;
 const BoundaryTolerance boundaryTolerance = BoundaryTolerance::None();
 const bool testPlane = true;
-const bool testDisc = false;
-const bool testCylinder = false;
-const bool testStraw = false;
+const bool testDisc = true;
+const bool testCylinder = true;
+const bool testStraw = true;
 
 // Create a test context
 GeometryContext tgContext = GeometryContext();

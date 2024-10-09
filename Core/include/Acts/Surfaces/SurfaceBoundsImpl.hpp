@@ -6,7 +6,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "Acts/Surfaces/RectangleBounds.hpp"
+#pragma once
+
+#include "Acts/Surfaces/RadialBoundsImpl.hpp"
 #include "Acts/Surfaces/RectangleBoundsImpl.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 
@@ -20,6 +22,9 @@ inline bool SurfaceBounds::insideImpl(
   switch (type()) {
     case SurfaceBounds::eRectangle:
       return static_cast<const RectangleBounds*>(this)->insideImpl(
+          localPosition, boundaryTolerance);
+    case SurfaceBounds::eDisc:
+      return static_cast<const RadialBounds*>(this)->insideImpl(
           localPosition, boundaryTolerance);
     default:
       return inside(localPosition, boundaryTolerance);
