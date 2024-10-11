@@ -13,6 +13,7 @@
 #include "Acts/Material/IMaterialDecorator.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
+#include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceImpl.hpp"
 #include "Acts/Utilities/Helpers.hpp"
@@ -111,21 +112,6 @@ void Acts::Layer::closeGeometry(const IMaterialDecorator* materialDecorator,
   }
 }
 
-inline Acts::SurfaceMultiIntersection intersectImpl(
-    const Acts::Surface& surface, const Acts::GeometryContext& gctx,
-    const Acts::Vector3& position, const Acts::Vector3& direction,
-    const Acts::BoundaryTolerance& boundaryTolerance,
-    Acts::ActsScalar tolerance) {
-  switch (surface.type()) {
-    case Acts::Surface::SurfaceType::Plane:
-      return static_cast<const Acts::PlaneSurface*>(&surface)->intersectImpl(
-          gctx, position, direction, boundaryTolerance, tolerance);
-    default:
-      return surface.intersect(gctx, position, direction, boundaryTolerance,
-                               tolerance);
-  }
-}
-
 boost::container::small_vector<Acts::SurfaceIntersection, 10>
 Acts::Layer::compatibleSurfaces(
     const GeometryContext& gctx, const Vector3& position,
@@ -164,7 +150,7 @@ Acts::Layer::compatibleSurfaces(
 
   // lemma 1 : check and fill the surface
   // [&sIntersections, &options, &parameters
-  auto processSurface = [&](const Surface& sf, bool sensitive = false) {
+  auto processSurface = [&]<typename S>(const S& sf, bool sensitive = false) {
     // veto if it's start surface
     if (options.startObject == &sf) {
       return;
@@ -179,8 +165,8 @@ Acts::Layer::compatibleSurfaces(
     }
     // the surface intersection
     SurfaceIntersection sfi =
-        intersectImpl(sf, gctx, position, direction, boundaryTolerance,
-                      s_onSurfaceTolerance)
+        sf.intersectImpl(gctx, position, direction, boundaryTolerance,
+                         s_onSurfaceTolerance)
             .closest();
     if (sfi.isValid() &&
         detail::checkPathLength(sfi.pathLength(), nearLimit, farLimit) &&
@@ -202,8 +188,15 @@ Acts::Layer::compatibleSurfaces(
     // we loop through and veto
     // - if the approach surface is the parameter surface
     // - if the surface is not compatible with the collect
-    for (auto& aSurface : approachSurfaces) {
-      processSurface(*aSurface);
+    if (approachSurfaces.size() > 1 &&
+        approachSurfaces.front()->type() == Surface::SurfaceType::Plane) {
+      for (auto& aSurface : approachSurfaces) {
+        processSurface(static_cast<const PlaneSurface&>(*aSurface));
+      }
+    } else {
+      for (auto& aSurface : approachSurfaces) {
+        processSurface(*aSurface);
+      }
     }
   }
 
