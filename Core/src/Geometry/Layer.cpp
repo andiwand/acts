@@ -150,7 +150,32 @@ Acts::Layer::compatibleSurfaces(
 
   // lemma 1 : check and fill the surface
   // [&sIntersections, &options, &parameters
-  auto processSurface = [&]<typename S>(const S& sf, bool sensitive = false) {
+  auto processSurface = [&](const Surface& sf, bool sensitive = false) {
+    // veto if it's start surface
+    if (options.startObject == &sf) {
+      return;
+    }
+    // veto if it doesn't fit the prescription
+    if (!acceptSurface(sf, sensitive)) {
+      return;
+    }
+    BoundaryTolerance boundaryTolerance = options.boundaryTolerance;
+    if (rangeContainsValue(options.externalSurfaces, sf.geometryId())) {
+      boundaryTolerance = BoundaryTolerance::Infinite();
+    }
+    // the surface intersection
+    SurfaceIntersection sfi =
+        sf.intersect(gctx, position, direction, boundaryTolerance,
+                     s_onSurfaceTolerance)
+            .closest();
+    if (sfi.isValid() &&
+        detail::checkPathLength(sfi.pathLength(), nearLimit, farLimit) &&
+        isUnique(sfi)) {
+      sIntersections.push_back(sfi);
+    }
+  };
+  auto processPlaneSurface = [&](const PlaneSurface& sf,
+                                 bool sensitive = false) {
     // veto if it's start surface
     if (options.startObject == &sf) {
       return;
@@ -191,7 +216,7 @@ Acts::Layer::compatibleSurfaces(
     if (approachSurfaces.size() > 1 &&
         approachSurfaces.front()->type() == Surface::SurfaceType::Plane) {
       for (auto& aSurface : approachSurfaces) {
-        processSurface(static_cast<const PlaneSurface&>(*aSurface));
+        processPlaneSurface(static_cast<const PlaneSurface&>(*aSurface));
       }
     } else {
       for (auto& aSurface : approachSurfaces) {
