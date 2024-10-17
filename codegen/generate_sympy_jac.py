@@ -12,7 +12,6 @@ step_path_derivatives[6, 0] = 0  # qop
 surface_path_derivatives = (
     MatrixSymbol("surface_path_derivatives", 1, 7).as_explicit().as_mutable()
 )
-surface_path_derivatives[0, 3] = 0
 surface_path_derivatives[0, 6] = 0
 
 J_bf = MatrixSymbol("J_bf", 7, 5).as_explicit().as_mutable()
@@ -20,21 +19,19 @@ tmp = sym.zeros(7, 5)
 tmp[0:3, 0:2] = J_bf[0:3, 0:2]
 tmp[0:3, 2:4] = J_bf[0:3, 2:4]
 tmp[3:6, 2:4] = J_bf[3:6, 2:4]  # line surface
-tmp[3, 5] = 1
+tmp[6, 4] = 1
 J_bf = tmp
 
 J_t = MatrixSymbol("J_t", 7, 7).as_explicit().as_mutable()
 tmp = sym.eye(7)
-tmp[0:3, 3:7] = J_t[0:3, 3:7]
-tmp[3, 7] = J_t[3, 7]
-tmp[3:6, 3:7] = J_t[3:6, 3:7]
+tmp[0:6, 3:7] = J_t[0:6, 3:7]
 J_t = tmp
 
 J_fb = MatrixSymbol("J_fb", 5, 7).as_explicit().as_mutable()
 tmp = sym.zeros(5, 7)
 tmp[0:2, 0:3] = J_fb[0:2, 0:3]
 tmp[2:4, 3:6] = J_fb[2:4, 3:6]
-tmp[5, 3] = 1
+tmp[4, 6] = 1
 J_fb = tmp
 
 
@@ -42,7 +39,7 @@ def full_transport_jacobian_generic():
     J_full = name_expr(
         "J_full",
         J_fb
-        * (sym.eye(8) + step_path_derivatives * surface_path_derivatives)
+        * (sym.eye(7) + step_path_derivatives * surface_path_derivatives)
         * J_t
         * J_bf,
     )
@@ -52,7 +49,7 @@ def full_transport_jacobian_generic():
 
 def full_transport_jacobian_curvilinear(direction):
     surface_path_derivatives = (
-        MatrixSymbol("surface_path_derivatives", 1, 8).as_explicit().as_mutable()
+        MatrixSymbol("surface_path_derivatives", 1, 7).as_explicit().as_mutable()
     )
     surface_path_derivatives[0, 0:3] = -direction.as_explicit().transpose()
     surface_path_derivatives[0, 3:7] = sym.zeros(1, 4)

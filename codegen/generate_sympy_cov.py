@@ -13,7 +13,6 @@ for indices in np.ndindex(C.shape):
 J_full = MatrixSymbol("J_full", 5, 5).as_explicit().as_mutable()
 tmp = sym.eye(5)
 tmp[0:4, 0:5] = J_full[0:4, 0:5]
-tmp[5:6, 0:5] = J_full[5:6, 0:5]
 J_full = tmp
 
 
