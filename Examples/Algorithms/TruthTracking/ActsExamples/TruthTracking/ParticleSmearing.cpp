@@ -71,7 +71,6 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
         vtxParticles.begin()->position());
 
     for (const auto& particle : vtxParticles) {
-      const auto time = particle.time();
       const auto phi = Acts::VectorHelpers::phi(particle.direction());
       const auto theta = Acts::VectorHelpers::theta(particle.direction());
       const auto pt = particle.transverseMomentum();
@@ -88,7 +87,6 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
           m_cfg.sigmaZ0 +
           m_cfg.sigmaZ0PtA * std::exp(-1.0 * std::abs(m_cfg.sigmaZ0PtB) * pt);
       // shortcuts for other resolutions
-      const double sigmaT0 = m_cfg.sigmaT0;
       const double sigmaPhi = m_cfg.sigmaPhi;
       const double sigmaTheta = m_cfg.sigmaTheta;
       const double sigmaQOverP =
@@ -100,7 +98,6 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
       // note that we smear d0 and z0 in the perigee frame
       params[Acts::eBoundLoc0] = sigmaD0 * stdNormal(rng);
       params[Acts::eBoundLoc1] = sigmaZ0 * stdNormal(rng);
-      params[Acts::eBoundTime] = time + sigmaT0 * stdNormal(rng);
       // smear direction angles phi,theta ensuring correct bounds
       const auto [newPhi, newTheta] = Acts::detail::normalizePhiTheta(
           phi + sigmaPhi * stdNormal(rng), theta + sigmaTheta * stdNormal(rng));
@@ -109,9 +106,9 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
       // compute smeared q/p
       params[Acts::eBoundQOverP] = qOverP + sigmaQOverP * stdNormal(rng);
 
-      ACTS_VERBOSE("Smearing particle (pos, time, phi, theta, q/p):");
-      ACTS_VERBOSE(" from: " << particle.position().transpose() << ", " << time
-                             << ", " << phi << ", " << theta << ", " << qOverP);
+      ACTS_VERBOSE("Smearing particle (pos, phi, theta, q/p):");
+      ACTS_VERBOSE(" from: " << particle.position().transpose() << ", " << phi
+                             << ", " << theta << ", " << qOverP);
       ACTS_VERBOSE("   to: " << perigee
                                     ->localToGlobal(
                                         ctx.geoContext,
@@ -119,8 +116,7 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
                                                       params[Acts::eBoundLoc1]},
                                         particle.direction() * p)
                                     .transpose()
-                             << ", " << params[Acts::eBoundTime] << ", "
-                             << params[Acts::eBoundPhi] << ", "
+                             << ", " << params[Acts::eBoundPhi] << ", "
                              << params[Acts::eBoundTheta] << ", "
                              << params[Acts::eBoundQOverP]);
 
@@ -157,7 +153,7 @@ ActsExamples::ProcessCode ActsExamples::ParticleSmearing::execute(
         // otherwise use the smearing sigmas
 
         Acts::BoundVector sigmas = Acts::BoundVector(
-            {sigmaD0, sigmaZ0, sigmaPhi, sigmaTheta, sigmaQOverP, sigmaT0});
+            {sigmaD0, sigmaZ0, sigmaPhi, sigmaTheta, sigmaQOverP});
 
         for (std::size_t i = Acts::eBoundLoc0; i < Acts::eBoundSize; ++i) {
           double sigma = sigmas[i];

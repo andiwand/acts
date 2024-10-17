@@ -96,10 +96,9 @@ ActsExamples::ProcessCode ActsExamples::RootSimHitWriter::writeT(
     m_particleId = hit.particleId().value();
     m_geometryId = hit.geometryId().value();
     // write hit position
-    m_tx = hit.fourPosition().x() / Acts::UnitConstants::mm;
-    m_ty = hit.fourPosition().y() / Acts::UnitConstants::mm;
-    m_tz = hit.fourPosition().z() / Acts::UnitConstants::mm;
-    m_tt = hit.fourPosition().w() / Acts::UnitConstants::mm;
+    m_tx = hit.position().x() / Acts::UnitConstants::mm;
+    m_ty = hit.position().y() / Acts::UnitConstants::mm;
+    m_tz = hit.position().z() / Acts::UnitConstants::mm;
     // write four-momentum before interaction
     m_tpx = hit.momentum4Before().x() / Acts::UnitConstants::GeV;
     m_tpy = hit.momentum4Before().y() / Acts::UnitConstants::GeV;

@@ -36,7 +36,6 @@ BOOST_AUTO_TEST_CASE(jacobian_test) {
   CHECK_CLOSE_REL(f2cJacobian(eBoundLoc1, eFreePos0), -cosPhi * cosTheta, 1e-5);
   CHECK_CLOSE_REL(f2cJacobian(eBoundLoc1, eFreePos1), -sinPhi * cosTheta, 1e-5);
   CHECK_CLOSE_REL(f2cJacobian(eBoundLoc1, eFreePos2), sinTheta, 1e-5);
-  CHECK_CLOSE_REL(f2cJacobian(eBoundTime, eFreeTime), 1., 1e-5);
   CHECK_CLOSE_REL(f2cJacobian(eBoundPhi, eFreeDir0), -sinPhi / sinTheta, 1e-5);
   CHECK_CLOSE_REL(f2cJacobian(eBoundPhi, eFreeDir1), cosPhi / sinTheta, 1e-5);
   CHECK_CLOSE_REL(f2cJacobian(eBoundTheta, eFreeDir0), cosPhi * cosTheta, 1e-5);
@@ -61,8 +60,6 @@ BOOST_AUTO_TEST_CASE(jacobian_test) {
   CHECK_CLOSE_REL(c2fJacobian(eFreePos1, eBoundLoc0), cosPhi, 1e-5);
   CHECK_CLOSE_REL(c2fJacobian(eFreePos1, eBoundLoc1), -sinPhi * cosTheta, 1e-5);
   CHECK_CLOSE_REL(c2fJacobian(eFreePos2, eBoundLoc1), sinTheta, 1e-5);
-  // Time parameter: stays as is
-  CHECK_CLOSE_REL(c2fJacobian(eFreeTime, eBoundTime), 1, 1e-5);
   CHECK_CLOSE_REL(c2fJacobian(eFreeDir0, eBoundPhi), -sinTheta * sinPhi, 1e-5);
   CHECK_CLOSE_REL(c2fJacobian(eFreeDir0, eBoundTheta), cosTheta * cosPhi, 1e-5);
   CHECK_CLOSE_REL(c2fJacobian(eFreeDir1, eBoundPhi), sinTheta * cosPhi, 1e-5);

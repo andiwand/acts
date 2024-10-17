@@ -71,7 +71,7 @@ std::vector<ActsFatras::Particle> ActsFatras::Geant4Decay::decayParticle(
 
     Particle childParticle(parent.particleId().makeDescendant(i),
                            static_cast<Acts::PdgParticle>(pdg));
-    childParticle.setPosition4(parent.fourPosition())
+    childParticle.setPosition(parent.position())
         .setAbsoluteMomentum(amgMom.norm())
         .setDirection(amgMom)
         .setProcess(ProcessType::eDecay);

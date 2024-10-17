@@ -57,7 +57,7 @@ Result<std::vector<Vertex>> AdaptiveMultiVertexFinder::find(
     const auto& seedVertex = seedOptional.value();
 
     ACTS_DEBUG("Position of vertex candidate after seeding: "
-               << seedVertex.fullPosition().transpose());
+               << seedVertex.position().transpose());
 
     allVertices.push_back(std::make_unique<Vertex>(seedVertex));
     Vertex& vtxCandidate = *allVertices.back();
@@ -104,7 +104,7 @@ Result<std::vector<Vertex>> AdaptiveMultiVertexFinder::find(
       return fitResult.error();
     }
     ACTS_DEBUG("Position of vertex candidate after the fit: "
-               << vtxCandidate.fullPosition().transpose());
+               << vtxCandidate.position().transpose());
     // Check if vertex is good vertex
     auto [nCompatibleTracks, isGoodVertex] =
         checkVertexAndCompatibleTracks(vtxCandidate, seedTracks, fitterState,
@@ -189,15 +189,15 @@ void AdaptiveMultiVertexFinder::setConstraintAfterSeeding(
   if (useVertexConstraintInFit) {
     if (!m_cfg.useSeedConstraint) {
       // Set seed vertex constraint to old constraint before seeding
-      seedVertex.setFullCovariance(currentConstraint.fullCovariance());
+      seedVertex.setCovariance(currentConstraint.covariance());
     } else {
       // Use the constraint provided by the seed finder
-      currentConstraint.setFullPosition(seedVertex.fullPosition());
-      currentConstraint.setFullCovariance(seedVertex.fullCovariance());
+      currentConstraint.setPosition(seedVertex.position());
+      currentConstraint.setCovariance(seedVertex.covariance());
     }
   } else {
-    currentConstraint.setFullPosition(seedVertex.fullPosition());
-    currentConstraint.setFullCovariance(m_cfg.initialVariances.asDiagonal());
+    currentConstraint.setPosition(seedVertex.position());
+    currentConstraint.setCovariance(m_cfg.initialVariances.asDiagonal());
     currentConstraint.setFitQuality(m_cfg.defaultConstrFitQuality);
   }
 }
@@ -212,30 +212,22 @@ Result<double> AdaptiveMultiVertexFinder::getIPSignificance(
   // it probably should be used.
   Vertex newVtx = vtx;
   if (!m_cfg.useVertexCovForIPEstimation) {
-    newVtx.setFullCovariance(SquareMatrix4::Zero());
+    newVtx.setCovariance(SquareMatrix3::Zero());
   }
 
   auto estRes = m_cfg.ipEstimator.getImpactParameters(
       m_cfg.extractParameters(track), newVtx, vertexingOptions.geoContext,
-      vertexingOptions.magFieldContext, m_cfg.useTime);
+      vertexingOptions.magFieldContext);
   if (!estRes.ok()) {
     return estRes.error();
   }
 
   ImpactParametersAndSigma ipas = *estRes;
 
-  // TODO: throw error when encountering negative standard deviations
-  double chi2Time = 0;
-  if (m_cfg.useTime) {
-    if (ipas.sigmaDeltaT.value() > 0) {
-      chi2Time = std::pow(ipas.deltaT.value() / ipas.sigmaDeltaT.value(), 2);
-    }
-  }
-
   double significance = 0.;
   if (ipas.sigmaD0 > 0 && ipas.sigmaZ0 > 0) {
     significance = std::sqrt(std::pow(ipas.d0 / ipas.sigmaD0, 2) +
-                             std::pow(ipas.z0 / ipas.sigmaZ0, 2) + chi2Time);
+                             std::pow(ipas.z0 / ipas.sigmaZ0, 2));
   }
 
   return significance;
@@ -295,11 +287,11 @@ Result<bool> AdaptiveMultiVertexFinder::canRecoverFromNoCompatibleTracks(
       }
     }
     if (nearTrackFound) {
-      vtx.setFullPosition(Vector4(0., 0., newZ, 0.));
+      vtx.setPosition(Vector3(0., 0., newZ));
 
       // Update vertex info for current vertex
       fitterState.vtxInfoMap[&vtx] =
-          VertexInfo(currentConstraint, vtx.fullPosition());
+          VertexInfo(currentConstraint, vtx.position());
 
       // Try to add compatible track with adapted vertex position
       auto res = addCompatibleTracksToVertex(allTracks, vtx, fitterState,
@@ -330,8 +322,7 @@ Result<bool> AdaptiveMultiVertexFinder::canPrepareVertexForFit(
     const Vertex& currentConstraint, VertexFitterState& fitterState,
     const VertexingOptions& vertexingOptions) const {
   // Add vertex info to fitter state
-  fitterState.vtxInfoMap[&vtx] =
-      VertexInfo(currentConstraint, vtx.fullPosition());
+  fitterState.vtxInfoMap[&vtx] = VertexInfo(currentConstraint, vtx.position());
 
   // Add all compatible tracks to vertex
   auto resComp = addCompatibleTracksToVertex(allTracks, vtx, fitterState,
@@ -496,65 +487,38 @@ Result<bool> AdaptiveMultiVertexFinder::keepNewVertex(
 
 Result<bool> AdaptiveMultiVertexFinder::isMergedVertex(
     const Vertex& vtx, const std::vector<Vertex*>& allVertices) const {
-  const Vector4& candidatePos = vtx.fullPosition();
-  const SquareMatrix4& candidateCov = vtx.fullCovariance();
+  const Vector3& candidatePos = vtx.position();
+  const SquareMatrix3& candidateCov = vtx.covariance();
 
   for (const auto otherVtx : allVertices) {
     if (&vtx == otherVtx) {
       continue;
     }
-    const Vector4& otherPos = otherVtx->fullPosition();
-    const SquareMatrix4& otherCov = otherVtx->fullCovariance();
+    const Vector3& otherPos = otherVtx->position();
+    const SquareMatrix3& otherCov = otherVtx->covariance();
 
     double significance = 0;
     if (!m_cfg.doFullSplitting) {
-      if (m_cfg.useTime) {
-        const Vector2 deltaZT = otherPos.tail<2>() - candidatePos.tail<2>();
-        SquareMatrix2 sumCovZT = candidateCov.bottomRightCorner<2, 2>() +
-                                 otherCov.bottomRightCorner<2, 2>();
-        auto sumCovZTInverse = safeInverse(sumCovZT);
-        if (!sumCovZTInverse) {
-          ACTS_ERROR("Vertex z-t covariance matrix is singular.");
-          ACTS_ERROR("sumCovZT:\n" << sumCovZT);
-          return Result<bool>::failure(VertexingError::SingularMatrix);
-        }
-        significance = std::sqrt(deltaZT.dot(*sumCovZTInverse * deltaZT));
-      } else {
-        const double deltaZPos = otherPos[eZ] - candidatePos[eZ];
-        const double sumVarZ = otherCov(eZ, eZ) + candidateCov(eZ, eZ);
-        if (sumVarZ <= 0) {
-          ACTS_ERROR("Variance of the vertex's z-coordinate is not positive.");
-          ACTS_ERROR("sumVarZ:\n" << sumVarZ);
-          return Result<bool>::failure(VertexingError::SingularMatrix);
-        }
-        // Use only z significance
-        significance = std::abs(deltaZPos) / std::sqrt(sumVarZ);
+      const double deltaZPos = otherPos[eZ] - candidatePos[eZ];
+      const double sumVarZ = otherCov(eZ, eZ) + candidateCov(eZ, eZ);
+      if (sumVarZ <= 0) {
+        ACTS_ERROR("Variance of the vertex's z-coordinate is not positive.");
+        ACTS_ERROR("sumVarZ:\n" << sumVarZ);
+        return Result<bool>::failure(VertexingError::SingularMatrix);
       }
+      // Use only z significance
+      significance = std::abs(deltaZPos) / std::sqrt(sumVarZ);
     } else {
-      if (m_cfg.useTime) {
-        // Use 4D information for significance
-        const Vector4 deltaPos = otherPos - candidatePos;
-        SquareMatrix4 sumCov = candidateCov + otherCov;
-        auto sumCovInverse = safeInverse(sumCov);
-        if (!sumCovInverse) {
-          ACTS_ERROR("Vertex 4D covariance matrix is singular.");
-          ACTS_ERROR("sumCov:\n" << sumCov);
-          return Result<bool>::failure(VertexingError::SingularMatrix);
-        }
-        significance = std::sqrt(deltaPos.dot(*sumCovInverse * deltaPos));
-      } else {
-        // Use 3D information for significance
-        const Vector3 deltaPos = otherPos.head<3>() - candidatePos.head<3>();
-        SquareMatrix3 sumCov =
-            candidateCov.topLeftCorner<3, 3>() + otherCov.topLeftCorner<3, 3>();
-        auto sumCovInverse = safeInverse(sumCov);
-        if (!sumCovInverse) {
-          ACTS_ERROR("Vertex 3D covariance matrix is singular.");
-          ACTS_ERROR("sumCov:\n" << sumCov);
-          return Result<bool>::failure(VertexingError::SingularMatrix);
-        }
-        significance = std::sqrt(deltaPos.dot(*sumCovInverse * deltaPos));
+      // Use 3D information for significance
+      const Vector3 deltaPos = otherPos - candidatePos;
+      SquareMatrix3 sumCov = candidateCov + otherCov;
+      auto sumCovInverse = safeInverse(sumCov);
+      if (!sumCovInverse) {
+        ACTS_ERROR("Vertex 3D covariance matrix is singular.");
+        ACTS_ERROR("sumCov:\n" << sumCov);
+        return Result<bool>::failure(VertexingError::SingularMatrix);
       }
+      significance = std::sqrt(deltaPos.dot(*sumCovInverse * deltaPos));
     }
     if (significance < 0.) {
       ACTS_ERROR(

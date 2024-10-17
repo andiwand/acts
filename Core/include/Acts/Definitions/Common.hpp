@@ -45,12 +45,11 @@ enum CoordinateIndices : unsigned int {
   ePos0 = 0,
   ePos1 = 1,
   ePos2 = 2,
-  eTime = 3,
   // generic momentum-like access
   eMom0 = ePos0,
   eMom1 = ePos1,
   eMom2 = ePos2,
-  eEnergy = eTime,
+  eEnergy = 3,
   // Cartesian spatial coordinates
   eX = ePos0,
   eY = ePos1,

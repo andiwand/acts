@@ -21,7 +21,7 @@ namespace Acts {
 struct VertexInfo {
   VertexInfo() = default;
 
-  VertexInfo(const Acts::Vertex& constr, const Acts::Vector4& pos)
+  VertexInfo(const Acts::Vertex& constr, const Acts::Vector3& pos)
       : constraint(constr),
         linPoint(pos),
         oldPosition(pos),
@@ -31,14 +31,14 @@ struct VertexInfo {
   Acts::Vertex constraint;
 
   // Point where all associated tracks are linearized
-  Acts::Vector4 linPoint{Acts::Vector4::Zero()};
+  Acts::Vector3 linPoint{Acts::Vector3::Zero()};
 
   // Vertex position from the last iteration of the fit
-  Acts::Vector4 oldPosition{Acts::Vector4::Zero()};
+  Acts::Vector3 oldPosition{Acts::Vector3::Zero()};
 
   // The seed position (i.e., the first estimate for the vertex position as
   // obtained by the vertex seed finder)
-  Acts::Vector4 seedPosition{Acts::Vector4::Zero()};
+  Acts::Vector3 seedPosition{Acts::Vector3::Zero()};
 
   // If set to true, the associated tracks need to be relinearized at a more
   // recent vertex position

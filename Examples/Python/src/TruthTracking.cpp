@@ -114,8 +114,6 @@ void addTruthTracking(Context& ctx) {
     ACTS_PYTHON_MEMBER(rhoMax);
     ACTS_PYTHON_MEMBER(absZMin);
     ACTS_PYTHON_MEMBER(absZMax);
-    ACTS_PYTHON_MEMBER(timeMin);
-    ACTS_PYTHON_MEMBER(timeMax);
     ACTS_PYTHON_MEMBER(phiMin);
     ACTS_PYTHON_MEMBER(phiMax);
     ACTS_PYTHON_MEMBER(etaMin);
@@ -136,7 +134,6 @@ void addTruthTracking(Context& ctx) {
 
     pythonRangeProperty(c, "rho", &Config::rhoMin, &Config::rhoMax);
     pythonRangeProperty(c, "absZ", &Config::absZMin, &Config::absZMax);
-    pythonRangeProperty(c, "time", &Config::timeMin, &Config::timeMax);
     pythonRangeProperty(c, "phi", &Config::phiMin, &Config::phiMax);
     pythonRangeProperty(c, "eta", &Config::etaMin, &Config::etaMax);
     pythonRangeProperty(c, "absEta", &Config::absEtaMin, &Config::absEtaMax);
@@ -193,7 +190,7 @@ void addTruthTracking(Context& ctx) {
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::TrackModifier, mex,
                                 "TrackModifier", inputTracks, outputTracks,
-                                dropCovariance, covScale, killTime);
+                                dropCovariance, covScale);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TruthSeedingAlgorithm, mex, "TruthSeedingAlgorithm",
@@ -201,7 +198,7 @@ void addTruthTracking(Context& ctx) {
       outputParticles, outputSeeds, outputProtoTracks, deltaRMin, deltaRMax);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::HitSelector, mex, "HitSelector",
-                                inputHits, outputHits, maxTime);
+                                inputHits, outputHits);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TrackTruthMatcher, mex, "TrackTruthMatcher", inputTracks,

@@ -76,8 +76,11 @@ struct EigenStepperDefaultExtension {
   template <typename propagator_state_t, typename stepper_t,
             typename navigator_t>
   bool finalize(propagator_state_t& state, const stepper_t& stepper,
-                const navigator_t& /*navigator*/, const double h) const {
-    propagateTime(state, stepper, h);
+                const navigator_t& navigator, const double h) const {
+    (void)state;
+    (void)stepper;
+    (void)navigator;
+    (void)h;
     return true;
   }
 
@@ -100,34 +103,10 @@ struct EigenStepperDefaultExtension {
   bool finalize(propagator_state_t& state, const stepper_t& stepper,
                 const navigator_t& /*navigator*/, const double h,
                 FreeMatrix& D) const {
-    propagateTime(state, stepper, h);
     return transportMatrix(state, stepper, h, D);
   }
 
  private:
-  /// @brief Propagation function for the time coordinate
-  ///
-  /// @tparam propagator_state_t Type of the state of the propagator
-  /// @tparam stepper_t Type of the stepper
-  ///
-  /// @param [in, out] state State of the propagator
-  /// @param [in] stepper Stepper of the propagation
-  /// @param [in] h Step size
-  template <typename propagator_state_t, typename stepper_t>
-  void propagateTime(propagator_state_t& state, const stepper_t& stepper,
-                     const double h) const {
-    /// This evaluation is based on dt/ds = 1/v = 1/(beta * c) with the velocity
-    /// v, the speed of light c and beta = v/c. This can be re-written as dt/ds
-    /// = sqrt(m^2/p^2 + c^{-2}) with the mass m and the momentum p.
-    auto m = stepper.particleHypothesis(state.stepping).mass();
-    auto p = stepper.absoluteMomentum(state.stepping);
-    auto dtds = std::sqrt(1 + m * m / (p * p));
-    state.stepping.pars[eFreeTime] += h * dtds;
-    if (state.stepping.covTransport) {
-      state.stepping.derivative(3) = dtds;
-    }
-  }
-
   /// @brief Calculates the transport matrix D for the jacobian
   ///
   /// @tparam propagator_state_t Type of the state of the propagator
@@ -161,23 +140,20 @@ struct EigenStepperDefaultExtension {
     /// constant offset does not exist for rectangular matrix dGdu' (due to the
     /// missing Lambda part) and only exists for dFdu' in dlambda/dlambda.
 
-    auto m = state.stepping.particleHypothesis.mass();
     auto& sd = state.stepping.stepData;
     auto dir = stepper.direction(state.stepping);
     auto qop = stepper.qOverP(state.stepping);
-    auto p = stepper.absoluteMomentum(state.stepping);
-    auto dtds = std::sqrt(1 + m * m / (p * p));
 
     D = FreeMatrix::Identity();
 
     double half_h = h * 0.5;
     // This sets the reference to the sub matrices
     // dFdx is already initialised as (3x3) idendity
-    auto dFdT = D.block<3, 3>(0, 4);
-    auto dFdL = D.block<3, 1>(0, 7);
+    auto dFdT = D.block<3, 3>(0, 3);
+    auto dFdL = D.block<3, 1>(0, 6);
     // dGdx is already initialised as (3x3) zero
-    auto dGdT = D.block<3, 3>(4, 4);
-    auto dGdL = D.block<3, 1>(4, 7);
+    auto dGdT = D.block<3, 3>(3, 3);
+    auto dGdL = D.block<3, 1>(3, 6);
 
     ActsMatrix<3, 3> dk1dT = ActsMatrix<3, 3>::Zero();
     ActsMatrix<3, 3> dk2dT = ActsMatrix<3, 3>::Identity();
@@ -225,7 +201,6 @@ struct EigenStepperDefaultExtension {
 
     dGdL = h / 6. * (dk1dL + 2. * (dk2dL + dk3dL) + dk4dL);
 
-    D(3, 7) = h * m * m * qop / dtds;
     return true;
   }
 };

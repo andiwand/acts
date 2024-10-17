@@ -15,9 +15,8 @@
 
 Acts::Result<Acts::LinearizedTrack>
 Acts::NumericalTrackLinearizer::linearizeTrack(
-    const BoundTrackParameters& params, double linPointTime,
-    const Surface& perigeeSurface, const Acts::GeometryContext& gctx,
-    const Acts::MagneticFieldContext& mctx,
+    const BoundTrackParameters& params, const Surface& perigeeSurface,
+    const Acts::GeometryContext& gctx, const Acts::MagneticFieldContext& mctx,
     MagneticFieldProvider::Cache& /*fieldCache*/) const {
   // Create propagator options
   PropagatorPlainOptions pOptions(gctx, mctx);
@@ -70,19 +69,18 @@ Acts::NumericalTrackLinearizer::linearizeTrack(
   // 4D PCA and the momentum of the track at the PCA
   // These quantities will be used in the computation of the constant term in
   // the Taylor expansion
-  Vector4 pca;
+  Vector3 pca;
   Vector3 momentumAtPCA;
 
   // Fill "paramVec", "pca", and "momentumAtPCA"
   {
     Vector3 globalCoords = endParams.position(gctx);
-    ActsScalar globalTime = endParams.time();
     ActsScalar phi = perigeeParams(BoundIndices::eBoundPhi);
     ActsScalar theta = perigeeParams(BoundIndices::eBoundTheta);
     ActsScalar qOvP = perigeeParams(BoundIndices::eBoundQOverP);
 
-    paramVec << globalCoords, globalTime, phi, theta, qOvP;
-    pca << globalCoords, globalTime;
+    paramVec << globalCoords, phi, theta, qOvP;
+    pca << globalCoords;
     momentumAtPCA << phi, theta, qOvP;
   }
 
@@ -120,8 +118,8 @@ Acts::NumericalTrackLinearizer::linearizeTrack(
 
     // Obtain propagation direction
     intersection = perigeeSurface
-                       .intersect(gctx, paramVecCopy.template head<3>(),
-                                  wiggledDir, BoundaryTolerance::Infinite())
+                       .intersect(gctx, paramVecCopy.head<3>(), wiggledDir,
+                                  BoundaryTolerance::Infinite())
                        .closest();
     pOptions.direction =
         Direction::fromScalarZeroAsPositive(intersection.pathLength());
@@ -155,10 +153,7 @@ Acts::NumericalTrackLinearizer::linearizeTrack(
   BoundVector constTerm =
       perigeeParams - positionJacobian * pca - momentumJacobian * momentumAtPCA;
 
-  Vector4 linPoint;
-  linPoint.head<3>() = perigeeSurface.center(gctx);
-  linPoint[3] = linPointTime;
-
+  Vector3 linPoint = perigeeSurface.center(gctx);
   return LinearizedTrack(perigeeParams, parCovarianceAtPCA, weightAtPCA,
                          linPoint, positionJacobian, momentumJacobian, pca,
                          momentumAtPCA, constTerm);

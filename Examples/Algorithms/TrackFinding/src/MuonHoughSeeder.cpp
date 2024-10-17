@@ -112,11 +112,11 @@ ActsExamples::ProcessCode ActsExamples::MuonHoughSeeder::execute(
         ActsExamples::splitId(SH.geometryId().value());
     // store the true parameters
     truePatterns.emplace_back(SH.direction().y() / SH.direction().z(),
-                              SH.fourPosition().y());
+                              SH.position().y());
     // std::cout<<"station name=" <<
     // static_cast<int>(SH.stationName)<<std::endl;
     std::cout << "direction = " << SH.direction().y() << std::endl;
-    std::cout << "fourposition y = " << SH.fourPosition().y() << std::endl;
+    std::cout << "fourposition y = " << SH.position().y() << std::endl;
     std::cin.ignore();
     // reset the hough plane
     houghPlane.reset();

@@ -27,6 +27,7 @@
 #include "ActsFatras/EventData/Particle.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 #include "ActsFatras/Kernel/detail/SimulationActor.hpp"
+#include "ActsFatras/Physics/Decay/NoDecay.hpp"
 #include "ActsFatras/Selectors/SurfaceSelectors.hpp"
 
 #include <array>
@@ -46,21 +47,6 @@ namespace {
 
 constexpr auto tol = 4 * std::numeric_limits<Particle::Scalar>::epsilon();
 constexpr auto inf = std::numeric_limits<Particle::Scalar>::infinity();
-
-struct MockDecay {
-  Particle::Scalar properTimeLimit = inf;
-
-  template <typename generator_t>
-  constexpr Particle::Scalar generateProperTimeLimit(
-      generator_t & /*generator*/, const Particle &particle) const {
-    return particle.properTime() + properTimeLimit;
-  }
-  template <typename generator_t>
-  constexpr std::array<Particle, 0> run(generator_t & /*generator*/,
-                                        const Particle & /*particle*/) const {
-    return {};
-  }
-};
 
 struct MockInteractionList {
   struct Selection {
@@ -101,7 +87,6 @@ struct MockStepperState {
   using Vector3 = Acts::ActsVector<3>;
 
   Vector3 pos = Vector3::Zero();
-  Scalar time = 0;
   Vector3 dir = Vector3::Zero();
   Scalar p = 0;
 };
@@ -112,13 +97,11 @@ struct MockStepper {
   using Vector3 = MockStepperState::Vector3;
 
   auto position(const State &state) const { return state.pos; }
-  auto time(const State &state) const { return state.time; }
   auto direction(const State &state) const { return state.dir; }
   auto absoluteMomentum(const State &state) const { return state.p; }
-  void update(State &state, const Vector3 &pos, const Vector3 &dir, Scalar qop,
-              Scalar time) {
+  void update(State &state, const Vector3 &pos, const Vector3 &dir,
+              Scalar qop) {
     state.pos = pos;
-    state.time = time;
     state.dir = dir;
     state.p = 1 / qop;
   }
@@ -174,7 +157,7 @@ template <typename SurfaceSelector>
 struct Fixture {
   using Generator = std::ranlux48;
   using Actor = typename ActsFatras::detail::SimulationActor<
-      Generator, MockDecay, MockInteractionList, SurfaceSelector>;
+      Generator, NoDecay, MockInteractionList, SurfaceSelector>;
   using Result = typename Actor::result_type;
 
   // reference information for initial particle
@@ -197,7 +180,7 @@ struct Fixture {
       : e(std::hypot(m, p)), generator(42), surface(std::move(surface_)) {
     const auto particle = Particle(pid, pdg, q, m)
                               .setProcess(proc)
-                              .setPosition4(1_mm, 2_mm, 3_mm, 4_ns)
+                              .setPosition(Acts::Vector3(1_mm, 2_mm, 3_mm))
                               .setDirection(1, 0, 0)
                               .setAbsoluteMomentum(p);
     actor.generator = &generator;
@@ -206,7 +189,6 @@ struct Fixture {
     state.stage = Acts::PropagatorStage::postStep;
     state.navigation.currentSurface = surface.get();
     state.stepping.pos = particle.position();
-    state.stepping.time = particle.time();
     state.stepping.dir = particle.direction();
     state.stepping.p = particle.absoluteMomentum();
   }
@@ -252,8 +234,6 @@ BOOST_AUTO_TEST_CASE(HitsOnEmptySurface) {
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 0u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 1u);
   BOOST_CHECK_EQUAL(f.result.hits[0].index(), 0u);
-  // proper time must be non-NaN, but is zero since no time has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // empty surfaces adds no material
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 0);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 0);
@@ -266,7 +246,6 @@ BOOST_AUTO_TEST_CASE(HitsOnEmptySurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -279,9 +258,6 @@ BOOST_AUTO_TEST_CASE(HitsOnEmptySurface) {
   BOOST_CHECK_EQUAL(f.result.hits.size(), 2u);
   BOOST_CHECK_EQUAL(f.result.hits[0].index(), 0u);
   BOOST_CHECK_EQUAL(f.result.hits[1].index(), 1u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // empty surfaces adds no material
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 0);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 0);
@@ -294,7 +270,6 @@ BOOST_AUTO_TEST_CASE(HitsOnEmptySurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -325,9 +300,6 @@ BOOST_AUTO_TEST_CASE(HitsOnMaterialSurface) {
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 1u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 1u);
   BOOST_CHECK_EQUAL(f.result.hits[0].index(), 0u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // test material is a unit slab
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 1);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 1);
@@ -340,7 +312,6 @@ BOOST_AUTO_TEST_CASE(HitsOnMaterialSurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   CHECK_CLOSE_REL(f.state.stepping.p, f.result.particle.absoluteMomentum(),
                   tol);
@@ -354,9 +325,6 @@ BOOST_AUTO_TEST_CASE(HitsOnMaterialSurface) {
   BOOST_CHECK_EQUAL(f.result.hits.size(), 2u);
   BOOST_CHECK_EQUAL(f.result.hits[0].index(), 0u);
   BOOST_CHECK_EQUAL(f.result.hits[1].index(), 1u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // test material is a unit slab that was passed twice
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 2);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 2);
@@ -369,7 +337,6 @@ BOOST_AUTO_TEST_CASE(HitsOnMaterialSurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -399,9 +366,6 @@ BOOST_AUTO_TEST_CASE(NoHitsEmptySurface) {
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e, tol);
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 0u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 0u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // empty surfaces adds no material
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 0);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 0);
@@ -414,7 +378,6 @@ BOOST_AUTO_TEST_CASE(NoHitsEmptySurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -425,9 +388,6 @@ BOOST_AUTO_TEST_CASE(NoHitsEmptySurface) {
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e, tol);
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 0u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 0u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // empty surfaces adds no material
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 0);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 0);
@@ -440,7 +400,6 @@ BOOST_AUTO_TEST_CASE(NoHitsEmptySurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -462,9 +421,6 @@ BOOST_AUTO_TEST_CASE(NoHitsMaterialSurface) {
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e - 125_MeV, tol);
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 1u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 0u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // test material is a unit slab
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 1);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 1);
@@ -477,7 +433,6 @@ BOOST_AUTO_TEST_CASE(NoHitsMaterialSurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   CHECK_CLOSE_REL(f.state.stepping.p, f.result.particle.absoluteMomentum(),
                   tol);
@@ -489,9 +444,6 @@ BOOST_AUTO_TEST_CASE(NoHitsMaterialSurface) {
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e - 250_MeV, tol);
   BOOST_CHECK_EQUAL(f.result.generatedParticles.size(), 2u);
   BOOST_CHECK_EQUAL(f.result.hits.size(), 0u);
-  // proper time must be non-NaN, but is zero since no time
-  // has passed
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0);
   // test material is a unit slab that was passed twice
   BOOST_CHECK_EQUAL(f.result.particle.pathInX0(), 2);
   BOOST_CHECK_EQUAL(f.result.particle.pathInL0(), 2);
@@ -504,7 +456,6 @@ BOOST_AUTO_TEST_CASE(NoHitsMaterialSurface) {
                     std::numeric_limits<std::size_t>::max());
   // check consistency between particle and stepper state
   BOOST_CHECK_EQUAL(f.state.stepping.pos, f.result.particle.position());
-  BOOST_CHECK_EQUAL(f.state.stepping.time, f.result.particle.time());
   BOOST_CHECK_EQUAL(f.state.stepping.dir, f.result.particle.direction());
   BOOST_CHECK_EQUAL(f.state.stepping.p, f.result.particle.absoluteMomentum());
 
@@ -520,9 +471,6 @@ BOOST_AUTO_TEST_CASE(Decay) {
   // configure no energy loss for the decay tests
   Fixture<NoSurface> f(0_GeV, makeEmptySurface());
 
-  // inverse Lorentz factor for proper time dilation: 1/gamma = m/E
-  const auto gammaInv = f.m / f.e;
-
   // first step w/ defaults leaves particle alive
   f.actor.act(f.state, f.stepper, f.navigator, f.result,
               Acts::getDummyLogger());
@@ -533,10 +481,7 @@ BOOST_AUTO_TEST_CASE(Decay) {
   BOOST_CHECK_EQUAL(f.result.particle.charge(), f.q);
   BOOST_CHECK_EQUAL(f.result.particle.mass(), f.m);
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e, tol);
-  BOOST_CHECK_EQUAL(f.result.particle.properTime(), 0_ns);
 
-  // second step w/ defaults increases proper time
-  f.state.stepping.time += 1_ns;
   f.actor.act(f.state, f.stepper, f.navigator, f.result,
               Acts::getDummyLogger());
   BOOST_CHECK(f.result.isAlive);
@@ -546,11 +491,7 @@ BOOST_AUTO_TEST_CASE(Decay) {
   BOOST_CHECK_EQUAL(f.result.particle.charge(), f.q);
   BOOST_CHECK_EQUAL(f.result.particle.mass(), f.m);
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e, tol);
-  CHECK_CLOSE_REL(f.result.particle.properTime(), gammaInv * 1_ns, tol);
 
-  // third step w/ proper time limit decays the particle
-  f.state.stepping.time += 1_ns;
-  f.result.properTimeLimit = f.result.particle.properTime() + gammaInv * 0.5_ns;
   f.actor.act(f.state, f.stepper, f.navigator, f.result,
               Acts::getDummyLogger());
   BOOST_CHECK(!f.result.isAlive);
@@ -560,7 +501,6 @@ BOOST_AUTO_TEST_CASE(Decay) {
   BOOST_CHECK_EQUAL(f.result.particle.charge(), f.q);
   BOOST_CHECK_EQUAL(f.result.particle.mass(), f.m);
   CHECK_CLOSE_REL(f.result.particle.energy(), f.e, tol);
-  CHECK_CLOSE_REL(f.result.particle.properTime(), gammaInv * 2_ns, tol);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

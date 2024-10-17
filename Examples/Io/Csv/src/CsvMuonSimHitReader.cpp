@@ -61,10 +61,10 @@ ActsExamples::ProcessCode ActsExamples::CsvMuonSimHitReader::read(
 
   SimHitContainer::sequence_type unordered;
   while (reader.read(data)) {
-    ActsFatras::Hit::Vector4 pos{
+    ActsFatras::Hit::Vector3 pos{
         data.LocalPositionExtrx * Acts::UnitConstants::mm,
         data.LocalPositionExtry * Acts::UnitConstants::mm,
-        data.LocalPositionExtrz * Acts::UnitConstants::mm, 0};
+        data.LocalPositionExtrz * Acts::UnitConstants::mm};
     ActsFatras::Hit::Vector4 mom{
         data.LocalDirectionx * Acts::UnitConstants::GeV,
         data.LocalDirectiony * Acts::UnitConstants::GeV,

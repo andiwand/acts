@@ -55,10 +55,8 @@ BOOST_DATA_TEST_CASE(NoPhoton, Dataset::parametersPhotonConversion, phi, theta,
   BOOST_CHECK(!pc.run(gen, particle, generated));
   BOOST_CHECK(generated.empty());
   // Particle shouldn't be modified
-  BOOST_CHECK_EQUAL(particle.fourPosition(), particleInit.fourPosition());
   BOOST_CHECK_EQUAL(particle.fourMomentum(), particleInit.fourMomentum());
   BOOST_CHECK_EQUAL(particle.process(), particleInit.process());
-  BOOST_CHECK_EQUAL(particle.properTime(), particleInit.properTime());
   BOOST_CHECK_EQUAL(particle.pathInX0(), particleInit.pathInX0());
   BOOST_CHECK_EQUAL(particle.pathInL0(), particleInit.pathInL0());
 }
@@ -87,10 +85,8 @@ BOOST_DATA_TEST_CASE(DeadPhoton, Dataset::parametersPhotonConversion, phi,
   BOOST_CHECK(!pc.run(gen, particle, generated));
   BOOST_CHECK(generated.empty());
   // Particle shouldn't be modified
-  BOOST_CHECK_EQUAL(particle.fourPosition(), particleInit.fourPosition());
   BOOST_CHECK_EQUAL(particle.fourMomentum(), particleInit.fourMomentum());
   BOOST_CHECK_EQUAL(particle.process(), particleInit.process());
-  BOOST_CHECK_EQUAL(particle.properTime(), particleInit.properTime());
   BOOST_CHECK_EQUAL(particle.pathInX0(), particleInit.pathInX0());
   BOOST_CHECK_EQUAL(particle.pathInL0(), particleInit.pathInL0());
 }
@@ -119,10 +115,8 @@ BOOST_DATA_TEST_CASE(LowMomentumPhoton, Dataset::parametersPhotonConversion,
   BOOST_CHECK(!pc.run(gen, particle, generated));
   BOOST_CHECK(generated.empty());
   // Particle shouldn't be modified
-  BOOST_CHECK_EQUAL(particle.fourPosition(), particleInit.fourPosition());
   BOOST_CHECK_EQUAL(particle.fourMomentum(), particleInit.fourMomentum());
   BOOST_CHECK_EQUAL(particle.process(), particleInit.process());
-  BOOST_CHECK_EQUAL(particle.properTime(), particleInit.properTime());
   BOOST_CHECK_EQUAL(particle.pathInX0(), particleInit.pathInX0());
   BOOST_CHECK_EQUAL(particle.pathInL0(), particleInit.pathInL0());
 }

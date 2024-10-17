@@ -91,7 +91,6 @@ class AtlasStepper {
       pVector[0] = pos[ePos0];
       pVector[1] = pos[ePos1];
       pVector[2] = pos[ePos2];
-      pVector[3] = pars.time();
       pVector[4] = Cf * Se;
       pVector[5] = Sf * Se;
       pVector[6] = Ce;
@@ -267,11 +266,11 @@ class AtlasStepper {
     /// Cache: P[56] - P[59]
 
     // result
-    double parameters[eBoundSize] = {0., 0., 0., 0., 0., 0.};
+    double parameters[8] = {0., 0., 0., 0., 0., 0.};
     const Covariance* covariance = nullptr;
     Covariance cov = Covariance::Zero();
     bool covTransport = false;
-    double jacobian[eBoundSize * eBoundSize] = {};
+    double jacobian[8 * 8] = {};
 
     // accummulated path length cache
     double pathAccumulated = 0.;
@@ -398,9 +397,6 @@ class AtlasStepper {
     return -m_overstepLimit;
   }
 
-  /// Time access
-  double time(const State& state) const { return state.pVector[3]; }
-
   /// Update surface status
   ///
   /// This method intersect the provided surface and update the navigation
@@ -493,11 +489,10 @@ class AtlasStepper {
     // the convert method invalidates the state (in case it's reused)
     state.state_ready = false;
     // extract state information
-    Acts::Vector4 pos4;
-    pos4[ePos0] = state.pVector[0];
-    pos4[ePos1] = state.pVector[1];
-    pos4[ePos2] = state.pVector[2];
-    pos4[eTime] = state.pVector[3];
+    Acts::Vector3 pos;
+    pos[ePos0] = state.pVector[0];
+    pos[ePos1] = state.pVector[1];
+    pos[ePos2] = state.pVector[2];
     Acts::Vector3 dir;
     dir[eMom0] = state.pVector[4];
     dir[eMom1] = state.pVector[5];
@@ -515,7 +510,7 @@ class AtlasStepper {
 
     // Fill the end parameters
     auto parameters = BoundTrackParameters::create(
-        surface.getSharedPtr(), state.geoContext, pos4, dir, qOverP,
+        surface.getSharedPtr(), state.geoContext, pos, dir, qOverP,
         std::move(covOpt), state.particleHypothesis);
     if (!parameters.ok()) {
       return parameters.error();
@@ -557,11 +552,10 @@ class AtlasStepper {
     // the convert method invalidates the state (in case it's reused)
     state.state_ready = false;
     // extract state information
-    Acts::Vector4 pos4;
-    pos4[ePos0] = state.pVector[0];
-    pos4[ePos1] = state.pVector[1];
-    pos4[ePos2] = state.pVector[2];
-    pos4[eTime] = state.pVector[3];
+    Acts::Vector3 pos;
+    pos[ePos0] = state.pVector[0];
+    pos[ePos1] = state.pVector[1];
+    pos[ePos2] = state.pVector[2];
     Acts::Vector3 dir;
     dir[eMom0] = state.pVector[4];
     dir[eMom1] = state.pVector[5];
@@ -576,7 +570,7 @@ class AtlasStepper {
       covOpt = state.cov;
     }
 
-    CurvilinearTrackParameters parameters(pos4, dir, qOverP, std::move(covOpt),
+    CurvilinearTrackParameters parameters(pos, dir, qOverP, std::move(covOpt),
                                           state.particleHypothesis);
 
     Jacobian jacobian(state.jacobian);
@@ -599,7 +593,6 @@ class AtlasStepper {
     state.pVector[0] = parameters[eFreePos0];
     state.pVector[1] = parameters[eFreePos1];
     state.pVector[2] = parameters[eFreePos2];
-    state.pVector[3] = parameters[eFreeTime];
     state.pVector[4] = direction.x();
     state.pVector[5] = direction.y();
     state.pVector[6] = direction.z();
@@ -761,14 +754,12 @@ class AtlasStepper {
   /// @param uposition the updated position
   /// @param udirection the updated direction
   /// @param qop the updated momentum value
-  /// @param time the update time
   void update(State& state, const Vector3& uposition, const Vector3& udirection,
-              double qop, double time) const {
+              double qop) const {
     // update the vector
     state.pVector[0] = uposition[0];
     state.pVector[1] = uposition[1];
     state.pVector[2] = uposition[2];
-    state.pVector[3] = time;
     state.pVector[4] = udirection[0];
     state.pVector[5] = udirection[1];
     state.pVector[6] = udirection[2];

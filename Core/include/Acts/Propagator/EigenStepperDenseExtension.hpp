@@ -176,9 +176,6 @@ struct EigenStepperDenseExtension {
         stepper.charge(state.stepping) / newMomentum;
     // Add derivative dt/ds = 1/(beta * c) = sqrt(m^2 * p^{-2} + c^{-2})
     state.stepping.derivative(3) = fastHypot(1, mass / newMomentum);
-    // Update time
-    state.stepping.pars[eFreeTime] +=
-        (h / 6.) * (tKi[0] + 2. * (tKi[1] + tKi[2]) + tKi[3]);
 
     return true;
   }

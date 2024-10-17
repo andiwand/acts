@@ -88,7 +88,6 @@ class StraightLineStepper {
       Vector3 direction = par.direction();
       pars.template segment<3>(eFreePos0) = position;
       pars.template segment<3>(eFreeDir0) = direction;
-      pars[eFreeTime] = par.time();
       pars[eFreeQOverP] = par.parameters()[eBoundQOverP];
       if (par.covariance()) {
         // Get the reference surface for navigation
@@ -219,11 +218,6 @@ class StraightLineStepper {
     return state.particleHypothesis;
   }
 
-  /// Time access
-  ///
-  /// @param state [in] The stepping state (thread-local cache)
-  double time(const State& state) const { return state.pars[eFreeTime]; }
-
   /// Update surface status
   ///
   /// This method intersects the provided surface and update the navigation
@@ -335,10 +329,6 @@ class StraightLineStepper {
       // dr/ds :
       prop_state.stepping.derivative.template head<3>() =
           direction(prop_state.stepping);
-      // dt / ds
-      prop_state.stepping.derivative(eFreeTime) =
-          fastHypot(1., prop_state.stepping.particleHypothesis.mass() /
-                            absoluteMomentum(prop_state.stepping));
       // d (dr/ds) / ds : == 0
       prop_state.stepping.derivative.template segment<3>(4) =
           Acts::Vector3::Zero().transpose();
@@ -379,9 +369,8 @@ class StraightLineStepper {
   /// @param [in] uposition the updated position
   /// @param [in] udirection the updated direction
   /// @param [in] qop the updated qop value
-  /// @param [in] time the updated time value
   void update(State& state, const Vector3& uposition, const Vector3& udirection,
-              double qop, double time) const;
+              double qop) const;
 
   /// Method for on-demand transport of the covariance
   /// to a new curvilinear frame at current  position,
@@ -422,24 +411,14 @@ class StraightLineStepper {
                       const navigator_t& /*navigator*/) const {
     // use the adjusted step size
     const auto h = state.stepping.stepSize.value() * state.options.direction;
-    const auto m = state.stepping.particleHypothesis.mass();
-    const auto p = absoluteMomentum(state.stepping);
-    // time propagates along distance as 1/b = sqrt(1 + m²/p²)
-    const auto dtds = fastHypot(1., m / p);
     // Update the track parameters according to the equations of motion
     Vector3 dir = direction(state.stepping);
     state.stepping.pars.template segment<3>(eFreePos0) += h * dir;
-    state.stepping.pars[eFreeTime] += h * dtds;
     // Propagate the jacobian
     if (state.stepping.covTransport) {
       // The step transport matrix in global coordinates
       FreeMatrix D = FreeMatrix::Identity();
       D.block<3, 3>(0, 4) = ActsSquareMatrix<3>::Identity() * h;
-      // Extend the calculation by the time propagation
-      // Evaluate dt/dlambda
-      D(3, 7) = h * m * m * state.stepping.pars[eFreeQOverP] / dtds;
-      // Set the derivative factor the time
-      state.stepping.derivative(3) = dtds;
       // Update jacobian and derivative
       state.stepping.jacTransport = D * state.stepping.jacTransport;
       state.stepping.derivative.template head<3>() = dir;

@@ -48,8 +48,6 @@ ActsExamples::SurfaceSortingAlgorithm::SurfaceSortingAlgorithm(
 ActsExamples::ProcessCode ActsExamples::SurfaceSortingAlgorithm::execute(
     const ActsExamples::AlgorithmContext& ctx) const {
   const auto& protoTracks = m_inputProtoTracks(ctx);
-  const auto& simHits = m_inputSimHits(ctx);
-  const auto& simHitsMap = m_inputMeasurementSimHitsMap(ctx);
 
   ProtoTrackContainer sortedTracks;
   sortedTracks.reserve(protoTracks.size());
@@ -67,10 +65,7 @@ ActsExamples::ProcessCode ActsExamples::SurfaceSortingAlgorithm::execute(
     }
 
     for (const auto hit : protoTrack) {
-      const auto simHitIndex = simHitsMap.find(hit)->second;
-      auto simHit = simHits.nth(simHitIndex);
-      auto simHitTime = simHit->time();
-      trackHitList.insert(std::make_pair(simHitTime, hit));
+      trackHitList.insert(std::make_pair(hit, hit));
     }
 
     /// Map will now be sorted by truth hit time

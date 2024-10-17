@@ -117,8 +117,8 @@ auto Acts::IterativeVertexFinder::find(
       }
     }
     /// End vertex fit
-    ACTS_DEBUG("Vertex position after fit: "
-               << currentVertex.fullPosition().transpose());
+    ACTS_DEBUG(
+        "Vertex position after fit: " << currentVertex.position().transpose());
 
     // Number degrees of freedom
     double ndf = currentVertex.fitQuality().second;
@@ -209,8 +209,7 @@ auto Acts::IterativeVertexFinder::getVertexSeed(
   const Vertex& seedVertex = seedVector.back();
 
   ACTS_DEBUG("Use " << seedTracks.size() << " tracks for vertex seed finding.");
-  ACTS_DEBUG(
-      "Found seed at position: " << seedVertex.fullPosition().transpose());
+  ACTS_DEBUG("Found seed at position: " << seedVertex.position().transpose());
 
   return seedVertex;
 }
@@ -240,8 +239,7 @@ Acts::Result<double> Acts::IterativeVertexFinder::getCompatibility(
     State& state) const {
   // Linearize track
   auto result =
-      m_cfg.trackLinearizer(params, vertex.fullPosition()[3], perigeeSurface,
-                            vertexingOptions.geoContext,
+      m_cfg.trackLinearizer(params, perigeeSurface, vertexingOptions.geoContext,
                             vertexingOptions.magFieldContext, state.fieldCache);
   if (!result.ok()) {
     return result.error();
@@ -255,7 +253,7 @@ Acts::Result<double> Acts::IterativeVertexFinder::getCompatibility(
 
   SquareMatrix2 errorVertexReduced =
       (linTrack.positionJacobian *
-       (vertex.fullCovariance() * linTrack.positionJacobian.transpose()))
+       (vertex.covariance() * linTrack.positionJacobian.transpose()))
           .template block<2, 2>(0, 0);
   weightReduced += errorVertexReduced;
   weightReduced = weightReduced.inverse().eval();
@@ -309,8 +307,7 @@ Acts::Result<void> Acts::IterativeVertexFinder::removeUsedCompatibleTracks(
   ACTS_DEBUG("Number of outliers: " << tracksToFit.size());
 
   const std::shared_ptr<PerigeeSurface> vertexPerigeeSurface =
-      Surface::makeShared<PerigeeSurface>(
-          VectorHelpers::position(vertex.fullPosition()));
+      Surface::makeShared<PerigeeSurface>(vertex.position());
 
   for (const auto& trk : tracksToFit) {
     // calculate chi2 w.r.t. last fitted vertex
@@ -432,8 +429,7 @@ Acts::Result<bool> Acts::IterativeVertexFinder::reassignTracksToNewVertex(
   int numberOfAddedTracks = 0;
 
   const std::shared_ptr<PerigeeSurface> currentVertexPerigeeSurface =
-      Surface::makeShared<PerigeeSurface>(
-          VectorHelpers::position(currentVertex.fullPosition()));
+      Surface::makeShared<PerigeeSurface>(currentVertex.position());
 
   // iterate over all vertices and check if tracks need to be reassigned
   // to new (current) vertex
@@ -444,8 +440,7 @@ Acts::Result<bool> Acts::IterativeVertexFinder::reassignTracksToNewVertex(
     auto tracksEnd = tracksAtVertex.end();
 
     const std::shared_ptr<PerigeeSurface> vertexItPerigeeSurface =
-        Surface::makeShared<PerigeeSurface>(
-            VectorHelpers::position(vertexIt.fullPosition()));
+        Surface::makeShared<PerigeeSurface>(vertexIt.position());
 
     for (auto tracksIter = tracksBegin; tracksIter != tracksEnd;) {
       // consider only tracks that are not too tightly assigned to other

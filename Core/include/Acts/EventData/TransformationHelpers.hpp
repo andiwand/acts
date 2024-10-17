@@ -43,7 +43,6 @@ Result<BoundVector> transformFreeToBoundParameters(
 /// Convert position and direction to bound track parameters.
 ///
 /// @param position Global track three-position
-/// @param time Global track time
 /// @param direction Global direction three-vector; normalization is ignored.
 /// @param qOverP Charge-over-momentum-like parameter
 /// @param surface Surface onto which the parameters are bound
@@ -52,13 +51,12 @@ Result<BoundVector> transformFreeToBoundParameters(
 ///
 /// @return Equivalent bound parameters vector on the given surface
 Result<BoundVector> transformFreeToBoundParameters(
-    const Vector3& position, ActsScalar time, const Vector3& direction,
-    ActsScalar qOverP, const Surface& surface, const GeometryContext& geoCtx,
+    const Vector3& position, const Vector3& direction, ActsScalar qOverP,
+    const Surface& surface, const GeometryContext& geoCtx,
     ActsScalar tolerance = s_onSurfaceTolerance);
 
 /// Convert direction to curvilinear track parameters.
 ///
-/// @param time Global track time
 /// @param direction Global direction three-vector; normalization is ignored.
 /// @param qOverP Charge-over-momentum-like parameter
 /// @return Equivalent bound parameters vector on the curvilinear surface
@@ -66,13 +64,11 @@ Result<BoundVector> transformFreeToBoundParameters(
 /// @note The parameters are assumed to be defined at the origin of the
 ///       curvilinear frame derived from the direction vector. The local
 ///       coordinates are zero by construction.
-BoundVector transformFreeToCurvilinearParameters(ActsScalar time,
-                                                 const Vector3& direction,
+BoundVector transformFreeToCurvilinearParameters(const Vector3& direction,
                                                  ActsScalar qOverP);
 
 /// Convert direction angles to curvilinear track parameters.
 ///
-/// @param time Global track time
 /// @param phi Global transverse direction angle
 /// @param theta Global longitudinal direction angle
 /// @param qOverP Charge-over-momentum-like parameter
@@ -81,8 +77,7 @@ BoundVector transformFreeToCurvilinearParameters(ActsScalar time,
 /// @note The parameters are assumed to be defined at the origin of the
 ///       curvilinear frame derived from the direction angles. The local
 ///       coordinates are zero by construction.
-BoundVector transformFreeToCurvilinearParameters(ActsScalar time,
-                                                 ActsScalar phi,
+BoundVector transformFreeToCurvilinearParameters(ActsScalar phi,
                                                  ActsScalar theta,
                                                  ActsScalar qOverP);
 

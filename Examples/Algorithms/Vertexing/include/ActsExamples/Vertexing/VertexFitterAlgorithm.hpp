@@ -57,13 +57,12 @@ class VertexFitterAlgorithm final : public IAlgorithm {
     /// Constraint vertex fit bool
     bool doConstrainedFit = false;
     /// Vertex constraint position
-    Acts::Vector4 constraintPos = Acts::Vector4(0, 0, 0, 0);
+    Acts::Vector3 constraintPos = Acts::Vector3(0, 0, 0);
     /// Vertex constraint covariance matrix
-    Acts::SquareMatrix4 constraintCov =
-        Acts::Vector4(1e2 * Acts::UnitConstants::mm * Acts::UnitConstants::mm,
+    Acts::SquareMatrix3 constraintCov =
+        Acts::Vector3(1e2 * Acts::UnitConstants::mm * Acts::UnitConstants::mm,
                       1e2 * Acts::UnitConstants::mm * Acts::UnitConstants::mm,
-                      1e2 * Acts::UnitConstants::mm * Acts::UnitConstants::mm,
-                      1e8 * Acts::UnitConstants::mm * Acts::UnitConstants::mm)
+                      1e2 * Acts::UnitConstants::mm * Acts::UnitConstants::mm)
             .asDiagonal();
   };
 

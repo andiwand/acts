@@ -210,7 +210,6 @@ CurvilinearTrackParameters makeParameters() {
   BoundVector stddev;
   stddev[eBoundLoc0] = 100_um;
   stddev[eBoundLoc1] = 100_um;
-  stddev[eBoundTime] = 25_ns;
   stddev[eBoundPhi] = 0.5_degree;
   stddev[eBoundTheta] = 0.5_degree;
   stddev[eBoundQOverP] = 1 / 100_GeV;
@@ -218,15 +217,14 @@ CurvilinearTrackParameters makeParameters() {
 
   auto loc0 = 0. + stddev[eBoundLoc0] * normalDist(rng);
   auto loc1 = 0. + stddev[eBoundLoc1] * normalDist(rng);
-  auto t = 42_ns + stddev[eBoundTime] * normalDist(rng);
   auto phi = 0_degree + stddev[eBoundPhi] * normalDist(rng);
   auto theta = 90_degree + stddev[eBoundTheta] * normalDist(rng);
   auto qOverP = 1_e / 1_GeV + stddev[eBoundQOverP] * normalDist(rng);
 
   // define a track in the transverse plane along x
-  Vector4 mPos4(-1_m, loc0, loc1, t);
+  Vector3 mPos(-1_m, loc0, loc1);
 
-  return CurvilinearTrackParameters(mPos4, phi, theta, qOverP, cov,
+  return CurvilinearTrackParameters(mPos, phi, theta, qOverP, cov,
                                     ParticleHypothesis::pion());
 }
 

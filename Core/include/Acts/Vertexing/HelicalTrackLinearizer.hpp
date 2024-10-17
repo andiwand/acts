@@ -73,7 +73,6 @@ class HelicalTrackLinearizer {
   /// the PCA to a given Perigee surface
   ///
   /// @param params Parameters to linearize
-  /// @param linPointTime Time associated to the linearization point
   /// @note Transverse plane of the Perigee corresponding to @p linPoint is
   /// parallel to the global x-y plane
   /// @param perigeeSurface Perigee surface belonging to @p linPoint
@@ -83,9 +82,8 @@ class HelicalTrackLinearizer {
   ///
   /// @return Linearized track
   Result<LinearizedTrack> linearizeTrack(
-      const BoundTrackParameters& params, double linPointTime,
-      const Surface& perigeeSurface, const Acts::GeometryContext& gctx,
-      const Acts::MagneticFieldContext& mctx,
+      const BoundTrackParameters& params, const Surface& perigeeSurface,
+      const Acts::GeometryContext& gctx, const Acts::MagneticFieldContext& mctx,
       MagneticFieldProvider::Cache& fieldCache) const;
 
  private:

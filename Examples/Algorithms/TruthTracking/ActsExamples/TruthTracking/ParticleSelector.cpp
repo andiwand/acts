@@ -37,8 +37,6 @@ ActsExamples::ParticleSelector::ParticleSelector(const Config& config,
                                         << ")");
   ACTS_DEBUG("selection particle |z| [" << m_cfg.absZMin << "," << m_cfg.absZMax
                                         << ")");
-  ACTS_DEBUG("selection particle time [" << m_cfg.timeMin << ","
-                                         << m_cfg.timeMax << ")");
   ACTS_DEBUG("selection particle phi [" << m_cfg.phiMin << "," << m_cfg.phiMax
                                         << ")");
   ACTS_DEBUG("selection particle eta [" << m_cfg.etaMin << "," << m_cfg.etaMax
@@ -129,7 +127,6 @@ ActsExamples::ProcessCode ActsExamples::ParticleSelector::execute(
            within(std::abs(p.position()[Acts::ePos2]), m_cfg.absZMin,
                   m_cfg.absZMax) &&
            within(rho, m_cfg.rhoMin, m_cfg.rhoMax) &&
-           within(p.time(), m_cfg.timeMin, m_cfg.timeMax) &&
            within(p.mass(), m_cfg.mMin, m_cfg.mMax);
   };
 

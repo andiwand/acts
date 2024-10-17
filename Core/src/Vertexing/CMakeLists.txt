@@ -4,7 +4,6 @@ target_sources(
         AdaptiveGridTrackDensity.cpp
         KalmanVertexUpdater.cpp
         KalmanVertexUpdaterImpl3.cpp
-        KalmanVertexUpdaterImpl4.cpp
         FsmwMode1dFinder.cpp
         VertexingError.cpp
         IterativeVertexFinder.cpp

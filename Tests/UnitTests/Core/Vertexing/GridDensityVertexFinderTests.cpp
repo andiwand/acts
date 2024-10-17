@@ -37,7 +37,6 @@
 #include <vector>
 
 using namespace Acts::UnitLiterals;
-using Acts::VectorHelpers::makeVector4;
 
 namespace Acts::Test {
 
@@ -142,9 +141,8 @@ BOOST_AUTO_TEST_CASE(grid_density_vertex_finder_test) {
     pos[eZ] = ((i % 4) == 0) ? z2dist(gen) : z1dist(gen);
 
     trackVec.push_back(BoundTrackParameters::create(
-                           perigeeSurface, geoContext, makeVector4(pos, 0),
-                           direction, charge / pt, covMat,
-                           ParticleHypothesis::pion())
+                           perigeeSurface, geoContext, pos, direction,
+                           charge / pt, covMat, ParticleHypothesis::pion())
                            .value());
   }
 
@@ -261,9 +259,8 @@ BOOST_AUTO_TEST_CASE(grid_density_vertex_finder_track_caching_test) {
     pos[eZ] = ((i % 4) == 0) ? z2dist(gen) : z1dist(gen);
 
     trackVec.push_back(BoundTrackParameters::create(
-                           perigeeSurface, geoContext, makeVector4(pos, 0),
-                           direction, charge / pt, covMat,
-                           ParticleHypothesis::pion())
+                           perigeeSurface, geoContext, pos, direction,
+                           charge / pt, covMat, ParticleHypothesis::pion())
                            .value());
   }
 
@@ -427,9 +424,8 @@ BOOST_AUTO_TEST_CASE(grid_density_vertex_finder_seed_width_test) {
     pos[eZ] = z1dist(gen);
 
     trackVec.push_back(BoundTrackParameters::create(
-                           perigeeSurface, geoContext, makeVector4(pos, 0),
-                           direction, charge / pt, covMat,
-                           ParticleHypothesis::pion())
+                           perigeeSurface, geoContext, pos, direction,
+                           charge / pt, covMat, ParticleHypothesis::pion())
                            .value());
   }
 

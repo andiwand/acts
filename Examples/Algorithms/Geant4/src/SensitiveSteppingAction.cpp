@@ -58,14 +58,11 @@ ActsFatras::Hit hitFromStep(const G4StepPoint* preStepPoint,
                             ActsFatras::Barcode particleId,
                             Acts::GeometryIdentifier geoId,
                             std::int32_t index) {
-  static constexpr double convertTime = Acts::UnitConstants::s / CLHEP::s;
   static constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
   static constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
 
   G4ThreeVector preStepPosition = convertLength * preStepPoint->GetPosition();
-  G4double preStepTime = convertTime * preStepPoint->GetGlobalTime();
   G4ThreeVector postStepPosition = convertLength * postStepPoint->GetPosition();
-  G4double postStepTime = convertTime * postStepPoint->GetGlobalTime();
 
   G4ThreeVector preStepMomentum = convertEnergy * preStepPoint->GetMomentum();
   G4double preStepEnergy = convertEnergy * preStepPoint->GetTotalEnergy();
@@ -75,7 +72,6 @@ ActsFatras::Hit hitFromStep(const G4StepPoint* preStepPoint,
   Acts::ActsScalar hX = 0.5 * (preStepPosition[0] + postStepPosition[0]);
   Acts::ActsScalar hY = 0.5 * (preStepPosition[1] + postStepPosition[1]);
   Acts::ActsScalar hZ = 0.5 * (preStepPosition[2] + postStepPosition[2]);
-  Acts::ActsScalar hT = 0.5 * (preStepTime + postStepTime);
 
   Acts::ActsScalar mXpre = preStepMomentum[0];
   Acts::ActsScalar mYpre = preStepMomentum[1];
@@ -86,7 +82,7 @@ ActsFatras::Hit hitFromStep(const G4StepPoint* preStepPoint,
   Acts::ActsScalar mZpost = postStepMomentum[2];
   Acts::ActsScalar mEpost = postStepEnergy;
 
-  Acts::Vector4 particlePosition(hX, hY, hZ, hT);
+  Acts::Vector3 particlePosition(hX, hY, hZ);
   Acts::Vector4 beforeMomentum(mXpre, mYpre, mZpre, mEpre);
   Acts::Vector4 afterMomentum(mXpost, mYpost, mZpost, mEpost);
 
@@ -246,12 +242,12 @@ void ActsExamples::SensitiveSteppingAction::UserSteppingAction(
     buffer.push_back(
         hitFromStep(preStepPoint, postStepPoint, particleId, geoId, -1));
 
-    const auto pos4 =
-        0.5 * (buffer.front().fourPosition() + buffer.back().fourPosition());
+    const auto pos =
+        0.5 * (buffer.front().position() + buffer.back().position());
 
     ++eventStore().particleHitCount[particleId];
     eventStore().hits.emplace_back(
-        geoId, particleId, pos4, buffer.front().momentum4Before(),
+        geoId, particleId, pos, buffer.front().momentum4Before(),
         buffer.back().momentum4After(),
         eventStore().particleHitCount.at(particleId) - 1);
 

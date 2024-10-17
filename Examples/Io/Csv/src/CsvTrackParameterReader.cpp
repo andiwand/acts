@@ -76,7 +76,6 @@ ActsExamples::ProcessCode ActsExamples::CsvTrackParameterReader::read(
     cov(Acts::eBoundPhi, Acts::eBoundPhi) = d.var_phi;
     cov(Acts::eBoundTheta, Acts::eBoundTheta) = d.var_theta;
     cov(Acts::eBoundQOverP, Acts::eBoundQOverP) = d.var_qop;
-    cov(Acts::eBoundTime, Acts::eBoundTime) = 1;
 
     cov(Acts::eBoundLoc0, Acts::eBoundLoc1) = d.cov_d0z0;
     cov(Acts::eBoundLoc0, Acts::eBoundPhi) = d.cov_d0phi;

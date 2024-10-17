@@ -28,9 +28,6 @@ class HitSelector final : public IAlgorithm {
     std::string inputHits;
     /// Output track collection
     std::string outputHits;
-
-    /// Time cut
-    double maxTime = std::numeric_limits<double>::max();
   };
 
   HitSelector(const Config& config, Acts::Logging::Level level);

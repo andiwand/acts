@@ -44,8 +44,6 @@ const auto posAngle = bdata::xrange(-M_PI, M_PI, 0.50);
 const auto posPositiveNonzero = bdata::xrange(0.25, 1.0, 0.25);
 const auto posPositive = bdata::make(0.0) + posPositiveNonzero;
 const auto posSymmetric = bdata::xrange(-1.0, 1.0, 0.50);
-// time
-const auto ts = bdata::make(1.0);
 // direction angles
 const auto phis = bdata::make({0.0, M_PI, -M_PI, M_PI_2, -M_PI_2});
 const auto thetasNoForwardBackward = bdata::xrange(M_PI_4, M_PI, M_PI_4);

@@ -42,10 +42,7 @@ namespace KalmanVertexUpdater {
 ///
 /// @param vtx Vertex to be updated
 /// @param trk Track to be used for updating the vertex
-/// @param nDimVertex number of dimensions of the vertex. Can be 3 (if we only
-/// fit its spatial coordinates) or 4 (if we also fit time).
-void updateVertexWithTrack(Vertex& vtx, TrackAtVertex& trk,
-                           unsigned int nDimVertex);
+void updateVertexWithTrack(Vertex& vtx, TrackAtVertex& trk);
 
 /// Based on
 /// Ref. (1):
@@ -60,10 +57,7 @@ void updateVertexWithTrack(Vertex& vtx, TrackAtVertex& trk,
 ///
 /// @param track Track to update
 /// @param vtx Vertex to use for updating the track
-/// @param nDimVertex number of dimensions of the vertex. Can be 3 (if we only
-/// fit its spatial coordinates) or 4 (if we also fit time).
-void updateTrackWithVertex(TrackAtVertex& track, const Vertex& vtx,
-                           unsigned int nDimVertex);
+void updateTrackWithVertex(TrackAtVertex& track, const Vertex& vtx);
 
 }  // namespace KalmanVertexUpdater
 }  // namespace Acts

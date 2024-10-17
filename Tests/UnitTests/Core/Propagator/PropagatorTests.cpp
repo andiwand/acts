@@ -55,7 +55,6 @@ class Logger;
 
 namespace bdata = boost::unit_test::data;
 using namespace Acts::UnitLiterals;
-using Acts::VectorHelpers::makeVector4;
 using Acts::VectorHelpers::perp;
 
 namespace Acts::Test {
@@ -176,12 +175,8 @@ BOOST_DATA_TEST_CASE(
         bdata::random((bdata::engine = std::mt19937(), bdata::seed = 3,
                        bdata::distribution =
                            std::uniform_int_distribution<std::uint8_t>(0, 1))) ^
-        bdata::random((bdata::engine = std::mt19937(), bdata::seed = 4,
-                       bdata::distribution =
-                           std::uniform_real_distribution<double>(-1_ns,
-                                                                  1_ns))) ^
         bdata::xrange(ntests),
-    pT, phi, theta, charge, time, index) {
+    pT, phi, theta, charge, index) {
   double dcharge = -1 + 2 * charge;
   (void)index;
 
@@ -209,9 +204,8 @@ BOOST_DATA_TEST_CASE(
   double q = dcharge;
   Vector3 pos(x, y, z);
   Vector3 mom(px, py, pz);
-  CurvilinearTrackParameters start(makeVector4(pos, time), mom.normalized(),
-                                   q / mom.norm(), std::nullopt,
-                                   ParticleHypothesis::pion());
+  CurvilinearTrackParameters start(pos, mom.normalized(), q / mom.norm(),
+                                   std::nullopt, ParticleHypothesis::pion());
   // propagate to the cylinder surface
   const auto& result = epropagator.propagate(start, *cSurface, options).value();
   auto& sor = result.get<so_result>();
@@ -236,12 +230,8 @@ BOOST_DATA_TEST_CASE(
         bdata::random((bdata::engine = std::mt19937(), bdata::seed = 3,
                        bdata::distribution =
                            std::uniform_int_distribution<std::uint8_t>(0, 1))) ^
-        bdata::random((bdata::engine = std::mt19937(), bdata::seed = 4,
-                       bdata::distribution =
-                           std::uniform_real_distribution<double>(-1_ns,
-                                                                  1_ns))) ^
         bdata::xrange(ntests),
-    pT, phi, theta, charge, time, index) {
+    pT, phi, theta, charge, index) {
   double dcharge = -1 + 2 * charge;
   (void)index;
 
@@ -266,8 +256,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(makeVector4(pos, time), mom.normalized(),
-                                   q / mom.norm(), cov,
+  CurvilinearTrackParameters start(pos, mom.normalized(), q / mom.norm(), cov,
                                    ParticleHypothesis::pion());
   // propagate to a path length of 100 with two steps of 50
   const auto& mid_parameters =
@@ -316,12 +305,8 @@ BOOST_DATA_TEST_CASE(
         bdata::random((bdata::engine = std::mt19937(), bdata::seed = 3,
                        bdata::distribution =
                            std::uniform_int_distribution<std::uint8_t>(0, 1))) ^
-        bdata::random((bdata::engine = std::mt19937(), bdata::seed = 4,
-                       bdata::distribution =
-                           std::uniform_real_distribution<double>(-1_ns,
-                                                                  1_ns))) ^
         bdata::xrange(ntests),
-    pT, phi, theta, charge, time, index) {
+    pT, phi, theta, charge, index) {
   double dcharge = -1 + 2 * charge;
   (void)index;
 
@@ -346,8 +331,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(makeVector4(pos, time), mom.normalized(),
-                                   q / mom.norm(), cov,
+  CurvilinearTrackParameters start(pos, mom.normalized(), q / mom.norm(), cov,
                                    ParticleHypothesis::pion());
   // propagate to a final surface with one stop in between
   const auto& mid_parameters =
@@ -400,7 +384,7 @@ BOOST_AUTO_TEST_CASE(BasicPropagatorInterface) {
   BoundTrackParameters startParameters{startSurface, startPars, std::nullopt,
                                        ParticleHypothesis::pion()};
 
-  CurvilinearTrackParameters startCurv{Vector4::Zero(), Vector3::UnitX(),
+  CurvilinearTrackParameters startCurv{Vector3::Zero(), Vector3::UnitX(),
                                        1. / 1_GeV, std::nullopt,
                                        ParticleHypothesis::pion()};
 

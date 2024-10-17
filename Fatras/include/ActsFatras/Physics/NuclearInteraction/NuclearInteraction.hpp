@@ -526,7 +526,7 @@ std::vector<Particle> NuclearInteraction::convertParametersToParticles(
     Particle p = Particle(initialParticle.particleId().makeDescendant(i),
                           static_cast<Acts::PdgParticle>(pdgId[i]));
     p.setProcess(ProcessType::eNuclearInteraction)
-        .setPosition4(initialParticle.fourPosition())
+        .setPosition(initialParticle.position())
         .setAbsoluteMomentum(momentum)
         .setDirection(direction)
         .setReferenceSurface(initialParticle.referenceSurface());

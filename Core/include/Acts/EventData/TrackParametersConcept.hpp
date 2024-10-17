@@ -28,7 +28,6 @@ concept BasicTrackParameters = requires {
   typename Parameters::CovarianceMatrix;
 
   requires requires(const Parameters &p) {
-    { p.time() } -> std::floating_point;
     { p.direction() } -> std::same_as<Vector3>;
     { p.absoluteMomentum() } -> std::floating_point;
     { p.charge() } -> std::floating_point;
@@ -46,7 +45,6 @@ concept FreeTrackParametersConcept =
       {
         p.covariance()
       } -> std::convertible_to<std::optional<FreeSquareMatrix>>;
-      { p.fourPosition() } -> std::same_as<Vector4>;
       { p.position() } -> std::same_as<Vector3>;
     };
 
@@ -64,7 +62,6 @@ concept BoundTrackParametersConcept =
 
       requires requires(GeometryContext &c) {
         { p.position(c) } -> std::same_as<Vector3>;
-        { p.fourPosition(c) } -> std::same_as<Vector4>;
         { p.position(c) } -> std::same_as<Vector3>;
       };
     };

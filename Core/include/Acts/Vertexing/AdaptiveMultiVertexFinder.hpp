@@ -131,7 +131,7 @@ class AdaptiveMultiVertexFinder final : public IVertexFinder {
 
     /// Variances of the 4D vertex position before the vertex fit if no beamspot
     /// constraint is provided
-    Vector4 initialVariances = Vector4::Constant(1e+8);
+    Vector3 initialVariances = Vector3::Constant(1e+8);
 
     /// Default fitQuality for constraint vertex in case no beamspot
     /// constraint is provided
@@ -142,11 +142,6 @@ class AdaptiveMultiVertexFinder final : public IVertexFinder {
     /// this is not (!) done, however, this is probably not correct.
     /// So definitely consider setting this to true.
     bool useVertexCovForIPEstimation = false;
-
-    /// Use time information when assigning tracks to vertices. If this is set
-    /// to true, useTime of the vertex fitter configuration should also be set
-    /// to true, and time seeding should be enabled.
-    bool useTime = false;
 
     /// If set to true, the vertex finder will not break the finding loop.
     /// Some seeders are not able to cope with this therefore this is

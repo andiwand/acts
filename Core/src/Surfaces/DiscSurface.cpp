@@ -230,8 +230,6 @@ Acts::BoundToFreeMatrix Acts::DiscSurface::boundToFreeJacobian(
   jacToGlobal.block<3, 1>(eFreePos0, eBoundLoc0) = lcphi * lx + lsphi * ly;
   jacToGlobal.block<3, 1>(eFreePos0, eBoundLoc1) =
       lr * (lcphi * ly - lsphi * lx);
-  // the time component
-  jacToGlobal(eFreeTime, eBoundTime) = 1;
   // the momentum components
   jacToGlobal.block<3, 2>(eFreeDir0, eBoundPhi) =
       sphericalToFreeDirectionJacobian(direction);
@@ -266,8 +264,6 @@ Acts::FreeToBoundMatrix Acts::DiscSurface::freeToBoundJacobian(
   jacToLocal.block<1, 3>(eBoundLoc0, eFreePos0) = lcphi * lx + lsphi * ly;
   jacToLocal.block<1, 3>(eBoundLoc1, eFreePos0) =
       (lcphi * ly - lsphi * lx) / lr;
-  // Time element
-  jacToLocal(eBoundTime, eFreeTime) = 1;
   // Directional and momentum elements for reference frame surface
   jacToLocal.block<2, 3>(eBoundPhi, eFreeDir0) =
       freeToSphericalDirectionJacobian(direction);

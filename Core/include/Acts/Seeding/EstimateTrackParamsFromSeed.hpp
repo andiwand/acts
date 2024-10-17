@@ -178,8 +178,6 @@ std::optional<BoundVector> estimateTrackParamsFromSeed(
   // The global positions of the bottom, middle and space points
   std::array<Vector3, 3> spGlobalPositions = {Vector3::Zero(), Vector3::Zero(),
                                               Vector3::Zero()};
-  std::array<std::optional<float>, 3> spGlobalTimes = {
-      std::nullopt, std::nullopt, std::nullopt};
   // The first, second and third space point are assumed to be bottom, middle
   // and top space point, respectively
   for (std::size_t isp = 0; isp < 3; ++isp) {
@@ -190,7 +188,6 @@ std::optional<BoundVector> estimateTrackParamsFromSeed(
     }
     const auto& sp = *it;
     spGlobalPositions[isp] = Vector3(sp->x(), sp->y(), sp->z());
-    spGlobalTimes[isp] = sp->t();
   }
 
   // Define a new coordinate frame with its origin at the bottom space point, z
@@ -269,7 +266,6 @@ std::optional<BoundVector> estimateTrackParamsFromSeed(
   // The estimated loc0 and loc1
   params[eBoundLoc0] = bottomLocalPos.x();
   params[eBoundLoc1] = bottomLocalPos.y();
-  params[eBoundTime] = spGlobalTimes[0].value_or(0.);
 
   // The estimated q/pt in [GeV/c]^-1 (note that the pt is the projection of
   // momentum on the transverse plane of the new frame)

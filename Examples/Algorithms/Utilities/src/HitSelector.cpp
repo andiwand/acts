@@ -20,9 +20,8 @@ ActsExamples::ProcessCode ActsExamples::HitSelector::execute(
   const auto& hits = m_inputHits(ctx);
   SimHitContainer selectedHits;
 
-  std::copy_if(hits.begin(), hits.end(),
-               std::inserter(selectedHits, selectedHits.begin()),
-               [&](const auto& hit) { return hit.time() < m_cfg.maxTime; });
+  std::copy(hits.begin(), hits.end(),
+            std::inserter(selectedHits, selectedHits.begin()));
 
   ACTS_DEBUG("selected " << selectedHits.size() << " from " << hits.size()
                          << " hits");

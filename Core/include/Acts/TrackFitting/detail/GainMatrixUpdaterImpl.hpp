@@ -91,7 +91,6 @@ _EXTERN(2);
 _EXTERN(3);
 _EXTERN(4);
 _EXTERN(5);
-_EXTERN(6);
 
 #undef _EXTERN
 

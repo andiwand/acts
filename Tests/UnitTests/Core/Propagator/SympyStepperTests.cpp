@@ -68,7 +68,6 @@ class Logger;
 }  // namespace Acts
 
 using namespace Acts::UnitLiterals;
-using Acts::VectorHelpers::makeVector4;
 
 namespace Acts::Test {
 
@@ -186,13 +185,12 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_state_test) {
 
   Vector3 pos(1., 2., 3.);
   Vector3 dir(4., 5., 6.);
-  double time = 7.;
   double absMom = 8.;
   double charge = -1.;
 
   // Test charged parameters without covariance matrix
-  CurvilinearTrackParameters cp(makeVector4(pos, time), dir, charge / absMom,
-                                std::nullopt, ParticleHypothesis::pion());
+  CurvilinearTrackParameters cp(pos, dir, charge / absMom, std::nullopt,
+                                ParticleHypothesis::pion());
   SympyStepper::State esState(tgContext, bField->makeCache(mfContext), cp,
                               stepSize);
 
@@ -209,15 +207,15 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_state_test) {
   BOOST_CHECK_EQUAL(esState.previousStepSize, 0.);
 
   // Test without charge and covariance matrix
-  CurvilinearTrackParameters ncp(makeVector4(pos, time), dir, 1 / absMom,
-                                 std::nullopt, ParticleHypothesis::pion0());
+  CurvilinearTrackParameters ncp(pos, dir, 1 / absMom, std::nullopt,
+                                 ParticleHypothesis::pion0());
   esState = SympyStepper::State(tgContext, bField->makeCache(mfContext), ncp,
                                 stepSize);
   BOOST_CHECK_EQUAL(es.charge(esState), 0.);
 
   // Test with covariance matrix
   Covariance cov = 8. * Covariance::Identity();
-  ncp = CurvilinearTrackParameters(makeVector4(pos, time), dir, 1 / absMom, cov,
+  ncp = CurvilinearTrackParameters(pos, dir, 1 / absMom, cov,
                                    ParticleHypothesis::pion0());
   esState = SympyStepper::State(tgContext, bField->makeCache(mfContext), ncp,
                                 stepSize);
@@ -238,12 +236,11 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   // Construct the parameters
   Vector3 pos(1., 2., 3.);
   Vector3 dir = Vector3(4., 5., 6.).normalized();
-  double time = 7.;
   double absMom = 8.;
   double charge = -1.;
   Covariance cov = 8. * Covariance::Identity();
-  CurvilinearTrackParameters cp(makeVector4(pos, time), dir, charge / absMom,
-                                cov, ParticleHypothesis::pion());
+  CurvilinearTrackParameters cp(pos, dir, charge / absMom, cov,
+                                ParticleHypothesis::pion());
 
   // Build the state and the stepper
   SympyStepper::State esState(tgContext, bField->makeCache(mfContext), cp,
@@ -255,7 +252,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   CHECK_CLOSE_ABS(es.direction(esState), dir, eps);
   CHECK_CLOSE_ABS(es.absoluteMomentum(esState), absMom, eps);
   CHECK_CLOSE_ABS(es.charge(esState), charge, eps);
-  CHECK_CLOSE_ABS(es.time(esState), time, eps);
   BOOST_CHECK_EQUAL(es.getField(esState, pos).value(),
                     bField->getField(pos, bCache).value());
 
@@ -276,7 +272,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   CHECK_CLOSE_ABS(curvPars.position(tgContext), cp.position(tgContext), eps);
   CHECK_CLOSE_ABS(curvPars.momentum(), cp.momentum(), 10e-6);
   CHECK_CLOSE_ABS(curvPars.charge(), cp.charge(), eps);
-  CHECK_CLOSE_ABS(curvPars.time(), cp.time(), eps);
   BOOST_CHECK(curvPars.covariance().has_value());
   BOOST_CHECK_NE(*curvPars.covariance(), cov);
   CHECK_CLOSE_COVARIANCE(std::get<1>(curvState),
@@ -286,14 +281,11 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   // Test the update method
   Vector3 newPos(2., 4., 8.);
   Vector3 newMom(3., 9., 27.);
-  double newTime(321.);
-  es.update(esState, newPos, newMom.normalized(), charge / newMom.norm(),
-            newTime);
+  es.update(esState, newPos, newMom.normalized(), charge / newMom.norm());
   BOOST_CHECK_EQUAL(es.position(esState), newPos);
   BOOST_CHECK_EQUAL(es.direction(esState), newMom.normalized());
   BOOST_CHECK_EQUAL(es.absoluteMomentum(esState), newMom.norm());
   BOOST_CHECK_EQUAL(es.charge(esState), charge);
-  BOOST_CHECK_EQUAL(es.time(esState), newTime);
 
   // The covariance transport
   esState.cov = cov;
@@ -313,7 +305,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   BOOST_CHECK_NE(es.position(ps.stepping).norm(), newPos.norm());
   BOOST_CHECK_NE(es.direction(ps.stepping), newMom.normalized());
   BOOST_CHECK_EQUAL(es.charge(ps.stepping), charge);
-  BOOST_CHECK_LT(es.time(ps.stepping), newTime);
   BOOST_CHECK_EQUAL(ps.stepping.derivative, FreeVector::Zero());
   BOOST_CHECK_EQUAL(ps.stepping.jacTransport, FreeMatrix::Identity());
 
@@ -323,7 +314,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   BOOST_CHECK_NE(es.position(ps.stepping).norm(), newPos.norm());
   BOOST_CHECK_NE(es.direction(ps.stepping), newMom.normalized());
   BOOST_CHECK_EQUAL(es.charge(ps.stepping), charge);
-  BOOST_CHECK_LT(es.time(ps.stepping), newTime);
   BOOST_CHECK_NE(ps.stepping.derivative, FreeVector::Zero());
   BOOST_CHECK_NE(ps.stepping.jacTransport, FreeMatrix::Identity());
 
@@ -331,12 +321,10 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   // Construct the parameters
   Vector3 pos2(1.5, -2.5, 3.5);
   Vector3 dir2 = Vector3(4.5, -5.5, 6.5).normalized();
-  double time2 = 7.5;
   double absMom2 = 8.5;
   double charge2 = 1.;
   BoundSquareMatrix cov2 = 8.5 * Covariance::Identity();
-  CurvilinearTrackParameters cp2(makeVector4(pos2, time2), dir2,
-                                 charge2 / absMom2, cov2,
+  CurvilinearTrackParameters cp2(pos2, dir2, charge2 / absMom2, cov2,
                                  ParticleHypothesis::pion());
   FreeVector freeParams = transformBoundToFreeParameters(
       cp2.referenceSurface(), tgContext, cp2.parameters());
@@ -387,7 +375,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   BOOST_CHECK_EQUAL(es.absoluteMomentum(esStateCopy),
                     std::abs(1. / freeParams[eFreeQOverP]));
   BOOST_CHECK_EQUAL(es.charge(esStateCopy), -es.charge(ps.stepping));
-  BOOST_CHECK_EQUAL(es.time(esStateCopy), freeParams[eFreeTime]);
   BOOST_CHECK_EQUAL(esStateCopy.pathAccumulated, 0.);
   BOOST_CHECK_EQUAL(esStateCopy.stepSize.value(), navDir * stepSize2);
   BOOST_CHECK_EQUAL(esStateCopy.previousStepSize, ps.stepping.previousStepSize);
@@ -410,7 +397,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   BOOST_CHECK_EQUAL(es.absoluteMomentum(esStateCopy),
                     std::abs(1. / freeParams[eFreeQOverP]));
   BOOST_CHECK_EQUAL(es.charge(esStateCopy), -es.charge(ps.stepping));
-  BOOST_CHECK_EQUAL(es.time(esStateCopy), freeParams[eFreeTime]);
   BOOST_CHECK_EQUAL(esStateCopy.pathAccumulated, 0.);
   BOOST_CHECK_EQUAL(esStateCopy.stepSize.value(),
                     std::numeric_limits<double>::max());
@@ -434,7 +420,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   BOOST_CHECK_EQUAL(es.absoluteMomentum(esStateCopy),
                     std::abs(1. / freeParams[eFreeQOverP]));
   BOOST_CHECK_EQUAL(es.charge(esStateCopy), -es.charge(ps.stepping));
-  BOOST_CHECK_EQUAL(es.time(esStateCopy), freeParams[eFreeTime]);
   BOOST_CHECK_EQUAL(esStateCopy.pathAccumulated, 0.);
   BOOST_CHECK_EQUAL(esStateCopy.stepSize.value(),
                     std::numeric_limits<double>::max());
@@ -442,10 +427,10 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
 
   /// Repeat with surface related methods
   auto plane = CurvilinearSurface(pos, dir.normalized()).planeSurface();
-  auto bp = BoundTrackParameters::create(
-                plane, tgContext, makeVector4(pos, time), dir, charge / absMom,
-                cov, ParticleHypothesis::pion())
-                .value();
+  auto bp =
+      BoundTrackParameters::create(plane, tgContext, pos, dir, charge / absMom,
+                                   cov, ParticleHypothesis::pion())
+          .value();
   esState = SympyStepper::State(tgContext, bField->makeCache(mfContext), cp,
                                 stepSize);
 
@@ -482,7 +467,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   CHECK_CLOSE_ABS(boundPars.position(tgContext), bp.position(tgContext), eps);
   CHECK_CLOSE_ABS(boundPars.momentum(), bp.momentum(), 1e-7);
   CHECK_CLOSE_ABS(boundPars.charge(), bp.charge(), eps);
-  CHECK_CLOSE_ABS(boundPars.time(), bp.time(), eps);
   BOOST_CHECK(boundPars.covariance().has_value());
   BOOST_CHECK_NE(*boundPars.covariance(), cov);
   CHECK_CLOSE_COVARIANCE(std::get<1>(boundState),
@@ -506,7 +490,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   CHECK_CLOSE_OR_SMALL(es.direction(esState), dir, eps, eps);
   CHECK_CLOSE_REL(es.absoluteMomentum(esState), absMom, eps);
   BOOST_CHECK_EQUAL(es.charge(esState), charge);
-  CHECK_CLOSE_OR_SMALL(es.time(esState), time, eps, eps);
   CHECK_CLOSE_COVARIANCE(esState.cov, Covariance(2. * cov), eps);
 
   // Test a case where no step size adjustment is required

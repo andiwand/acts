@@ -376,7 +376,7 @@ BOOST_DATA_TEST_CASE(NavigatorSelfConsistency,
 
   double p = pT / std::sin(theta);
   double q = -1 + 2 * charge;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p,
                                    std::nullopt, ParticleHypothesis::pion());
 
   ACTS_DEBUG(">>> Run navigation tests with:\n    pT = "
@@ -401,7 +401,7 @@ BOOST_DATA_TEST_CASE(NavigatorRef1Consistency,
 
   double p = pT / std::sin(theta);
   double q = -1 + 2 * charge;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p,
                                    std::nullopt, ParticleHypothesis::pion());
 
   ACTS_DEBUG(">>> Run navigation tests with:\n    pT = "
@@ -426,7 +426,7 @@ BOOST_DATA_TEST_CASE(NavigatorRef2Consistency,
 
   double p = pT / std::sin(theta);
   double q = -1 + 2 * charge;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p,
                                    std::nullopt, ParticleHypothesis::pion());
 
   ACTS_DEBUG(">>> Run navigation tests with:\n    pT = "

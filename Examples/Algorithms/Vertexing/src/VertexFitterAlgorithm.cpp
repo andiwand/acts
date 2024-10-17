@@ -117,8 +117,8 @@ ActsExamples::ProcessCode ActsExamples::VertexFitterAlgorithm::execute(
       // Vertex constraint
       Acts::Vertex theConstraint;
 
-      theConstraint.setFullCovariance(m_cfg.constraintCov);
-      theConstraint.setFullPosition(m_cfg.constraintPos);
+      theConstraint.setCovariance(m_cfg.constraintCov);
+      theConstraint.setPosition(m_cfg.constraintPos);
 
       // Vertex fitter options
       VertexFitterOptions vfOptionsConstr(ctx.geoContext, ctx.magFieldContext,
@@ -137,7 +137,7 @@ ActsExamples::ProcessCode ActsExamples::VertexFitterAlgorithm::execute(
       ACTS_DEBUG("No fitted vertex");
     } else {
       ACTS_DEBUG("Fitted Vertex "
-                 << fittedVertices.back().fullPosition().transpose());
+                 << fittedVertices.back().position().transpose());
       ACTS_DEBUG(
           "Tracks at fitted Vertex: " << fittedVertices.back().tracks().size());
     }

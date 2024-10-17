@@ -31,8 +31,6 @@ struct PointwiseMaterialInteraction {
 
   /// The particle position at the interaction.
   const Vector3 pos = Vector3(0., 0., 0);
-  /// The particle time at the interaction.
-  const double time = 0.0;
   /// The particle direction at the interaction.
   const Vector3 dir = Vector3(0., 0., 0);
   /// The particle q/p at the interaction
@@ -79,7 +77,6 @@ struct PointwiseMaterialInteraction {
                                const stepper_t& stepper)
       : surface(sSurface),
         pos(stepper.position(state.stepping)),
-        time(stepper.time(state.stepping)),
         dir(stepper.direction(state.stepping)),
         qOverP(stepper.qOverP(state.stepping)),
         absQ(stepper.particleHypothesis(state.stepping).absoluteCharge()),
@@ -158,7 +155,7 @@ struct PointwiseMaterialInteraction {
     const double nextQOverP =
         std::copysign(particleHypothesis.qOverP(nextP, absQ), qOverP);
     // update track parameters and covariance
-    stepper.update(state.stepping, pos, dir, nextQOverP, time);
+    stepper.update(state.stepping, pos, dir, nextQOverP);
     state.stepping.cov(eBoundPhi, eBoundPhi) = updateVariance(
         state.stepping.cov(eBoundPhi, eBoundPhi), variancePhi, updateMode);
     state.stepping.cov(eBoundTheta, eBoundTheta) =

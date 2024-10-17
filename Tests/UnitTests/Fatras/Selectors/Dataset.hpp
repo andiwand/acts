@@ -19,7 +19,7 @@ using namespace Acts::UnitLiterals;
 ActsFatras::Particle makeParticle(Acts::PdgParticle pdg, double z, double eta) {
   const auto id = ActsFatras::Barcode().setVertexPrimary(1).setParticle(1);
   return ActsFatras::Particle(id, pdg)
-      .setPosition4(0.0, 0.0, z, 0.0)
+      .setPosition(Acts::Vector3(0.0, 0.0, z))
       .setDirection(1.0 / std::cosh(eta), 0.0, std::tanh(eta))
       .setAbsoluteMomentum(1.5_GeV);
 }

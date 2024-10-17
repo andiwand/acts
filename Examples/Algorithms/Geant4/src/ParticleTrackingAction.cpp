@@ -101,7 +101,6 @@ void ActsExamples::ParticleTrackingAction::PostUserTrackingAction(
 ActsExamples::SimParticle ActsExamples::ParticleTrackingAction::convert(
     const G4Track& aTrack, SimBarcode particleId) const {
   // Unit conversions G4->::ACTS
-  constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
   constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
   constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
 
@@ -111,7 +110,6 @@ ActsExamples::SimParticle ActsExamples::ParticleTrackingAction::convert(
   G4double charge = particleDef->GetPDGCharge();
   G4double mass = convertEnergy * particleDef->GetPDGMass();
   G4ThreeVector pPosition = convertLength * aTrack.GetPosition();
-  G4double pTime = convertTime * aTrack.GetGlobalTime();
   G4ThreeVector pDirection = aTrack.GetMomentumDirection();
   G4double p = convertEnergy * aTrack.GetKineticEnergy();
 
@@ -131,7 +129,8 @@ ActsExamples::SimParticle ActsExamples::ParticleTrackingAction::convert(
   // Now create the Particle
   ActsExamples::SimParticle aParticle(particleId, Acts::PdgParticle{pdg},
                                       charge, mass);
-  aParticle.setPosition4(pPosition[0], pPosition[1], pPosition[2], pTime);
+  aParticle.setPosition(
+      Acts::Vector3{pPosition[0], pPosition[1], pPosition[2]});
   aParticle.setDirection(pDirection[0], pDirection[1], pDirection[2]);
   aParticle.setAbsoluteMomentum(p);
   aParticle.setNumberOfHits(numberOfHits);

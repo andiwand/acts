@@ -33,23 +33,12 @@ ProcessCode TrackModifier::execute(
     const ActsExamples::AlgorithmContext& ctx) const {
   auto modifyTrack = [this](auto& trk) {
     {
-      if (m_cfg.killTime) {
-        trk.parameters()[Acts::eBoundTime] = 0;
-      }
-    }
-
-    {
       if (m_cfg.dropCovariance) {
         trk.covariance() =
             Acts::BoundSquareMatrix(trk.covariance().diagonal().asDiagonal());
       }
       if (m_cfg.covScale != 1) {
         trk.covariance() *= m_cfg.covScale;
-      }
-      if (m_cfg.killTime) {
-        trk.covariance().row(Acts::eBoundTime).setZero();
-        trk.covariance().col(Acts::eBoundTime).setZero();
-        trk.covariance()(Acts::eBoundTime, Acts::eBoundTime) = 1;
       }
     }
 

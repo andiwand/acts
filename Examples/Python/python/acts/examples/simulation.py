@@ -35,7 +35,6 @@ ParticleSelectorConfig = namedtuple(
     [
         "rho",  # (min,max)
         "absZ",  # (min,max)
-        "time",  # (min,max)
         "phi",  # (min,max)
         "eta",  # (min,max)
         "absEta",  # (min,max)
@@ -46,7 +45,7 @@ ParticleSelectorConfig = namedtuple(
         "removeNeutral",  # bool
         "removeSecondaries",  # bool
     ],
-    defaults=[(None, None)] * 9 + [None] * 3,
+    defaults=[(None, None)] * 8 + [None] * 3,
 )
 
 
@@ -381,8 +380,6 @@ def addParticleSelection(
                 rhoMax=config.rho[1],
                 absZMin=config.absZ[0],
                 absZMax=config.absZ[1],
-                timeMin=config.time[0],
-                timeMax=config.time[1],
                 phiMin=config.phi[0],
                 phiMax=config.phi[1],
                 etaMin=config.eta[0],
@@ -434,11 +431,11 @@ def addFatras(
     field : magnetic field
     rnd : RandomNumbers
         random number generator
-    preSelectParticles : ParticleSelectorConfig(rho, absZ, time, phi, eta, absEta, pt, removeCharged, removeNeutral), None
+    preSelectParticles : ParticleSelectorConfig(rho, absZ, phi, eta, absEta, pt, removeCharged, removeNeutral), None
         ParticleSelector configuration to select particles as input to Fatras. Each range is specified as a tuple of (min,max).
         Default of no selections specified in Examples/Algorithms/TruthTracking/ActsExamples/TruthTracking/ParticleSelector.hpp
         Specify preSelectParticles=None to inhibit ParticleSelector altogether.
-    postSelectParticles : ParticleSelectorConfig(rho, absZ, time, phi, eta, absEta, pt, removeCharged, removeNeutral), None
+    postSelectParticles : ParticleSelectorConfig(rho, absZ, phi, eta, absEta, pt, removeCharged, removeNeutral), None
         Similar to preSelectParticles but applied after simulation to "particles_initial", therefore also filters secondaries.
     enableInteractions : Enable the particle interactions in the simulation
     pMin : Minimum monmentum of particles simulated by FATRAS
@@ -645,7 +642,6 @@ def addGeant4(
     outputDirRoot: Optional[Union[Path, str]] = None,
     logLevel: Optional[acts.logging.Level] = None,
     killVolume: Optional[acts.Volume] = None,
-    killAfterTime: float = float("inf"),
     killSecondaries: bool = False,
     physicsList: str = "FTFP_BERT",
     regionList: List[Any] = [],
@@ -660,11 +656,11 @@ def addGeant4(
     field : magnetic field
     rnd : RandomNumbers, None
         random number generator
-    preSelectParticles : ParticleSelectorConfig(rho, absZ, time, phi, eta, absEta, pt, removeCharged, removeNeutral), None
+    preSelectParticles : ParticleSelectorConfig(rho, absZ, phi, eta, absEta, pt, removeCharged, removeNeutral), None
         ParticleSelector configuration to select particles as input to Geant4. Each range is specified as a tuple of (min,max).
         Default of no selections specified in Examples/Algorithms/TruthTracking/ActsExamples/TruthTracking/ParticleSelector.hpp
         Specify preSelectParticles=None to inhibit ParticleSelector altogether.
-    postSelectParticles : ParticleSelectorConfig(rho, absZ, time, phi, eta, absEta, pt, removeCharged, removeNeutral), None
+    postSelectParticles : ParticleSelectorConfig(rho, absZ, phi, eta, absEta, pt, removeCharged, removeNeutral), None
         Similar to preSelectParticles but applied after simulation to "particles_initial", therefore also filters secondaries.
     outputDirCsv : Path|str, path, None
         the output folder for the Csv output, None triggers no output
@@ -672,8 +668,6 @@ def addGeant4(
         the output folder for the Root output, None triggers no output
     killVolume: acts.Volume, None
         if given, particles are killed when going outside this volume.
-    killAfterTime: float
-        if given, particle are killed after the global time since event creation exceeds the given value
     killSecondaries: bool
         if given, secondary particles are removed from simulation
     """
@@ -725,7 +719,6 @@ def addGeant4(
         magneticField=field,
         physicsList=physicsList,
         killVolume=killVolume,
-        killAfterTime=killAfterTime,
         killSecondaries=killSecondaries,
         recordHitsOfSecondaries=recordHitsOfSecondaries,
         keepParticlesWithoutHits=keepParticlesWithoutHits,

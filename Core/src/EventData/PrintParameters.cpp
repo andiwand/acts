@@ -24,7 +24,6 @@ constexpr std::array<const char*, Acts::eBoundSize> makeBoundNames() {
   // must be set by index since the order is user-configurable
   names[Acts::eBoundLoc0] = "loc0:";
   names[Acts::eBoundLoc1] = "loc1:";
-  names[Acts::eBoundTime] = "time:";
   names[Acts::eBoundPhi] = "phi:";
   names[Acts::eBoundTheta] = "theta:";
   names[Acts::eBoundQOverP] = "q/p:";
@@ -37,7 +36,6 @@ constexpr std::array<const char*, Acts::eFreeSize> makeFreeNames() {
   names[Acts::eFreePos0] = "pos0:";
   names[Acts::eFreePos1] = "pos1:";
   names[Acts::eFreePos2] = "pos2:";
-  names[Acts::eFreeTime] = "time:";
   names[Acts::eFreeDir0] = "dir0:";
   names[Acts::eFreeDir1] = "dir1:";
   names[Acts::eFreeDir2] = "dir2:";
@@ -45,11 +43,11 @@ constexpr std::array<const char*, Acts::eFreeSize> makeFreeNames() {
   return names;
 }
 
-constexpr std::array<std::size_t, 8> kMonotonic = {
-    0, 1, 2, 3, 4, 5, 6, 7,
+constexpr std::array<std::size_t, 7> kMonotonic = {
+    0, 1, 2, 3, 4, 5, 6,
 };
 
-constexpr std::size_t kNamesMaxSize = 6;
+constexpr std::size_t kNamesMaxSize = 5;
 
 /// Print parameters and associated covariance.
 ///

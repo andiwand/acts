@@ -257,10 +257,6 @@ class TrackProxy {
   /// @return The loc1 parameter
   ActsScalar loc1() const { return parameters()[eBoundLoc1]; }
 
-  /// Access the time parameter of the track at the reference surface
-  /// @return The time parameter
-  ActsScalar time() const { return parameters()[eBoundTime]; }
-
   /// Access the q/p (curvature) parameter of the track at the reference surface
   /// @return The q/p parameter
   ActsScalar qOverP() const { return parameters()[eBoundQOverP]; }

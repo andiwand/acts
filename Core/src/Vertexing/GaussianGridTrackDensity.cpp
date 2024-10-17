@@ -58,7 +58,7 @@ GaussianGridTrackDensity::getMaxZPositionAndWidth(
 std::pair<int, GaussianGridTrackDensity::TrackGridVector>
 GaussianGridTrackDensity::addTrack(const BoundTrackParameters& trk,
                                    MainGridVector& mainGrid) const {
-  SquareMatrix2 cov = trk.spatialImpactParameterCovariance().value();
+  SquareMatrix2 cov = trk.impactParameterCovariance().value();
   float d0 = trk.parameters()[0];
   float z0 = trk.parameters()[1];
 

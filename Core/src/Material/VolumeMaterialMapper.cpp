@@ -362,13 +362,10 @@ void Acts::VolumeMaterialMapper::finalizeMaps(State& mState) const {
 
 void Acts::VolumeMaterialMapper::mapMaterialTrack(
     State& mState, RecordedMaterialTrack& mTrack) const {
-  using VectorHelpers::makeVector4;
-
   // Neutral curvilinear parameters
   NeutralCurvilinearTrackParameters start(
-      makeVector4(mTrack.first.first, 0), mTrack.first.second,
-      1 / mTrack.first.second.norm(), std::nullopt,
-      NeutralParticleHypothesis::geantino());
+      mTrack.first.first, mTrack.first.second, 1 / mTrack.first.second.norm(),
+      std::nullopt, NeutralParticleHypothesis::geantino());
 
   // Prepare Action list and abort list
   using BoundSurfaceCollector = SurfaceCollector<BoundSurfaceSelector>;

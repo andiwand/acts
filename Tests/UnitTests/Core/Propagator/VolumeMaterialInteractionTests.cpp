@@ -57,8 +57,6 @@ struct Stepper {
 
   Vector3 position(const StepperState& state) const { return state.pos; }
 
-  double time(const StepperState& state) const { return state.t; }
-
   Vector3 direction(const StepperState& state) const { return state.dir; }
 
   double qOverP(const StepperState& state) const { return state.q / state.p; }
@@ -108,7 +106,6 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   detail::VolumeMaterialInteraction volMatInt(volume.get(), state, stepper);
   BOOST_CHECK_EQUAL(volMatInt.volume.trackingVolume, volume.get());
   BOOST_CHECK_EQUAL(volMatInt.pos, stepper.position(state.stepping));
-  BOOST_CHECK_EQUAL(volMatInt.time, stepper.time(state.stepping));
   BOOST_CHECK_EQUAL(volMatInt.dir, stepper.direction(state.stepping));
   BOOST_CHECK_EQUAL(volMatInt.momentum,
                     stepper.absoluteMomentum(state.stepping));

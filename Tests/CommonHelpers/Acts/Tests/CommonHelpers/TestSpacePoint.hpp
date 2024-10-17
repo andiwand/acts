@@ -34,17 +34,14 @@ class TestSpacePoint {
   /// @param measurementIndices Indices of the underlying measurement
   template <typename position_t>
   TestSpacePoint(
-      const Eigen::MatrixBase<position_t>& pos, std::optional<float> t,
-      float varRho, float varZ, std::optional<float> varT,
+      const Eigen::MatrixBase<position_t>& pos, float varRho, float varZ,
       boost::container::static_vector<Acts::SourceLink, 2> sourceLinks)
       : m_x(pos[Acts::ePos0]),
         m_y(pos[Acts::ePos1]),
         m_z(pos[Acts::ePos2]),
-        m_t(t),
         m_rho(std::hypot(m_x, m_y)),
         m_varianceRho(varRho),
         m_varianceZ(varZ),
-        m_varianceT(varT),
         m_sourceLinks(std::move(sourceLinks)) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(position_t, 3);
   }
@@ -52,11 +49,9 @@ class TestSpacePoint {
   constexpr float x() const { return m_x; }
   constexpr float y() const { return m_y; }
   constexpr float z() const { return m_z; }
-  constexpr std::optional<float> t() const { return m_z; }
   constexpr float r() const { return m_rho; }
   constexpr float varianceR() const { return m_varianceRho; }
   constexpr float varianceZ() const { return m_varianceZ; }
-  constexpr std::optional<float> varianceT() const { return m_varianceT; }
 
   const boost::container::static_vector<Acts::SourceLink, 2>& sourceLinks()
       const {
@@ -87,10 +82,9 @@ inline bool operator==(const TestSpacePoint& lhs, const TestSpacePoint& rhs) {
                        rsl.template get<Acts::detail::Test::TestSourceLink>();
               }) &&
           lhs.x() == rhs.x()) &&
-         (lhs.y() == rhs.y()) && (lhs.z() == rhs.z()) && (lhs.t() == rhs.t()) &&
+         (lhs.y() == rhs.y()) && (lhs.z() == rhs.z()) &&
          (lhs.varianceR() == rhs.varianceR()) &&
-         (lhs.varianceZ() == rhs.varianceZ()) &&
-         (lhs.varianceT() == rhs.varianceT());
+         (lhs.varianceZ() == rhs.varianceZ());
 }
 
 /// Container of space points.

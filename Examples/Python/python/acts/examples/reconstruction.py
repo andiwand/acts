@@ -118,7 +118,6 @@ TrackSelectorConfig = namedtuple(
     [
         "loc0",
         "loc1",
-        "time",
         "eta",
         "absEta",
         "pt",
@@ -131,7 +130,7 @@ TrackSelectorConfig = namedtuple(
         "maxChi2",
         "nMeasurementsGroupMin",
     ],
-    defaults=[(None, None)] * 7 + [None] * 7,
+    defaults=[(None, None)] * 6 + [None] * 7,
 )
 
 CkfConfig = namedtuple(
@@ -1449,7 +1448,7 @@ def addCKFTracks(
         the output folder for the Csv output, None triggers no output
     outputDirRoot : Path|str, path, None
         the output folder for the Root output, None triggers no output
-    trackSelectorConfig : TrackSelectorConfig(loc0, loc1, time, eta, absEta, pt, phi, minMeasurements)
+    trackSelectorConfig : TrackSelectorConfig(loc0, loc1, eta, absEta, pt, phi, minMeasurements)
         TrackSelector configuration. Each range is specified as a tuple of (min,max).
         Specify as a list(TrackSelectorConfig) for eta-dependent cuts, with binning specified by absEta[1].
         Defaults of no cuts specified in Examples/Algorithms/TruthTracking/ActsExamples/TruthTracking/TrackSelector.hpp
@@ -1475,8 +1474,6 @@ def addCKFTracks(
                 loc0Max=c.loc0[1],
                 loc1Min=c.loc1[0],
                 loc1Max=c.loc1[1],
-                timeMin=c.time[0],
-                timeMax=c.time[1],
                 phiMin=c.phi[0],
                 phiMax=c.phi[1],
                 etaMin=c.eta[0],
@@ -1750,8 +1747,6 @@ def addTrackSelection(
             loc0Max=trackSelectorConfig.loc0[1],
             loc1Min=trackSelectorConfig.loc1[0],
             loc1Max=trackSelectorConfig.loc1[1],
-            timeMin=trackSelectorConfig.time[0],
-            timeMax=trackSelectorConfig.time[1],
             phiMin=trackSelectorConfig.phi[0],
             phiMax=trackSelectorConfig.phi[1],
             etaMin=trackSelectorConfig.eta[0],
@@ -2141,7 +2136,6 @@ def addVertexFitting(
     vertexFinder: VertexFinder = VertexFinder.Truth,
     maxIterations: Optional[int] = None,
     initialVariances: Optional[List[float]] = None,
-    useTime: Optional[bool] = False,
     seeder: Optional[acts.VertexSeedFinder] = acts.VertexSeedFinder.GaussianSeeder,
     spatialBinExtent: Optional[float] = None,
     temporalBinExtent: Optional[float] = None,
@@ -2164,10 +2158,6 @@ def addVertexFitting(
     seeder : enum member
         determines vertex seeder for AMVF, can be acts.seeder.GaussianSeeder or
         acts.seeder.AdaptiveGridSeeder
-    useTime : bool, False
-        determines whether time information is used in vertex seeder, finder,
-        and fitter
-        only implemented for the AMVF and the AdaptiveGridSeeder
     spatialBinExtent : float, None
         spatial bin extent for the AdaptiveGridSeeder
     temporalBinExtent : float, None
@@ -2249,7 +2239,6 @@ def addVertexFitting(
             **acts.examples.defaultKWArgs(
                 maxIterations=maxIterations,
                 initialVariances=initialVariances,
-                useTime=useTime,
                 spatialBinExtent=spatialBinExtent,
                 temporalBinExtent=temporalBinExtent,
             ),

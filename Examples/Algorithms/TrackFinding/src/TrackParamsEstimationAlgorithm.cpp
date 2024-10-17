@@ -36,7 +36,7 @@ namespace {
 
 Acts::BoundSquareMatrix makeInitialCovariance(
     const TrackParamsEstimationAlgorithm::Config& config,
-    const Acts::BoundVector& params, const SimSpacePoint& sp) {
+    const Acts::BoundVector& params) {
   Acts::BoundSquareMatrix result = Acts::BoundSquareMatrix::Zero();
 
   for (std::size_t i = Acts::eBoundLoc0; i < Acts::eBoundSize; ++i) {
@@ -56,11 +56,6 @@ Acts::BoundSquareMatrix makeInitialCovariance(
           varianceTheta * std::pow(params[Acts::eBoundQOverP] /
                                        std::tan(params[Acts::eBoundTheta]),
                                    2);
-    }
-
-    // Inflate the time uncertainty if no time measurement is available
-    if (i == Acts::eBoundTime && !sp.t().has_value()) {
-      variance *= config.noTimeVarInflation;
     }
 
     // Inflate the initial covariance
@@ -166,8 +161,7 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
     const auto& params = optParams.value();
 
-    Acts::BoundSquareMatrix cov =
-        makeInitialCovariance(m_cfg, params, *bottomSP);
+    Acts::BoundSquareMatrix cov = makeInitialCovariance(m_cfg, params);
 
     trackParameters.emplace_back(surface->getSharedPtr(), params, cov,
                                  m_cfg.particleHypothesis);

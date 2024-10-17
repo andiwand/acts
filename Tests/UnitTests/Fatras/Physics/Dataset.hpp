@@ -52,7 +52,7 @@ inline ActsFatras::Particle makeParticle(Acts::PdgParticle pdg, double phi,
                                          double theta, double p) {
   const auto id = ActsFatras::Barcode().setVertexPrimary(1).setParticle(1);
   return ActsFatras::Particle(id, pdg)
-      .setPosition4(0, 0, 0, 0)
+      .setPosition(Acts::Vector3(0, 0, 0))
       .setDirection(Acts::makeDirectionFromPhiTheta(phi, theta))
       .setAbsoluteMomentum(p);
 }

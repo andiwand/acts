@@ -68,7 +68,7 @@ auto MultiEigenStepperLoop<E, R>::curvilinearState(
   assert(!state.components.empty());
 
   std::vector<
-      std::tuple<double, Vector4, Vector3, ActsScalar, BoundSquareMatrix>>
+      std::tuple<double, Vector3, Vector3, ActsScalar, BoundSquareMatrix>>
       cmps;
   cmps.reserve(numberComponents(state));
   double accumulatedPathLength = 0.0;
@@ -77,9 +77,8 @@ auto MultiEigenStepperLoop<E, R>::curvilinearState(
     const auto [cp, jac, pl] = SingleStepper::curvilinearState(
         state.components[i].state, transportCov);
 
-    cmps.emplace_back(state.components[i].weight,
-                      cp.fourPosition(state.geoContext), cp.direction(),
-                      cp.qOverP(),
+    cmps.emplace_back(state.components[i].weight, cp.position(state.geoContext),
+                      cp.direction(), cp.qOverP(),
                       cp.covariance().value_or(BoundSquareMatrix::Zero()));
     accumulatedPathLength += state.components[i].weight * pl;
   }

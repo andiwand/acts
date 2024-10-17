@@ -35,7 +35,7 @@ auto makeTestSimhits(std::size_t nSimHits) {
     Acts::GeometryIdentifier geoid(distIds(gen));
     SimBarcode pid(distIds(gen));
 
-    Acts::Vector4 pos4 = Acts::Vector4::Random();
+    Acts::Vector3 pos4 = Acts::Vector3::Random();
     Acts::Vector4 before4 = Acts::Vector4::Random();
     Acts::Vector4 after4 = Acts::Vector4::Random();
 
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(RoundTripTest) {
     BOOST_CHECK_EQUAL(testhits.size(), refhits.size());
 
     for (const auto &[ref, test] : Acts::zip(refhits, testhits)) {
-      CHECK_CLOSE_ABS(test.fourPosition(), ref.fourPosition(), tol);
+      CHECK_CLOSE_ABS(test.position(), ref.position(), tol);
       CHECK_CLOSE_ABS(test.momentum4After(), ref.momentum4After(), tol);
       CHECK_CLOSE_ABS(test.momentum4Before(), ref.momentum4Before(), tol);
 
