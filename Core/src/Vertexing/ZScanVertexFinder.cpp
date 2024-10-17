@@ -102,9 +102,8 @@ Acts::Result<std::vector<Acts::Vertex>> Acts::ZScanVertexFinder::find(
   }
 
   // constraint x()/y() equals 0 if no constraint
-  Vector4 output(vertexingOptions.constraint.position().x(),
-                 vertexingOptions.constraint.position().y(), ZResult,
-                 vertexingOptions.constraint.time());
+  Vector3 output(vertexingOptions.constraint.position().x(),
+                 vertexingOptions.constraint.position().y(), ZResult);
   Vertex vtxResult = Vertex(output);
 
   return std::vector<Vertex>{vtxResult};

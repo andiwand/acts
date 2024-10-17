@@ -267,8 +267,8 @@ SimParticleContainer RootAthenaDumpReader::readParticles() const {
 
     particle.setDirection(p.normalized());
 
-    auto x = Acts::Vector4{Part_vx[ip], Part_vy[ip], Part_vz[ip], 0.0};
-    particle.setPosition4(x);
+    auto x = Acts::Vector3{Part_vx[ip], Part_vy[ip], Part_vz[ip]};
+    particle.setPosition(x);
 
     particles.push_back(SimParticle(particle, particle));
   }
@@ -557,8 +557,7 @@ RootAthenaDumpReader::readSpacepoints(
 
     // First create pixel spacepoint here, later maybe overwrite with strip
     // spacepoint
-    SimSpacePoint sp(globalPos, std::nullopt, spCovr, spCovz, std::nullopt,
-                     sLinks);
+    SimSpacePoint sp(globalPos, spCovr, spCovz, sLinks);
 
     if (type == ePixel) {
       pixelSpacePoints.push_back(sp);

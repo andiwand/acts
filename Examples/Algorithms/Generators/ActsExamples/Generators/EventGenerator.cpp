@@ -76,12 +76,12 @@ ProcessCode EventGenerator::read(const AlgorithmContext& ctx) {
         const auto pid = SimBarcode{particle.particleId()}.setVertexPrimary(
             nPrimaryVertices);
         // move particle to the vertex
-        const auto pos4 = (vertexPosition + particle.fourPosition()).eval();
-        ACTS_VERBOSE(" - particle at " << pos4.transpose());
+        const auto pos = (vertexPosition + particle.position()).eval();
+        ACTS_VERBOSE(" - particle at " << pos.transpose());
         // `withParticleId` returns a copy because it changes the identity
         particle = particle.withParticleId(pid);
-        particle.initial().setPosition4(pos4);
-        particle.final().setPosition4(pos4);
+        particle.initial().setPosition(pos);
+        particle.final().setPosition(pos);
       };
       for (auto& vertexParticle : newParticles) {
         updateParticleInPlace(vertexParticle);
@@ -95,9 +95,9 @@ ProcessCode EventGenerator::read(const AlgorithmContext& ctx) {
         vertex.id = SimVertexBarcode{vertex.vertexId()}.setVertexPrimary(
             nPrimaryVertices);
         // move vertex
-        const auto pos4 = (vertexPosition + vertex.position4).eval();
-        ACTS_VERBOSE(" - vertex at " << pos4.transpose());
-        vertex.position4 = pos4;
+        const auto pos = (vertexPosition + vertex.position).eval();
+        ACTS_VERBOSE(" - vertex at " << pos.transpose());
+        vertex.position = pos;
       };
       for (auto& vertex : newVertices) {
         updateVertexInPlace(vertex);

@@ -28,17 +28,14 @@ Acts::Result<std::vector<Acts::Vertex>> TruthVertexSeeder::find(
   ++state.nextVertexIndex;
 
   Acts::Vertex converted;
-  converted.fullPosition().z() = truthVertex.position().z();
+  converted.position().z() = truthVertex.position.z();
   if (m_cfg.useXY) {
-    converted.fullPosition().x() = truthVertex.position().x();
-    converted.fullPosition().y() = truthVertex.position().y();
-  }
-  if (m_cfg.useTime) {
-    converted.setTime(truthVertex.time());
+    converted.position().x() = truthVertex.position.x();
+    converted.position().y() = truthVertex.position.y();
   }
 
-  Acts::SquareMatrix4 seedCov = vertexingOptions.constraint.fullCovariance();
-  converted.setFullCovariance(seedCov);
+  Acts::SquareMatrix3 seedCov = vertexingOptions.constraint.covariance();
+  converted.setCovariance(seedCov);
 
   return std::vector<Acts::Vertex>{converted};
 }

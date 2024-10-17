@@ -304,10 +304,10 @@ BOOST_AUTO_TEST_CASE(iterative_finder_test) {
     // Check if all vertices have been found with close z-values
     bool allVerticesFound = true;
     for (const auto& trueVertex : trueVertices) {
-      Vector4 truePos = trueVertex.fullPosition();
+      Vector3 truePos = trueVertex.position();
       bool currentVertexFound = false;
       for (const auto& recoVertex : vertexCollection) {
-        Vector4 recoPos = recoVertex.fullPosition();
+        Vector3 recoPos = recoVertex.position();
         // check only for close z distance
         double zDistance = std::abs(truePos[eZ] - recoPos[eZ]);
         if (zDistance < 2_mm) {
@@ -525,10 +525,10 @@ BOOST_AUTO_TEST_CASE(iterative_finder_test_user_track_type) {
     // Check if all vertices have been found with close z-values
     bool allVerticesFound = true;
     for (const auto& trueVertex : trueVertices) {
-      Vector4 truePos = trueVertex.fullPosition();
+      Vector3 truePos = trueVertex.position();
       bool currentVertexFound = false;
       for (const auto& recoVertex : vertexCollectionUT) {
-        Vector4 recoPos = recoVertex.fullPosition();
+        Vector3 recoPos = recoVertex.position();
         // check only for close z distance
         double zDistance = std::abs(truePos[eZ] - recoPos[eZ]);
         if (zDistance < 2_mm) {
@@ -607,10 +607,8 @@ BOOST_AUTO_TEST_CASE(iterative_finder_test_athena_reference) {
 
   Vertex beamSpot = std::get<BeamSpotData>(csvData);
   // Set time covariance
-  SquareMatrix4 fullCovariance = SquareMatrix4::Zero();
-  fullCovariance.topLeftCorner<3, 3>() = beamSpot.covariance();
-  fullCovariance(eTime, eTime) = 100_ns;
-  beamSpot.setFullCovariance(fullCovariance);
+  SquareMatrix3 cvariance = beamSpot.covariance();
+  beamSpot.setCovariance(cvariance);
   VertexingOptions vertexingOptions(geoContext, magFieldContext, beamSpot);
 
   // find vertices

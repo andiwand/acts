@@ -214,8 +214,8 @@ ProcessCode RootTrackSummaryReader::read(const AlgorithmContext& context) {
     for (unsigned int i = 0; i < nTruthParticles; i++) {
       SimParticleState truthParticle;
 
-      truthParticle.setPosition4((*m_t_vx)[i], (*m_t_vy)[i], (*m_t_vz)[i],
-                                 (*m_t_time)[i]);
+      truthParticle.setPosition(
+          Acts::Vector3((*m_t_vx)[i], (*m_t_vy)[i], (*m_t_vz)[i]));
       truthParticle.setDirection((*m_t_px)[i], (*m_t_py)[i], (*m_t_pz)[i]);
       truthParticle.setParticleId((*m_majorityParticleId)[i]);
 

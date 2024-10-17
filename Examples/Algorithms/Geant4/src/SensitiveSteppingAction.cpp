@@ -309,12 +309,12 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
     auto& buffer = eventStore().hitBuffer;
     buffer.push_back(hitFromStep(step, particleId, geoId, -1));
 
-    const auto pos4 =
-        0.5 * (buffer.front().fourPosition() + buffer.back().fourPosition());
+    const auto pos =
+        0.5 * (buffer.front().position() + buffer.back().position());
 
     ++eventStore().particleHitCount[particleId];
     eventStore().hits.emplace_back(
-        geoId, particleId, pos4, buffer.front().momentum4Before(),
+        geoId, particleId, pos, buffer.front().momentum4Before(),
         buffer.back().momentum4After(),
         eventStore().particleHitCount.at(particleId) - 1);
 

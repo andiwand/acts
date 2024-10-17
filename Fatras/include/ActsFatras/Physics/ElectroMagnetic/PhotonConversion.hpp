@@ -276,14 +276,14 @@ inline std::array<Particle, 2> PhotonConversion::generateChildren(
   std::array<Particle, 2> children = {
       Particle(photon.particleId().makeDescendant(0), Acts::eElectron, -1_e,
                kElectronMass)
-          .setPosition4(photon.fourPosition())
+          .setPosition(photon.position())
           .setDirection(childDirection)
           .setAbsoluteMomentum(momentum1)
           .setProcess(ProcessType::ePhotonConversion)
           .setReferenceSurface(photon.referenceSurface()),
       Particle(photon.particleId().makeDescendant(1), Acts::ePositron, 1_e,
                kElectronMass)
-          .setPosition4(photon.fourPosition())
+          .setPosition(photon.position())
           .setDirection(childDirection)
           .setAbsoluteMomentum(momentum2)
           .setProcess(ProcessType::ePhotonConversion)

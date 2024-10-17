@@ -55,7 +55,6 @@ namespace bd = boost::unit_test::data;
 
 using namespace Acts;
 using namespace Acts::UnitLiterals;
-using Acts::VectorHelpers::makeVector4;
 
 using MagneticField = Acts::ConstantBField;
 using StraightPropagator = Acts::Propagator<StraightLineStepper>;
@@ -75,13 +74,12 @@ Acts::MagneticFieldProvider::Cache magFieldCache() {
 // only non-zero distances are tested
 auto d0s = bd::make({-25_um, 25_um});
 auto l0s = bd::make({-1_mm, 1_mm});
-auto t0s = bd::make({-2_ns, 2_ns});
 auto phis = bd::make({0_degree, -45_degree, 45_degree});
 auto thetas = bd::make({90_degree, 20_degree, 160_degree});
 auto ps = bd::make({0.4_GeV, 1_GeV, 10_GeV});
 auto qs = bd::make({-1_e, 1_e});
 // Cartesian products over all parameters
-auto tracksWithoutIPs = t0s * phis * thetas * ps * qs;
+auto tracksWithoutIPs = phis * thetas * ps * qs;
 auto IPs = d0s * l0s;
 auto tracks = IPs * tracksWithoutIPs;
 
@@ -89,9 +87,8 @@ auto tracks = IPs * tracksWithoutIPs;
 auto vx0s = bd::make({0_um, -10_um, 10_um});
 auto vy0s = bd::make({0_um, -10_um, 10_um});
 auto vz0s = bd::make({0_mm, -25_mm, 25_mm});
-auto vt0s = bd::make({0_ns, -2_ns, 2_ns});
 // Cartesian products over all parameters
-auto vertices = vx0s * vy0s * vz0s * vt0s;
+auto vertices = vx0s * vy0s * vz0s;
 
 // Construct an impact point estimator for a constant bfield along z.
 Estimator makeEstimator(double bZ) {
@@ -105,12 +102,10 @@ Estimator makeEstimator(double bZ) {
 }
 
 // Construct a diagonal track covariance w/ reasonable values.
-Acts::BoundSquareMatrix makeBoundParametersCovariance(
-    double stdDevTime = 30_ps) {
+Acts::BoundSquareMatrix makeBoundParametersCovariance() {
   BoundVector stddev;
   stddev[eBoundLoc0] = 15_um;
   stddev[eBoundLoc1] = 100_um;
-  stddev[eBoundTime] = stdDevTime;
   stddev[eBoundPhi] = 1_degree;
   stddev[eBoundTheta] = 1_degree;
   stddev[eBoundQOverP] = 1_e / 100_GeV;
@@ -118,12 +113,11 @@ Acts::BoundSquareMatrix makeBoundParametersCovariance(
 }
 
 // Construct a diagonal vertex covariance w/ reasonable values.
-Acts::SquareMatrix4 makeVertexCovariance() {
-  Vector4 stddev;
+Acts::SquareMatrix3 makeVertexCovariance() {
+  Vector3 stddev;
   stddev[ePos0] = 10_um;
   stddev[ePos1] = 10_um;
   stddev[ePos2] = 75_um;
-  stddev[eTime] = 1_ns;
   return stddev.cwiseProduct(stddev).asDiagonal();
 }
 
@@ -138,13 +132,12 @@ BOOST_AUTO_TEST_SUITE(VertexingImpactPointEstimator)
 // Check `calculateDistance`, `estimate3DImpactParameters`, and
 // `getVertexCompatibility`.
 BOOST_DATA_TEST_CASE(SingleTrackDistanceParametersCompatibility3D, tracks, d0,
-                     l0, t0, phi, theta, p, q) {
+                     l0, phi, theta, p, q) {
   auto particleHypothesis = ParticleHypothesis::pion();
 
   BoundVector par;
   par[eBoundLoc0] = d0;
   par[eBoundLoc1] = l0;
-  par[eBoundTime] = t0;
   par[eBoundPhi] = phi;
   par[eBoundTheta] = theta;
   par[eBoundQOverP] = particleHypothesis.qOverP(p, q);
@@ -194,8 +187,8 @@ BOOST_DATA_TEST_CASE(SingleTrackDistanceParametersCompatibility3D, tracks, d0,
   BOOST_CHECK_GT(compatibility, 0);
 }
 
-BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
-                     q, vx0, vy0, vz0, vt0) {
+BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, phi, theta, p, q,
+                     vx0, vy0, vz0) {
   using Propagator = Acts::Propagator<Stepper>;
   using PropagatorOptions = Propagator::Options<>;
   using StraightPropagator = Acts::Propagator<StraightLineStepper>;
@@ -218,12 +211,11 @@ BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
   StraightLineEstimator::State zeroFieldIPState{magFieldCache()};
 
   // Vertex position and vertex object
-  Vector4 vtxPos(vx0, vy0, vz0, vt0);
+  Vector3 vtxPos(vx0, vy0, vz0);
   Vertex vtx(vtxPos, makeVertexCovariance(), {});
 
   // Perigee surface at vertex position
-  auto vtxPerigeeSurface =
-      Surface::makeShared<PerigeeSurface>(vtxPos.head<3>());
+  auto vtxPerigeeSurface = Surface::makeShared<PerigeeSurface>(vtxPos);
 
   // Track parameter vector for a track that originates at the vertex.
   // Note that 2D and 3D PCA coincide since the track passes exactly through the
@@ -231,7 +223,6 @@ BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
   BoundVector paramVec;
   paramVec[eBoundLoc0] = 0.;
   paramVec[eBoundLoc1] = 0.;
-  paramVec[eBoundTime] = t0;
   paramVec[eBoundPhi] = phi;
   paramVec[eBoundTheta] = theta;
   paramVec[eBoundQOverP] = q / p;
@@ -239,10 +230,6 @@ BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
   BoundTrackParameters params(vtxPerigeeSurface, paramVec,
                               makeBoundParametersCovariance(),
                               ParticleHypothesis::pion());
-
-  // Correct quantities for checking if IP estimation worked
-  // Time of the track with respect to the vertex
-  double corrTimeDiff = t0 - vt0;
 
   // Momentum direction at vertex (i.e., at 3D PCA)
   double cosPhi = std::cos(phi);
@@ -285,40 +272,32 @@ BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
       "Check time at 2D PCA (i.e., function getImpactParameters) for helical "
       "tracks") {
     // Calculate impact parameters
-    auto ipParams = ipEstimator
-                        .getImpactParameters(refParams, vtx, geoContext,
-                                             magFieldContext, true)
-                        .value();
+    auto ipParams =
+        ipEstimator
+            .getImpactParameters(refParams, vtx, geoContext, magFieldContext)
+            .value();
     // Spatial impact parameters should be 0 because the track passes through
     // the vertex
     CHECK_CLOSE_ABS(ipParams.d0, 0., 30_nm);
     CHECK_CLOSE_ABS(ipParams.z0, 0., 100_nm);
-    // Time impact parameter should correspond to the time where the track
-    // passes through the vertex
-    CHECK_CLOSE_OR_SMALL(ipParams.deltaT.value(), std::abs(corrTimeDiff), 1e-5,
-                         1e-3);
   }
 
-  auto checkGetDistanceAndMomentum = [&vtxPos, &corrMomDir, corrTimeDiff](
-                                         const auto& ipe, const auto& rParams,
-                                         auto& state) {
+  auto checkGetDistanceAndMomentum = [&vtxPos, &corrMomDir](const auto& ipe,
+                                                            const auto& rParams,
+                                                            auto& state) {
     // Find 4D distance and momentum of the track at the vertex starting from
     // the perigee representation at the reference position
-    auto distAndMom = ipe.template getDistanceAndMomentum<4>(
+    auto distAndMom = ipe.template getDistanceAndMomentum<3>(
                              geoContext, rParams, vtxPos, state)
                           .value();
 
-    Vector4 distVec = distAndMom.first;
+    Vector3 distVec = distAndMom.first;
     Vector3 momDir = distAndMom.second;
 
     // Check quantities:
     // Spatial distance should be 0 as track passes through the vertex
-    double dist = distVec.head<3>().norm();
+    double dist = distVec.norm();
     CHECK_CLOSE_ABS(dist, 0., 30_nm);
-    // Distance in time should correspond to the time of the track in a
-    // coordinate system with the vertex as the origin since the track passes
-    // exactly through the vertex
-    CHECK_CLOSE_OR_SMALL(distVec[3], corrTimeDiff, 1e-5, 1e-4);
     // Momentum direction should correspond to the momentum direction at the
     // vertex
     CHECK_CLOSE_OR_SMALL(momDir, corrMomDir, 1e-5, 1e-4);
@@ -338,7 +317,7 @@ BOOST_DATA_TEST_CASE(TimeAtPca, tracksWithoutIPs* vertices, t0, phi, theta, p,
 }
 
 BOOST_DATA_TEST_CASE(VertexCompatibility4D, IPs* vertices, d0, l0, vx0, vy0,
-                     vz0, vt0) {
+                     vz0) {
   // Set up RNG
   int seed = 31415;
   std::mt19937 gen(seed);
@@ -347,30 +326,18 @@ BOOST_DATA_TEST_CASE(VertexCompatibility4D, IPs* vertices, d0, l0, vx0, vy0,
   Estimator ipEstimator = makeEstimator(2_T);
 
   // Vertex position
-  Vector4 vtxPos(vx0, vy0, vz0, vt0);
+  Vector3 vtxPos(vx0, vy0, vz0);
 
   // Dummy coordinate system with origin at vertex
   Transform3 coordinateSystem;
   // First three columns correspond to coordinate system axes
-  coordinateSystem.matrix().block<3, 3>(0, 0) = ActsSquareMatrix<3>::Identity();
+  coordinateSystem.matrix().block<3, 3>(0, 0) = SquareMatrix3::Identity();
   // Fourth column corresponds to origin of the coordinate system
-  coordinateSystem.matrix().block<3, 1>(0, 3) = vtxPos.head<3>();
+  coordinateSystem.matrix().block<3, 1>(0, 3) = vtxPos;
 
   // Dummy plane surface
   std::shared_ptr<PlaneSurface> planeSurface =
       Surface::makeShared<PlaneSurface>(coordinateSystem);
-
-  // Create two track parameter vectors that are alike except that one is closer
-  // to the vertex in time. Note that momenta don't play a role in the
-  // computation and we set the angles and q/p to 0.
-  // Time offsets
-  double timeDiffFactor = uniformDist(gen);
-  double timeDiffClose = timeDiffFactor * 0.1_ps;
-  double timeDiffFar = timeDiffFactor * 0.11_ps;
-
-  // Different random signs for the time offsets
-  double sgnClose = signDist(gen) < 0 ? -1. : 1.;
-  double sgnFar = signDist(gen) < 0 ? -1. : 1.;
 
   BoundVector paramVecClose = BoundVector::Zero();
   paramVecClose[eBoundLoc0] = d0;
@@ -378,25 +345,23 @@ BOOST_DATA_TEST_CASE(VertexCompatibility4D, IPs* vertices, d0, l0, vx0, vy0,
   paramVecClose[eBoundPhi] = 0;
   paramVecClose[eBoundTheta] = std::numbers::pi / 2;
   paramVecClose[eBoundQOverP] = 0;
-  paramVecClose[eBoundTime] = vt0 + sgnClose * timeDiffClose;
 
   BoundVector paramVecFar = paramVecClose;
-  paramVecFar[eBoundTime] = vt0 + sgnFar * timeDiffFar;
 
   // Track whose time is similar to the vertex time
   BoundTrackParameters paramsClose(planeSurface, paramVecClose,
-                                   makeBoundParametersCovariance(30_ns),
+                                   makeBoundParametersCovariance(),
                                    ParticleHypothesis::pion());
 
   // Track whose time is similar to the vertex time but with a larger time
   // variance
-  BoundTrackParameters paramsCloseLargerCov(
-      planeSurface, paramVecClose, makeBoundParametersCovariance(31_ns),
-      ParticleHypothesis::pion());
+  BoundTrackParameters paramsCloseLargerCov(planeSurface, paramVecClose,
+                                            makeBoundParametersCovariance(),
+                                            ParticleHypothesis::pion());
 
   // Track whose time differs slightly more from the vertex time
   BoundTrackParameters paramsFar(planeSurface, paramVecFar,
-                                 makeBoundParametersCovariance(30_ns),
+                                 makeBoundParametersCovariance(),
                                  ParticleHypothesis::pion());
 
   // Calculate the 4D vertex compatibilities of the three tracks
@@ -430,13 +395,12 @@ BOOST_AUTO_TEST_CASE(SingleTrackDistanceParametersAthenaRegression) {
   Estimator::State state{magFieldCache()};
 
   // Use same values as in Athena unit test
-  Vector4 pos1(2_mm, 1_mm, -10_mm, 0_ns);
+  Vector3 pos1(2_mm, 1_mm, -10_mm);
   Vector3 mom1(400_MeV, 600_MeV, 200_MeV);
   Vector3 vtxPos(1.2_mm, 0.8_mm, -7_mm);
 
   // Start creating some track parameters
-  auto perigeeSurface =
-      Surface::makeShared<PerigeeSurface>(pos1.segment<3>(ePos0));
+  auto perigeeSurface = Surface::makeShared<PerigeeSurface>(pos1);
   // Some fixed track parameter values
   auto params1 = BoundTrackParameters::create(
                      perigeeSurface, geoContext, pos1, mom1, 1_e / mom1.norm(),
@@ -468,16 +432,15 @@ BOOST_AUTO_TEST_CASE(Lifetimes2d3d) {
   BoundVector trk_par;
   trk_par[eBoundLoc0] = 200_um;
   trk_par[eBoundLoc1] = 300_um;
-  trk_par[eBoundTime] = 1_ns;
   trk_par[eBoundPhi] = 45_degree;
   trk_par[eBoundTheta] = 45_degree;
   trk_par[eBoundQOverP] = 1_e / 10_GeV;
 
-  Vector4 ip_pos{0., 0., 0., 0.};
+  Vector3 ip_pos{0., 0., 0.};
   Vertex ip_vtx(ip_pos, makeVertexCovariance(), {});
 
   // Form the bound track parameters at the ip
-  auto perigeeSurface = Surface::makeShared<PerigeeSurface>(ip_pos.head<3>());
+  auto perigeeSurface = Surface::makeShared<PerigeeSurface>(ip_pos);
   BoundTrackParameters track(perigeeSurface, trk_par,
                              makeBoundParametersCovariance(),
                              ParticleHypothesis::pion());
@@ -508,20 +471,18 @@ BOOST_AUTO_TEST_CASE(Lifetimes2d3d) {
 }
 
 // Check `.getImpactParameters`.
-BOOST_DATA_TEST_CASE(SingeTrackImpactParameters, tracks* vertices, d0, l0, t0,
-                     phi, theta, p, q, vx0, vy0, vz0, vt0) {
+BOOST_DATA_TEST_CASE(SingeTrackImpactParameters, tracks* vertices, d0, l0, phi,
+                     theta, p, q, vx0, vy0, vz0) {
   BoundVector par;
   par[eBoundLoc0] = d0;
   par[eBoundLoc1] = l0;
-  par[eBoundTime] = t0;
   par[eBoundPhi] = phi;
   par[eBoundTheta] = theta;
   par[eBoundQOverP] = q / p;
-  Vector4 vtxPos;
+  Vector3 vtxPos;
   vtxPos[ePos0] = vx0;
   vtxPos[ePos1] = vy0;
   vtxPos[ePos2] = vz0;
-  vtxPos[eTime] = vt0;
 
   Estimator ipEstimator = makeEstimator(1_T);
   Estimator::State state{magFieldCache()};

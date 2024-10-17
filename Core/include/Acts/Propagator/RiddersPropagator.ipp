@@ -44,7 +44,7 @@ auto Acts::RiddersPropagator<propagator_t>::propagate(
     auto cov = jacobian * (*start.covariance()) * jacobian.transpose();
     // replace the covariance of the nominal result w/ the ridders covariance
     nominalResult.endParameters = CurvilinearTrackParameters(
-        nominalFinalParameters.fourPosition(options.geoContext),
+        nominalFinalParameters.position(options.geoContext),
         nominalFinalParameters.direction(), nominalFinalParameters.qOverP(),
         std::move(cov), nominalFinalParameters.particleHypothesis());
   }
@@ -230,7 +230,6 @@ auto Acts::RiddersPropagator<propagator_t>::calculateJacobian(
   jacobian.col(eBoundPhi) = fitLinear(deviations, derivatives[eBoundPhi]);
   jacobian.col(eBoundTheta) = fitLinear(deviations, derivatives[eBoundTheta]);
   jacobian.col(eBoundQOverP) = fitLinear(deviations, derivatives[eBoundQOverP]);
-  jacobian.col(eBoundTime) = fitLinear(deviations, derivatives[eBoundTime]);
   return jacobian;
 }
 

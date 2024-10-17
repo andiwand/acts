@@ -48,16 +48,15 @@ ActsExamples::ProcessCode ActsExamples::CsvSimHitWriter::writeT(
   // Write data from internal impl. to output-side struct
   for (const auto& simHit : simHits) {
     // local simhit information in global coord.
-    const Acts::Vector4& globalPos4 = simHit.fourPosition();
+    const Acts::Vector3& globalPos = simHit.position();
     const Acts::Vector4& momentum4Before = simHit.momentum4Before();
 
     simhit.geometry_id = simHit.geometryId().value();
     simhit.particle_id = simHit.particleId().value();
     // hit position
-    simhit.tx = globalPos4[Acts::ePos0] / Acts::UnitConstants::mm;
-    simhit.ty = globalPos4[Acts::ePos1] / Acts::UnitConstants::mm;
-    simhit.tz = globalPos4[Acts::ePos2] / Acts::UnitConstants::mm;
-    simhit.tt = globalPos4[Acts::eTime] / Acts::UnitConstants::mm;
+    simhit.tx = globalPos[Acts::ePos0] / Acts::UnitConstants::mm;
+    simhit.ty = globalPos[Acts::ePos1] / Acts::UnitConstants::mm;
+    simhit.tz = globalPos[Acts::ePos2] / Acts::UnitConstants::mm;
     // particle four-momentum before interaction
     simhit.tpx = momentum4Before[Acts::eMom0] / Acts::UnitConstants::GeV;
     simhit.tpy = momentum4Before[Acts::eMom1] / Acts::UnitConstants::GeV;

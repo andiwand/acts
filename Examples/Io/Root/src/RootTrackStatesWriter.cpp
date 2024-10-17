@@ -405,7 +405,7 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
             state.getUncalibratedSourceLink().template get<IndexSourceLink>();
         const auto hitIdx = sl.index();
         auto indices = makeRange(hitSimHitsMap.equal_range(hitIdx));
-        auto [truthLocal, truthPos4, truthUnitDir] =
+        auto [truthLocal, truthPos, truthUnitDir] =
             averageSimHits(ctx.geoContext, surface, simHits, indices, logger());
         // momentum averaging makes even less sense than averaging position and
         // direction. use the first momentum or set q/p to zero
@@ -426,11 +426,11 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
         }
 
         // fill the truth hit info
-        m_t_x.push_back(static_cast<float>(truthPos4[Acts::ePos0]));
-        m_t_y.push_back(static_cast<float>(truthPos4[Acts::ePos1]));
-        m_t_z.push_back(static_cast<float>(truthPos4[Acts::ePos2]));
+        m_t_x.push_back(static_cast<float>(truthPos[Acts::ePos0]));
+        m_t_y.push_back(static_cast<float>(truthPos[Acts::ePos1]));
+        m_t_z.push_back(static_cast<float>(truthPos[Acts::ePos2]));
         m_t_r.push_back(static_cast<float>(
-            perp(truthPos4.template segment<3>(Acts::ePos0))));
+            perp(truthPos.template segment<3>(Acts::ePos0))));
         m_t_dx.push_back(static_cast<float>(truthUnitDir[Acts::eMom0]));
         m_t_dy.push_back(static_cast<float>(truthUnitDir[Acts::eMom1]));
         m_t_dz.push_back(static_cast<float>(truthUnitDir[Acts::eMom2]));
@@ -440,7 +440,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
         truthParams[Acts::eBoundLoc1] = truthLocal[Acts::ePos1];
         truthParams[Acts::eBoundPhi] = phi(truthUnitDir);
         truthParams[Acts::eBoundTheta] = theta(truthUnitDir);
-        truthParams[Acts::eBoundTime] = truthPos4[Acts::eTime];
 
         // fill the truth track parameter at this track State
         m_t_eLOC0.push_back(static_cast<float>(truthParams[Acts::eBoundLoc0]));
@@ -449,7 +448,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
         m_t_eTHETA.push_back(
             static_cast<float>(truthParams[Acts::eBoundTheta]));
         m_t_eQOP.push_back(static_cast<float>(truthParams[Acts::eBoundQOverP]));
-        m_t_eT.push_back(static_cast<float>(truthParams[Acts::eBoundTime]));
 
         // expand the local measurements into the full bound space
         Acts::BoundVector meas = state.projectorSubspaceHelper().expandVector(
@@ -555,7 +553,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
             static_cast<float>(parameters[Acts::eBoundTheta]));
         m_eQOP[ipar].push_back(
             static_cast<float>(parameters[Acts::eBoundQOverP]));
-        m_eT[ipar].push_back(static_cast<float>(parameters[Acts::eBoundTime]));
 
         // track parameters error
         Acts::BoundVector errors;
@@ -572,7 +569,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
             static_cast<float>(errors[Acts::eBoundTheta]));
         m_err_eQOP[ipar].push_back(
             static_cast<float>(errors[Acts::eBoundQOverP]));
-        m_err_eT[ipar].push_back(static_cast<float>(errors[Acts::eBoundTime]));
 
         // further track parameter info
         Acts::FreeVector freeParams =
@@ -610,8 +606,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
             static_cast<float>(residuals[Acts::eBoundTheta]));
         m_res_eQOP[ipar].push_back(
             static_cast<float>(residuals[Acts::eBoundQOverP]));
-        m_res_eT[ipar].push_back(
-            static_cast<float>(residuals[Acts::eBoundTime]));
 
         // track parameters pull
         Acts::BoundVector pulls;
@@ -629,7 +623,6 @@ ProcessCode RootTrackStatesWriter::writeT(const AlgorithmContext& ctx,
             static_cast<float>(pulls[Acts::eBoundTheta]));
         m_pull_eQOP[ipar].push_back(
             static_cast<float>(pulls[Acts::eBoundQOverP]));
-        m_pull_eT[ipar].push_back(static_cast<float>(pulls[Acts::eBoundTime]));
 
         if (ipar == ePredicted) {
           // local hit residual info

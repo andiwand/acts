@@ -39,9 +39,6 @@ class ParticleSelector final : public IAlgorithm {
     // Minimum/maximum absolute distance from the origin along z.
     double absZMin = 0;
     double absZMax = std::numeric_limits<double>::infinity();
-    // Minimum/maximum particle time.
-    double timeMin = -std::numeric_limits<double>::infinity();
-    double timeMax = std::numeric_limits<double>::infinity();
     // Direction cuts.
     double phiMin = -std::numeric_limits<double>::infinity();
     double phiMax = std::numeric_limits<double>::infinity();

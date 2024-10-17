@@ -88,14 +88,14 @@ auto GridDensityVertexFinder::find(const std::vector<InputTrack>& trackVector,
 
   Vertex returnVertex = Vertex(seedPos);
 
-  SquareMatrix4 seedCov = vertexingOptions.constraint.fullCovariance();
+  SquareMatrix3 seedCov = vertexingOptions.constraint.covariance();
 
   if (width != 0.) {
     // Use z-constraint from seed width
     seedCov(2, 2) = width * width;
   }
 
-  returnVertex.setFullCovariance(seedCov);
+  returnVertex.setCovariance(seedCov);
 
   return std::vector<Vertex>{returnVertex};
 }

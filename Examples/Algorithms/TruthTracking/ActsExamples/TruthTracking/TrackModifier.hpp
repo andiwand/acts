@@ -32,8 +32,6 @@ class TrackModifier final : public IAlgorithm {
     bool dropCovariance{false};
     /// Scale cov matrix;
     double covScale{1};
-    /// Remove all time components
-    bool killTime{false};
   };
 
   TrackModifier(const Config& config, Acts::Logging::Level level);

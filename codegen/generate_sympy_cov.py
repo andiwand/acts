@@ -6,12 +6,12 @@ from sympy import MatrixSymbol
 from sympy_common import name_expr, find_by_name, cxx_printer, my_expression_print
 
 
-C = MatrixSymbol("C", 6, 6).as_explicit().as_mutable()
+C = MatrixSymbol("C", 5, 5).as_explicit().as_mutable()
 for indices in np.ndindex(C.shape):
     C[indices] = C[tuple(sorted(indices))]
 
-J_full = MatrixSymbol("J_full", 6, 6).as_explicit().as_mutable()
-tmp = sym.eye(6)
+J_full = MatrixSymbol("J_full", 5, 5).as_explicit().as_mutable()
+tmp = sym.eye(5)
 tmp[0:4, 0:5] = J_full[0:4, 0:5]
 tmp[5:6, 0:5] = J_full[5:6, 0:5]
 J_full = tmp

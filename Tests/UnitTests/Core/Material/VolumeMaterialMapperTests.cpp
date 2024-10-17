@@ -258,9 +258,9 @@ BOOST_AUTO_TEST_CASE(VolumeMaterialMapper_comparison_tests) {
   Propagator<StraightLineStepper, Navigator> prop(sls, nav);
 
   // Set some start parameters
-  Vector4 pos4(0., 0., 0., 42_ns);
+  Vector3 pos(0., 0., 0.);
   Vector3 dir(1., 0., 0.);
-  CurvilinearTrackParameters sctp(pos4, dir, 1 / 1_GeV, std::nullopt,
+  CurvilinearTrackParameters sctp(pos, dir, 1 / 1_GeV, std::nullopt,
                                   ParticleHypothesis::pion0());
 
   MagneticFieldContext mc;

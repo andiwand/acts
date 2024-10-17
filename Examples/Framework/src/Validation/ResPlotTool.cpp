@@ -183,7 +183,6 @@ void ActsExamples::ResPlotTool::fill(
   truthParameter[Acts::BoundIndices::eBoundTheta] =
       theta(truthParticle.direction());
   truthParameter[Acts::BoundIndices::eBoundQOverP] = truthParticle.qOverP();
-  truthParameter[Acts::BoundIndices::eBoundTime] = truthParticle.time();
 
   // get the truth eta and pT
   const auto truthEta = eta(truthParticle.direction());

@@ -228,12 +228,10 @@ void Acts::SurfaceMaterialMapper::mapInteraction(
   // Retrieve the recorded material from the recorded material track
   auto& rMaterial = mTrack.second.materialInteractions;
   std::map<GeometryIdentifier, unsigned int> assignedMaterial;
-  using VectorHelpers::makeVector4;
   // Neutral curvilinear parameters
   NeutralCurvilinearTrackParameters start(
-      makeVector4(mTrack.first.first, 0), mTrack.first.second,
-      1 / mTrack.first.second.norm(), std::nullopt,
-      NeutralParticleHypothesis::geantino());
+      mTrack.first.first, mTrack.first.second, 1 / mTrack.first.second.norm(),
+      std::nullopt, NeutralParticleHypothesis::geantino());
 
   // Prepare Action list and abort list
   using MaterialSurfaceCollector = SurfaceCollector<MaterialSurface>;

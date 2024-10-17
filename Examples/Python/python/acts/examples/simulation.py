@@ -35,7 +35,6 @@ ParticleSelectorConfig = namedtuple(
     [
         "rho",  # (min,max)
         "absZ",  # (min,max)
-        "time",  # (min,max)
         "phi",  # (min,max)
         "eta",  # (min,max)
         "absEta",  # (min,max)
@@ -47,7 +46,7 @@ ParticleSelectorConfig = namedtuple(
         "removeNeutral",  # bool
         "removeSecondaries",  # bool
     ],
-    defaults=[(None, None)] * 10 + [None] * 3,
+    defaults=[(None, None)] * 9 + [None] * 3,
 )
 
 
@@ -571,7 +570,6 @@ def addGeant4(
     outputDirObj: Optional[Union[Path, str]] = None,
     logLevel: Optional[acts.logging.Level] = None,
     killVolume: Optional[acts.Volume] = None,
-    killAfterTime: float = float("inf"),
     killSecondaries: bool = False,
     physicsList: str = "FTFP_BERT",
     regionList: List[Any] = [],
@@ -594,8 +592,6 @@ def addGeant4(
         the output folder for the Obj output, None triggers no output
     killVolume: acts.Volume, None
         if given, particles are killed when going outside this volume.
-    killAfterTime: float
-        if given, particle are killed after the global time since event creation exceeds the given value
     killSecondaries: bool
         if given, secondary particles are removed from simulation
     """
@@ -625,7 +621,6 @@ def addGeant4(
         magneticField=field,
         physicsList=physicsList,
         killVolume=killVolume,
-        killAfterTime=killAfterTime,
         killSecondaries=killSecondaries,
         recordHitsOfCharged=True,
         recordHitsOfNeutrals=False,

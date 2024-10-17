@@ -227,11 +227,11 @@ int main(int argc, char** argv) {
   Acts::SeedFinder<SpacePoint, Acts::Cuda> seedFinder_cuda(config, options);
 
   // covariance tool, sets covariances per spacepoint as required
-  auto ct = [=](const SpacePoint& sp, float, float, float)
-      -> std::tuple<Acts::Vector3, Acts::Vector2, std::optional<float>> {
+  auto ct = [=](const SpacePoint& sp, float, float,
+                float) -> std::tuple<Acts::Vector3, Acts::Vector2> {
     Acts::Vector3 position(sp.x(), sp.y(), sp.z());
     Acts::Vector2 variance(sp.varianceR, sp.varianceZ);
-    return {position, variance, std::nullopt};
+    return {position, variance};
   };
 
   // setup spacepoint grid config

@@ -109,7 +109,6 @@ AdaptiveMultiVertexFinderAlgorithm::makeVertexSeeder() const {
     using Seeder = ActsExamples::TruthVertexSeeder;
     Seeder::Config seederConfig;
     seederConfig.useXY = false;
-    seederConfig.useTime = m_cfg.useTime;
     return std::make_unique<Seeder>(seederConfig);
   }
 
@@ -126,9 +125,6 @@ AdaptiveMultiVertexFinderAlgorithm::makeVertexSeeder() const {
     Acts::AdaptiveGridTrackDensity::Config trkDensityCfg;
     // Bin extent in z-direction
     trkDensityCfg.spatialBinExtent = m_cfg.spatialBinExtent;
-    // Bin extent in t-direction
-    trkDensityCfg.temporalBinExtent = m_cfg.temporalBinExtent;
-    trkDensityCfg.useTime = m_cfg.useTime;
     Acts::AdaptiveGridTrackDensity trkDensity(trkDensityCfg);
 
     // Set up vertex seeder and finder
@@ -153,7 +149,6 @@ AdaptiveMultiVertexFinderAlgorithm::makeVertexFinder(
   fitterCfg.annealingTool = annealingUtility;
   fitterCfg.minWeight = m_cfg.minWeight;
   fitterCfg.doSmoothing = m_cfg.doSmoothing;
-  fitterCfg.useTime = m_cfg.useTime;
   fitterCfg.extractParameters.connect<&Acts::InputTrack::extractParameters>();
   fitterCfg.trackLinearizer.connect<&Linearizer::linearizeTrack>(&m_linearizer);
   Fitter fitter(std::move(fitterCfg),
@@ -167,25 +162,12 @@ AdaptiveMultiVertexFinderAlgorithm::makeVertexFinder(
   finderConfig.initialVariances = m_cfg.initialVariances;
   finderConfig.tracksMaxZinterval = m_cfg.tracksMaxZinterval;
   finderConfig.maxIterations = m_cfg.maxIterations;
-  finderConfig.useTime = m_cfg.useTime;
   // 5 corresponds to a p-value of ~0.92 using `chi2(x=5,ndf=2)`
   finderConfig.tracksMaxSignificance = 5;
   // This should be used consistently with and without time
   finderConfig.doFullSplitting = m_cfg.doFullSplitting;
   // 3 corresponds to a p-value of ~0.92 using `chi2(x=3,ndf=1)`
   finderConfig.maxMergeVertexSignificance = 3;
-  if (m_cfg.useTime) {
-    // When using time, we have an extra contribution to the chi2 by the time
-    // coordinate. We thus need to increase tracksMaxSignificance (i.e., the
-    // maximum chi2 that a track can have to be associated with a vertex).
-    // Using the same p-value for 3 dof instead of 2.
-    // 6.7 corresponds to a p-value of ~0.92 using `chi2(x=6.7,ndf=3)`
-    finderConfig.tracksMaxSignificance = 6.7;
-    // Using the same p-value for 2 dof instead of 1.
-    // 5 corresponds to a p-value of ~0.92 using `chi2(x=5,ndf=2)`
-    finderConfig.maxMergeVertexSignificance = 5;
-  }
-
   finderConfig.extractParameters
       .template connect<&Acts::InputTrack::extractParameters>();
 
@@ -290,7 +272,7 @@ ProcessCode AdaptiveMultiVertexFinderAlgorithm::execute(
   // show some debug output
   ACTS_INFO("Found " << vertices.size() << " vertices in event");
   for (const auto& vtx : vertices) {
-    ACTS_DEBUG("Found vertex at " << vtx.fullPosition().transpose() << " with "
+    ACTS_DEBUG("Found vertex at " << vtx.position().transpose() << " with "
                                   << vtx.tracks().size() << " tracks.");
   }
 

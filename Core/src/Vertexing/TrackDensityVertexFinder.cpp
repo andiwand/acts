@@ -30,19 +30,18 @@ Acts::Result<std::vector<Acts::Vertex>> Acts::TrackDensityVertexFinder::find(
 
   // Calculate seed position
   // Note: constraint position is (0,0,0) if no constraint provided
-  Vector4 seedPos =
-      vertexingOptions.constraint.fullPosition() + Vector4(0., 0., z, 0.);
+  Vector3 seedPos = vertexingOptions.constraint.position() + Vector3(0., 0., z);
 
   Vertex returnVertex = Vertex(seedPos);
 
-  SquareMatrix4 seedCov = vertexingOptions.constraint.fullCovariance();
+  SquareMatrix3 seedCov = vertexingOptions.constraint.covariance();
 
   // Check if a constraint is provided and set the new z position constraint
-  if (seedCov != SquareMatrix4::Zero() && std::isnormal(zAndWidth.second)) {
+  if (seedCov != SquareMatrix3::Zero() && std::isnormal(zAndWidth.second)) {
     seedCov(eZ, eZ) = zAndWidth.second * zAndWidth.second;
   }
 
-  returnVertex.setFullCovariance(seedCov);
+  returnVertex.setCovariance(seedCov);
 
   return std::vector<Vertex>{returnVertex};
 }

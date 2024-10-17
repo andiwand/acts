@@ -29,8 +29,8 @@ namespace Acts {
 /// This is intended as a user-facing data class that adds additional accessors
 /// and charge/momentum interpretation on top of the pure parameters vector. All
 /// parameters and their corresponding covariance matrix are stored in bound
-/// parametrization. The specific definition of the local spatial parameters is
-/// defined by the associated surface.
+/// parametrization. The specific definition of the local parameters is defined
+/// by the associated surface.
 ///
 /// @note This class holds shared ownership on its reference surface.
 template <class particle_hypothesis_t>
@@ -91,13 +91,12 @@ class GenericBoundTrackParameters {
   /// successfully be converted to on-surface parameters.
   static Result<GenericBoundTrackParameters> create(
       std::shared_ptr<const Surface> surface, const GeometryContext& geoCtx,
-      const Vector4& pos4, const Vector3& dir, double qOverP,
+      const Vector3& pos3, const Vector3& dir, double qOverP,
       std::optional<CovarianceMatrix> cov,
       ParticleHypothesis particleHypothesis,
       double tolerance = s_onSurfaceTolerance) {
-    Result<BoundVector> bound =
-        transformFreeToBoundParameters(pos4.segment<3>(ePos0), pos4[eTime], dir,
-                                       qOverP, *surface, geoCtx, tolerance);
+    Result<BoundVector> bound = transformFreeToBoundParameters(
+        pos3, dir, qOverP, *surface, geoCtx, tolerance);
 
     if (!bound.ok()) {
       return bound.error();
@@ -122,45 +121,20 @@ class GenericBoundTrackParameters {
   ParametersVector& parameters() { return m_params; }
   /// Parameters vector.
   const ParametersVector& parameters() const { return m_params; }
-  /// Vector of spatial impact parameters (i.e., d0 and z0)
-  Vector2 spatialImpactParameters() const { return m_params.head<2>(); }
-  /// Vector of spatial and temporal impact parameters (i.e., d0, z0, and t)
-  Vector3 impactParameters() const {
-    Vector3 ip;
-    ip.template head<2>() = m_params.template head<2>();
-    ip(2) = m_params(eBoundTime);
-    return ip;
-  }
+  /// Vector of impact parameters (i.e., d0 and z0)
+  Vector2 impactParameters() const { return m_params.head<2>(); }
 
   /// Optional covariance matrix.
   std::optional<CovarianceMatrix>& covariance() { return m_cov; }
   /// Optional covariance matrix.
   const std::optional<CovarianceMatrix>& covariance() const { return m_cov; }
-  /// Covariance matrix of the spatial impact parameters (i.e., of d0 and z0)
-  std::optional<ActsSquareMatrix<2>> spatialImpactParameterCovariance() const {
+  /// Covariance matrix of the impact parameters (i.e., of d0 and z0)
+  std::optional<ActsSquareMatrix<2>> impactParameterCovariance() const {
     if (!m_cov.has_value()) {
       return std::nullopt;
     }
 
     return m_cov.value().template topLeftCorner<2, 2>();
-  }
-
-  /// Covariance matrix of the spatial and temporal impact parameters (i.e., of
-  /// d0, z0, and t)
-  std::optional<ActsSquareMatrix<3>> impactParameterCovariance() const {
-    if (!m_cov.has_value()) {
-      return std::nullopt;
-    }
-
-    ActsSquareMatrix<3> ipCov;
-    ipCov.template topLeftCorner<2, 2>() =
-        m_cov.value().template topLeftCorner<2, 2>();
-    ipCov.template block<2, 1>(0, 2) =
-        m_cov.value().template block<2, 1>(0, eBoundTime);
-    ipCov.template block<1, 2>(2, 0) =
-        m_cov.value().template block<1, 2>(eBoundTime, 0);
-    ipCov(2, 2) = m_cov.value()(eBoundTime, eBoundTime);
-    return ipCov;
   }
 
   /// Access a single parameter value identified by its index.
@@ -171,25 +145,9 @@ class GenericBoundTrackParameters {
     return m_params[kIndex];
   }
 
-  /// Local spatial position two-vector.
+  /// Local position two-vector.
   Vector2 localPosition() const { return m_params.segment<2>(eBoundLoc0); }
-  /// Space-time position four-vector.
-  ///
-  /// @param[in] geoCtx Geometry context for the local-to-global
-  /// transformation
-  ///
-  /// This uses the associated surface to transform the local position on
-  /// the surface to globalcoordinates. This requires a geometry context to
-  /// select the appropriate transformation and might be a computationally
-  /// expensive operation.
-  Vector4 fourPosition(const GeometryContext& geoCtx) const {
-    Vector4 pos4;
-    pos4.segment<3>(ePos0) =
-        m_surface->localToGlobal(geoCtx, localPosition(), direction());
-    pos4[eTime] = m_params[eBoundTime];
-    return pos4;
-  }
-  /// Spatial position three-vector.
+  /// Position three-vector.
   ///
   /// @param[in] geoCtx Geometry context for the local-to-global
   /// transformation
@@ -201,8 +159,6 @@ class GenericBoundTrackParameters {
   Vector3 position(const GeometryContext& geoCtx) const {
     return m_surface->localToGlobal(geoCtx, localPosition(), direction());
   }
-  /// Time coordinate.
-  double time() const { return m_params[eBoundTime]; }
 
   /// Phi direction.
   double phi() const { return m_params[eBoundPhi]; }

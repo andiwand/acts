@@ -26,15 +26,6 @@ p = MatrixSymbol("p", 3, 1)
 # d for direction
 d = MatrixSymbol("d", 3, 1)
 
-# time
-t = Symbol("t", real=True)
-
-# mass
-m = Symbol("m", real=True)
-
-# absolute momentum
-p_abs = Symbol("p_abs", real=True, positive=True)
-
 # magnetic field
 B1 = MatrixSymbol("B1", 3, 1)
 B2 = MatrixSymbol("B2", 3, 1)
@@ -59,20 +50,15 @@ def rk4_full_math():
     )
     new_d = name_expr("new_d", new_d_tmp.expr / new_d_tmp.expr.as_explicit().norm())
 
-    dtds = name_expr("dtds", sym.sqrt(1 + m**2 / p_abs**2))
-    new_time = name_expr("new_time", t + h * dtds.expr)
-
     path_derivatives = name_expr("path_derivatives", sym.zeros(8, 1))
     path_derivatives.expr[0:3, 0] = new_d.expr.as_explicit()
-    path_derivatives.expr[3, 0] = dtds.expr
-    path_derivatives.expr[4:7, 0] = k4.expr.as_explicit()
+    path_derivatives.expr[3:6, 0] = k4.expr.as_explicit()
 
-    D = sym.eye(8)
-    D[0:3, :] = new_p.expr.as_explicit().jacobian([p, t, d, l])
-    D[4:7, :] = new_d_tmp.expr.as_explicit().jacobian([p, t, d, l])
-    D[3, 7] = h * m**2 * l / dtds.expr
+    D = sym.eye(7)
+    D[0:3, :] = new_p.expr.as_explicit().jacobian([p, d, l])
+    D[3:6, :] = new_d_tmp.expr.as_explicit().jacobian([p, d, l])
 
-    J = MatrixSymbol("J", 8, 8).as_explicit().as_mutable()
+    J = MatrixSymbol("J", 7, 7).as_explicit().as_mutable()
     for indices in np.ndindex(J.shape):
         if D[indices] in [0, 1]:
             J[indices] = D[indices]
@@ -80,7 +66,7 @@ def rk4_full_math():
 
     new_J = name_expr("new_J", J * D)
 
-    return [p2, p3, err, new_p, new_d, new_time, path_derivatives, new_J]
+    return [p2, p3, err, new_p, new_d, path_derivatives, new_J]
 
 
 def rk4_short_math():
@@ -103,13 +89,9 @@ def rk4_short_math():
     )
     new_d = name_expr("new_d", new_d_tmp.name / new_d_tmp.name.as_explicit().norm())
 
-    dtds = name_expr("dtds", sym.sqrt(1 + m**2 / p_abs**2))
-    new_time = name_expr("new_time", t + h * dtds.name)
-
     path_derivatives = name_expr("path_derivatives", sym.zeros(8, 1))
     path_derivatives.expr[0:3, 0] = new_d.name.as_explicit()
-    path_derivatives.expr[3, 0] = dtds.name
-    path_derivatives.expr[4:7, 0] = k4.name.as_explicit()
+    path_derivatives.expr[3:6, 0] = k4.name.as_explicit()
 
     dk1dTL = name_expr("dk1dTL", k1.expr.jacobian([d, l]))
     dk2dTL = name_expr(
@@ -142,12 +124,11 @@ def rk4_short_math():
         + new_d_tmp.expr.as_explicit().jacobian(k4.name) * dk4dTL.name.as_explicit(),
     )
 
-    D = sym.eye(8)
-    D[0:3, 4:8] = dFdTL.name.as_explicit()
-    D[4:7, 4:8] = dGdTL.name.as_explicit()
-    D[3, 7] = h * m**2 * l / dtds.name
+    D = sym.eye(7)
+    D[0:3, 3:7] = dFdTL.name.as_explicit()
+    D[3:6, 3:7] = dGdTL.name.as_explicit()
 
-    J = Matrix(MatrixSymbol("J", 8, 8).as_explicit())
+    J = Matrix(MatrixSymbol("J", 7, 7).as_explicit())
     for indices in np.ndindex(J.shape):
         if D[indices] in [0, 1]:
             J[indices] = D[indices]
@@ -165,8 +146,6 @@ def rk4_short_math():
         new_p,
         new_d_tmp,
         new_d,
-        dtds,
-        new_time,
         path_derivatives,
         dk2dTL,
         dk3dTL,
@@ -187,7 +166,6 @@ def my_step_function_print(name_exprs, run_cse=True):
             "err",
             "new_p",
             "new_d",
-            "new_time",
             "path_derivatives",
             "new_J",
         ]
@@ -195,7 +173,7 @@ def my_step_function_print(name_exprs, run_cse=True):
 
     lines = []
 
-    head = "template <typename T, typename GetB> Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h, const T lambda, const T m, const T p_abs, GetB getB, T* err, const T errTol, T* new_p, T* new_d, T* new_time, T* path_derivatives, T* J) {"
+    head = "template <typename T, typename GetB> Acts::Result<bool> rk4(const T* p, const T* d, const T h, const T lambda, GetB getB, T* err, const T errTol, T* new_p, T* new_d, T* path_derivatives, T* J) {"
     lines.append(head)
 
     lines.append("  const auto B1res = getB(p);")
@@ -210,7 +188,7 @@ def my_step_function_print(name_exprs, run_cse=True):
         if str(var) == "p3":
             return "T p3[3];"
         if str(var) == "new_J":
-            return "T new_J[64];"
+            return "T new_J[49];"
         return None
 
     def post_expr_hook(var):
@@ -222,10 +200,10 @@ def my_step_function_print(name_exprs, run_cse=True):
             return (
                 "if (*err > errTol) {\n  return Acts::Result<bool>::success(false);\n}"
             )
-        if str(var) == "new_time":
+        if str(var) == "new_d":
             return "if (J == nullptr) {\n  return Acts::Result<bool>::success(true);\n}"
         if str(var) == "new_J":
-            return printer.doprint(Assignment(MatrixSymbol("J", 8, 8), var))
+            return printer.doprint(Assignment(MatrixSymbol("J", 7, 7), var))
         return None
 
     code = my_expression_print(

@@ -162,25 +162,12 @@ class MultiComponentBoundTrackParameters {
     return reduce([&](const Parameters& p) { return p.get<kIndex>(); });
   }
 
-  /// Space-time position four-vector.
-  ///
-  /// @param[in] geoCtx Geometry context for the local-to-global
-  /// transformation
-  Vector4 fourPosition(const GeometryContext& geoCtx) const {
-    return reduce([&](const Parameters& p) { return p.fourPosition(geoCtx); });
-  }
-
   /// Spatial position three-vector.
   ///
   /// @param[in] geoCtx Geometry context for the local-to-global
   /// transformation
   Vector3 position(const GeometryContext& geoCtx) const {
     return reduce([&](const Parameters& p) { return p.position(geoCtx); });
-  }
-
-  /// Time coordinate.
-  double time() const {
-    return reduce([](const Parameters& p) { return p.time(); });
   }
 
   /// Unit direction three-vector, i.e. the normalized momentum
@@ -237,8 +224,8 @@ class MultiComponentCurvilinearTrackParameters
   using covariance_t = BoundSquareMatrix;
 
  public:
-  using ConstructionTuple =
-      std::tuple<double, Acts::Vector4, Acts::Vector3, double, covariance_t>;
+  using ConstructionTuple = std::tuple<double, Acts::Vector3, Acts::Vector3,
+                                       double, covariance_t>;
 
  private:
   using Base = MultiComponentBoundTrackParameters;
@@ -267,14 +254,13 @@ class MultiComponentCurvilinearTrackParameters
     bound.reserve(curvi.size());
 
     // Project the position onto the surface, keep everything else as is
-    for (const auto& [w, pos4, dir, qop, cov] : curvi) {
-      Vector3 newPos = s->intersect(gctx, pos4.template segment<3>(eFreePos0),
-                                    dir, BoundaryTolerance::Infinite())
-                           .closest()
-                           .position();
+    for (const auto& [w, pos3, dir, qop, cov] : curvi) {
+      Vector3 newPos =
+          s->intersect(gctx, pos3, dir, BoundaryTolerance::Infinite())
+              .closest()
+              .position();
 
-      BoundVector bv =
-          transformFreeToCurvilinearParameters(pos4[eTime], dir, qop);
+      BoundVector bv = transformFreeToCurvilinearParameters(dir, qop);
 
       // Because of the projection this should never fail
       bv.template segment<2>(eBoundLoc0) =

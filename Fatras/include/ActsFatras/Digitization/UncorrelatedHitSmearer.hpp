@@ -74,9 +74,8 @@ struct BoundParametersSmearer {
     // construct full bound parameters. they are probably not all needed, but it
     // is easier to just create them all and then select the requested ones.
     Acts::Result<Acts::BoundVector> boundParamsRes =
-        Acts::transformFreeToBoundParameters(hit.position(), hit.time(),
-                                             hit.direction(), 0, surface,
-                                             geoCtx, tolerance);
+        Acts::transformFreeToBoundParameters(hit.position(), hit.direction(), 0,
+                                             surface, geoCtx, tolerance);
 
     if (!boundParamsRes.ok()) {
       return boundParamsRes.error();
@@ -137,7 +136,6 @@ struct FreeParametersSmearer {
     // is easier to just create them all and then select the requested ones.
     Acts::FreeVector freeParams;
     freeParams.segment<3>(Acts::eFreePos0) = hit.position();
-    freeParams[Acts::eFreeTime] = hit.time();
     freeParams.segment<3>(Acts::eFreeDir0) = hit.direction();
     freeParams[Acts::eFreeQOverP] = 0;
 

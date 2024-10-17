@@ -195,7 +195,7 @@ BOOST_DATA_TEST_CASE(
   EigenPropagator epropagator(std::move(estepper));
 
   // define start parameters
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 42), phi, theta, q / p,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p,
                                    std::nullopt, ParticleHypothesis::pion());
 
   using PropagatorOptions = EigenPropagator::Options<ActorList<>>;

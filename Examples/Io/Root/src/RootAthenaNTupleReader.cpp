@@ -157,7 +157,6 @@ ActsExamples::ProcessCode ActsExamples::RootAthenaNTupleReader::read(
     params[Acts::BoundIndices::eBoundPhi] = m_branches.track_phi[i];
     params[Acts::BoundIndices::eBoundTheta] = m_branches.track_theta[i];
     params[Acts::BoundIndices::eBoundQOverP] = m_branches.track_qOverP[i];
-    params[Acts::BoundIndices::eBoundTime] = m_branches.track_t[i];
 
     // Construct and fill covariance matrix
     Acts::BoundSquareMatrix cov;

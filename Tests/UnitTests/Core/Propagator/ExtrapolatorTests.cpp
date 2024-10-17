@@ -103,7 +103,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
   EigenPropagatorType::Options<> options(tgContext, mfContext);
@@ -145,7 +145,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
   // A PlaneSelector for the SurfaceCollector
@@ -211,7 +211,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
   EigenPropagatorType::Options<ActorList<MaterialInteractor>> options(
@@ -258,7 +258,7 @@ BOOST_DATA_TEST_CASE(
   cov << 10_mm, 0, 0.123, 0, 0.5, 0, 0, 10_mm, 0, 0.162, 0, 0, 0.123, 0, 0.1, 0,
       0, 0, 0, 0.162, 0, 0.1, 0, 0, 0.5, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0,
       0, 0;
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
   // Action list and abort list

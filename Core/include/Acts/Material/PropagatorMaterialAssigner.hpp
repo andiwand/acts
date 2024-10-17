@@ -121,10 +121,9 @@ class PropagatorMaterialAssigner final : public IAssignmentFinder {
               std::vector<IAssignmentFinder::VolumeAssignment>>
         candidates;
 
-    using VectorHelpers::makeVector4;
     // Neutral curvilinear parameters
     NeutralCurvilinearTrackParameters start(
-        makeVector4(position, 0), direction, 1, std::nullopt,
+        position, direction, 1, std::nullopt,
         NeutralParticleHypothesis::geantino());
 
     // Prepare Action list and abort list

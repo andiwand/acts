@@ -106,8 +106,8 @@ ActsExamples::ProcessCode ActsExamples::RefittingAlgorithm::execute(
     std::ranges::reverse(surfSequence);
 
     ACTS_VERBOSE("Initial parameters: "
-                 << initialParams.fourPosition(ctx.geoContext).transpose()
-                 << " -> " << initialParams.direction().transpose());
+                 << initialParams.position(ctx.geoContext).transpose() << " -> "
+                 << initialParams.direction().transpose());
 
     ACTS_DEBUG("Invoke direct fitter for track " << itrack);
     auto result = (*m_cfg.fit)(trackSourceLinks, initialParams, options,

@@ -52,7 +52,6 @@ Acts::AdaptiveGridDensityVertexFinder::find(
   }
 
   double z = 0;
-  double t = 0;
   double zWidth = 0;
 
   if (!m_cfg.estimateSeedWidth) {
@@ -63,7 +62,6 @@ Acts::AdaptiveGridDensityVertexFinder::find(
       return maxZTRes.error();
     }
     z = (*maxZTRes).first;
-    t = (*maxZTRes).second;
   } else {
     // Get z value of highest density bin and width
     auto maxZTResAndWidth =
@@ -73,24 +71,22 @@ Acts::AdaptiveGridDensityVertexFinder::find(
       return maxZTResAndWidth.error();
     }
     z = (*maxZTResAndWidth).first.first;
-    t = (*maxZTResAndWidth).first.second;
     zWidth = (*maxZTResAndWidth).second;
   }
 
   // Construct output vertex, t will be 0 if temporalTrkGridSize == 1
-  Vector4 seedPos =
-      vertexingOptions.constraint.fullPosition() + Vector4(0., 0., z, t);
+  Vector3 seedPos = vertexingOptions.constraint.position() + Vector3(0., 0., z);
 
   Vertex returnVertex = Vertex(seedPos);
 
-  SquareMatrix4 seedCov = vertexingOptions.constraint.fullCovariance();
+  SquareMatrix3 seedCov = vertexingOptions.constraint.covariance();
 
   if (zWidth != 0.) {
     // Use z-constraint from seed width
     seedCov(2, 2) = zWidth * zWidth;
   }
 
-  returnVertex.setFullCovariance(seedCov);
+  returnVertex.setCovariance(seedCov);
 
   return std::vector<Vertex>{returnVertex};
 }

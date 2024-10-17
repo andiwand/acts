@@ -102,11 +102,6 @@ struct SingleComponentReducer {
   }
 
   template <typename stepper_state_t>
-  static double time(const stepper_state_t& s) {
-    return component_chooser_t{}(s.components)->state.pars[eFreeTime];
-  }
-
-  template <typename stepper_state_t>
   static FreeVector pars(const stepper_state_t& s) {
     return component_chooser_t{}(s.components)->state.pars;
   }

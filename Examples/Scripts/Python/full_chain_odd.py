@@ -233,10 +233,8 @@ else:
                 args.gun_particles, acts.PdgParticle.eMuon, randomizeCharge=True
             ),
             vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0),
-                stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
-                ),
+                mean=acts.Vector3(0, 0, 0),
+                stddev=acts.Vector3(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm),
             ),
             multiplicity=args.gun_multiplicity,
             rnd=rnd,

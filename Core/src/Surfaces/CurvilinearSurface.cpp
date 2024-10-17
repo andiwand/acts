@@ -57,8 +57,6 @@ BoundToFreeMatrix CurvilinearSurface::boundToFreeJacobian() const {
 
   // the local error components - given by reference frame
   jacobian.topLeftCorner<3, 2>() = rframe.topLeftCorner<3, 2>();
-  // the time component
-  jacobian(eFreeTime, eBoundTime) = 1;
   // the momentum components
   jacobian.block<3, 2>(eFreeDir0, eBoundPhi) =
       sphericalToFreeDirectionJacobian(m_direction);
@@ -79,8 +77,6 @@ FreeToBoundMatrix CurvilinearSurface::freeToBoundJacobian() const {
 
   // Local position component given by the reference frame
   jacobian.block<2, 3>(eBoundLoc0, eFreePos0) = rframeT.block<2, 3>(0, 0);
-  // Time component
-  jacobian(eBoundTime, eFreeTime) = 1;
   // Directional and momentum elements for reference frame surface
   jacobian.block<2, 3>(eBoundPhi, eFreeDir0) =
       freeToSphericalDirectionJacobian(m_direction);

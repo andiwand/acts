@@ -154,11 +154,10 @@ BOOST_AUTO_TEST_CASE(Kalman_Vertex_Updater) {
         Surface::makeShared<PerigeeSurface>(Vector3::Zero());
 
     // Linearized state of the track
-    LinearizedTrack linTrack =
-        linearizer
-            .linearizeTrack(params, 0, *perigee, geoContext, magFieldContext,
-                            fieldCache)
-            .value();
+    LinearizedTrack linTrack = linearizer
+                                   .linearizeTrack(params, *perigee, geoContext,
+                                                   magFieldContext, fieldCache)
+                                   .value();
 
     // Create TrackAtVertex
     TrackAtVertex trkAtVtx(0., params, InputTrack{&params});
@@ -170,10 +169,10 @@ BOOST_AUTO_TEST_CASE(Kalman_Vertex_Updater) {
     // Create a vertex
     Vector3 vtxPos(vXYDist(gen), vXYDist(gen), vZDist(gen));
     Vertex vtx(vtxPos);
-    vtx.setFullCovariance(SquareMatrix4::Identity() * 0.01);
+    vtx.setCovariance(SquareMatrix3::Identity() * 0.01);
 
     // Update trkAtVertex with assumption of originating from vtx
-    KalmanVertexUpdater::updateVertexWithTrack(vtx, trkAtVtx, 3);
+    KalmanVertexUpdater::updateVertexWithTrack(vtx, trkAtVtx);
 
     if (debug) {
       std::cout << "Old vertex position: " << vtxPos << std::endl;
@@ -279,11 +278,10 @@ BOOST_AUTO_TEST_CASE(Kalman_Vertex_TrackUpdater) {
         Surface::makeShared<PerigeeSurface>(Vector3::Zero());
 
     // Linearized state of the track
-    LinearizedTrack linTrack =
-        linearizer
-            .linearizeTrack(params, 0, *perigee, geoContext, magFieldContext,
-                            fieldCache)
-            .value();
+    LinearizedTrack linTrack = linearizer
+                                   .linearizeTrack(params, *perigee, geoContext,
+                                                   magFieldContext, fieldCache)
+                                   .value();
 
     // Create TrackAtVertex
     TrackAtVertex trkAtVtx(0., params, InputTrack{&params});
@@ -300,7 +298,7 @@ BOOST_AUTO_TEST_CASE(Kalman_Vertex_TrackUpdater) {
     Vertex vtx(vtxPos);
 
     // Update trkAtVertex with assumption of originating from vtx
-    KalmanVertexUpdater::updateTrackWithVertex(trkAtVtx, vtx, 3);
+    KalmanVertexUpdater::updateTrackWithVertex(trkAtVtx, vtx);
 
     // The old distance
     double oldDistance =

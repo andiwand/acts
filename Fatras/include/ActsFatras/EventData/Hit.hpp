@@ -41,12 +41,12 @@ class Hit {
   /// users responsibility to ensure that the position correspond to a
   /// position on the given surface.
   Hit(Acts::GeometryIdentifier geometryId, Barcode particleId,
-      const Acts::Vector4& pos4, const Acts::Vector4& before4,
+      const Acts::Vector3& pos, const Acts::Vector4& before4,
       const Acts::Vector4& after4, std::int32_t index_ = -1)
       : m_geometryId(geometryId),
         m_particleId(particleId),
         m_index(index_),
-        m_pos4(pos4),
+        m_pos(pos),
         m_before4(before4),
         m_after4(after4) {}
   Hit(const Hit&) = default;
@@ -63,12 +63,8 @@ class Hit {
   /// @retval negative if the hit index is undefined.
   constexpr std::int32_t index() const { return m_index; }
 
-  /// Space-time position four-vector.
-  const Acts::Vector4& fourPosition() const { return m_pos4; }
-  /// Three-position, i.e. spatial coordinates without the time.
-  auto position() const { return m_pos4.segment<3>(Acts::ePos0); }
-  /// Time coordinate.
-  double time() const { return m_pos4[Acts::eTime]; }
+  /// Three-position, i.e. coordinates.
+  auto position() const { return m_pos; }
 
   /// Particle four-momentum before the hit.
   const Acts::Vector4& momentum4Before() const { return m_before4; }
@@ -104,7 +100,7 @@ class Hit {
   /// Index of the hit along the particle trajectory.
   std::int32_t m_index = -1;
   /// Global space-time position four-vector.
-  Acts::Vector4 m_pos4 = Acts::Vector4::Zero();
+  Acts::Vector3 m_pos = Acts::Vector3::Zero();
   /// Global particle energy-momentum four-vector before the hit.
   Acts::Vector4 m_before4 = Acts::Vector4::Zero();
   /// Global particle energy-momentum four-vector after the hit.

@@ -109,11 +109,11 @@ int main(int argc, char* argv[]) {
   gridOpts.bFieldInZ = sfOptions.bFieldInZ;
 
   // Covariance tool, sets covariances per spacepoint as required.
-  auto ct = [=](const TestSpacePoint& sp, float, float, float)
-      -> std::tuple<Acts::Vector3, Acts::Vector2, std::optional<float>> {
+  auto ct = [=](const TestSpacePoint& sp, float, float,
+                float) -> std::tuple<Acts::Vector3, Acts::Vector2> {
     Acts::Vector3 position(sp.x(), sp.y(), sp.z());
     Acts::Vector2 covariance(sp.m_varianceR, sp.m_varianceZ);
-    return {position, covariance, std::nullopt};
+    return {position, covariance};
   };
 
   // extent used to store r range for middle spacepoint

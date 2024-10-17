@@ -155,7 +155,7 @@ BOOST_AUTO_TEST_CASE(JacobianCurvilinearToGlobalTest) {
   Covariance cov;
   cov << 10_mm, 0, 0, 0, 0, 0, 0, 10_mm, 0, 0, 0, 0, 0, 0, 0.1, 0, 0, 0, 0, 0,
       0, 0.1, 0, 0, 0, 0, 0, 0, 1. / (10_GeV), 0, 0, 0, 0, 0, 0, 0;
-  CurvilinearTrackParameters curvilinear(Vector4(341., 412., 93., 0.),
+  CurvilinearTrackParameters curvilinear(Vector3(341., 412., 93.),
                                          Vector3(1.2, 8.3, 0.45), 1 / 10.0, cov,
                                          ParticleHypothesis::pion());
 

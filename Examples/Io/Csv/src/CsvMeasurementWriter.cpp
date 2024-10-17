@@ -112,14 +112,12 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementWriter::writeT(
     meas.local1 = parameters[Acts::eBoundLoc1] / Acts::UnitConstants::mm;
     meas.phi = parameters[Acts::eBoundPhi] / Acts::UnitConstants::rad;
     meas.theta = parameters[Acts::eBoundTheta] / Acts::UnitConstants::rad;
-    meas.time = parameters[Acts::eBoundTime] / Acts::UnitConstants::mm;
 
     auto covariance = measurement.fullCovariance();
     meas.var_local0 = covariance(Acts::eBoundLoc0, Acts::eBoundLoc0);
     meas.var_local1 = covariance(Acts::eBoundLoc1, Acts::eBoundLoc1);
     meas.var_phi = covariance(Acts::eBoundPhi, Acts::eBoundPhi);
     meas.var_theta = covariance(Acts::eBoundTheta, Acts::eBoundTheta);
-    meas.var_time = covariance(Acts::eBoundTime, Acts::eBoundTime);
     for (unsigned int ipar = 0;
          ipar < static_cast<unsigned int>(Acts::eBoundSize); ++ipar) {
       if (measurement.contains(static_cast<Acts::BoundIndices>(ipar))) {

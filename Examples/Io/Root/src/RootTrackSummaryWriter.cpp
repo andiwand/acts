@@ -327,7 +327,6 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
         // Get the truth particle info at vertex
         t_p = particle.absoluteMomentum();
         t_charge = static_cast<int>(particle.charge());
-        t_time = particle.time();
         t_vx = particle.position().x();
         t_vy = particle.position().y();
         t_vz = particle.position().z();
@@ -393,9 +392,9 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
 
     // Initialize the fitted track parameters info
     std::array<float, Acts::eBoundSize> param = {NaNfloat, NaNfloat, NaNfloat,
-                                                 NaNfloat, NaNfloat, NaNfloat};
+                                                 NaNfloat, NaNfloat};
     std::array<float, Acts::eBoundSize> error = {NaNfloat, NaNfloat, NaNfloat,
-                                                 NaNfloat, NaNfloat, NaNfloat};
+                                                 NaNfloat, NaNfloat};
 
     // get entries of covariance matrix. If no entry, return NaN
     auto getCov = [&](auto i, auto j) { return track.covariance()(i, j); };
@@ -414,18 +413,15 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
     }
 
     std::array<float, Acts::eBoundSize> res = {NaNfloat, NaNfloat, NaNfloat,
-                                               NaNfloat, NaNfloat, NaNfloat};
+                                               NaNfloat, NaNfloat};
     std::array<float, Acts::eBoundSize> pull = {NaNfloat, NaNfloat, NaNfloat,
-                                                NaNfloat, NaNfloat, NaNfloat};
+                                                NaNfloat, NaNfloat};
     if (foundMajorityParticle && hasFittedParams) {
-      res = {param[Acts::eBoundLoc0] - t_d0,
-             param[Acts::eBoundLoc1] - t_z0,
-             Acts::detail::difference_periodic(
-                 param[Acts::eBoundPhi], t_phi,
-                 static_cast<float>(2 * std::numbers::pi)),
+      res = {param[Acts::eBoundLoc0] - t_d0, param[Acts::eBoundLoc1] - t_z0,
+             Acts::detail::difference_periodic(param[Acts::eBoundPhi], t_phi,
+                                               static_cast<float>(2 * M_PI)),
              param[Acts::eBoundTheta] - t_theta,
-             param[Acts::eBoundQOverP] - t_qop,
-             param[Acts::eBoundTime] - t_time};
+             param[Acts::eBoundQOverP] - t_qop};
 
       for (unsigned int i = 0; i < Acts::eBoundSize; ++i) {
         pull[i] = res[i] / error[i];
@@ -439,28 +435,24 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
     m_ePHI_fit.push_back(param[Acts::eBoundPhi]);
     m_eTHETA_fit.push_back(param[Acts::eBoundTheta]);
     m_eQOP_fit.push_back(param[Acts::eBoundQOverP]);
-    m_eT_fit.push_back(param[Acts::eBoundTime]);
 
     m_res_eLOC0_fit.push_back(res[Acts::eBoundLoc0]);
     m_res_eLOC1_fit.push_back(res[Acts::eBoundLoc1]);
     m_res_ePHI_fit.push_back(res[Acts::eBoundPhi]);
     m_res_eTHETA_fit.push_back(res[Acts::eBoundTheta]);
     m_res_eQOP_fit.push_back(res[Acts::eBoundQOverP]);
-    m_res_eT_fit.push_back(res[Acts::eBoundTime]);
 
     m_err_eLOC0_fit.push_back(error[Acts::eBoundLoc0]);
     m_err_eLOC1_fit.push_back(error[Acts::eBoundLoc1]);
     m_err_ePHI_fit.push_back(error[Acts::eBoundPhi]);
     m_err_eTHETA_fit.push_back(error[Acts::eBoundTheta]);
     m_err_eQOP_fit.push_back(error[Acts::eBoundQOverP]);
-    m_err_eT_fit.push_back(error[Acts::eBoundTime]);
 
     m_pull_eLOC0_fit.push_back(pull[Acts::eBoundLoc0]);
     m_pull_eLOC1_fit.push_back(pull[Acts::eBoundLoc1]);
     m_pull_ePHI_fit.push_back(pull[Acts::eBoundPhi]);
     m_pull_eTHETA_fit.push_back(pull[Acts::eBoundTheta]);
     m_pull_eQOP_fit.push_back(pull[Acts::eBoundQOverP]);
-    m_pull_eT_fit.push_back(pull[Acts::eBoundTime]);
 
     m_hasFittedParams.push_back(hasFittedParams);
 
@@ -489,42 +481,30 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
       m_cov_eLOC0_ePHI.push_back(getCov(0, 2));
       m_cov_eLOC0_eTHETA.push_back(getCov(0, 3));
       m_cov_eLOC0_eQOP.push_back(getCov(0, 4));
-      m_cov_eLOC0_eT.push_back(getCov(0, 5));
 
       m_cov_eLOC1_eLOC0.push_back(getCov(1, 0));
       m_cov_eLOC1_eLOC1.push_back(getCov(1, 1));
       m_cov_eLOC1_ePHI.push_back(getCov(1, 2));
       m_cov_eLOC1_eTHETA.push_back(getCov(1, 3));
       m_cov_eLOC1_eQOP.push_back(getCov(1, 4));
-      m_cov_eLOC1_eT.push_back(getCov(1, 5));
 
       m_cov_ePHI_eLOC0.push_back(getCov(2, 0));
       m_cov_ePHI_eLOC1.push_back(getCov(2, 1));
       m_cov_ePHI_ePHI.push_back(getCov(2, 2));
       m_cov_ePHI_eTHETA.push_back(getCov(2, 3));
       m_cov_ePHI_eQOP.push_back(getCov(2, 4));
-      m_cov_ePHI_eT.push_back(getCov(2, 5));
 
       m_cov_eTHETA_eLOC0.push_back(getCov(3, 0));
       m_cov_eTHETA_eLOC1.push_back(getCov(3, 1));
       m_cov_eTHETA_ePHI.push_back(getCov(3, 2));
       m_cov_eTHETA_eTHETA.push_back(getCov(3, 3));
       m_cov_eTHETA_eQOP.push_back(getCov(3, 4));
-      m_cov_eTHETA_eT.push_back(getCov(3, 5));
 
       m_cov_eQOP_eLOC0.push_back(getCov(4, 0));
       m_cov_eQOP_eLOC1.push_back(getCov(4, 1));
       m_cov_eQOP_ePHI.push_back(getCov(4, 2));
       m_cov_eQOP_eTHETA.push_back(getCov(4, 3));
       m_cov_eQOP_eQOP.push_back(getCov(4, 4));
-      m_cov_eQOP_eT.push_back(getCov(4, 5));
-
-      m_cov_eT_eLOC0.push_back(getCov(5, 0));
-      m_cov_eT_eLOC1.push_back(getCov(5, 1));
-      m_cov_eT_ePHI.push_back(getCov(5, 2));
-      m_cov_eT_eTHETA.push_back(getCov(5, 3));
-      m_cov_eT_eQOP.push_back(getCov(5, 4));
-      m_cov_eT_eT.push_back(getCov(5, 5));
     }
 
     if (m_cfg.writeGx2fSpecific) {

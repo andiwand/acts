@@ -129,16 +129,14 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
   Vertex constraint;
   Vertex customConstraint;
   // Some arbitrary values
-  SquareMatrix4 covMatVtx = SquareMatrix4::Zero();
-  double ns2 = Acts::UnitConstants::ns * Acts::UnitConstants::ns;
+  SquareMatrix3 covMatVtx = SquareMatrix3::Zero();
   covMatVtx(0, 0) = 30_mm2;
   covMatVtx(1, 1) = 30_mm2;
   covMatVtx(2, 2) = 30_mm2;
-  covMatVtx(3, 3) = 30 * ns2;
-  constraint.setFullCovariance(covMatVtx);
-  constraint.setFullPosition(Vector4(0, 0, 0, 0));
-  customConstraint.setFullCovariance(covMatVtx);
-  customConstraint.setFullPosition(Vector4(0, 0, 0, 0));
+  constraint.setCovariance(covMatVtx);
+  constraint.setPosition(Vector3(0, 0, 0));
+  customConstraint.setCovariance(covMatVtx);
+  customConstraint.setPosition(Vector3(0, 0, 0));
 
   // Set up Billoir vertex fitter with default tracks
   using VertexFitter = FullBilloirVertexFitter;
@@ -179,9 +177,9 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
         billoirFitter.fit(emptyVectorInput, vfOptions, fieldCache).value();
 
     Vector3 origin(0., 0., 0.);
-    SquareMatrix4 zeroMat = SquareMatrix4::Zero();
+    SquareMatrix3 zeroMat = SquareMatrix3::Zero();
     BOOST_CHECK_EQUAL(fittedVertex.position(), origin);
-    BOOST_CHECK_EQUAL(fittedVertex.fullCovariance(), zeroMat);
+    BOOST_CHECK_EQUAL(fittedVertex.covariance(), zeroMat);
 
     // With constraint
     fittedVertex =
@@ -189,7 +187,7 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
             .value();
 
     BOOST_CHECK_EQUAL(fittedVertex.position(), origin);
-    BOOST_CHECK_EQUAL(fittedVertex.fullCovariance(), zeroMat);
+    BOOST_CHECK_EQUAL(fittedVertex.covariance(), zeroMat);
   }
 
   // Number of events
@@ -204,7 +202,7 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
     double z = vZDist(gen);
     double t = vTDist(gen);
 
-    Vector4 trueVertex(x, y, z, t);
+    Vector3 trueVertex(x, y, z);
     std::shared_ptr<PerigeeSurface> perigeeSurface =
         Surface::makeShared<PerigeeSurface>(Vector3(0., 0., 0.));
 
@@ -266,13 +264,10 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
         CHECK_CLOSE_ABS(fittedVertex.position(), trueVertex.head(3), 1_mm);
         auto tracksAtVtx = fittedVertex.tracks();
         auto trackAtVtx = tracksAtVtx[0];
-        CHECK_CLOSE_ABS(fittedVertex.time(), trueVertex[3], 1_ns);
       }
 
       std::cout << "\nFitting " << nTracks << " tracks" << std::endl;
       std::cout << "True Vertex:\n" << trueVertex << std::endl;
-      std::cout << "Fitted Vertex:\n"
-                << fittedVertex.fullPosition() << std::endl;
     };
 
     BOOST_TEST_CONTEXT(

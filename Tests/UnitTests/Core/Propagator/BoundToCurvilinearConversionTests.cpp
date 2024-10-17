@@ -74,17 +74,15 @@ double computeDtDs(const T_ParticleHypothesis &hypothesis, double qop) {
  * @param particle_hypothesis the particle hypothesis e.g. Acts::ParticleHypothesis::pion()
  * @return path length derivatives ( dr(...)/ds, dt/ds, dr(...)/ds2, d qop/ds [== 0] )
  */
-template <class T_ParticleHypothesis>
-FreeToPathMatrix computeFreeToPathDerivatives(
-    const Vector3 &direction, double qop, const Vector3 &bfield,
-    const T_ParticleHypothesis &particle_hypothis) {
+FreeToPathMatrix computeFreeToPathDerivatives(const Vector3 &direction,
+                                              double qop,
+                                              const Vector3 &bfield) {
   FreeToPathMatrix path_length_deriv;
 #if defined(EIGEN_HAS_CONSTEXPR) && EIGEN_VERSION_AT_LEAST(3, 4, 0)
   static_assert(path_length_deriv.cols() ==
-                8);  // ensure that all elements are initialized
+                7);  // ensure that all elements are initialized
 #endif
   path_length_deriv.segment<3>(eFreePos0) = direction;
-  path_length_deriv(0, eFreeTime) = computeDtDs(particle_hypothis, qop);
   path_length_deriv.segment<3>(eFreeDir0) =
       (qop * direction.cross(bfield)).transpose();
   path_length_deriv(0, Acts::eFreeQOverP) = 0.;
@@ -214,8 +212,7 @@ void test_bound_to_curvilinear(const std::vector<TestData> &test_data_list,
       assert(local_bfield.ok());
 
       auto path_length_derivatives = computeFreeToPathDerivatives(
-          direction, params.parameters()[eBoundQOverP], local_bfield.value(),
-          ParticleHypothesis::pion());
+          direction, params.parameters()[eBoundQOverP], local_bfield.value());
       MSG_DEBUG("derivatives : " << path_length_derivatives);
 
       // compute Jacobian for bound to curvilinear covariance transformation
@@ -223,9 +220,9 @@ void test_bound_to_curvilinear(const std::vector<TestData> &test_data_list,
       Acts::detail::boundToCurvilinearTransportJacobian(
           direction, surface->boundToFreeJacobian(geoCtx, position, direction),
           Acts::FreeMatrix::Identity(),
-          computeFreeToPathDerivatives(
-              direction, params.parameters()[eBoundQOverP],
-              local_bfield.value(), ParticleHypothesis::pion()),
+          computeFreeToPathDerivatives(direction,
+                                       params.parameters()[eBoundQOverP],
+                                       local_bfield.value()),
           b2c);
 
       auto curvi_cov_alt = b2c * cov * b2c.transpose();

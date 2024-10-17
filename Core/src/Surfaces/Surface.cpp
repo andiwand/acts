@@ -269,8 +269,6 @@ BoundToFreeMatrix Surface::boundToFreeJacobian(const GeometryContext& gctx,
   BoundToFreeMatrix jacToGlobal = BoundToFreeMatrix::Zero();
   // the local error components - given by reference frame
   jacToGlobal.topLeftCorner<3, 2>() = rframe.topLeftCorner<3, 2>();
-  // the time component
-  jacToGlobal(eFreeTime, eBoundTime) = 1;
   // the momentum components
   jacToGlobal.block<3, 2>(eFreeDir0, eBoundPhi) =
       sphericalToFreeDirectionJacobian(direction);
@@ -291,8 +289,6 @@ FreeToBoundMatrix Surface::freeToBoundJacobian(const GeometryContext& gctx,
   FreeToBoundMatrix jacToLocal = FreeToBoundMatrix::Zero();
   // Local position component given by the reference frame
   jacToLocal.block<2, 3>(eBoundLoc0, eFreePos0) = rframeT.block<2, 3>(0, 0);
-  // Time component
-  jacToLocal(eBoundTime, eFreeTime) = 1;
   // Directional and momentum elements for reference frame surface
   jacToLocal.block<2, 3>(eBoundPhi, eFreeDir0) =
       freeToSphericalDirectionJacobian(direction);

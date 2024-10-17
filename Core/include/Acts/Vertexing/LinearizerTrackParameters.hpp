@@ -25,21 +25,19 @@ enum LinIndices : unsigned int {
   eLinPos0 = 0u,
   eLinPos1 = eLinPos0 + 1u,
   eLinPos2 = eLinPos0 + 2u,
-  // Global time when particle is at the point
-  eLinTime = 3u,
   // Angles of the particle momentum in the global frame at the point
-  eLinPhi = 4u,
+  eLinPhi = 3u,
   eLinTheta = eLinPhi + 1u,
   // Global inverse-momentum-like parameter, i.e. q/p or 1/p, at the point
   // The naming is inconsistent for the case of neutral track parameters where
   // the value is interpreted as 1/p not as q/p. This is intentional to avoid
   // having multiple aliases for the same element and for lack of an acceptable
   // common name.
-  eLinQOverP = 6u,
+  eLinQOverP = 5u,
   // Total number of components
-  eLinSize = 7u,
+  eLinSize = 6u,
   // Number of space-time components (3+1)
-  eLinPosSize = 4u,
+  eLinPosSize = 3u,
   // Number of momentum components
   eLinMomSize = 3u,
 };

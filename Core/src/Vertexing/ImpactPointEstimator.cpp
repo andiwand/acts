@@ -24,8 +24,7 @@ Result<double> getVertexCompatibilityImpl(const GeometryContext& gctx,
                                           const BoundTrackParameters* trkParams,
                                           const vector_t& vertexPos) {
   static constexpr int nDim = vector_t::RowsAtCompileTime;
-  static_assert(nDim == 3 || nDim == 4,
-                "The number of dimensions nDim must be either 3 or 4.");
+  static_assert(nDim == 3, "The number of dimensions nDim must be 3.");
 
   static_assert(vector_t::RowsAtCompileTime == nDim,
                 "The dimension of the vertex position vector must match nDim.");
@@ -39,12 +38,8 @@ Result<double> getVertexCompatibilityImpl(const GeometryContext& gctx,
   if (!trkParams->covariance().has_value()) {
     return VertexingError::NoCovariance;
   }
-  ActsSquareMatrix<nDim - 1> subCovMat;
-  if constexpr (nDim == 3) {
-    subCovMat = trkParams->spatialImpactParameterCovariance().value();
-  } else {
-    subCovMat = trkParams->impactParameterCovariance().value();
-  }
+  ActsSquareMatrix<nDim - 1> subCovMat =
+      trkParams->impactParameterCovariance().value();
   ActsSquareMatrix<nDim - 1> weight = subCovMat.inverse();
 
   // Orientation of the surface (i.e., axes of the corresponding coordinate
@@ -64,7 +59,7 @@ Result<double> getVertexCompatibilityImpl(const GeometryContext& gctx,
   // track parameters should be obtained by estimate3DImpactParameters.
   // Therefore, originToVertex should always be 0, which is currently not the
   // case.
-  Vector3 originToVertex = vertexPos.template head<3>() - surfaceOrigin;
+  Vector3 originToVertex = vertexPos - surfaceOrigin;
 
   // x-, y-, and possibly time-coordinate of the vertex and the track in the
   // surface coordinate system
@@ -75,12 +70,6 @@ Result<double> getVertexCompatibilityImpl(const GeometryContext& gctx,
   ActsVector<nDim - 1> localTrackCoords;
   localTrackCoords.template head<2>() =
       Vector2(trkParams->parameters()[eX], trkParams->parameters()[eY]);
-
-  // Fill time coordinates if we check the 4D vertex compatibility
-  if constexpr (nDim == 4) {
-    localVertexCoords(2) = vertexPos(3);
-    localTrackCoords(2) = trkParams->parameters()[eBoundTime];
-  }
 
   // residual
   ActsVector<nDim - 1> residual = localTrackCoords - localVertexCoords;
@@ -155,16 +144,10 @@ Result<double> performNewtonOptimization(
   return phi;
 }
 
-// Note: always return Vector4, we'll chop off the last component if needed
-template <typename vector_t>
-Result<std::pair<Vector4, Vector3>> getDistanceAndMomentumImpl(
+Result<std::pair<Vector3, Vector3>> getDistanceAndMomentumImpl(
     const GeometryContext& gctx, const BoundTrackParameters& trkParams,
-    const vector_t& vtxPos, const ImpactPointEstimator::Config& cfg,
+    const Vector3& vtxPos, const ImpactPointEstimator::Config& cfg,
     ImpactPointEstimator::State& state, const Logger& logger) {
-  static constexpr int nDim = vector_t::RowsAtCompileTime;
-  static_assert(nDim == 3 || nDim == 4,
-                "The number of dimensions nDim must be either 3 or 4.");
-
   // Reference point R
   Vector3 refPoint = trkParams.referenceSurface().center(gctx);
 
@@ -193,29 +176,14 @@ Result<std::pair<Vector4, Vector3>> getDistanceAndMomentumImpl(
     Vector3 positionOnTrack = trkParams.position(gctx);
 
     // Distance between positionOnTrack and the 3D PCA
-    double distanceToPca =
-        (vtxPos.template head<3>() - positionOnTrack).dot(momDirStraightTrack);
+    double distanceToPca = (vtxPos - positionOnTrack).dot(momDirStraightTrack);
 
     // 3D PCA
-    ActsVector<nDim> pcaStraightTrack;
-    pcaStraightTrack.template head<3>() =
+    Vector3 pcaStraightTrack =
         positionOnTrack + distanceToPca * momDirStraightTrack;
-    if constexpr (nDim == 4) {
-      // Track time at positionOnTrack
-      double timeOnTrack = trkParams.parameters()[BoundIndices::eBoundTime];
-
-      double m0 = trkParams.particleHypothesis().mass();
-      double p = trkParams.particleHypothesis().extractMomentum(qOvP);
-
-      // Speed in units of c
-      double beta = p / fastHypot(p, m0);
-
-      pcaStraightTrack[3] = timeOnTrack + distanceToPca / beta;
-    }
 
     // Vector pointing from the vertex position to the 3D PCA
-    Vector4 deltaRStraightTrack{Vector4::Zero()};
-    deltaRStraightTrack.head<nDim>() = pcaStraightTrack - vtxPos;
+    Vector3 deltaRStraightTrack = pcaStraightTrack - vtxPos;
 
     return std::pair(deltaRStraightTrack, momDirStraightTrack);
   }
@@ -251,8 +219,8 @@ Result<std::pair<Vector4, Vector3>> getDistanceAndMomentumImpl(
 
   // Use Newton optimization method to iteratively change phi until we arrive at
   // the 3D PCA
-  auto res = performNewtonOptimization(helixCenter, vtxPos.template head<3>(),
-                                       phi, theta, rho, cfg, logger);
+  auto res = performNewtonOptimization(helixCenter, vtxPos, phi, theta, rho,
+                                       cfg, logger);
   if (!res.ok()) {
     return res.error();
   }
@@ -271,25 +239,10 @@ Result<std::pair<Vector4, Vector3>> getDistanceAndMomentumImpl(
   // 3D PCA (point P' in the reference). Note that the prefix "3D" does not
   // refer to the dimension of the pca variable. Rather, it indicates that we
   // minimized the 3D distance between the track and the reference point.
-  ActsVector<nDim> pca;
-  pca.template head<3>() =
-      helixCenter + rho * Vector3(-sinPhi, cosPhi, -cotTheta * phi);
+  Vector3 pca = helixCenter + rho * Vector3(-sinPhi, cosPhi, -cotTheta * phi);
 
-  if constexpr (nDim == 4) {
-    // Time at the 2D PCA P
-    double tP = trkParams.parameters()[BoundIndices::eBoundTime];
-
-    double m0 = trkParams.particleHypothesis().mass();
-    double p = trkParams.particleHypothesis().extractMomentum(qOvP);
-
-    // Speed in units of c
-    double beta = p / fastHypot(p, m0);
-
-    pca[3] = tP - rho / (beta * sinTheta) * (phi - phiP);
-  }
   // Vector pointing from the vertex position to the 3D PCA
-  Vector4 deltaR{Vector4::Zero()};
-  deltaR.head<nDim>() = pca - vtxPos;
+  Vector3 deltaR = pca - vtxPos;
 
   return std::pair(deltaR, momDir);
 }
@@ -308,7 +261,7 @@ Result<double> ImpactPointEstimator::calculateDistance(
 
   // Return distance (we get a 4D vector in all cases, but we only need the
   // position norm)
-  return res.value().first.template head<3>().norm();
+  return res.value().first.norm();
 }
 
 Result<BoundTrackParameters> ImpactPointEstimator::estimate3DImpactParameters(
@@ -323,7 +276,7 @@ Result<BoundTrackParameters> ImpactPointEstimator::estimate3DImpactParameters(
   }
 
   // Vector pointing from vertex to 3D PCA
-  Vector3 deltaR = res.value().first.head<3>();
+  Vector3 deltaR = res.value().first;
 
   // Get corresponding unit vector
   deltaR.normalize();
@@ -389,37 +342,21 @@ Result<BoundTrackParameters> ImpactPointEstimator::estimate3DImpactParameters(
 
 Result<double> ImpactPointEstimator::getVertexCompatibility(
     const GeometryContext& gctx, const BoundTrackParameters* trkParams,
-    Eigen::Map<const ActsDynamicVector> vertexPos) const {
-  if (vertexPos.size() == 3) {
-    return getVertexCompatibilityImpl(gctx, trkParams,
-                                      vertexPos.template head<3>());
-  } else if (vertexPos.size() == 4) {
-    return getVertexCompatibilityImpl(gctx, trkParams,
-                                      vertexPos.template head<4>());
-  } else {
-    return VertexingError::InvalidInput;
-  }
+    const Vector3& vertexPos) const {
+  return getVertexCompatibilityImpl(gctx, trkParams, vertexPos);
 }
 
-Result<std::pair<Acts::Vector4, Acts::Vector3>>
+Result<std::pair<Acts::Vector3, Acts::Vector3>>
 ImpactPointEstimator::getDistanceAndMomentum(
     const GeometryContext& gctx, const BoundTrackParameters& trkParams,
-    Eigen::Map<const ActsDynamicVector> vtxPos, State& state) const {
-  if (vtxPos.size() == 3) {
-    return getDistanceAndMomentumImpl(
-        gctx, trkParams, vtxPos.template head<3>(), m_cfg, state, *m_logger);
-  } else if (vtxPos.size() == 4) {
-    return getDistanceAndMomentumImpl(
-        gctx, trkParams, vtxPos.template head<4>(), m_cfg, state, *m_logger);
-  } else {
-    return VertexingError::InvalidInput;
-  }
+    const Acts::Vector3& vtxPos, State& state) const {
+  return getDistanceAndMomentumImpl(gctx, trkParams, vtxPos, m_cfg, state,
+                                    *m_logger);
 }
 
 Result<ImpactParametersAndSigma> ImpactPointEstimator::getImpactParameters(
     const BoundTrackParameters& track, const Vertex& vtx,
-    const GeometryContext& gctx, const MagneticFieldContext& mctx,
-    bool calculateTimeIP) const {
+    const GeometryContext& gctx, const MagneticFieldContext& mctx) const {
   const std::shared_ptr<PerigeeSurface> perigeeSurface =
       Surface::makeShared<PerigeeSurface>(vtx.position());
 
@@ -485,16 +422,6 @@ Result<ImpactParametersAndSigma> ImpactPointEstimator::getImpactParameters(
     ipAndSigma.sigmaZ0 = std::sqrt(vtxVarZ + impactParamCovariance(1, 1));
   } else {
     ipAndSigma.sigmaZ0 = std::sqrt(impactParamCovariance(1, 1));
-  }
-
-  if (calculateTimeIP) {
-    ipAndSigma.deltaT = std::abs(vtx.time() - impactParams[2]);
-    double vtxVarT = vtx.fullCovariance()(eTime, eTime);
-    if (vtxVarT > 0) {
-      ipAndSigma.sigmaDeltaT = std::sqrt(vtxVarT + impactParamCovariance(2, 2));
-    } else {
-      ipAndSigma.sigmaDeltaT = std::sqrt(impactParamCovariance(2, 2));
-    }
   }
 
   return ipAndSigma;

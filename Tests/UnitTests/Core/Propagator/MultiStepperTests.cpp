@@ -724,8 +724,8 @@ void test_combined_curvilinear_state_function() {
   const auto [curv_pars, jac, pathLength] =
       multi_stepper.curvilinearState(multi_state);
 
-  BOOST_CHECK(curv_pars.fourPosition(geoCtx).isApprox(
-      check_pars.fourPosition(geoCtx), 1.e-8));
+  BOOST_CHECK(
+      curv_pars.position(geoCtx).isApprox(check_pars.position(geoCtx), 1.e-8));
   BOOST_CHECK(curv_pars.direction().isApprox(check_pars.direction(), 1.e-8));
   BOOST_CHECK_CLOSE(curv_pars.absoluteMomentum(), check_pars.absoluteMomentum(),
                     1.e-8);
@@ -766,7 +766,6 @@ void test_single_component_interface_function() {
                       cmp.pars().template segment<3>(eFreePos0));
     BOOST_CHECK_EQUAL(sstepper.direction(sstepping),
                       cmp.pars().template segment<3>(eFreeDir0));
-    BOOST_CHECK_EQUAL(sstepper.time(sstepping), cmp.pars()[eFreeTime]);
     BOOST_CHECK_CLOSE(sstepper.qOverP(sstepping), cmp.pars()[eFreeQOverP],
                       1.e-8);
   };

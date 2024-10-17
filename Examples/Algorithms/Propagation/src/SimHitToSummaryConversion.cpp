@@ -92,9 +92,9 @@ ActsExamples::ProcessCode ActsExamples::SimHitToSummaryConversion::execute(
       if (!moduleSteps.contains(paritcleId)) {
         moduleSteps[paritcleId] = std::vector<Acts::detail::Step>();
       }
-      double hx = simHit.fourPosition().x() / Acts::UnitConstants::mm;
-      double hy = simHit.fourPosition().y() / Acts::UnitConstants::mm;
-      double hz = simHit.fourPosition().z() / Acts::UnitConstants::mm;
+      double hx = simHit.position().x() / Acts::UnitConstants::mm;
+      double hy = simHit.position().y() / Acts::UnitConstants::mm;
+      double hz = simHit.position().z() / Acts::UnitConstants::mm;
       Acts::detail::Step step;
       step.position = Acts::Vector3(hx, hy, hz);
       step.momentum = simHit.direction();
@@ -115,7 +115,7 @@ ActsExamples::ProcessCode ActsExamples::SimHitToSummaryConversion::execute(
   for (const auto& particle : particles) {
     // Create the propagation summary
     Acts::CurvilinearTrackParameters start(
-        particle.fourPosition(), particle.direction(),
+        particle.position(), particle.direction(),
         particle.charge() / particle.momentum().norm(), std::nullopt,
         particle.hypothesis());
     PropagationSummary propagationSummary(start);

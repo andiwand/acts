@@ -11,62 +11,24 @@
 namespace Acts {
 
 Vertex::Vertex(const Vector3& position) {
-  m_position.head<3>() = position;
-  m_seedPosition.head<3>() = position;
+  m_position = position;
+  m_seedPosition = position;
 }
-
-Vertex::Vertex(const Vector4& position)
-    : m_position(position), m_seedPosition(position) {}
 
 Vertex::Vertex(const Vector3& position, const SquareMatrix3& covariance,
                std::vector<TrackAtVertex> tracks)
     : m_tracksAtVertex(std::move(tracks)) {
-  m_position.head<3>() = position;
-  m_seedPosition.head<3>() = position;
+  m_position = position;
+  m_seedPosition = position;
   m_covariance.block<3, 3>(ePos0, ePos0) = covariance;
 }
 
-Vertex::Vertex(const Vector4& position, const SquareMatrix4& covariance,
-               std::vector<TrackAtVertex> tracks)
-    : m_position(position),
-      m_seedPosition(position),
-      m_covariance(covariance),
-      m_tracksAtVertex(std::move(tracks)) {}
-
 Vector3 Vertex::position() const {
-  return VectorHelpers::position(m_position);
-}
-
-double Vertex::time() const {
-  return m_position[eTime];
-}
-
-const Vector4& Vertex::fullPosition() const {
   return m_position;
-}
-
-Vector4& Vertex::fullPosition() {
-  return m_position;
-}
-
-const Vector4& Vertex::fullSeedPosition() const {
-  return m_seedPosition;
-}
-
-Vector4& Vertex::fullSeedPosition() {
-  return m_seedPosition;
 }
 
 SquareMatrix3 Vertex::covariance() const {
   return m_covariance.block<3, 3>(ePos0, ePos0);
-}
-
-const SquareMatrix4& Vertex::fullCovariance() const {
-  return m_covariance;
-}
-
-SquareMatrix4& Vertex::fullCovariance() {
-  return m_covariance;
 }
 
 const std::vector<TrackAtVertex>& Vertex::tracks() const {
@@ -78,24 +40,12 @@ std::pair<double, double> Vertex::fitQuality() const {
 }
 
 void Vertex::setPosition(const Vector3& position) {
-  m_position.head<3>() = position;
-}
-
-void Vertex::setFullPosition(const Vector4& fullPosition) {
-  m_position = fullPosition;
-}
-
-void Vertex::setTime(double time) {
-  m_position[eTime] = time;
+  m_position = position;
 }
 
 void Vertex::setCovariance(const SquareMatrix3& covariance) {
   m_covariance.setZero();
   m_covariance.block<3, 3>(ePos0, ePos0) = covariance;
-}
-
-void Vertex::setFullCovariance(const SquareMatrix4& covariance) {
-  m_covariance = covariance;
 }
 
 void Vertex::setTracksAtVertex(std::vector<TrackAtVertex> tracks) {

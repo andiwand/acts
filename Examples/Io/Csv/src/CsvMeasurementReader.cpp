@@ -235,10 +235,6 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementReader::read(
             dParameters.values.push_back(m.theta);
             dParameters.variances.push_back(m.var_theta);
           }; break;
-          case static_cast<unsigned int>(Acts::eBoundTime): {
-            dParameters.values.push_back(m.time);
-            dParameters.variances.push_back(m.var_time);
-          }; break;
           default:
             break;
         }

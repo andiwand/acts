@@ -24,8 +24,6 @@ struct VolumeMaterialInteraction {
   InteractionVolume volume{};
   /// The particle current position
   const Vector3 pos = Vector3::Zero();
-  /// The particle current time
-  const double time = 0;
   /// The particle current direction
   const Vector3 dir = Vector3::Zero();
   /// The particle q/p at the interaction
@@ -62,7 +60,6 @@ struct VolumeMaterialInteraction {
                             const stepper_t& stepper)
       : volume(vVolume),
         pos(stepper.position(state.stepping)),
-        time(stepper.time(state.stepping)),
         dir(stepper.direction(state.stepping)),
         qOverP(stepper.qOverP(state.stepping)),
         absQ(stepper.particleHypothesis(state.stepping).absoluteCharge()),
@@ -86,7 +83,6 @@ struct VolumeMaterialInteraction {
                             const stepper_t& stepper)
       : volume(vVolume),
         pos(stepper.position(state.stepping)),
-        time(stepper.time(state.stepping)),
         dir(stepper.direction(state.stepping)),
         qOverP(stepper.qOverP(state.stepping)),
         absQ(stepper.particleHypothesis(state.stepping).absoluteCharge()),

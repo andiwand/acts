@@ -52,9 +52,7 @@ ActsExamples::ProcessCode ActsExamples::TrackParameterSelector::execute(
            within(trk.template get<Acts::eBoundLoc0>(), m_cfg.loc0Min,
                   m_cfg.loc0Max) &&
            within(trk.template get<Acts::eBoundLoc1>(), m_cfg.loc1Min,
-                  m_cfg.loc1Max) &&
-           within(trk.template get<Acts::eBoundTime>(), m_cfg.timeMin,
-                  m_cfg.timeMax);
+                  m_cfg.loc1Max);
   };
 
   const auto& inputTrackParameters = m_inputTrackParameters(ctx);

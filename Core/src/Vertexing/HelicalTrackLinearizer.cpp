@@ -14,9 +14,8 @@
 
 Acts::Result<Acts::LinearizedTrack>
 Acts::HelicalTrackLinearizer::linearizeTrack(
-    const BoundTrackParameters& params, double linPointTime,
-    const Surface& perigeeSurface, const Acts::GeometryContext& gctx,
-    const Acts::MagneticFieldContext& mctx,
+    const BoundTrackParameters& params, const Surface& perigeeSurface,
+    const Acts::GeometryContext& gctx, const Acts::MagneticFieldContext& mctx,
     MagneticFieldProvider::Cache& fieldCache) const {
   // Create propagator options
   PropagatorPlainOptions pOptions(gctx, mctx);
@@ -55,14 +54,7 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
   BoundVector paramsAtPCA = endParams.parameters();
 
   // Extracting the 4D position of the PCA in global coordinates
-  Vector4 pca = Vector4::Zero();
-  {
-    auto pos = endParams.position(gctx);
-    pca[ePos0] = pos[ePos0];
-    pca[ePos1] = pos[ePos1];
-    pca[ePos2] = pos[ePos2];
-    pca[eTime] = endParams.time();
-  }
+  Vector3 pca = endParams.position(gctx);
   BoundSquareMatrix parCovarianceAtPCA = endParams.covariance().value();
 
   // Extracting Perigee parameters and compute functions of them for later
@@ -96,7 +88,7 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
   double absoluteCharge = params.particleHypothesis().absoluteCharge();
 
   // get the z-component of the B-field at the PCA
-  auto field = m_cfg.bField->getField(VectorHelpers::position(pca), fieldCache);
+  auto field = m_cfg.bField->getField(pca, fieldCache);
   if (!field.ok()) {
     return field.error();
   }
@@ -133,12 +125,6 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
 
     // Derivatives of q/p
     completeJacobian(eBoundQOverP, eLinQOverP) = 1.;
-
-    // Derivatives of time
-    completeJacobian(eBoundTime, eLinPos0) = -cosPhi / betaT;
-    completeJacobian(eBoundTime, eLinPos1) = -sinPhi / betaT;
-    completeJacobian(eBoundTime, eLinTime) = 1.;
-    completeJacobian(eBoundTime, eLinPhi) = -d0 / betaT;
   } else {
     // Helix radius
     double rho = sinTheta * (1. / qOvP) / Bz;
@@ -156,7 +142,6 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
     double XoverS2 = X / S2;
     double YoverS2 = Y / S2;
     double rhoCotTheta = rho / tanTheta;
-    double rhoOverBetaT = rho / betaT;
     // Absolute value of rho over S
     double absRhoOverS = h * rho / S;
 
@@ -186,12 +171,6 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
 
     // Derivatives of q/p
     completeJacobian(eBoundQOverP, eLinQOverP) = 1.;
-
-    // Derivatives of time
-    completeJacobian(eBoundTime, eLinPos0) = rhoOverBetaT * YoverS2;
-    completeJacobian(eBoundTime, eLinPos1) = -rhoOverBetaT * XoverS2;
-    completeJacobian(eBoundTime, eLinTime) = 1.;
-    completeJacobian(eBoundTime, eLinPhi) = rhoOverBetaT * (1. - absRhoOverS);
   }
 
   // Extracting positionJacobian and momentumJacobian from the complete Jacobian
@@ -207,10 +186,7 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
   // The parameter weight
   BoundSquareMatrix weightAtPCA = parCovarianceAtPCA.inverse();
 
-  Vector4 linPoint;
-  linPoint.head<3>() = perigeeSurface.center(gctx);
-  linPoint[3] = linPointTime;
-
+  Vector3 linPoint = perigeeSurface.center(gctx);
   return LinearizedTrack(paramsAtPCA, parCovarianceAtPCA, weightAtPCA, linPoint,
                          positionJacobian, momentumJacobian, pca, momentumAtPCA,
                          constTerm);

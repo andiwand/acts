@@ -234,7 +234,6 @@ struct TrackFinderNTupleWriter::Impl {
         prtVx = particle.position().x() / Acts::UnitConstants::mm;
         prtVy = particle.position().y() / Acts::UnitConstants::mm;
         prtVz = particle.position().z() / Acts::UnitConstants::mm;
-        prtVt = particle.time() / Acts::UnitConstants::mm;
         const auto p = particle.absoluteMomentum() / Acts::UnitConstants::GeV;
         prtPx = p * particle.direction().x();
         prtPy = p * particle.direction().y();

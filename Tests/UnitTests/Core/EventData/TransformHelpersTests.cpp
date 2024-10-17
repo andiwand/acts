@@ -36,8 +36,8 @@ BOOST_AUTO_TEST_SUITE(TransformBoundToFree)
 
 BOOST_DATA_TEST_CASE(
     Parameters,
-    surfaces* posSymmetric* posSymmetric* ts* phis* thetas* ps* qsNonZero,
-    surface, l0, l1, time, phi, theta, p, q) {
+    surfaces* posSymmetric* posSymmetric* phis* thetas* ps* qsNonZero, surface,
+    l0, l1, phi, theta, p, q) {
   GeometryContext geoCtx;
 
   Vector2 loc(l0, l1);
@@ -51,7 +51,6 @@ BOOST_DATA_TEST_CASE(
   BoundVector bv = BoundVector::Zero();
   bv[eBoundLoc0] = l0;
   bv[eBoundLoc1] = l1;
-  bv[eBoundTime] = time;
   bv[eBoundPhi] = phi;
   bv[eBoundTheta] = theta;
   bv[eBoundQOverP] = qOverP;
@@ -60,7 +59,6 @@ BOOST_DATA_TEST_CASE(
   FreeVector fv = transformBoundToFreeParameters(*surface, geoCtx, bv);
 
   CHECK_CLOSE_OR_SMALL(fv.segment<3>(eFreePos0), pos, eps, eps);
-  CHECK_CLOSE_OR_SMALL(fv[eFreeTime], bv[eBoundTime], eps, eps);
   CHECK_CLOSE_REL(fv.segment<3>(eFreeDir0).norm(), 1, eps);
   CHECK_CLOSE_OR_SMALL(fv.segment<3>(eFreeDir0), dir, eps, eps);
   CHECK_CLOSE_OR_SMALL(fv[eFreeQOverP], bv[eBoundQOverP], eps, eps);
@@ -72,8 +70,8 @@ BOOST_AUTO_TEST_SUITE(TransformFreeToBound)
 
 BOOST_DATA_TEST_CASE(
     GlobalToBoundTrackParameters,
-    surfaces* posSymmetric* posSymmetric* ts* phis* thetas* ps* qsNonZero,
-    surface, l0, l1, time, phiInput, theta, p, q) {
+    surfaces* posSymmetric* posSymmetric* phis* thetas* ps* qsNonZero, surface,
+    l0, l1, phiInput, theta, p, q) {
   // phi is ill-defined in forward/backward tracks
   const auto phi = ((0 < theta) && (theta < std::numbers::pi)) ? phiInput : 0.;
   const auto qOverP = q / p;
@@ -93,7 +91,6 @@ BOOST_DATA_TEST_CASE(
     fv[eFreePos0] = pos[ePos0];
     fv[eFreePos1] = pos[ePos1];
     fv[eFreePos2] = pos[ePos2];
-    fv[eFreeTime] = time;
     fv[eFreeDir0] = dir[eMom0];
     fv[eFreeDir1] = dir[eMom1];
     fv[eFreeDir2] = dir[eMom2];
@@ -102,7 +99,6 @@ BOOST_DATA_TEST_CASE(
         transformFreeToBoundParameters(fv, *surface, geoCtx).value();
     CHECK_CLOSE_OR_SMALL(bv[eBoundLoc0], l0, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundLoc1], l1, eps, eps);
-    CHECK_CLOSE_OR_SMALL(bv[eBoundTime], time, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundPhi], phi, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundTheta], theta, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundQOverP], qOverP, eps, eps);
@@ -118,7 +114,6 @@ BOOST_DATA_TEST_CASE(
     fv[eFreePos0] = posOff[ePos0];
     fv[eFreePos1] = posOff[ePos1];
     fv[eFreePos2] = posOff[ePos2];
-    fv[eFreeTime] = time;
     fv[eFreeDir0] = dir[eMom0];
     fv[eFreeDir1] = dir[eMom1];
     fv[eFreeDir2] = dir[eMom2];
@@ -133,11 +128,10 @@ BOOST_DATA_TEST_CASE(
                     << surface->name());
 
     BoundVector bv =
-        transformFreeToBoundParameters(pos, time, dir, qOverP, *surface, geoCtx)
+        transformFreeToBoundParameters(pos, dir, qOverP, *surface, geoCtx)
             .value();
     CHECK_CLOSE_OR_SMALL(bv[eBoundLoc0], l0, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundLoc1], l1, eps, eps);
-    CHECK_CLOSE_OR_SMALL(bv[eBoundTime], time, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundPhi], phi, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundTheta], theta, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundQOverP], qOverP, eps, eps);
@@ -149,15 +143,14 @@ BOOST_DATA_TEST_CASE(
                     << surface->name());
 
     Vector3 posOff = pos + surface->normal(geoCtx, loc) * 0.5;
-    auto res = transformFreeToBoundParameters(posOff, time, dir, qOverP,
-                                              *surface, geoCtx);
+    auto res =
+        transformFreeToBoundParameters(posOff, dir, qOverP, *surface, geoCtx);
     BOOST_CHECK(!res.ok());
   }
 }
 
-BOOST_DATA_TEST_CASE(GlobalToCurvilinearParameters,
-                     ts* phis* thetas* ps* qsNonZero, time, phiInput, theta, p,
-                     q) {
+BOOST_DATA_TEST_CASE(GlobalToCurvilinearParameters, phis* thetas* ps* qsNonZero,
+                     phiInput, theta, p, q) {
   // phi is ill-defined in forward/backward tracks
   const auto phi = ((0 < theta) && (theta < std::numbers::pi)) ? phiInput : 0.;
   const auto qOverP = q / p;
@@ -167,21 +160,18 @@ BOOST_DATA_TEST_CASE(GlobalToCurvilinearParameters,
 
   // convert w/ direction
   {
-    BoundVector bv = transformFreeToCurvilinearParameters(time, dir, qOverP);
+    BoundVector bv = transformFreeToCurvilinearParameters(dir, qOverP);
     CHECK_SMALL(bv[eBoundLoc0], eps);
     CHECK_SMALL(bv[eBoundLoc1], eps);
-    CHECK_CLOSE_OR_SMALL(bv[eBoundTime], time, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundPhi], phi, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundTheta], theta, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundQOverP], qOverP, eps, eps);
   }
   // convert w/ angles
   {
-    BoundVector bv =
-        transformFreeToCurvilinearParameters(time, phi, theta, qOverP);
+    BoundVector bv = transformFreeToCurvilinearParameters(phi, theta, qOverP);
     CHECK_SMALL(bv[eBoundLoc0], eps);
     CHECK_SMALL(bv[eBoundLoc1], eps);
-    CHECK_CLOSE_OR_SMALL(bv[eBoundTime], time, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundPhi], phi, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundTheta], theta, eps, eps);
     CHECK_CLOSE_OR_SMALL(bv[eBoundQOverP], qOverP, eps, eps);

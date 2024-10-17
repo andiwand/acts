@@ -20,9 +20,9 @@ namespace ActsExamples {
 struct FixedPrimaryVertexPositionGenerator
     : public EventGenerator::PrimaryVertexPositionGenerator {
   /// The fixed vertex position and time.
-  Acts::Vector4 fixed = Acts::Vector4::Zero();
+  Acts::Vector3 fixed = Acts::Vector3::Zero();
 
-  Acts::Vector4 operator()(RandomEngine& /*rng*/) const override {
+  Acts::Vector3 operator()(RandomEngine& /*rng*/) const override {
     return fixed;
   }
 };
@@ -31,14 +31,13 @@ struct GaussianPrimaryVertexPositionGenerator
     : public EventGenerator::PrimaryVertexPositionGenerator {
   // standard deviation comes first, since it is more likely to be modified
   /// Vertex position and time standard deviation.
-  Acts::Vector4 stddev = {0.0, 0.0, 0.0, 0.0};
+  Acts::Vector3 stddev = {0.0, 0.0, 0.0};
   /// Mean vertex position and time.
-  Acts::Vector4 mean = {0.0, 0.0, 0.0, 0.0};
+  Acts::Vector3 mean = {0.0, 0.0, 0.0};
 
-  Acts::Vector4 operator()(RandomEngine& rng) const override {
+  Acts::Vector3 operator()(RandomEngine& rng) const override {
     auto normal = std::normal_distribution<double>(0.0, 1.0);
-    Acts::Vector4 rndNormal = {
-        normal(rng),
+    Acts::Vector3 rndNormal = {
         normal(rng),
         normal(rng),
         normal(rng),
@@ -57,7 +56,7 @@ struct GaussianDisplacedVertexPositionGenerator
   double tMean = 0;
   double tStdDev = 1;
 
-  Acts::Vector4 operator()(RandomEngine& rng) const override {
+  Acts::Vector3 operator()(RandomEngine& rng) const override {
     double min_value = -std::numbers::pi;
     double max_value = std::numbers::pi;
 
@@ -65,19 +64,17 @@ struct GaussianDisplacedVertexPositionGenerator
 
     std::normal_distribution<double> rDist(rMean, rStdDev);
     std::normal_distribution<double> zDist(zMean, zStdDev);
-    std::normal_distribution<double> tDist(tMean, tStdDev);
 
     // Generate random values from normal distributions
     double r = rDist(rng);
     double phi = uniform(rng);  // Random angle in radians
     double z = zDist(rng);
-    double t = tDist(rng);
 
     // Convert cylindrical coordinates to Cartesian coordinates
     double x = r * std::cos(phi);
     double y = r * std::sin(phi);
 
-    return Acts::Vector4(x, y, z, t);
+    return Acts::Vector3(x, y, z);
   }
 };
 }  // namespace ActsExamples

@@ -89,11 +89,9 @@ void StraightLineStepper::update(State& state, const FreeVector& freeParams,
 }
 
 void StraightLineStepper::update(State& state, const Vector3& uposition,
-                                 const Vector3& udirection, double qop,
-                                 double time) const {
+                                 const Vector3& udirection, double qop) const {
   state.pars.template segment<3>(eFreePos0) = uposition;
   state.pars.template segment<3>(eFreeDir0) = udirection;
-  state.pars[eFreeTime] = time;
   state.pars[eFreeQOverP] = qop;
 }
 

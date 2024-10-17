@@ -19,10 +19,9 @@ namespace Acts::KalmanVertexUpdater::detail {
 /// Cache object, the comments indicate the names of the variables in Ref. (1)
 /// @tparam nDimVertex number of dimensions of the vertex. Can be 3 (if we only
 /// fit its spatial coordinates) or 4 (if we also fit time).
-template <unsigned int nDimVertex>
 struct Cache {
-  using VertexVector = ActsVector<nDimVertex>;
-  using VertexMatrix = ActsSquareMatrix<nDimVertex>;
+  using VertexVector = ActsVector<3>;
+  using VertexMatrix = ActsSquareMatrix<3>;
   // \tilde{x_k}
   VertexVector newVertexPos = VertexVector::Zero();
   // C_k
@@ -49,18 +48,16 @@ struct Cache {
 /// @note Tracks are removed during the smoothing procedure to compute
 /// the chi2 of the track wrt the updated vertex position
 /// @param[out] cache A cache to store the results of this function
-template <unsigned int nDimVertex>
 void calculateUpdate(const Vertex& vtx, const Acts::LinearizedTrack& linTrack,
-                     const double trackWeight, const int sign,
-                     Cache<nDimVertex>& cache) {
-  constexpr unsigned int nBoundParams = nDimVertex + 2;
+                     const double trackWeight, const int sign, Cache& cache) {
+  constexpr unsigned int nBoundParams = 3 + 2;
   using ParameterVector = ActsVector<nBoundParams>;
   using ParameterMatrix = ActsSquareMatrix<nBoundParams>;
   // Retrieve variables from the track linearization. The comments indicate the
   // corresponding symbol used in Ref. (1).
   // A_k
-  const ActsMatrix<nBoundParams, nDimVertex> posJac =
-      linTrack.positionJacobian.block<nBoundParams, nDimVertex>(0, 0);
+  const ActsMatrix<nBoundParams, 3> posJac =
+      linTrack.positionJacobian.block<nBoundParams, 3>(0, 0);
   // B_k
   const ActsMatrix<nBoundParams, 3> momJac =
       linTrack.momentumJacobian.block<nBoundParams, 3>(0, 0);
@@ -83,12 +80,10 @@ void calculateUpdate(const Vertex& vtx, const Acts::LinearizedTrack& linTrack,
           .inverse();
 
   // Retrieve current position of the vertex and its current weight matrix
-  const ActsVector<nDimVertex> oldVtxPos =
-      vtx.fullPosition().template head<nDimVertex>();
+  const ActsVector<3> oldVtxPos = vtx.position();
   // C_{k-1}^-1
   cache.oldVertexWeight =
-      (vtx.fullCovariance().template block<nDimVertex, nDimVertex>(0, 0))
-          .inverse();
+      (vtx.covariance().template block<3, 3>(0, 0)).inverse();
 
   // W_k
   cache.wMat = (momJac.transpose() * (trkParamWeight * momJac)).inverse();
@@ -112,25 +107,21 @@ void calculateUpdate(const Vertex& vtx, const Acts::LinearizedTrack& linTrack,
                                 (trkParams - constTerm));
 }
 
-template <unsigned int nDimVertex>
-double vertexPositionChi2Update(const Vector4& oldVtxPos,
-                                const Cache<nDimVertex>& cache) {
-  ActsVector<nDimVertex> posDiff =
-      cache.newVertexPos - oldVtxPos.template head<nDimVertex>();
+double vertexPositionChi2Update(const Vector3& oldVtxPos, const Cache& cache) {
+  ActsVector<3> posDiff = cache.newVertexPos - oldVtxPos;
 
   // Calculate and return corresponding chi2
   return posDiff.transpose() * (cache.oldVertexWeight * posDiff);
 }
 
-template <unsigned int nDimVertex>
 double trackParametersChi2(const LinearizedTrack& linTrack,
-                           const Cache<nDimVertex>& cache) {
-  constexpr unsigned int nBoundParams = nDimVertex + 2;
+                           const Cache& cache) {
+  constexpr unsigned int nBoundParams = 3 + 2;
   using ParameterVector = ActsVector<nBoundParams>;
   using ParameterMatrix = ActsSquareMatrix<nBoundParams>;
   // A_k
-  const ActsMatrix<nBoundParams, nDimVertex> posJac =
-      linTrack.positionJacobian.block<nBoundParams, nDimVertex>(0, 0);
+  const ActsMatrix<nBoundParams, 3> posJac =
+      linTrack.positionJacobian.block<nBoundParams, 3>(0, 0);
   // B_k
   const ActsMatrix<nBoundParams, 3> momJac =
       linTrack.momentumJacobian.block<nBoundParams, 3>(0, 0);
@@ -174,11 +165,10 @@ double trackParametersChi2(const LinearizedTrack& linTrack,
 /// momentum
 /// @param vtxCov Vertex covariance matrix
 /// @param newTrkParams Refitted track parameters
-template <unsigned int nDimVertex>
-Acts::BoundMatrix calculateTrackCovariance(
-    const SquareMatrix3& wMat, const ActsMatrix<nDimVertex, 3>& crossCovVP,
-    const ActsSquareMatrix<nDimVertex>& vtxCov,
-    const BoundVector& newTrkParams) {
+Acts::BoundMatrix calculateTrackCovariance(const SquareMatrix3& wMat,
+                                           const ActsMatrix<3, 3>& crossCovVP,
+                                           const ActsSquareMatrix<3>& vtxCov,
+                                           const BoundVector& newTrkParams) {
   // D_k^n
   ActsSquareMatrix<3> momCov =
       wMat + crossCovVP.transpose() * vtxCov.inverse() * crossCovVP;
@@ -187,7 +177,7 @@ Acts::BoundMatrix calculateTrackCovariance(
   // that we call this set of parameters "free" in the following even though
   // that is not quite correct (free parameters correspond to
   // x, y, z, t, px, py, pz)
-  constexpr unsigned int nFreeParams = nDimVertex + 3;
+  constexpr unsigned int nFreeParams = 3 + 3;
   ActsSquareMatrix<nFreeParams> freeTrkCov(
       ActsSquareMatrix<nFreeParams>::Zero());
 
@@ -209,7 +199,7 @@ Acts::BoundMatrix calculateTrackCovariance(
   }
 
   // Jacobian relating "free" and bound track parameters
-  constexpr unsigned int nBoundParams = nDimVertex + 2;
+  constexpr unsigned int nBoundParams = 3 + 2;
   ActsMatrix<nBoundParams, nFreeParams> freeToBoundJac(
       ActsMatrix<nBoundParams, nFreeParams>::Zero());
 
@@ -237,18 +227,11 @@ Acts::BoundMatrix calculateTrackCovariance(
   return boundTrackCov;
 }
 
-template <unsigned int nDimVertex>
 void updateVertexWithTrackImpl(Vertex& vtx, TrackAtVertex& trk, int sign) {
-  if constexpr (nDimVertex != 3 && nDimVertex != 4) {
-    throw std::invalid_argument(
-        "The vertex dimension must either be 3 (when fitting the spatial "
-        "coordinates) or 4 (when fitting the spatial coordinates + time).");
-  }
-
   double trackWeight = trk.trackWeight;
 
   // Set up cache where entire content is set to 0
-  Cache<nDimVertex> cache;
+  Cache cache;
 
   // Calculate update and save result in cache
   calculateUpdate(vtx, trk.linearizedState, trackWeight, sign, cache);
@@ -260,7 +243,7 @@ void updateVertexWithTrackImpl(Vertex& vtx, TrackAtVertex& trk, int sign) {
   double trkChi2 = trackParametersChi2(trk.linearizedState, cache);
 
   // Update of the chi2 of the vertex position
-  double vtxPosChi2Update = vertexPositionChi2Update(vtx.fullPosition(), cache);
+  double vtxPosChi2Update = vertexPositionChi2Update(vtx.position(), cache);
 
   // Calculate new chi2
   chi2 += sign * (vtxPosChi2Update + trackWeight * trkChi2);
@@ -269,14 +252,8 @@ void updateVertexWithTrackImpl(Vertex& vtx, TrackAtVertex& trk, int sign) {
   ndf += sign * trackWeight * 2.;
 
   // Updating the vertex
-  if constexpr (nDimVertex == 3) {
-    vtx.fullPosition().head<3>() = cache.newVertexPos.template head<3>();
-    vtx.fullCovariance().template topLeftCorner<3, 3>() =
-        cache.newVertexCov.template topLeftCorner<3, 3>();
-  } else if constexpr (nDimVertex == 4) {
-    vtx.fullPosition() = cache.newVertexPos;
-    vtx.fullCovariance() = cache.newVertexCov;
-  }
+  vtx.position() = cache.newVertexPos;
+  vtx.covariance() = cache.newVertexCov;
   vtx.setFitQuality(chi2, ndf);
 
   if (sign == 1) {
@@ -293,17 +270,10 @@ void updateVertexWithTrackImpl(Vertex& vtx, TrackAtVertex& trk, int sign) {
   }
 }
 
-template <unsigned int nDimVertex>
 void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx) {
-  if constexpr (nDimVertex != 3 && nDimVertex != 4) {
-    throw std::invalid_argument(
-        "The vertex dimension must either be 3 (when fitting the spatial "
-        "coordinates) or 4 (when fitting the spatial coordinates + time).");
-  }
-
-  using VertexVector = ActsVector<nDimVertex>;
-  using VertexMatrix = ActsSquareMatrix<nDimVertex>;
-  constexpr unsigned int nBoundParams = nDimVertex + 2;
+  using VertexVector = ActsVector<3>;
+  using VertexMatrix = ActsSquareMatrix<3>;
+  constexpr unsigned int nBoundParams = 3 + 2;
   using ParameterVector = ActsVector<nBoundParams>;
   using ParameterMatrix = ActsSquareMatrix<nBoundParams>;
   // Check if linearized state exists
@@ -313,18 +283,17 @@ void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx) {
 
   // Extract vertex position and covariance
   // \tilde{x_n}
-  const VertexVector vtxPos = vtx.fullPosition().template head<nDimVertex>();
+  const VertexVector vtxPos = vtx.position();
   // C_n
-  const VertexMatrix vtxCov =
-      vtx.fullCovariance().template block<nDimVertex, nDimVertex>(0, 0);
+  const VertexMatrix vtxCov = vtx.covariance();
 
   // Get the linearized track
   const LinearizedTrack& linTrack = track.linearizedState;
   // Retrieve variables from the track linearization. The comments indicate the
   // corresponding symbol used in Ref. (1).
   // A_k
-  const ActsMatrix<nBoundParams, nDimVertex> posJac =
-      linTrack.positionJacobian.block<nBoundParams, nDimVertex>(0, 0);
+  const ActsMatrix<nBoundParams, 3> posJac =
+      linTrack.positionJacobian.block<nBoundParams, 3>(0, 0);
   // B_k
   const ActsMatrix<nBoundParams, 3> momJac =
       linTrack.momentumJacobian.block<nBoundParams, 3>(0, 0);
@@ -341,7 +310,7 @@ void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx) {
           .inverse();
 
   // Cache object filled with zeros
-  Cache<nDimVertex> cache;
+  Cache cache;
 
   // Calculate the update of the vertex position when the track is removed. This
   // might be unintuitive, but it is needed to compute a symmetric chi2.
@@ -363,12 +332,11 @@ void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx) {
   newTrkParams(BoundIndices::eBoundQOverP) = newTrkMomentum(2);        // qOverP
 
   // E_k^n
-  const ActsMatrix<nDimVertex, 3> crossCovVP =
+  const ActsMatrix<3, 3> crossCovVP =
       -vtxCov * posJac.transpose() * trkParamWeight * momJac * cache.wMat;
 
   // Difference in positions. cache.newVertexPos corresponds to \tilde{x_k^{n*}} in Ref. (1).
-  VertexVector posDiff =
-      vtxPos - cache.newVertexPos.template head<nDimVertex>();
+  VertexVector posDiff = vtxPos - cache.newVertexPos;
 
   // r_k^n
   ParameterVector paramDiff =
@@ -376,17 +344,15 @@ void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx) {
 
   // New chi2 to be set later
   double chi2 =
-      posDiff.dot(
-          cache.newVertexWeight.template block<nDimVertex, nDimVertex>(0, 0) *
-          posDiff) +
+      posDiff.dot(cache.newVertexWeight.template block<3, 3>(0, 0) * posDiff) +
       paramDiff.dot(trkParamWeight * paramDiff);
 
-  Acts::BoundMatrix newTrackCov = calculateTrackCovariance<nDimVertex>(
-      cache.wMat, crossCovVP, vtxCov, newTrkParams);
+  Acts::BoundMatrix newTrackCov =
+      calculateTrackCovariance(cache.wMat, crossCovVP, vtxCov, newTrkParams);
 
   // Create new refitted parameters
   std::shared_ptr<PerigeeSurface> perigeeSurface =
-      Surface::makeShared<PerigeeSurface>(vtxPos.template head<3>());
+      Surface::makeShared<PerigeeSurface>(vtxPos);
 
   BoundTrackParameters refittedPerigee =
       BoundTrackParameters(perigeeSurface, newTrkParams, std::move(newTrackCov),

@@ -87,15 +87,14 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointReader::read(
                                              data.sp_topStripCenterPosition[2]);
 
         // TODO time
-        spacePoints.emplace_back(
-            globalPos, std::nullopt, data.sp_covr, data.sp_covz, std::nullopt,
-            sLinks, data.sp_topHalfStripLength, data.sp_bottomHalfStripLength,
-            topStripDirection, bottomStripDirection, stripCenterDistance,
-            topStripCenterPosition);
+        spacePoints.emplace_back(globalPos, data.sp_covr, data.sp_covz, sLinks,
+                                 data.sp_topHalfStripLength,
+                                 data.sp_bottomHalfStripLength,
+                                 topStripDirection, bottomStripDirection,
+                                 stripCenterDistance, topStripCenterPosition);
       } else {
         // TODO time
-        spacePoints.emplace_back(globalPos, std::nullopt, data.sp_covr,
-                                 data.sp_covz, std::nullopt, sLinks);
+        spacePoints.emplace_back(globalPos, data.sp_covr, data.sp_covz, sLinks);
       }
     } else {
       ACTS_ERROR("Invalid space point type " << m_cfg.inputStem);

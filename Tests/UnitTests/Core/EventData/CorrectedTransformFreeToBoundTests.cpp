@@ -52,7 +52,6 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   const auto resPhi = 0.25;
   const auto resTheta = 0.25;
   const auto resQOverP = 0.01 / 1_GeV;
-  const auto resTime = 0.01_ns;
 
   // construct two parallel plane surfaces with normal in x direction
   double distance = 10_mm;
@@ -70,7 +69,6 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   sBoundCov(eBoundPhi, eBoundPhi) = resPhi * resPhi;
   sBoundCov(eBoundTheta, eBoundTheta) = resTheta * resTheta;
   sBoundCov(eBoundQOverP, eBoundQOverP) = resQOverP * resQOverP;
-  sBoundCov(eBoundTime, eBoundTime) = resTime * resTime;
 
   Vector3 dir = makeDirectionFromPhiTheta(phi, theta);
 
@@ -87,7 +85,6 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   // construct the free parameters vector
   FreeVector eFreeParams = FreeVector::Zero();
   eFreeParams.segment<3>(eFreePos0) = tpos;
-  eFreeParams[eFreeTime] = t;
   eFreeParams.segment<3>(eFreeDir0) = dir;
   eFreeParams[eFreeQOverP] = qOverP;
 

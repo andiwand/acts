@@ -38,7 +38,7 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::fit(
       // Store old position of vertex, i.e. seed position
       // in case of first iteration or position determined
       // in previous iteration afterwards
-      vtxInfo.oldPosition = vtx->fullPosition();
+      vtxInfo.oldPosition = vtx->position();
 
       // Calculate the x-y-distance between the current vertex position
       // and the linearization point of the tracks. If it is too large,
@@ -63,13 +63,13 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::fit(
       }
 
       // Check if we use the constraint during the vertex fit
-      if (state.vtxInfoMap[vtx].constraint.fullCovariance() !=
-          SquareMatrix4::Zero()) {
+      if (state.vtxInfoMap[vtx].constraint.covariance() !=
+          SquareMatrix3::Zero()) {
         const Acts::Vertex& constraint = state.vtxInfoMap[vtx].constraint;
-        vtx->setFullPosition(constraint.fullPosition());
+        vtx->setPosition(constraint.position());
         vtx->setFitQuality(constraint.fitQuality());
-        vtx->setFullCovariance(constraint.fullCovariance());
-      } else if (vtx->fullCovariance() == SquareMatrix4::Zero()) {
+        vtx->setCovariance(constraint.covariance());
+      } else if (vtx->covariance() == SquareMatrix3::Zero()) {
         return VertexingError::NoCovariance;
       }
 
@@ -198,7 +198,7 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::prepareVertexForFit(
   // Vertex info object
   auto& vtxInfo = state.vtxInfoMap[vtx];
   // Vertex seed position
-  const Vector3& seedPos = vtxInfo.seedPosition.template head<3>();
+  const Vector3& seedPos = vtxInfo.seedPosition;
 
   // Loop over all tracks at the vertex
   for (const auto& trk : vtxInfo.trackLinks) {
@@ -227,8 +227,7 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::setAllVertexCompatibilities(
     if (!vtxInfo.impactParams3D.contains(trk)) {
       auto res = m_cfg.ipEst.estimate3DImpactParameters(
           vertexingOptions.geoContext, vertexingOptions.magFieldContext,
-          m_cfg.extractParameters(trk),
-          VectorHelpers::position(vtxInfo.linPoint), state.ipState);
+          m_cfg.extractParameters(trk), vtxInfo.linPoint, state.ipState);
       if (!res.ok()) {
         return res.error();
       }
@@ -242,8 +241,7 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::setAllVertexCompatibilities(
           vertexingOptions.geoContext, &(vtxInfo.impactParams3D.at(trk)),
           vtxInfo.oldPosition);
     } else {
-      Acts::Vector3 vertexPosOnly =
-          VectorHelpers::position(vtxInfo.oldPosition);
+      Acts::Vector3 vertexPosOnly = vtxInfo.oldPosition;
       compatibilityResult = m_cfg.ipEst.getVertexCompatibility(
           vertexingOptions.geoContext, &(vtxInfo.impactParams3D.at(trk)),
           vertexPosOnly);
@@ -267,8 +265,7 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::setWeightsAndUpdate(
     }
 
     const std::shared_ptr<PerigeeSurface> vtxPerigeeSurface =
-        Surface::makeShared<PerigeeSurface>(
-            VectorHelpers::position(vtxInfo.linPoint));
+        Surface::makeShared<PerigeeSurface>(vtxInfo.linPoint);
 
     for (const auto& trk : vtxInfo.trackLinks) {
       auto& trkAtVtx = state.tracksAtVerticesMap.at(std::make_pair(trk, vtx));
@@ -283,9 +280,9 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::setWeightsAndUpdate(
         // relinearize
         if (!trkAtVtx.isLinearized || vtxInfo.relinearize) {
           auto result = m_cfg.trackLinearizer(
-              m_cfg.extractParameters(trk), vtxInfo.linPoint[3],
-              *vtxPerigeeSurface, vertexingOptions.geoContext,
-              vertexingOptions.magFieldContext, state.fieldCache);
+              m_cfg.extractParameters(trk), *vtxPerigeeSurface,
+              vertexingOptions.geoContext, vertexingOptions.magFieldContext,
+              state.fieldCache);
           if (!result.ok()) {
             return result.error();
           }
@@ -293,17 +290,12 @@ Acts::Result<void> Acts::AdaptiveMultiVertexFitter::setWeightsAndUpdate(
           trkAtVtx.linearizedState = *result;
           trkAtVtx.isLinearized = true;
         }
-        // Update the vertex with the new track. The second template
-        // argument corresponds to the number of fitted vertex dimensions
-        // (i.e., 3 if we only fit spatial coordinates and 4 if we also fit
-        // time).
-        KalmanVertexUpdater::updateVertexWithTrack(*vtx, trkAtVtx,
-                                                   m_cfg.useTime ? 4 : 3);
+        KalmanVertexUpdater::updateVertexWithTrack(*vtx, trkAtVtx);
       } else {
         ACTS_VERBOSE("Track weight too low. Skip track.");
       }
     }  // End loop over tracks at vertex
-    ACTS_VERBOSE("New vertex position: " << vtx->fullPosition().transpose());
+    ACTS_VERBOSE("New vertex position: " << vtx->position().transpose());
   }  // End loop over vertex collection
 
   return {};
@@ -335,8 +327,7 @@ Acts::AdaptiveMultiVertexFitter::collectTrackToVertexCompatibilities(
 
 bool Acts::AdaptiveMultiVertexFitter::checkSmallShift(State& state) const {
   for (auto* vtx : state.vertexCollection) {
-    Vector3 diff =
-        state.vtxInfoMap[vtx].oldPosition.template head<3>() - vtx->position();
+    Vector3 diff = state.vtxInfoMap[vtx].oldPosition - vtx->position();
     const SquareMatrix3& vtxCov = vtx->covariance();
     double relativeShift = diff.dot(vtxCov.inverse() * diff);
     if (relativeShift > m_cfg.maxRelativeShift) {
@@ -351,12 +342,7 @@ void Acts::AdaptiveMultiVertexFitter::doVertexSmoothing(State& state) const {
     for (const auto& trk : state.vtxInfoMap[vtx].trackLinks) {
       auto& trkAtVtx = state.tracksAtVerticesMap.at(std::make_pair(trk, vtx));
       if (trkAtVtx.trackWeight > m_cfg.minWeight) {
-        // Update the new track under the assumption that it originates at the
-        // vertex. The second template argument corresponds to the number of
-        // fitted vertex dimensions (i.e., 3 if we only fit spatial coordinates
-        // and 4 if we also fit time).
-        KalmanVertexUpdater::updateTrackWithVertex(trkAtVtx, *vtx,
-                                                   m_cfg.useTime ? 4 : 3);
+        KalmanVertexUpdater::updateTrackWithVertex(trkAtVtx, *vtx);
       }
     }
   }

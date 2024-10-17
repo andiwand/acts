@@ -38,9 +38,9 @@ inline Acts::CurvilinearTrackParameters makeParametersCurvilinear(
     phi = 0;
   }
 
-  Vector4 pos4 = Vector4::Zero();
+  Vector3 pos = Vector3::Zero();
   auto particleHypothesis = ParticleHypothesis::pionLike(std::abs(charge));
-  return CurvilinearTrackParameters(pos4, phi, theta,
+  return CurvilinearTrackParameters(pos, phi, theta,
                                     particleHypothesis.qOverP(absMom, charge),
                                     std::nullopt, particleHypothesis);
 }
@@ -61,7 +61,6 @@ inline Acts::CurvilinearTrackParameters makeParametersCurvilinearWithCovariance(
   // TODO use momentum-dependent resolutions
   stddev[eBoundLoc0] = 15_um;
   stddev[eBoundLoc1] = 80_um;
-  stddev[eBoundTime] = 25_ns;
   stddev[eBoundPhi] = 1_degree;
   stddev[eBoundTheta] = 1.5_degree;
   stddev[eBoundQOverP] = 1_e / 10_GeV;
@@ -69,15 +68,14 @@ inline Acts::CurvilinearTrackParameters makeParametersCurvilinearWithCovariance(
   corr(eBoundLoc0, eBoundLoc1) = corr(eBoundLoc1, eBoundLoc0) = 0.125;
   corr(eBoundLoc0, eBoundPhi) = corr(eBoundPhi, eBoundLoc0) = 0.25;
   corr(eBoundLoc1, eBoundTheta) = corr(eBoundTheta, eBoundLoc1) = -0.25;
-  corr(eBoundTime, eBoundQOverP) = corr(eBoundQOverP, eBoundTime) = 0.125;
   corr(eBoundPhi, eBoundTheta) = corr(eBoundTheta, eBoundPhi) = -0.25;
   corr(eBoundPhi, eBoundQOverP) = corr(eBoundPhi, eBoundQOverP) = -0.125;
   corr(eBoundTheta, eBoundQOverP) = corr(eBoundTheta, eBoundQOverP) = 0.5;
   BoundSquareMatrix cov = stddev.asDiagonal() * corr * stddev.asDiagonal();
 
-  Vector4 pos4 = Vector4::Zero();
+  Vector3 pos = Vector3::Zero();
   auto particleHypothesis = ParticleHypothesis::pionLike(std::abs(charge));
-  return CurvilinearTrackParameters(pos4, phi, theta,
+  return CurvilinearTrackParameters(pos, phi, theta,
                                     particleHypothesis.qOverP(absMom, charge),
                                     cov, particleHypothesis);
 }
@@ -94,8 +92,8 @@ inline Acts::CurvilinearTrackParameters makeParametersCurvilinearNeutral(
     phi = 0;
   }
 
-  Vector4 pos4 = Vector4::Zero();
-  return CurvilinearTrackParameters(pos4, phi, theta, 1 / absMom, std::nullopt,
+  Vector3 pos = Vector3::Zero();
+  return CurvilinearTrackParameters(pos, phi, theta, 1 / absMom, std::nullopt,
                                     ParticleHypothesis::pion0());
 }
 
@@ -116,8 +114,6 @@ inline void checkParametersConsistency(const Acts::BoundTrackParameters& cmp,
                   ref.template get<eBoundLoc0>(), epsPos);
   CHECK_CLOSE_ABS(cmp.template get<eBoundLoc1>(),
                   ref.template get<eBoundLoc1>(), epsPos);
-  CHECK_CLOSE_ABS(cmp.template get<eBoundTime>(),
-                  ref.template get<eBoundTime>(), epsPos);
   // check phi equivalence with circularity
   CHECK_SMALL(detail::radian_sym(cmp.template get<eBoundPhi>() -
                                  ref.template get<eBoundPhi>()),
@@ -128,7 +124,6 @@ inline void checkParametersConsistency(const Acts::BoundTrackParameters& cmp,
                   ref.template get<eBoundQOverP>(), epsMom);
   // check derived parameters
   CHECK_CLOSE_ABS(cmp.position(geoCtx), ref.position(geoCtx), epsPos);
-  CHECK_CLOSE_ABS(cmp.time(), ref.time(), epsPos);
   CHECK_CLOSE_ABS(cmp.direction(), ref.direction(), epsDir);
   CHECK_CLOSE_ABS(cmp.absoluteMomentum(), ref.absoluteMomentum(), epsMom);
   // charge should be identical not just similar
@@ -337,7 +332,6 @@ inline void runToSurfaceTest(
   // check that the to-surface propagation matches the defining free parameters
   CHECK_CLOSE_ABS(surfParams.position(geoCtx), freeParams.position(geoCtx),
                   epsPos);
-  CHECK_CLOSE_ABS(surfParams.time(), freeParams.time(), epsPos);
   CHECK_CLOSE_ABS(surfParams.direction(), freeParams.direction(), epsDir);
   CHECK_CLOSE_ABS(surfParams.absoluteMomentum(), freeParams.absoluteMomentum(),
                   epsMom);

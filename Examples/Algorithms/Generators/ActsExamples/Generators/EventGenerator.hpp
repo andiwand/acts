@@ -64,7 +64,7 @@ class EventGenerator final : public ActsExamples::IReader {
     ///
     /// @param rng Shared random number generator instance
     /// @return Acts::Vector4 The vertex position
-    virtual Acts::Vector4 operator()(RandomEngine& rng) const = 0;
+    virtual Acts::Vector3 operator()(RandomEngine& rng) const = 0;
   };
 
   /// @brief Generator interface for vertices and particles

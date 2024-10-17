@@ -150,11 +150,10 @@ ProcessCode RootSimHitReader::read(const AlgorithmContext& context) {
     const SimBarcode pid = m_uint64Columns.at("particle_id");
     const auto index = m_int32Columns.at("index");
 
-    const Acts::Vector4 pos4 = {
+    const Acts::Vector3 pos = {
         m_floatColumns.at("tx") * Acts::UnitConstants::mm,
         m_floatColumns.at("ty") * Acts::UnitConstants::mm,
         m_floatColumns.at("tz") * Acts::UnitConstants::mm,
-        m_floatColumns.at("tt") * Acts::UnitConstants::mm,
     };
 
     const Acts::Vector4 before4 = {
@@ -171,7 +170,7 @@ ProcessCode RootSimHitReader::read(const AlgorithmContext& context) {
         m_floatColumns.at("deltae") * Acts::UnitConstants::GeV,
     };
 
-    SimHit hit(geoid, pid, pos4, before4, before4 + delta, index);
+    SimHit hit(geoid, pid, pos, before4, before4 + delta, index);
 
     hits.insert(hit);
   }

@@ -51,7 +51,6 @@ struct Fixture {
         pid(ActsFatras::Barcode().setVertexPrimary(12).setParticle(23)),
         surface(std::move(surf)) {
     using namespace Acts::UnitLiterals;
-    using Acts::VectorHelpers::makeVector4;
 
     surface->assignGeometryId(gid);
 
@@ -64,9 +63,8 @@ struct Fixture {
         Acts::transformBoundToFreeParameters(*surface, geoCtx, boundParams);
 
     // construct hit from free parameters
-    Acts::Vector4 r4;
-    r4.segment<3>(Acts::ePos0) = freeParams.segment<3>(Acts::eFreePos0);
-    r4[Acts::eTime] = freeParams[Acts::eFreeTime];
+    Acts::Vector3 r;
+    r = freeParams.segment<3>(Acts::eFreePos0);
     // construct 4-momentum vector assuming m=0
     Acts::Vector4 p4;
     p4.segment<3>(Acts::eMom0) =
@@ -74,7 +72,7 @@ struct Fixture {
     p4[Acts::eEnergy] = 1;
     p4 *= std::abs(1_e / freeParams[Acts::eFreeQOverP]);
     // same 4-momentum before/after hit
-    hit = ActsFatras::Hit(gid, pid, r4, p4, p4, 13);
+    hit = ActsFatras::Hit(gid, pid, r, p4, p4, 13);
   }
 };
 }  // namespace

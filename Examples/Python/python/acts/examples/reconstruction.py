@@ -122,7 +122,6 @@ TrackSelectorConfig = namedtuple(
     [
         "loc0",
         "loc1",
-        "time",
         "eta",
         "absEta",
         "pt",
@@ -136,7 +135,7 @@ TrackSelectorConfig = namedtuple(
         "nMeasurementsGroupMin",
         "requireReferenceSurface",
     ],
-    defaults=[(None, None)] * 7 + [None] * 8,
+    defaults=[(None, None)] * 6 + [None] * 8,
 )
 
 
@@ -1408,7 +1407,7 @@ def addCKFTracks(
         the output folder for the Csv output, None triggers no output
     outputDirRoot : Path|str, path, None
         the output folder for the Root output, None triggers no output
-    trackSelectorConfig : TrackSelectorConfig(loc0, loc1, time, eta, absEta, pt, phi, minMeasurements)
+    trackSelectorConfig : TrackSelectorConfig(loc0, loc1, eta, absEta, pt, phi, minMeasurements)
         TrackSelector configuration. Each range is specified as a tuple of (min,max).
         Specify as a list(TrackSelectorConfig) for eta-dependent cuts, with binning specified by absEta[1].
         Defaults of no cuts specified in Examples/Algorithms/TruthTracking/ActsExamples/TruthTracking/TrackSelector.hpp
@@ -2061,7 +2060,6 @@ def addVertexFitting(
     vertexFinder: VertexFinder = VertexFinder.Truth,
     maxIterations: Optional[int] = None,
     initialVariances: Optional[List[float]] = None,
-    useTime: Optional[bool] = False,
     seeder: Optional[acts.VertexSeedFinder] = acts.VertexSeedFinder.GaussianSeeder,
     spatialBinExtent: Optional[float] = None,
     temporalBinExtent: Optional[float] = None,
@@ -2084,10 +2082,6 @@ def addVertexFitting(
     seeder : enum member
         determines vertex seeder for AMVF, can be acts.seeder.GaussianSeeder or
         acts.seeder.AdaptiveGridSeeder
-    useTime : bool, False
-        determines whether time information is used in vertex seeder, finder,
-        and fitter
-        only implemented for the AMVF and the AdaptiveGridSeeder
     spatialBinExtent : float, None
         spatial bin extent for the AdaptiveGridSeeder
     temporalBinExtent : float, None
@@ -2169,7 +2163,6 @@ def addVertexFitting(
             **acts.examples.defaultKWArgs(
                 maxIterations=maxIterations,
                 initialVariances=initialVariances,
-                useTime=useTime,
                 spatialBinExtent=spatialBinExtent,
                 temporalBinExtent=temporalBinExtent,
             ),

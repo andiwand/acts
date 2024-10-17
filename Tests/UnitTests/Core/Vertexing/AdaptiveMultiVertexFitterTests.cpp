@@ -52,8 +52,6 @@ using namespace Acts::UnitLiterals;
 
 namespace Acts::Test {
 
-using Acts::VectorHelpers::makeVector4;
-
 // Set up logger
 ACTS_LOCAL_LOGGER(Acts::getDefaultLogger("AMVFitterTests", Acts::Logging::INFO))
 
@@ -151,8 +149,8 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test) {
   for (auto& vtxPos : vtxPosVec) {
     Vertex vtx(vtxPos);
     // Set some vertex covariance
-    SquareMatrix4 posCovariance(SquareMatrix4::Identity());
-    vtx.setFullCovariance(posCovariance);
+    SquareMatrix3 posCovariance(SquareMatrix3::Identity());
+    vtx.setCovariance(posCovariance);
     // Add to vertex list
     vtxList.push_back(vtx);
   }
@@ -275,44 +273,40 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test) {
   ACTS_DEBUG("Vertex positions after fit of vertex 1 and 2:");
   for (std::size_t vtxIter = 0; vtxIter < 3; vtxIter++) {
     ACTS_DEBUG("Vtx " << vtxIter + 1 << ", seed position:\n "
-                      << seedListCopy.at(vtxIter).fullPosition()
+                      << seedListCopy.at(vtxIter).position()
                       << "\nFitted position:\n "
-                      << vtxList.at(vtxIter).fullPosition());
+                      << vtxList.at(vtxIter).position());
   }
 
   // After fit of first vertex, only first and second vertex seed
   // should have been modified while third vertex should remain untouched
-  BOOST_CHECK_NE(vtxList.at(0).fullPosition(),
-                 seedListCopy.at(0).fullPosition());
-  BOOST_CHECK_NE(vtxList.at(1).fullPosition(),
-                 seedListCopy.at(1).fullPosition());
-  BOOST_CHECK_EQUAL(vtxList.at(2).fullPosition(),
-                    seedListCopy.at(2).fullPosition());
+  BOOST_CHECK_NE(vtxList.at(0).position(), seedListCopy.at(0).position());
+  BOOST_CHECK_NE(vtxList.at(1).position(), seedListCopy.at(1).position());
+  BOOST_CHECK_EQUAL(vtxList.at(2).position(), seedListCopy.at(2).position());
 
-  CHECK_CLOSE_ABS(vtxList.at(0).fullPosition(),
-                  seedListCopy.at(0).fullPosition(), 1_mm);
-  CHECK_CLOSE_ABS(vtxList.at(1).fullPosition(),
-                  seedListCopy.at(1).fullPosition(), 1_mm);
+  CHECK_CLOSE_ABS(vtxList.at(0).position(), seedListCopy.at(0).position(),
+                  1_mm);
+  CHECK_CLOSE_ABS(vtxList.at(1).position(), seedListCopy.at(1).position(),
+                  1_mm);
 
   auto res2 = fitter.addVtxToFit(state, vtxList.at(2), vertexingOptions);
   BOOST_CHECK(res2.ok());
 
   // Now also the third vertex should have been modified and fitted
-  BOOST_CHECK_NE(vtxList.at(2).fullPosition(),
-                 seedListCopy.at(2).fullPosition());
-  CHECK_CLOSE_ABS(vtxList.at(2).fullPosition(),
-                  seedListCopy.at(2).fullPosition(), 1_mm);
+  BOOST_CHECK_NE(vtxList.at(2).position(), seedListCopy.at(2).position());
+  CHECK_CLOSE_ABS(vtxList.at(2).position(), seedListCopy.at(2).position(),
+                  1_mm);
 
   ACTS_DEBUG("Vertex positions after fit of vertex 3:");
-  ACTS_DEBUG("Vtx 1, seed position:\n " << seedListCopy.at(0).fullPosition()
+  ACTS_DEBUG("Vtx 1, seed position:\n " << seedListCopy.at(0).position()
                                         << "\nFitted position:\n "
-                                        << vtxList.at(0).fullPosition());
-  ACTS_DEBUG("Vtx 2, seed position:\n " << seedListCopy.at(1).fullPosition()
+                                        << vtxList.at(0).position());
+  ACTS_DEBUG("Vtx 2, seed position:\n " << seedListCopy.at(1).position()
                                         << "\nFitted position:\n "
-                                        << vtxList.at(1).fullPosition());
-  ACTS_DEBUG("Vtx 3, seed position:\n " << seedListCopy.at(2).fullPosition()
+                                        << vtxList.at(1).position());
+  ACTS_DEBUG("Vtx 3, seed position:\n " << seedListCopy.at(2).position()
                                         << "\nFitted position:\n "
-                                        << vtxList.at(2).fullPosition());
+                                        << vtxList.at(2).position());
 }
 
 /// @brief Unit test for fitting a 4D vertex position
@@ -358,12 +352,12 @@ BOOST_AUTO_TEST_CASE(time_fitting) {
   Vector3 trueVtxPos(-0.15_mm, -0.1_mm, -1.5_mm);
 
   // Seed position of the vertex
-  Vector4 vtxSeedPos(0.0_mm, 0.0_mm, -1.4_mm, 0.0_ps);
+  Vector3 vtxSeedPos(0.0_mm, 0.0_mm, -1.4_mm);
 
   Vertex vtx(vtxSeedPos);
   // Set initial covariance matrix to a large value
-  SquareMatrix4 initialCovariance(SquareMatrix4::Identity() * 1e+8);
-  vtx.setFullCovariance(initialCovariance);
+  SquareMatrix3 initialCovariance(SquareMatrix3::Identity() * 1e+8);
+  vtx.setCovariance(initialCovariance);
 
   // Vector of all tracks
   std::vector<BoundTrackParameters> trks;
@@ -433,15 +427,13 @@ BOOST_AUTO_TEST_CASE(time_fitting) {
   ACTS_DEBUG("Fitted vertex position: " << vtx.position().transpose());
 
   ACTS_DEBUG("Truth vertex time:  " << trueVtxTime);
-  ACTS_DEBUG("Fitted vertex time: " << vtx.time());
 
   // Check that true vertex position and time approximately recovered
   CHECK_CLOSE_ABS(trueVtxPos, vtx.position(), 60_um);
-  CHECK_CLOSE_ABS(trueVtxTime, vtx.time(), 2_ps);
 
-  const SquareMatrix4& vtxCov = vtx.fullCovariance();
+  const SquareMatrix3& vtxCov = vtx.covariance();
 
-  ACTS_DEBUG("Vertex 4D covariance after the fit:\n" << vtxCov);
+  ACTS_DEBUG("Vertex 3D covariance after the fit:\n" << vtxCov);
 
   // Check that variances of the vertex position/time are positive
   for (std::size_t i = 0; i <= 3; i++) {
@@ -449,7 +441,7 @@ BOOST_AUTO_TEST_CASE(time_fitting) {
   }
 
   // Check that the covariance matrix is approximately symmetric
-  CHECK_CLOSE_ABS(vtxCov - vtxCov.transpose(), SquareMatrix4::Zero(), 1e-5);
+  CHECK_CLOSE_ABS(vtxCov - vtxCov.transpose(), SquareMatrix3::Zero(), 1e-5);
 }
 
 /// @brief Unit test for AdaptiveMultiVertexFitter
@@ -518,34 +510,34 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test_athena) {
 
   std::vector<BoundTrackParameters> params1 = {
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1a),
-                                   geoContext, makeVector4(pos1a, 0),
-                                   mom1a.normalized(), 1_e / mom1a.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1a, mom1a.normalized(),
+                                   1_e / mom1a.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1b),
-                                   geoContext, makeVector4(pos1b, 0),
-                                   mom1b.normalized(), -1_e / mom1b.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1b, mom1b.normalized(),
+                                   -1_e / mom1b.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1c),
-                                   geoContext, makeVector4(pos1c, 0),
-                                   mom1c.normalized(), 1_e / mom1c.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1c, mom1c.normalized(),
+                                   1_e / mom1c.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1d),
-                                   geoContext, makeVector4(pos1d, 0),
-                                   mom1d.normalized(), -1_e / mom1d.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1d, mom1d.normalized(),
+                                   -1_e / mom1d.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1e),
-                                   geoContext, makeVector4(pos1e, 0),
-                                   mom1e.normalized(), 1_e / mom1e.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1e, mom1e.normalized(),
+                                   1_e / mom1e.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos1f),
-                                   geoContext, makeVector4(pos1f, 0),
-                                   mom1f.normalized(), -1_e / mom1f.norm(),
-                                   covMat1, ParticleHypothesis::pion())
+                                   geoContext, pos1f, mom1f.normalized(),
+                                   -1_e / mom1f.norm(), covMat1,
+                                   ParticleHypothesis::pion())
           .value(),
   };
 
@@ -562,28 +554,27 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test_athena) {
 
   std::vector<BoundTrackParameters> params2 = {
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos2a),
-                                   geoContext, makeVector4(pos2a, 0),
-                                   mom2a.normalized(), 1_e / mom2a.norm(),
-                                   covMat2, ParticleHypothesis::pion())
+                                   geoContext, pos2a, mom2a.normalized(),
+                                   1_e / mom2a.norm(), covMat2,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos2b),
-                                   geoContext, makeVector4(pos2b, 0),
-                                   mom2b.normalized(), -1_e / mom2b.norm(),
-                                   covMat2, ParticleHypothesis::pion())
+                                   geoContext, pos2b, mom2b.normalized(),
+                                   -1_e / mom2b.norm(), covMat2,
+                                   ParticleHypothesis::pion())
           .value(),
       BoundTrackParameters::create(Surface::makeShared<PerigeeSurface>(pos2c),
-                                   geoContext, makeVector4(pos2c, 0),
-                                   mom2c.normalized(), -1_e / mom2c.norm(),
-                                   covMat2, ParticleHypothesis::pion())
+                                   geoContext, pos2c, mom2c.normalized(),
+                                   -1_e / mom2c.norm(), covMat2,
+                                   ParticleHypothesis::pion())
           .value(),
   };
 
   AdaptiveMultiVertexFitter::State state(*bField, magFieldContext);
 
   // The constraint vertex position covariance
-  SquareMatrix4 covConstr(SquareMatrix4::Identity());
+  SquareMatrix3 covConstr(SquareMatrix3::Identity());
   covConstr = covConstr * 1e+8;
-  covConstr(3, 3) = 0.;
 
   // Prepare first vertex
   Vector3 vtxPos1(0.15_mm, 0.15_mm, 2.9_mm);
@@ -594,7 +585,7 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test_athena) {
 
   // The constraint vtx for vtx1
   Vertex vtx1Constr(vtxPos1);
-  vtx1Constr.setFullCovariance(covConstr);
+  vtx1Constr.setCovariance(covConstr);
   vtx1Constr.setFitQuality(0, -3);
 
   // Prepare vtx info for fitter
@@ -621,7 +612,7 @@ BOOST_AUTO_TEST_CASE(adaptive_multi_vertex_fitter_test_athena) {
 
   // The constraint vtx for vtx2
   Vertex vtx2Constr(vtxPos2);
-  vtx2Constr.setFullCovariance(covConstr);
+  vtx2Constr.setCovariance(covConstr);
   vtx2Constr.setFitQuality(0, -3);
 
   // Prepare vtx info for fitter

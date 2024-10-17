@@ -28,7 +28,7 @@ namespace ActsExamples {
 
 struct RootMeasurementWriter::DigitizationTree {
   const std::array<std::string, Acts::eBoundSize> bNames = {
-      "loc0", "loc1", "phi", "theta", "qop", "time"};
+      "loc0", "loc1", "phi", "theta", "qop"};
 
   TTree* tree = nullptr;
 
@@ -128,22 +128,21 @@ struct RootMeasurementWriter::DigitizationTree {
   /// Convenience function to register the truth parameters
   ///
   /// @param lp The true local position
-  /// @param xt The true 4D global position
+  /// @param x The true 3D global position
   /// @param dir The true particle direction
   /// @param angles The incident angles
   /// @param qop The true q/p
-  void fillTruthParameters(const Acts::Vector2& lp, const Acts::Vector4& xt,
+  void fillTruthParameters(const Acts::Vector2& lp, const Acts::Vector3& x,
                            const Acts::Vector3& dir,
                            const std::pair<double, double> angles) {
     trueBound[Acts::eBoundLoc0] = lp[Acts::eBoundLoc0];
     trueBound[Acts::eBoundLoc1] = lp[Acts::eBoundLoc1];
     trueBound[Acts::eBoundPhi] = Acts::VectorHelpers::phi(dir);
     trueBound[Acts::eBoundTheta] = Acts::VectorHelpers::theta(dir);
-    trueBound[Acts::eBoundTime] = xt[Acts::eTime];
 
-    trueGx = xt[Acts::ePos0];
-    trueGy = xt[Acts::ePos1];
-    trueGz = xt[Acts::ePos2];
+    trueGx = x[Acts::ePos0];
+    trueGy = x[Acts::ePos1];
+    trueGz = x[Acts::ePos2];
 
     incidentPhi = angles.first;
     incidentTheta = angles.second;
@@ -232,7 +231,7 @@ RootMeasurementWriter::RootMeasurementWriter(
 
   m_outputFile->cd();
 
-  std::vector bIndices = {Acts::eBoundLoc0, Acts::eBoundLoc1, Acts::eBoundTime};
+  std::vector bIndices = {Acts::eBoundLoc0, Acts::eBoundLoc1};
   m_outputTree =
       std::make_unique<DigitizationTree>("measurements", bIndices, bIndices);
 }
@@ -283,16 +282,14 @@ ProcessCode RootMeasurementWriter::writeT(
     // Find the contributing simulated hits
     auto indices = makeRange(hitSimHitsMap.equal_range(hitIdx));
     // Use average truth in the case of multiple contributing sim hits
-    auto [local, pos4, dir] =
+    auto [local, pos3, dir] =
         averageSimHits(ctx.geoContext, surface, simHits, indices, logger());
     Acts::RotationMatrix3 rot =
-        surface
-            .referenceFrame(ctx.geoContext, pos4.segment<3>(Acts::ePos0), dir)
-            .inverse();
+        surface.referenceFrame(ctx.geoContext, pos3, dir).inverse();
     std::pair<double, double> angles =
         Acts::VectorHelpers::incidentAngles(dir, rot);
 
-    m_outputTree->fillTruthParameters(local, pos4, dir, angles);
+    m_outputTree->fillTruthParameters(local, pos3, dir, angles);
     m_outputTree->fillBoundMeasurement(meas);
     if (clusters != nullptr) {
       const auto& c = (*clusters)[hitIdx];

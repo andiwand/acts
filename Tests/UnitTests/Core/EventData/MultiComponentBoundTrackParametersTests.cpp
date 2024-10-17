@@ -84,8 +84,6 @@ BOOST_AUTO_TEST_CASE(test_accessors) {
     BOOST_CHECK_EQUAL(multi_pars.absoluteMomentum(),
                       single_pars.absoluteMomentum());
     BOOST_CHECK_EQUAL(multi_pars.charge(), single_pars.charge());
-    BOOST_CHECK_EQUAL(multi_pars.fourPosition(GeometryContext{}),
-                      single_pars.fourPosition(GeometryContext{}));
     BOOST_CHECK_EQUAL(multi_pars.momentum(), single_pars.momentum());
     BOOST_CHECK_EQUAL(multi_pars.parameters(), single_pars.parameters());
     BOOST_CHECK_EQUAL(multi_pars.position(GeometryContext{}),

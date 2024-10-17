@@ -50,7 +50,6 @@ enum BoundIndices : unsigned int {
   // having multiple aliases for the same element and for lack of an acceptable
   // common name.
   eBoundQOverP = 4,
-  eBoundTime = 5,
   // Last uninitialized value contains the total number of components
   eBoundSize,
 };
@@ -67,16 +66,14 @@ enum FreeIndices : unsigned int {
   eFreePos0 = 0u,
   eFreePos1 = eFreePos0 + 1u,
   eFreePos2 = eFreePos0 + 2u,
-  // Time
-  eFreeTime = 3u,
   // (Unit) direction
   // The direction components must be stored as one continuous block.
-  eFreeDir0 = 4u,
+  eFreeDir0 = 3u,
   eFreeDir1 = eFreeDir0 + 1u,
   eFreeDir2 = eFreeDir0 + 2u,
   // Global inverse-momentum-like parameter, i.e. q/p or 1/p
   // See BoundIndices for further information
-  eFreeQOverP = 7u,
+  eFreeQOverP = 6u,
   // Last uninitialized value contains the total number of components
   eFreeSize,
 };
@@ -92,8 +89,8 @@ static_assert(std::is_enum_v<BoundIndices>,
 static_assert(std::is_convertible_v<BoundIndices, std::size_t>,
               "'BoundIndices' must be convertible to std::size_t");
 // Only the order can be user-defined
-static_assert(BoundIndices::eBoundSize == 6u,
-              "Bound track parameters must have six components");
+static_assert(BoundIndices::eBoundSize == 5u,
+              "Bound track parameters must have five components");
 
 // Ensure free track parameters definition is valid.
 static_assert(std::is_enum_v<FreeIndices>,
@@ -101,8 +98,8 @@ static_assert(std::is_enum_v<FreeIndices>,
 static_assert(std::is_convertible_v<FreeIndices, std::size_t>,
               "'FreeIndices' must be convertible to std::size_t");
 // Only the order can be user-defined
-static_assert(FreeIndices::eFreeSize == 8u,
-              "Free track parameters must have eight components");
+static_assert(FreeIndices::eFreeSize == 7u,
+              "Free track parameters must have seven components");
 
 // Ensure bound track parameter indices are consistently defined.
 static_assert(eBoundLoc0 != eBoundLoc1, "Local parameters must be different");

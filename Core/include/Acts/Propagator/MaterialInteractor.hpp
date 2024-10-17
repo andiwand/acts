@@ -159,7 +159,6 @@ struct MaterialInteractor {
 
     MaterialInteraction mi;
     mi.position = interaction.pos;
-    mi.time = interaction.time;
     mi.direction = interaction.dir;
     mi.deltaP = interaction.nextP - interaction.momentum;
     mi.sigmaPhi2 = interaction.variancePhi;
@@ -185,7 +184,6 @@ struct MaterialInteractor {
 
     MaterialInteraction mi;
     mi.position = interaction.pos;
-    mi.time = interaction.time;
     mi.direction = interaction.dir;
     mi.surface = nullptr;
     mi.volume = interaction.volume;

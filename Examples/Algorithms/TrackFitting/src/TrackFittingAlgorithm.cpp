@@ -119,8 +119,8 @@ ActsExamples::ProcessCode ActsExamples::TrackFittingAlgorithm::execute(
       continue;
     }
 
-    ACTS_VERBOSE("Initial 4 position: "
-                 << initialParams.fourPosition(ctx.geoContext).transpose());
+    ACTS_VERBOSE("Initial position: "
+                 << initialParams.position(ctx.geoContext).transpose());
     ACTS_VERBOSE(
         "Initial direction: " << initialParams.direction().transpose());
     ACTS_VERBOSE("Initial momentum: " << initialParams.absoluteMomentum());

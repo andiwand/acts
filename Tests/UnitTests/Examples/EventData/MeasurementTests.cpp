@@ -33,7 +33,7 @@ namespace bd = boost::unit_test::data;
 
 namespace {
 constexpr BoundIndices boundIndices[] = {
-    eBoundLoc0, eBoundLoc1, eBoundTime, eBoundPhi, eBoundTheta, eBoundQOverP,
+    eBoundLoc0, eBoundLoc1, eBoundPhi, eBoundTheta, eBoundQOverP,
 };
 constexpr Acts::GeometryIdentifier geoId = 1;
 // fix seed for reproducible tests
@@ -89,8 +89,8 @@ BOOST_AUTO_TEST_CASE(VariableBoundAll) {
 
   FixedBoundMeasurementProxy<eBoundSize> meas =
       container.makeMeasurement<eBoundSize>(geoId);
-  meas.setSubspaceIndices(std::array{eBoundLoc0, eBoundLoc1, eBoundTime,
-                                     eBoundPhi, eBoundTheta, eBoundQOverP});
+  meas.setSubspaceIndices(
+      std::array{eBoundLoc0, eBoundLoc1, eBoundPhi, eBoundTheta, eBoundQOverP});
   meas.parameters() = params;
   meas.covariance() = cov;
 
@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE(VariableBoundAllEmplace) {
   FixedBoundMeasurementProxy<eBoundSize> meas =
       container.emplaceMeasurement<eBoundSize>(
           geoId,
-          std::array{eBoundLoc0, eBoundLoc1, eBoundTime, eBoundPhi, eBoundTheta,
+          std::array{eBoundLoc0, eBoundLoc1, eBoundPhi, eBoundTheta,
                      eBoundQOverP},
           params, cov);
 
@@ -138,7 +138,6 @@ BOOST_AUTO_TEST_CASE(VariableBoundReassign) {
   BOOST_CHECK_EQUAL(meas.size(), 2);
   BOOST_CHECK(!meas.contains(eBoundLoc0));
   BOOST_CHECK(!meas.contains(eBoundLoc1));
-  BOOST_CHECK(!meas.contains(eBoundTime));
   BOOST_CHECK(meas.contains(eBoundPhi));
   BOOST_CHECK(meas.contains(eBoundTheta));
   BOOST_CHECK(!meas.contains(eBoundQOverP));
@@ -147,15 +146,14 @@ BOOST_AUTO_TEST_CASE(VariableBoundReassign) {
   auto [paramsN, covN] = generateParametersCovariance<double, eBoundSize>(rng);
 
   meas = container.makeMeasurement(eBoundSize, geoId);
-  meas.setSubspaceIndices(std::array{eBoundLoc0, eBoundLoc1, eBoundTime,
-                                     eBoundPhi, eBoundTheta, eBoundQOverP});
+  meas.setSubspaceIndices(
+      std::array{eBoundLoc0, eBoundLoc1, eBoundPhi, eBoundTheta, eBoundQOverP});
   meas.parameters() = paramsN;
   meas.covariance() = covN;
 
   BOOST_CHECK_EQUAL(meas.size(), eBoundSize);
   BOOST_CHECK(meas.contains(eBoundLoc0));
   BOOST_CHECK(meas.contains(eBoundLoc1));
-  BOOST_CHECK(meas.contains(eBoundTime));
   BOOST_CHECK(meas.contains(eBoundPhi));
   BOOST_CHECK(meas.contains(eBoundTheta));
   BOOST_CHECK(meas.contains(eBoundQOverP));

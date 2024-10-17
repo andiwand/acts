@@ -41,13 +41,13 @@ class GenericCurvilinearTrackParameters
   /// @param qOverP Charge over momentum
   /// @param cov Curvilinear bound parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
-  GenericCurvilinearTrackParameters(const Vector4& pos4, const Vector3& dir,
+  GenericCurvilinearTrackParameters(const Vector3& pos, const Vector3& dir,
                                     double qOverP,
                                     std::optional<CovarianceMatrix> cov,
                                     ParticleHypothesis particleHypothesis)
-      : Base(CurvilinearSurface(pos4.segment<3>(ePos0), dir).surface(),
-             transformFreeToCurvilinearParameters(pos4[eTime], dir, qOverP),
-             std::move(cov), std::move(particleHypothesis)) {}
+      : Base(CurvilinearSurface(pos, dir).surface(),
+             transformFreeToCurvilinearParameters(dir, qOverP), std::move(cov),
+             std::move(particleHypothesis)) {}
 
   /// Construct from four-position, angles, and qOverP.
   ///
@@ -57,15 +57,13 @@ class GenericCurvilinearTrackParameters
   /// @param qOverP Charge over momentum
   /// @param cov Curvilinear bound parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
-  GenericCurvilinearTrackParameters(const Vector4& pos4, double phi,
+  GenericCurvilinearTrackParameters(const Vector3& pos3, double phi,
                                     double theta, double qOverP,
                                     std::optional<CovarianceMatrix> cov,
                                     ParticleHypothesis particleHypothesis)
-      : Base(CurvilinearSurface(pos4.segment<3>(ePos0),
-                                makeDirectionFromPhiTheta(phi, theta))
+      : Base(CurvilinearSurface(pos3, makeDirectionFromPhiTheta(phi, theta))
                  .surface(),
-             transformFreeToCurvilinearParameters(pos4[eTime], phi, theta,
-                                                  qOverP),
+             transformFreeToCurvilinearParameters(phi, theta, qOverP),
              std::move(cov), std::move(particleHypothesis)) {}
 
   /// Converts a bound track parameter with a different hypothesis.
@@ -99,13 +97,8 @@ class GenericCurvilinearTrackParameters
   GenericCurvilinearTrackParameters& operator=(
       GenericCurvilinearTrackParameters&&) = default;
 
-  using GenericBoundTrackParameters<ParticleHypothesis>::fourPosition;
   using GenericBoundTrackParameters<ParticleHypothesis>::position;
 
-  /// Space-time position four-vector.
-  Vector4 fourPosition() const {
-    return GenericBoundTrackParameters<ParticleHypothesis>::fourPosition({});
-  }
   /// Spatial position three-vector.
   Vector3 position() const {
     return GenericBoundTrackParameters<ParticleHypothesis>::position({});

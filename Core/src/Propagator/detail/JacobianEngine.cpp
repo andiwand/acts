@@ -67,7 +67,7 @@ void detail::boundToCurvilinearTransportJacobian(
 
   // Update the jacobian to include the derivative of the path length at the
   // curvilinear surface w.r.t. the free parameters
-  freeToBoundJacobian.topLeftCorner<6, 3>() +=
+  freeToBoundJacobian.topLeftCorner<5, 3>() +=
       (freeToBoundJacobian * freeToPathDerivatives) *
       (-1.0 * direction).transpose();
 
@@ -109,7 +109,7 @@ FreeToBoundMatrix detail::freeToCurvilinearTransportJacobian(
     const Vector3& direction, const FreeMatrix& freeTransportJacobian,
     const FreeVector& freeToPathDerivatives) {
   auto sfactors = direction.transpose() *
-                  freeTransportJacobian.template topLeftCorner<3, 8>();
+                  freeTransportJacobian.template topLeftCorner<3, 7>();
 
   // Since the jacobian to local needs to calculated for the bound parameters
   // here, it is convenient to do the same here

@@ -95,22 +95,8 @@ class Particle {
     return *this;
   }
   /// Set the space-time position four-vector.
-  Particle &setPosition4(const Acts::Vector4 &pos4) {
-    m_position4 = pos4;
-    return *this;
-  }
-  /// Set the space-time position four-vector from three-position and time.
-  Particle &setPosition4(const Acts::Vector3 &position, double time) {
-    m_position4.segment<3>(Acts::ePos0) = position;
-    m_position4[Acts::eTime] = time;
-    return *this;
-  }
-  /// Set the space-time position four-vector from scalar components.
-  Particle &setPosition4(double x, double y, double z, double time) {
-    m_position4[Acts::ePos0] = x;
-    m_position4[Acts::ePos1] = y;
-    m_position4[Acts::ePos2] = z;
-    m_position4[Acts::eTime] = time;
+  Particle &setPosition(const Acts::Vector3 &pos) {
+    m_position = pos;
     return *this;
   }
   /// Set the direction three-vector
@@ -174,12 +160,8 @@ class Particle {
     return hypothesis().qOverP(absoluteMomentum(), charge());
   }
 
-  /// Space-time position four-vector.
-  const Acts::Vector4 &fourPosition() const { return m_position4; }
-  /// Three-position, i.e. spatial coordinates without the time.
-  auto position() const { return m_position4.segment<3>(Acts::ePos0); }
-  /// Time coordinate.
-  double time() const { return m_position4[Acts::eTime]; }
+  /// Three-position, i.e. spatial coordinates.
+  auto position() const { return m_position; }
   /// Energy-momentum four-vector.
   Acts::Vector4 fourMomentum() const {
     Acts::Vector4 mom4;
@@ -217,16 +199,6 @@ class Particle {
   }
 
   // simulation specific properties
-
-  /// Set the proper time in the particle rest frame.
-  ///
-  /// @param properTime passed proper time in the rest frame
-  Particle &setProperTime(double properTime) {
-    m_properTime = properTime;
-    return *this;
-  }
-  /// Proper time in the particle rest frame.
-  double properTime() const { return m_properTime; }
 
   /// Set the accumulated material measured in radiation/interaction lengths.
   ///
@@ -269,14 +241,14 @@ class Particle {
       return localResult.error();
     }
     Acts::BoundVector params;
-    params << localResult.value(), phi(), theta(), qOverP(), time();
+    params << localResult.value(), phi(), theta(), qOverP();
     return Acts::BoundTrackParameters(referenceSurface()->getSharedPtr(),
                                       params, std::nullopt, hypothesis());
   }
 
   Acts::CurvilinearTrackParameters curvilinearParameters() const {
-    return Acts::CurvilinearTrackParameters(
-        fourPosition(), direction(), qOverP(), std::nullopt, hypothesis());
+    return Acts::CurvilinearTrackParameters(position(), direction(), qOverP(),
+                                            std::nullopt, hypothesis());
   }
 
   /// Set the number of hits.
@@ -314,10 +286,8 @@ class Particle {
   double m_mass = 0.;
   // kinematics, i.e. things that change over the particle lifetime.
   Acts::Vector3 m_direction = Acts::Vector3::UnitZ();
-  double m_absMomentum = 0.;
-  Acts::Vector4 m_position4 = Acts::Vector4::Zero();
-  /// proper time in the particle rest frame
-  double m_properTime = 0.;
+  double m_absMomentum = 0;
+  Acts::Vector3 m_position = Acts::Vector3::Zero();
   // accumulated material
   double m_pathInX0 = 0.;
   double m_pathInL0 = 0.;

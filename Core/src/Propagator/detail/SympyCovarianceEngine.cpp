@@ -77,14 +77,9 @@ CurvilinearState sympy::curvilinearState(
   }
 
   // Create the curvilinear parameters
-  Vector4 pos4 = Vector4::Zero();
-  pos4[ePos0] = freeParameters[eFreePos0];
-  pos4[ePos1] = freeParameters[eFreePos1];
-  pos4[ePos2] = freeParameters[eFreePos2];
-  pos4[eTime] = freeParameters[eFreeTime];
   CurvilinearTrackParameters curvilinearParams(
-      pos4, direction, freeParameters[eFreeQOverP], std::move(cov),
-      particleHypothesis);
+      freeParameters.segment<3>(eFreePos0), direction,
+      freeParameters[eFreeQOverP], std::move(cov), particleHypothesis);
   // Create the curvilinear state
   return {std::move(curvilinearParams), fullTransportJacobian, accumulatedPath};
 }

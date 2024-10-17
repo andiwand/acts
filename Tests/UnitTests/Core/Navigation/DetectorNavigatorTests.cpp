@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
 
   Stepper stepper;
 
-  Acts::Vector4 pos(-2, 0, 0, 0);
+  Acts::Vector3 pos(-2, 0, 0);
   Acts::CurvilinearTrackParameters start(pos, 0_degree, 90_degree, 1_e / 1_GeV,
                                          std::nullopt,
                                          Acts::ParticleHypothesis::electron());
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
   //
   // Run from endOfWorld
   {
-    Acts::Vector4 posEoW(-20, 0, 0, 0);
+    Acts::Vector3 posEoW(-20, 0, 0);
     Acts::CurvilinearTrackParameters startEoW(
         posEoW, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
         Acts::ParticleHypothesis::electron());
@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsForwardBackward) {
 
   // Forward and backward propagation
   // should be consistent between each other
-  Acts::Vector4 posFwd(-2, 0, 0, 0);
+  Acts::Vector3 posFwd(-2, 0, 0);
   Acts::CurvilinearTrackParameters startFwd(
       posFwd, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
       Acts::ParticleHypothesis::electron());
@@ -312,7 +312,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsForwardBackward) {
 
   options.direction = Acts::Direction::Backward();
 
-  Acts::Vector4 posBwd(14, 0, 0, 0);
+  Acts::Vector3 posBwd(14, 0, 0);
   Acts::CurvilinearTrackParameters startBwd(
       posBwd, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
       Acts::ParticleHypothesis::electron());
@@ -462,7 +462,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsAmbiguity) {
 
   // Depending on the direction, the same surface
   // may be reached in different points
-  Acts::Vector4 pos(0, 0, 0, 0);
+  Acts::Vector3 pos(0, 0, 0);
   Acts::CurvilinearTrackParameters start(pos, 0_degree, 90_degree, 1_e / 1_GeV,
                                          std::nullopt,
                                          Acts::ParticleHypothesis::electron());
@@ -579,7 +579,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsMultipleIntersection) {
   // should be consistent between each other
   // and the cylindrical surface should be
   // reached in two points during navigation
-  Acts::Vector4 posFwd(-5, 0, 0, 0);
+  Acts::Vector3 posFwd(-5, 0, 0);
   Acts::CurvilinearTrackParameters startFwd(
       posFwd, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
       Acts::ParticleHypothesis::electron());

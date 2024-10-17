@@ -52,26 +52,12 @@ class AdaptiveGridTrackDensity {
     /// Number of standard deviations that the grid covers in z direction
     double nSpatialTrkSigmas = 3.0;
 
-    /// Temporal extent of a bin, not used if useTime == true
-    double temporalBinExtent = 19 * UnitConstants::mm;
-
-    /// Number of standard deviations that the grid covers in t direction, not
-    /// used if useTime == true
-    double nTemporalTrkSigmas = 3.0;
-
     /// Spatial window for filling the density map
     std::pair<double, double> spatialWindow = {-250 * UnitConstants::mm,
                                                250 * UnitConstants::mm};
-    /// Temporal window for filling the density map
-    std::pair<double, double> temporalWindow = {-10 * UnitConstants::ns,
-                                                10 * UnitConstants::ns};
 
     /// Optional minimal and maximal number of bins in z direction
     GridSizeRange spatialTrkGridSizeRange = {std::nullopt, std::nullopt};
-    /// Optional minimal and maximal number of bins in time direction
-    GridSizeRange temporalTrkGridSizeRange = {std::nullopt, std::nullopt};
-
-    bool useTime = false;
 
     /// Do NOT use just the z-bin with the highest
     /// track density, but instead check (up to)
@@ -161,28 +147,16 @@ class AdaptiveGridTrackDensity {
   /// @param value z value
   /// @return Bin number
   std::int32_t getSpatialBin(double value) const;
-  /// @brief Calculates the bin number corresponding to a time value
-  /// @param value Time value
-  /// @return Bin number
-  std::int32_t getTemporalBin(double value) const;
 
   /// @brief Calculates the spatial bin center corresponding to a bin number
   /// @param bin Bin number
   /// @return Bin center
   double getSpatialBinCenter(std::int32_t bin) const;
-  /// @brief Calculates the temporal bin center corresponding to a bin number
-  /// @param bin Bin number
-  /// @return Bin center
-  double getTemporalBinCenter(std::int32_t bin) const;
 
   /// @brief Calculates the grid size in z direction
   /// @param sigma Standard deviation of the track density
   /// @return Grid size
   std::uint32_t getSpatialTrkGridSize(double sigma) const;
-  /// @brief Calculates the grid size in time direction
-  /// @param sigma Standard deviation of the track density
-  /// @return Grid size
-  std::uint32_t getTemporalTrkGridSize(double sigma) const;
 
   /// @brief Finds the maximum density of a DensityMap
   /// @param densityMap Map between bins and corresponding density
@@ -194,19 +168,17 @@ class AdaptiveGridTrackDensity {
   /// @brief Function that creates a track density map, i.e., a map from bins
   /// to the corresponding density values for a single track.
   ///
-  /// @param impactParams vector containing d0, z0, and t0 of the track
+  /// @param impactParams vector containing d0 and z0 of the track
   /// @param centralBin Central z and t bin of the track (where its
   /// density is the highest)
-  /// @param cov 3x3 impact parameter covariance matrix
+  /// @param cov 2x2 impact parameter covariance matrix
   /// @param spatialTrkGridSize Number of bins in z direction
-  /// @param temporalTrkGridSize Number of bins in time direction
   ///
   /// @return The track density map
-  DensityMap createTrackGrid(const Acts::Vector3& impactParams,
+  DensityMap createTrackGrid(const Acts::Vector2& impactParams,
                              const Bin& centralBin,
-                             const Acts::SquareMatrix3& cov,
-                             std::uint32_t spatialTrkGridSize,
-                             std::uint32_t temporalTrkGridSize) const;
+                             const Acts::SquareMatrix2& cov,
+                             std::uint32_t spatialTrkGridSize) const;
 
   /// @brief Function that estimates the seed width in z direction based
   /// on the full width at half maximum (FWHM) of the maximum density peak

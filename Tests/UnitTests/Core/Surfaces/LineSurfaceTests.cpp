@@ -317,7 +317,7 @@ BOOST_AUTO_TEST_CASE(LineSurfaceIntersection) {
   Propagator propagator({});
 
   CurvilinearTrackParameters displacedParameters{
-      Vector4::Zero(), Vector3::Zero(), 1, std::nullopt,
+      Vector3::Zero(), Vector3::Zero(), 1, std::nullopt,
       ParticleHypothesis::pion()};
   {
     PropagatorOptions options(tgContext, {});

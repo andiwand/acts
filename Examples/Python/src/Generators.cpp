@@ -87,7 +87,7 @@ void addGenerators(Context& ctx) {
       std::shared_ptr<ActsExamples::GaussianPrimaryVertexPositionGenerator>>(
       mex, "GaussianVertexGenerator")
       .def(py::init<>())
-      .def(py::init([](const Acts::Vector4& stddev, const Acts::Vector4& mean) {
+      .def(py::init([](const Acts::Vector3& stddev, const Acts::Vector3& mean) {
              ActsExamples::GaussianPrimaryVertexPositionGenerator g;
              g.stddev = stddev;
              g.mean = mean;
@@ -143,7 +143,7 @@ void addGenerators(Context& ctx) {
       std::shared_ptr<ActsExamples::FixedPrimaryVertexPositionGenerator>>(
       mex, "FixedVertexGenerator")
       .def(py::init<>())
-      .def(py::init([](const Acts::Vector4& v) {
+      .def(py::init([](const Acts::Vector3& v) {
              ActsExamples::FixedPrimaryVertexPositionGenerator g;
              g.fixed = v;
              return g;

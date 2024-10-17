@@ -71,14 +71,13 @@ CurvilinearTrackParameters makeParameters(double phi, double theta, double p,
   Acts::BoundVector stddev;
   stddev[Acts::eBoundLoc0] = 100_um;
   stddev[Acts::eBoundLoc1] = 100_um;
-  stddev[Acts::eBoundTime] = 25_ns;
   stddev[Acts::eBoundPhi] = 2_degree;
   stddev[Acts::eBoundTheta] = 2_degree;
   stddev[Acts::eBoundQOverP] = 1 / 100_GeV;
   BoundSquareMatrix cov = stddev.cwiseProduct(stddev).asDiagonal();
   // Let the particle starts from the origin
-  Vector4 mPos4(0., 0., 0., 0.);
-  return CurvilinearTrackParameters(mPos4, phi, theta, q / p, cov,
+  Vector3 mPos(0., 0., 0.);
+  return CurvilinearTrackParameters(mPos, phi, theta, q / p, cov,
                                     ParticleHypothesis::pionLike(std::abs(q)));
 }
 
@@ -193,8 +192,6 @@ BOOST_AUTO_TEST_CASE(trackparameters_estimation_test) {
                           1e-2);
           CHECK_CLOSE_ABS(estFullParams[eBoundQOverP], expParams[eBoundQOverP],
                           1e-2);
-          // time is not estimated so we check if it is default zero
-          CHECK_CLOSE_ABS(estFullParams[eBoundTime], 0, 1e-6);
         }
       }
     }

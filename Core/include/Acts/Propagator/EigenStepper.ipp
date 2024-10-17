@@ -134,11 +134,10 @@ void Acts::EigenStepper<E>::update(State& state, const FreeVector& freeParams,
 
 template <typename E>
 void Acts::EigenStepper<E>::update(State& state, const Vector3& uposition,
-                                   const Vector3& udirection, double qOverP,
-                                   double time) const {
+                                   const Vector3& udirection,
+                                   double qOverP) const {
   state.pars.template segment<3>(eFreePos0) = uposition;
   state.pars.template segment<3>(eFreeDir0) = udirection;
-  state.pars[eFreeTime] = time;
   state.pars[eFreeQOverP] = qOverP;
 }
 
@@ -328,15 +327,17 @@ Acts::Result<double> Acts::EigenStepper<E>::step(
     // Furthermore, we're constructing K in place of J, and since
     // K₁₁ = I₈ = J₁₁ and K₂₁ = 0₈ = D₂₁, we don't actually need to touch those
     // sub-matrices at all!
-    assert((D.topLeftCorner<4, 4>().isIdentity()));
-    assert((D.bottomLeftCorner<4, 4>().isZero()));
-    assert((state.jacTransport.template topLeftCorner<4, 4>().isIdentity()));
-    assert((state.jacTransport.template bottomLeftCorner<4, 4>().isZero()));
+    assert((D.topLeftCorner<3, 3>().isIdentity()));
+    assert((D.bottomLeftCorner<4, 3>().isZero()));
+    assert((state.stepping.jacTransport.template topLeftCorner<3, 3>()
+                .isIdentity()));
+    assert((state.stepping.jacTransport.template bottomLeftCorner<4, 3>()
+                .isZero()));
 
-    state.jacTransport.template topRightCorner<4, 4>() +=
-        D.topRightCorner<4, 4>() *
-        state.jacTransport.template bottomRightCorner<4, 4>();
-    state.jacTransport.template bottomRightCorner<4, 4>() =
+    state.stepping.jacTransport.template topRightCorner<3, 4>() +=
+        D.topRightCorner<3, 4>() *
+        state.stepping.jacTransport.template bottomRightCorner<4, 4>();
+    state.stepping.jacTransport.template bottomRightCorner<4, 4>() =
         (D.bottomRightCorner<4, 4>() *
          state.jacTransport.template bottomRightCorner<4, 4>())
             .eval();

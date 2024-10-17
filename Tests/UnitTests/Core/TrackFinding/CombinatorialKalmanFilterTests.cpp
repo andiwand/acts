@@ -217,24 +217,23 @@ struct Fixture {
     Acts::BoundVector stddev;
     stddev[Acts::eBoundLoc0] = 100_um;
     stddev[Acts::eBoundLoc1] = 100_um;
-    stddev[Acts::eBoundTime] = 25_ns;
     stddev[Acts::eBoundPhi] = 2_degree;
     stddev[Acts::eBoundTheta] = 2_degree;
     stddev[Acts::eBoundQOverP] = 1 / 100_GeV;
     Acts::BoundSquareMatrix cov = stddev.cwiseProduct(stddev).asDiagonal();
     // all tracks close to the transverse plane along the x axis w/ small
     // variations in position, direction.
-    Acts::Vector4 mStartPos0(-3_m, 0.0, 0.0, 1_ns);
-    Acts::Vector4 mStartPos1(-3_m, -15_mm, -15_mm, 2_ns);
-    Acts::Vector4 mStartPos2(-3_m, 15_mm, 15_mm, -1_ns);
+    Acts::Vector3 mStartPos0(-3_m, 0.0, 0.0);
+    Acts::Vector3 mStartPos1(-3_m, -15_mm, -15_mm);
+    Acts::Vector3 mStartPos2(-3_m, 15_mm, 15_mm);
     startParameters = {
         {mStartPos0, 0_degree, 90_degree, 1_e / 1_GeV, cov, pion},
         {mStartPos1, -1_degree, 91_degree, 1_e / 1_GeV, cov, pion},
         {mStartPos2, 1_degree, 89_degree, -1_e / 1_GeV, cov, pion},
     };
-    Acts::Vector4 mEndPos0(3_m, 0.0, 0.0, 1_ns);
-    Acts::Vector4 mEndPos1(3_m, -100_mm, -100_mm, 2_ns);
-    Acts::Vector4 mEndPos2(3_m, 100_mm, 100_mm, -1_ns);
+    Acts::Vector3 mEndPos0(3_m, 0.0, 0.0);
+    Acts::Vector3 mEndPos1(3_m, -100_mm, -100_mm);
+    Acts::Vector3 mEndPos2(3_m, 100_mm, 100_mm);
     endParameters = {
         {mEndPos0, 0_degree, 90_degree, 1_e / 1_GeV, cov * 100, pion},
         {mEndPos1, -1_degree, 91_degree, 1_e / 1_GeV, cov * 100, pion},

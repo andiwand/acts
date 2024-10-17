@@ -218,11 +218,6 @@ class EigenStepper {
     return state.particleHypothesis;
   }
 
-  /// Time access
-  ///
-  /// @param state [in] The stepping state (thread-local cache)
-  double time(const State& state) const { return state.pars[eFreeTime]; }
-
   /// Update surface status
   ///
   /// It checks the status to the reference surface & updates
@@ -361,9 +356,8 @@ class EigenStepper {
   /// @param [in] uposition the updated position
   /// @param [in] udirection the updated direction
   /// @param [in] qOverP the updated qOverP value
-  /// @param [in] time the updated time value
   void update(State& state, const Vector3& uposition, const Vector3& udirection,
-              double qOverP, double time) const;
+              double qOverP) const;
 
   /// Method for on-demand transport of the covariance
   /// to a new curvilinear frame at current  position,

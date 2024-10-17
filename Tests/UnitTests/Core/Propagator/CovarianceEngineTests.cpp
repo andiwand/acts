@@ -213,7 +213,6 @@ BoundVector localToLocal(const propagator_t& prop, const BoundVector& local,
   BOOST_CHECK_EQUAL(&endParameters.referenceSurface(), &dst);
 
   BoundVector out = endParameters.parameters();
-  out[eBoundTime] = local[eBoundTime];
   return out;
 }
 

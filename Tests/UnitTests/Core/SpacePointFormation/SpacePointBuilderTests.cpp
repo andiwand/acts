@@ -55,13 +55,12 @@ CurvilinearTrackParameters makeParameters(double phi, double theta, double p,
   BoundVector stddev;
   stddev[eBoundLoc0] = 100_um;
   stddev[eBoundLoc1] = 100_um;
-  stddev[eBoundTime] = 25_ns;
   stddev[eBoundPhi] = 2_degree;
   stddev[eBoundTheta] = 2_degree;
   stddev[eBoundQOverP] = 1 / 100_GeV;
   BoundSquareMatrix cov = stddev.cwiseProduct(stddev).asDiagonal();
   // Let the particle start from the origin
-  Vector4 mPos4(-3_m, 0., 0., 0.);
+  Vector3 mPos4(-3_m, 0., 0.);
   return CurvilinearTrackParameters(mPos4, phi, theta, q / p, cov,
                                     ParticleHypothesis::pionLike(q));
 }
@@ -170,11 +169,10 @@ BOOST_DATA_TEST_CASE(SpacePointBuilder_basic, bdata::xrange(1), index) {
 
   Vector3 vertex = Vector3(-3_m, 0., 0.);
 
-  auto spConstructor = [](const Vector3& pos, const std::optional<double>& t,
-                          const Vector2& cov, const std::optional<double>& covT,
+  auto spConstructor = [](const Vector3& pos, const Vector2& cov,
                           boost::container::static_vector<SourceLink, 2> slinks)
       -> TestSpacePoint {
-    return TestSpacePoint(pos, t, cov[0], cov[1], covT, std::move(slinks));
+    return TestSpacePoint(pos, cov[0], cov[1], std::move(slinks));
   };
 
   auto spBuilderConfig = SpacePointBuilderConfig();

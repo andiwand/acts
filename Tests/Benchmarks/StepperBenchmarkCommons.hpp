@@ -92,7 +92,7 @@ struct BenchmarkStepper {
     PropagatorOptions options(tgContext, mfContext);
     options.pathLimit = maxPathInM * UnitConstants::m;
 
-    Vector4 pos4(0, 0, 0, 0);
+    Vector3 pos(0, 0, 0);
     Vector3 dir(1, 0, 0);
     Covariance cov;
     // clang-format off
@@ -108,7 +108,7 @@ struct BenchmarkStepper {
     if (withCov) {
       covOpt = cov;
     }
-    CurvilinearTrackParameters pars(pos4, dir, +1 / ptInGeV, covOpt,
+    CurvilinearTrackParameters pars(pos, dir, +1 / ptInGeV, covOpt,
                                     ParticleHypothesis::pion());
 
     double totalPathLength = 0;

@@ -107,7 +107,6 @@ struct MeasurementsCreator {
     parameters[eBoundPhi] = VectorHelpers::phi(direction);
     parameters[eBoundTheta] = VectorHelpers::theta(direction);
     parameters[eBoundQOverP] = state.stepping.pars[eFreeQOverP];
-    parameters[eBoundTime] = state.stepping.pars[eFreeTime];
     result.truthParameters.push_back(std::move(parameters));
 
     std::normal_distribution<double> normalDist(0., 1.);

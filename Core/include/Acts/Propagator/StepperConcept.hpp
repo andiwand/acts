@@ -68,7 +68,6 @@ concept CommonStepper = requires {
     { s.absoluteMomentum(t) } -> std::same_as<double>;
     { s.momentum(t) } -> std::same_as<Vector3>;
     { s.charge(t) } -> std::same_as<double>;
-    { s.time(t) } -> std::same_as<double>;
     { s.outputStepSize(t) } -> std::same_as<std::string>;
 
     requires requires(const ConstrainedStep::Type st) {
@@ -86,9 +85,8 @@ concept SingleStepper =
         { s.update(t, fv, bv, bm, sf) } -> std::same_as<void>;
       };
 
-      requires requires(const Vector3& v1, const Vector3& v2, double d1,
-                        double d2) {
-        { s.update(t, v1, v2, d1, d2) } -> std::same_as<void>;
+      requires requires(const Vector3& v1, const Vector3& v2, double d1) {
+        { s.update(t, v1, v2, d1) } -> std::same_as<void>;
         { s.getField(t, v1) } -> std::same_as<Result<Vector3>>;
       };
     };

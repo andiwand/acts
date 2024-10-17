@@ -366,13 +366,13 @@ ProcessCode VertexNTupleWriter::writeT(
 
   auto calculateTruthPrimaryVertexDensity =
       [this, truthVertices](const Acts::Vertex& vtx) {
-        double z = vtx.fullPosition()[Acts::CoordinateIndices::eZ];
+        double z = vtx.position()[Acts::CoordinateIndices::eZ];
         int count = 0;
         for (const SimVertex& truthVertex : truthVertices) {
           if (truthVertex.vertexId().vertexSecondary() != 0) {
             continue;
           }
-          double zTruth = truthVertex.position4[Acts::CoordinateIndices::eZ];
+          double zTruth = truthVertex.position[Acts::CoordinateIndices::eZ];
           if (std::abs(z - zTruth) <= m_cfg.vertexDensityWindow) {
             ++count;
           }
@@ -566,36 +566,26 @@ ProcessCode VertexNTupleWriter::writeT(
 
     const auto& toTruthMatching = recoToTruthMatching[vtxIndex];
 
-    m_recoX.push_back(vtx.fullPosition()[Acts::CoordinateIndices::eX]);
-    m_recoY.push_back(vtx.fullPosition()[Acts::CoordinateIndices::eY]);
-    m_recoZ.push_back(vtx.fullPosition()[Acts::CoordinateIndices::eZ]);
-    m_recoT.push_back(vtx.fullPosition()[Acts::CoordinateIndices::eTime]);
+    m_recoX.push_back(vtx.position()[Acts::CoordinateIndices::eX]);
+    m_recoY.push_back(vtx.position()[Acts::CoordinateIndices::eY]);
+    m_recoZ.push_back(vtx.position()[Acts::CoordinateIndices::eZ]);
 
-    double varX = vtx.fullCovariance()(Acts::CoordinateIndices::eX,
-                                       Acts::CoordinateIndices::eX);
-    double varY = vtx.fullCovariance()(Acts::CoordinateIndices::eY,
-                                       Acts::CoordinateIndices::eY);
-    double varZ = vtx.fullCovariance()(Acts::CoordinateIndices::eZ,
-                                       Acts::CoordinateIndices::eZ);
-    double varTime = vtx.fullCovariance()(Acts::CoordinateIndices::eTime,
-                                          Acts::CoordinateIndices::eTime);
+    double varX = vtx.covariance()(Acts::CoordinateIndices::eX,
+                                   Acts::CoordinateIndices::eX);
+    double varY = vtx.covariance()(Acts::CoordinateIndices::eY,
+                                   Acts::CoordinateIndices::eY);
+    double varZ = vtx.covariance()(Acts::CoordinateIndices::eZ,
+                                   Acts::CoordinateIndices::eZ);
 
     m_covXX.push_back(varX);
     m_covYY.push_back(varY);
     m_covZZ.push_back(varZ);
-    m_covTT.push_back(varTime);
-    m_covXY.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eX,
-                                           Acts::CoordinateIndices::eY));
-    m_covXZ.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eX,
-                                           Acts::CoordinateIndices::eZ));
-    m_covXT.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eX,
-                                           Acts::CoordinateIndices::eTime));
-    m_covYZ.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eY,
-                                           Acts::CoordinateIndices::eZ));
-    m_covYT.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eY,
-                                           Acts::CoordinateIndices::eTime));
-    m_covZT.push_back(vtx.fullCovariance()(Acts::CoordinateIndices::eZ,
-                                           Acts::CoordinateIndices::eTime));
+    m_covXY.push_back(vtx.covariance()(Acts::CoordinateIndices::eX,
+                                       Acts::CoordinateIndices::eY));
+    m_covXZ.push_back(vtx.covariance()(Acts::CoordinateIndices::eX,
+                                       Acts::CoordinateIndices::eZ));
+    m_covYZ.push_back(vtx.covariance()(Acts::CoordinateIndices::eY,
+                                       Acts::CoordinateIndices::eZ));
 
     double sumPt2 = calcSumPt2(vtx);
     m_sumPt2.push_back(sumPt2);
@@ -615,7 +605,7 @@ ProcessCode VertexNTupleWriter::writeT(
 
     // Saving truth information for the reconstructed vertex
     bool truthInfoWritten = false;
-    std::optional<Acts::Vector4> truthPos;
+    std::optional<Acts::Vector3> truthPos;
     if (toTruthMatching.vertexId.has_value()) {
       auto iTruthVertex = truthVertices.find(toTruthMatching.vertexId.value());
       if (iTruthVertex == truthVertices.end()) {
@@ -664,24 +654,20 @@ ProcessCode VertexNTupleWriter::writeT(
         ++m_nSplitVtx;
       }
 
-      const Acts::Vector4& truePos = truthVertex.position4;
+      const Acts::Vector3& truePos = truthVertex.position;
       truthPos = truePos;
       m_truthX.push_back(truePos[Acts::CoordinateIndices::eX]);
       m_truthY.push_back(truePos[Acts::CoordinateIndices::eY]);
       m_truthZ.push_back(truePos[Acts::CoordinateIndices::eZ]);
-      m_truthT.push_back(truePos[Acts::CoordinateIndices::eTime]);
 
-      const Acts::Vector4 diffPos = vtx.fullPosition() - truePos;
+      const Acts::Vector3 diffPos = vtx.position() - truePos;
       m_resX.push_back(diffPos[Acts::CoordinateIndices::eX]);
       m_resY.push_back(diffPos[Acts::CoordinateIndices::eY]);
       m_resZ.push_back(diffPos[Acts::CoordinateIndices::eZ]);
-      m_resT.push_back(diffPos[Acts::CoordinateIndices::eTime]);
 
       m_pullX.push_back(pull(diffPos[Acts::CoordinateIndices::eX], varX, "X"));
       m_pullY.push_back(pull(diffPos[Acts::CoordinateIndices::eY], varY, "Y"));
       m_pullZ.push_back(pull(diffPos[Acts::CoordinateIndices::eZ], varZ, "Z"));
-      m_pullT.push_back(
-          pull(diffPos[Acts::CoordinateIndices::eTime], varTime, "T"));
 
       truthInfoWritten = true;
     }
@@ -761,7 +747,7 @@ ProcessCode VertexNTupleWriter::writeT(
     std::shared_ptr<Acts::PerigeeSurface> perigeeSurface;
     if (truthPos.has_value()) {
       perigeeSurface =
-          Acts::Surface::makeShared<Acts::PerigeeSurface>(truthPos->head<3>());
+          Acts::Surface::makeShared<Acts::PerigeeSurface>(*truthPos);
     }
     // Lambda for propagating the tracks to the PCA
     auto propagateToVtx =

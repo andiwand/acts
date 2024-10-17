@@ -91,8 +91,6 @@ void addExampleAlgorithms(Context& ctx) {
       ACTS_PYTHON_MEMBER(loc0Max);
       ACTS_PYTHON_MEMBER(loc1Min);
       ACTS_PYTHON_MEMBER(loc1Max);
-      ACTS_PYTHON_MEMBER(timeMin);
-      ACTS_PYTHON_MEMBER(timeMax);
       ACTS_PYTHON_MEMBER(phiMin);
       ACTS_PYTHON_MEMBER(phiMax);
       ACTS_PYTHON_MEMBER(etaMin);
@@ -113,7 +111,6 @@ void addExampleAlgorithms(Context& ctx) {
 
       pythonRangeProperty(c, "loc0", &Config::loc0Min, &Config::loc0Max);
       pythonRangeProperty(c, "loc1", &Config::loc1Min, &Config::loc1Max);
-      pythonRangeProperty(c, "time", &Config::timeMin, &Config::timeMax);
       pythonRangeProperty(c, "phi", &Config::phiMin, &Config::phiMax);
       pythonRangeProperty(c, "eta", &Config::etaMin, &Config::etaMax);
       pythonRangeProperty(c, "absEta", &Config::absEtaMin, &Config::absEtaMax);

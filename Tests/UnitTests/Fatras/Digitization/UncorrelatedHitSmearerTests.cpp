@@ -90,7 +90,6 @@ struct Fixture {
         pid(ActsFatras::Barcode().setVertexPrimary(12).setParticle(23)),
         surface(std::move(surf)) {
     using namespace Acts::UnitLiterals;
-    using Acts::VectorHelpers::makeVector4;
 
     surface->assignGeometryId(gid);
 
@@ -103,9 +102,8 @@ struct Fixture {
         Acts::transformBoundToFreeParameters(*surface, geoCtx, boundParams);
 
     // construct hit from free parameters
-    Acts::Vector4 r4;
-    r4.segment<3>(Acts::ePos0) = freeParams.segment<3>(Acts::eFreePos0);
-    r4[Acts::eTime] = freeParams[Acts::eFreeTime];
+    Acts::Vector3 r;
+    r.segment<3>(Acts::ePos0) = freeParams.segment<3>(Acts::eFreePos0);
     // construct 4-momentum vector assuming m=0
     Acts::Vector4 p4;
     p4.segment<3>(Acts::eMom0) =
@@ -113,18 +111,20 @@ struct Fixture {
     p4[Acts::eEnergy] = 1;
     p4 *= std::abs(1_e / freeParams[Acts::eFreeQOverP]);
     // same 4-momentum before/after hit
-    hit = ActsFatras::Hit(gid, pid, r4, p4, p4, 13);
+    hit = ActsFatras::Hit(gid, pid, r, p4, p4, 13);
   }
 };
 
 // track parameter indices to test smearing with. q/p smearing is not supported
 // in either case.
 const Acts::BoundIndices boundIndices[] = {
-    Acts::eBoundLoc0, Acts::eBoundLoc1,  Acts::eBoundTime,
-    Acts::eBoundPhi,  Acts::eBoundTheta,
+    Acts::eBoundLoc0,
+    Acts::eBoundLoc1,
+    Acts::eBoundPhi,
+    Acts::eBoundTheta,
 };
 const Acts::FreeIndices freeIndices[] = {
-    Acts::eFreePos0, Acts::eFreePos1, Acts::eFreePos2, Acts::eFreeTime,
+    Acts::eFreePos0, Acts::eFreePos1, Acts::eFreePos2,
     Acts::eFreeDir0, Acts::eFreeDir1, Acts::eFreeDir2,
 };
 

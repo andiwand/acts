@@ -15,10 +15,8 @@
 namespace Acts::KalmanVertexUpdater {
 
 namespace detail {
-template <unsigned int nDimVertex>
 void updateVertexWithTrackImpl(Vertex& vtx, TrackAtVertex& trk, int sign);
 
-template <unsigned int nDimVertex>
 void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx);
 }  // namespace detail
 
@@ -26,30 +24,12 @@ void updateTrackWithVertexImpl(TrackAtVertex& track, const Vertex& vtx);
 // only dispatch into templated functions, effectively doing a
 // runtime-to-compile time conversion.
 
-void updateVertexWithTrack(Vertex& vtx, TrackAtVertex& trk,
-                           unsigned int nDimVertex) {
-  if (nDimVertex == 3) {
-    detail::updateVertexWithTrackImpl<3>(vtx, trk, 1);
-  } else if (nDimVertex == 4) {
-    detail::updateVertexWithTrackImpl<4>(vtx, trk, 1);
-  } else {
-    throw std::invalid_argument(
-        "The vertex dimension must either be 3 (when fitting the spatial "
-        "coordinates) or 4 (when fitting the spatial coordinates + time).");
-  }
+void updateVertexWithTrack(Vertex& vtx, TrackAtVertex& trk) {
+  detail::updateVertexWithTrackImpl(vtx, trk, 1);
 }
 
-void updateTrackWithVertex(TrackAtVertex& track, const Vertex& vtx,
-                           unsigned int nDimVertex) {
-  if (nDimVertex == 3) {
-    detail::updateTrackWithVertexImpl<3>(track, vtx);
-  } else if (nDimVertex == 4) {
-    detail::updateTrackWithVertexImpl<4>(track, vtx);
-  } else {
-    throw std::invalid_argument(
-        "The vertex dimension must either be 3 (when fitting the spatial "
-        "coordinates) or 4 (when fitting the spatial coordinates + time).");
-  }
+void updateTrackWithVertex(TrackAtVertex& track, const Vertex& vtx) {
+  detail::updateTrackWithVertexImpl(track, vtx);
 }
 
 }  // namespace Acts::KalmanVertexUpdater

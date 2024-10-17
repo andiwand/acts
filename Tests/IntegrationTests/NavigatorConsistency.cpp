@@ -371,7 +371,7 @@ CurvilinearTrackParameters createStartParameters(double pT, double phi,
                                                  double theta, int charge) {
   double p = pT / std::sin(theta);
   double q = -1 + 2 * charge;
-  return CurvilinearTrackParameters(Vector4(0, 0, 0, 0), phi, theta, q / p,
+  return CurvilinearTrackParameters(Vector3(0, 0, 0), phi, theta, q / p,
                                     std::nullopt, ParticleHypothesis::pion());
 }
 

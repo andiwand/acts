@@ -388,7 +388,7 @@ BOOST_DATA_TEST_CASE(
      0.5, 0, 0, 0, 1_e / 10_GeV, 0,
      0, 0, 0, 0, 0, 1_us;
   // clang-format on
-  CurvilinearTrackParameters start(Vector4(0, 0, 0, 0), phi, theta, q / p, cov,
+  CurvilinearTrackParameters start(Vector3(0, 0, 0), phi, theta, q / p, cov,
                                    ParticleHypothesis::pion());
 
   runTest(epropagator, start);

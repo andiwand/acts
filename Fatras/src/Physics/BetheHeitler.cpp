@@ -61,7 +61,7 @@ ActsFatras::Particle ActsFatras::BetheHeitler::bremPhoton(
   Particle photon(particle.particleId().makeDescendant(0),
                   Acts::PdgParticle::eGamma);
   photon.setProcess(ActsFatras::ProcessType::eBremsstrahlung)
-      .setPosition4(particle.fourPosition())
+      .setPosition(particle.position())
       .setDirection(photonDirection)
       .setAbsoluteMomentum(gammaE)
       .setReferenceSurface(particle.referenceSurface());

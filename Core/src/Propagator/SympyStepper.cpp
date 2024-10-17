@@ -103,11 +103,9 @@ void SympyStepper::update(State& state, const FreeVector& freeParams,
 }
 
 void SympyStepper::update(State& state, const Vector3& uposition,
-                          const Vector3& udirection, double qOverP,
-                          double time) const {
+                          const Vector3& udirection, double qOverP) const {
   state.pars.template segment<3>(eFreePos0) = uposition;
   state.pars.template segment<3>(eFreeDir0) = udirection;
-  state.pars[eFreeTime] = time;
   state.pars[eFreeQOverP] = qOverP;
 }
 
@@ -139,10 +137,7 @@ Result<double> SympyStepper::stepImpl(
     double stepSizeCutOff, std::size_t maxRungeKuttaStepTrials) const {
   auto pos = position(state);
   auto dir = direction(state);
-  double t = time(state);
   double qop = qOverP(state);
-  double m = particleHypothesis(state).mass();
-  double p_abs = absoluteMomentum(state);
 
   auto getB = [&](const double* p) -> Result<Vector3> {
     return getField(state, {p[0], p[1], p[2]});
@@ -178,10 +173,9 @@ Result<double> SympyStepper::stepImpl(
 
     // For details about the factor 4 see ATL-SOFT-PUB-2009-001
     Result<bool> res =
-        rk4(pos.data(), dir.data(), t, h, qop, m, p_abs, getB, &errorEstimate,
+        rk4(pos.data(), dir.data(), h, qop, getB, &errorEstimate,
             4 * stepTolerance, state.pars.template segment<3>(eFreePos0).data(),
             state.pars.template segment<3>(eFreeDir0).data(),
-            state.pars.template segment<1>(eFreeTime).data(),
             state.derivative.data(),
             state.covTransport ? state.jacTransport.data() : nullptr);
     if (!res.ok()) {

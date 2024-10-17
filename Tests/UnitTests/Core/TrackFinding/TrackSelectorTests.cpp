@@ -38,7 +38,6 @@ struct MockTrack {
   double m_pt;
   double m_loc0;
   double m_loc1;
-  double m_time;
   std::size_t m_nMeasurements;
   std::size_t m_nHoles;
   std::size_t m_nOutliers;
@@ -51,7 +50,6 @@ struct MockTrack {
   double transverseMomentum() const { return m_pt; }
   double loc0() const { return m_loc0; }
   double loc1() const { return m_loc1; }
-  double time() const { return m_time; }
   std::size_t nMeasurements() const { return m_nMeasurements; }
   std::size_t nHoles() const { return m_nHoles; }
   std::size_t nOutliers() const { return m_nOutliers; }
@@ -100,7 +98,6 @@ BOOST_DATA_TEST_CASE(TestSingleBinCase, bdata::make(etaValues), eta) {
   baseTrack.m_pt = 0.5;
   baseTrack.m_loc0 = 0.5;
   baseTrack.m_loc1 = 0.5;
-  baseTrack.m_time = 0.5;
   baseTrack.m_nMeasurements = 1;
   baseTrack.m_nHoles = 0;
   baseTrack.m_nOutliers = 0;
@@ -158,9 +155,6 @@ BOOST_DATA_TEST_CASE(TestSingleBinCase, bdata::make(etaValues), eta) {
 
   check("phi", &TrackSelector::Config::phiMin, &TrackSelector::Config::phiMax,
         &MockTrack::m_phi);
-
-  check("time", &TrackSelector::Config::timeMin,
-        &TrackSelector::Config::timeMax, &MockTrack::m_time);
 
   {
     BOOST_TEST_INFO_SCOPE("pt min");
@@ -396,7 +390,6 @@ BOOST_AUTO_TEST_CASE(TestMultiBinCuts) {
   baseTrack.m_pt = 0.5;
   baseTrack.m_loc0 = 0.5;
   baseTrack.m_loc1 = 0.5;
-  baseTrack.m_time = 0.5;
   baseTrack.m_nMeasurements = 1;
   baseTrack.m_nHoles = 0;
   baseTrack.m_nOutliers = 0;
@@ -505,7 +498,6 @@ BOOST_AUTO_TEST_CASE(TestMultiBinCuts) {
 
   check("loc0", &Config::loc0, &MockTrack::m_loc0);
   check("loc1", &Config::loc1, &MockTrack::m_loc1);
-  check("time", &Config::time, &MockTrack::m_time);
   check("phi", &Config::phi, &MockTrack::m_phi);
   check("pt", &Config::pt, &MockTrack::m_pt);
 }

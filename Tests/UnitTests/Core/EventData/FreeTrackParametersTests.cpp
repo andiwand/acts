@@ -34,16 +34,14 @@ using namespace Acts::UnitLiterals;
 constexpr auto eps = 8 * std::numeric_limits<double>::epsilon();
 const FreeSquareMatrix cov = FreeSquareMatrix::Identity();
 
-void checkParameters(const FreeTrackParameters& params, const Vector4& pos4,
+void checkParameters(const FreeTrackParameters& params, const Vector3& pos,
                      const Vector3& unitDir, double p, double q) {
   const auto qOverP = (q != 0) ? (q / p) : (1 / p);
-  const auto pos = pos4.segment<3>(ePos0);
 
   // native values
-  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos0>(), pos4[ePos0], eps, eps);
-  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos1>(), pos4[ePos1], eps, eps);
-  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos2>(), pos4[ePos2], eps, eps);
-  CHECK_CLOSE_OR_SMALL(params.template get<eFreeTime>(), pos4[eTime], eps, eps);
+  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos0>(), pos[ePos0], eps, eps);
+  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos1>(), pos[ePos1], eps, eps);
+  CHECK_CLOSE_OR_SMALL(params.template get<eFreePos2>(), pos[ePos2], eps, eps);
   CHECK_CLOSE_OR_SMALL(params.template get<eFreeDir0>(), unitDir[eMom0], eps,
                        eps);
   CHECK_CLOSE_OR_SMALL(params.template get<eFreeDir1>(), unitDir[eMom1], eps,
@@ -52,9 +50,7 @@ void checkParameters(const FreeTrackParameters& params, const Vector4& pos4,
                        eps);
   CHECK_CLOSE_OR_SMALL(params.template get<eFreeQOverP>(), qOverP, eps, eps);
   // convenience accessors
-  CHECK_CLOSE_OR_SMALL(params.fourPosition(), pos4, eps, eps);
   CHECK_CLOSE_OR_SMALL(params.position(), pos, eps, eps);
-  CHECK_CLOSE_OR_SMALL(params.time(), pos4[eFreeTime], eps, eps);
   CHECK_CLOSE_OR_SMALL(params.direction(), unitDir, eps, eps);
   CHECK_CLOSE_OR_SMALL(params.absoluteMomentum(), p, eps, eps);
   CHECK_CLOSE_OR_SMALL(params.transverseMomentum(),
@@ -64,8 +60,6 @@ void checkParameters(const FreeTrackParameters& params, const Vector4& pos4,
   // self-consistency
   CHECK_CLOSE_OR_SMALL(params.position(),
                        params.parameters().template segment<3>(eFreePos0), eps,
-                       eps);
-  CHECK_CLOSE_OR_SMALL(params.time(), params.template get<eFreeTime>(), eps,
                        eps);
 
   // reflection
@@ -81,20 +75,19 @@ void checkParameters(const FreeTrackParameters& params, const Vector4& pos4,
 
 BOOST_AUTO_TEST_SUITE(CurvilinearTrackParameters)
 
-BOOST_DATA_TEST_CASE(
-    NeutralConstructFromAngles,
-    posSymmetric* posSymmetric* posSymmetric* ts* phis* thetas* ps, x, y, z,
-    time, phi, theta, p) {
-  Vector4 pos4(x, y, z, time);
+BOOST_DATA_TEST_CASE(NeutralConstructFromAngles,
+                     posSymmetric* posSymmetric* posSymmetric* phis* thetas* ps,
+                     x, y, z, phi, theta, p) {
+  Vector3 pos(x, y, z);
   Vector3 dir = makeDirectionFromPhiTheta(phi, theta);
 
-  FreeTrackParameters params(pos4, phi, theta, 1 / p, std::nullopt,
+  FreeTrackParameters params(pos, phi, theta, 1 / p, std::nullopt,
                              ParticleHypothesis::pion0());
-  checkParameters(params, pos4, dir, p, 0_e);
+  checkParameters(params, pos, dir, p, 0_e);
   BOOST_CHECK(!params.covariance());
 
   // reassign w/ covariance
-  params = FreeTrackParameters(pos4, phi, theta, 1 / p, cov,
+  params = FreeTrackParameters(pos, phi, theta, 1 / p, cov,
                                ParticleHypothesis::pion0());
   BOOST_CHECK(params.covariance());
   BOOST_CHECK_EQUAL(params.covariance().value(), cov);
@@ -102,18 +95,18 @@ BOOST_DATA_TEST_CASE(
 
 BOOST_DATA_TEST_CASE(
     ChargedConstructFromAngles,
-    posSymmetric* posSymmetric* posSymmetric* ts* phis* thetas* ps* qsNonZero,
-    x, y, z, time, phi, theta, p, q) {
-  Vector4 pos4(x, y, z, time);
+    posSymmetric* posSymmetric* posSymmetric* phis* thetas* ps* qsNonZero, x, y,
+    z, phi, theta, p, q) {
+  Vector3 pos(x, y, z);
   Vector3 dir = makeDirectionFromPhiTheta(phi, theta);
 
-  FreeTrackParameters params(pos4, phi, theta, q / p, std::nullopt,
+  FreeTrackParameters params(pos, phi, theta, q / p, std::nullopt,
                              ParticleHypothesis::pionLike(std::abs(q)));
-  checkParameters(params, pos4, dir, p, q);
+  checkParameters(params, pos, dir, p, q);
   BOOST_CHECK(!params.covariance());
 
   // reassign w/ covariance
-  params = FreeTrackParameters(pos4, phi, theta, q / p, cov,
+  params = FreeTrackParameters(pos, phi, theta, q / p, cov,
                                ParticleHypothesis::pionLike(std::abs(q)));
   BOOST_CHECK(params.covariance());
   BOOST_CHECK_EQUAL(params.covariance().value(), cov);
@@ -121,18 +114,18 @@ BOOST_DATA_TEST_CASE(
 
 BOOST_DATA_TEST_CASE(
     AnyConstructFromAngles,
-    posSymmetric* posSymmetric* posSymmetric* ts* phis* thetas* ps* qsNonZero,
-    x, y, z, time, phi, theta, p, q) {
-  Vector4 pos4(x, y, z, time);
+    posSymmetric* posSymmetric* posSymmetric* phis* thetas* ps* qsNonZero, x, y,
+    z, phi, theta, p, q) {
+  Vector3 pos(x, y, z);
   Vector3 dir = makeDirectionFromPhiTheta(phi, theta);
 
-  FreeTrackParameters params(pos4, phi, theta, q / p, std::nullopt,
+  FreeTrackParameters params(pos, phi, theta, q / p, std::nullopt,
                              ParticleHypothesis::pionLike(std::abs(q)));
-  checkParameters(params, pos4, dir, p, q);
+  checkParameters(params, pos, dir, p, q);
   BOOST_CHECK(!params.covariance());
 
   // reassign w/ covariance
-  params = FreeTrackParameters(pos4, phi, theta, q / p, cov,
+  params = FreeTrackParameters(pos, phi, theta, q / p, cov,
                                ParticleHypothesis::pionLike(std::abs(q)));
   BOOST_CHECK(params.covariance());
   BOOST_CHECK_EQUAL(params.covariance().value(), cov);

@@ -13,7 +13,7 @@ target_sources(
         MbfSmoother.cpp
 )
 
-foreach(DIM RANGE 1 6)
+foreach(DIM RANGE 1 5)
     set(dim_file ${CMAKE_CURRENT_BINARY_DIR}/GainMatrixUpdaterImpl${DIM}.cpp)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/GainMatrixUpdaterImpl.cpp.in

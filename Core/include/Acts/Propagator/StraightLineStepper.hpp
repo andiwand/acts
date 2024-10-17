@@ -177,11 +177,6 @@ class StraightLineStepper {
     return state.particleHypothesis;
   }
 
-  /// Time access
-  ///
-  /// @param state [in] The stepping state (thread-local cache)
-  double time(const State& state) const { return state.pars[eFreeTime]; }
-
   /// Update surface status
   ///
   /// This method intersects the provided surface and update the navigation
@@ -292,9 +287,6 @@ class StraightLineStepper {
 
     // dr/ds :
     state.derivative.template head<3>() = direction(state);
-    // dt / ds
-    state.derivative(eFreeTime) = fastHypot(
-        1., state.particleHypothesis.mass() / absoluteMomentum(state));
     // d (dr/ds) / ds : == 0
     state.derivative.template segment<3>(4) = Acts::Vector3::Zero().transpose();
     // d qop / ds  == 0
@@ -334,9 +326,8 @@ class StraightLineStepper {
   /// @param [in] uposition the updated position
   /// @param [in] udirection the updated direction
   /// @param [in] qop the updated qop value
-  /// @param [in] time the updated time value
   void update(State& state, const Vector3& uposition, const Vector3& udirection,
-              double qop, double time) const;
+              double qop) const;
 
   /// Method for on-demand transport of the covariance
   /// to a new curvilinear frame at current  position,
@@ -378,25 +369,15 @@ class StraightLineStepper {
 
     // use the adjusted step size
     const auto h = state.stepSize.value() * propDir;
-    const auto m = state.particleHypothesis.mass();
-    const auto p = absoluteMomentum(state);
-    // time propagates along distance as 1/b = sqrt(1 + m²/p²)
-    const auto dtds = fastHypot(1., m / p);
     // Update the track parameters according to the equations of motion
     Vector3 dir = direction(state);
     state.pars.template segment<3>(eFreePos0) += h * dir;
-    state.pars[eFreeTime] += h * dtds;
 
     // Propagate the jacobian
     if (state.covTransport) {
       // The step transport matrix in global coordinates
       FreeMatrix D = FreeMatrix::Identity();
       D.block<3, 3>(0, 4) = ActsSquareMatrix<3>::Identity() * h;
-      // Extend the calculation by the time propagation
-      // Evaluate dt/dlambda
-      D(3, 7) = h * m * m * state.pars[eFreeQOverP] / dtds;
-      // Set the derivative factor the time
-      state.derivative(3) = dtds;
       // Update jacobian and derivative
       state.jacTransport = D * state.jacTransport;
       state.derivative.template head<3>() = dir;

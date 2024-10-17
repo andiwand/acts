@@ -45,12 +45,10 @@ struct Helper {
                                      Acts::AxisDirection::AxisY);
   }
 
-  auto channelize(const Acts::Vector3 &pos3, const Acts::Vector3 &dir3) const {
-    Acts::Vector4 pos4 = Acts::Vector4::Zero();
-    pos4.segment<3>(Acts::ePos0) = pos3;
+  auto channelize(const Acts::Vector3 &pos, const Acts::Vector3 &dir3) const {
     Acts::Vector4 mom4 = Acts::Vector4::Zero();
     mom4.segment<3>(Acts::eMom0) = dir3;
-    ActsFatras::Hit hit({}, {}, pos4, mom4, mom4);
+    ActsFatras::Hit hit({}, {}, pos, mom4, mom4);
     auto res = channelizer.channelize(hit, *surface, gctx, driftDir,
                                       segmentation, thickness);
     BOOST_REQUIRE(res.ok());

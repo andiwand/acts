@@ -27,14 +27,12 @@ void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
   const unsigned int num_slinks = sourceLinks.size();
 
   Acts::Vector3 gPos = Acts::Vector3::Zero();
-  std::optional<double> gTime = std::nullopt;
   Acts::Vector2 gCov = Acts::Vector2::Zero();
-  std::optional<double> gCovT = std::nullopt;
 
   if (num_slinks == 1) {  // pixel SP formation
     auto slink = sourceLinks.at(0);
     auto [param, cov] = opt.paramCovAccessor(slink);
-    std::tie(gPos, gTime, gCov, gCovT) = m_spUtility->globalCoords(
+    std::tie(gPos, gCov) = m_spUtility->globalCoords(
         gctx, slink, m_config.slSurfaceAccessor, param, cov);
   } else if (num_slinks == 2) {  // strip SP formation
 
@@ -85,7 +83,7 @@ void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
   boost::container::static_vector<SourceLink, 2> slinks(sourceLinks.begin(),
                                                         sourceLinks.end());
 
-  spacePointIt = m_spConstructor(gPos, gTime, gCov, gCovT, std::move(slinks));
+  spacePointIt = m_spConstructor(gPos, gCov, std::move(slinks));
 }
 
 template <typename spacepoint_t>
@@ -108,15 +106,12 @@ void SpacePointBuilder<spacepoint_t>::makeSourceLinkPairs(
       const auto& slinkBack = slinksBack[j];
 
       const auto [paramFront, covFront] = pairOpt.paramCovAccessor(slinkFront);
-      const auto [gposFront, gtimeFront, gcovFront, gcovtFront] =
-          m_spUtility->globalCoords(gctx, slinkFront,
-                                    m_config.slSurfaceAccessor, paramFront,
-                                    covFront);
+      const auto [gposFront, gcovFront] = m_spUtility->globalCoords(
+          gctx, slinkFront, m_config.slSurfaceAccessor, paramFront, covFront);
 
       const auto [paramBack, covBack] = pairOpt.paramCovAccessor(slinkBack);
-      const auto [gposBack, gtimeBack, gcovBack, gcovtBack] =
-          m_spUtility->globalCoords(gctx, slinkBack, m_config.slSurfaceAccessor,
-                                    paramBack, covBack);
+      const auto [gposBack, gcovBack] = m_spUtility->globalCoords(
+          gctx, slinkBack, m_config.slSurfaceAccessor, paramBack, covBack);
 
       auto res = m_spUtility->differenceOfMeasurementsChecked(
           gposFront, gposBack, pairOpt.vertex, pairOpt.diffDist,

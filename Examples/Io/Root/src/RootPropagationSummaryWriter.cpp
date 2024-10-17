@@ -123,7 +123,6 @@ ProcessCode RootPropagationSummaryWriter::writeT(
         static_cast<float>(startParameters.parameters()[Acts::eBoundTheta]);
     m_qOverP =
         static_cast<float>(startParameters.parameters()[Acts::eBoundQOverP]);
-    m_t = static_cast<float>(startParameters.parameters()[Acts::eBoundTime]);
 
     // Derived initial trajectory parameters
     m_eta = static_cast<float>(

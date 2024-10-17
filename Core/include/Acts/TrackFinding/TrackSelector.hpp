@@ -59,9 +59,6 @@ class TrackSelector {
     double loc0Max = inf;
     double loc1Min = -inf;
     double loc1Max = inf;
-    // Minimum/maximum track time.
-    double timeMin = -inf;
-    double timeMax = inf;
     // Direction cuts.
     double phiMin = -inf;
     double phiMax = inf;
@@ -101,12 +98,6 @@ class TrackSelector {
     /// @param max Maximum value
     /// @return Reference to this object
     Config& loc1(double min, double max);
-
-    /// Set time acceptance range
-    /// @param min Minimum value
-    /// @param max Maximum value
-    /// @return Reference to this object
-    Config& time(double min, double max);
 
     /// Set phi acceptance range
     /// @param min Minimum value
@@ -263,13 +254,6 @@ inline TrackSelector::Config& TrackSelector::Config::loc1(double min,
   return *this;
 }
 
-inline TrackSelector::Config& TrackSelector::Config::time(double min,
-                                                          double max) {
-  timeMin = min;
-  timeMax = max;
-  return *this;
-}
-
 inline TrackSelector::Config& TrackSelector::Config::phi(double min,
                                                          double max) {
   phiMin = min;
@@ -323,7 +307,6 @@ inline std::ostream& operator<<(std::ostream& os,
 
   printMinMax("loc0", cuts.loc0Min, cuts.loc0Max);
   printMinMax("loc1", cuts.loc1Min, cuts.loc1Max);
-  printMinMax("time", cuts.timeMin, cuts.timeMax);
   printMinMax("phi", cuts.phiMin, cuts.phiMax);
   printMinMax("eta", cuts.etaMin, cuts.etaMax);
   printMinMax("absEta", cuts.absEtaMin, cuts.absEtaMax);
@@ -458,8 +441,7 @@ bool TrackSelector::isValidTrack(const track_proxy_t& track) const {
              within(_eta, cuts.etaMin, cuts.etaMax))) &&
            within(track.phi(), cuts.phiMin, cuts.phiMax) &&
            within(track.loc0(), cuts.loc0Min, cuts.loc0Max) &&
-           within(track.loc1(), cuts.loc1Min, cuts.loc1Max) &&
-           within(track.time(), cuts.timeMin, cuts.timeMax);
+           within(track.loc1(), cuts.loc1Min, cuts.loc1Max);
   };
 
   auto trackCuts = [&]() {

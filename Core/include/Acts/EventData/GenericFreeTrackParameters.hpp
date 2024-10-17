@@ -90,17 +90,16 @@ class GenericFreeTrackParameters {
   /// @param qOverP Charge over momentum
   /// @param cov Free parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
-  GenericFreeTrackParameters(const Vector4& pos4, double phi, double theta,
+  GenericFreeTrackParameters(const Vector3& pos, double phi, double theta,
                              double qOverP, std::optional<CovarianceMatrix> cov,
                              ParticleHypothesis particleHypothesis)
       : m_params(FreeVector::Zero()),
         m_cov(std::move(cov)),
         m_particleHypothesis(std::move(particleHypothesis)) {
     auto dir = makeDirectionFromPhiTheta(phi, theta);
-    m_params[eFreePos0] = pos4[ePos0];
-    m_params[eFreePos1] = pos4[ePos1];
-    m_params[eFreePos2] = pos4[ePos2];
-    m_params[eFreeTime] = pos4[eTime];
+    m_params[eFreePos0] = pos[ePos0];
+    m_params[eFreePos1] = pos[ePos1];
+    m_params[eFreePos2] = pos[ePos2];
     m_params[eFreeDir0] = dir[eMom0];
     m_params[eFreeDir1] = dir[eMom1];
     m_params[eFreeDir2] = dir[eMom2];
@@ -149,19 +148,8 @@ class GenericFreeTrackParameters {
     return m_params[kIndex];
   }
 
-  /// Space-time position four-vector.
-  Vector4 fourPosition() const {
-    Vector4 pos4;
-    pos4[ePos0] = m_params[eFreePos0];
-    pos4[ePos1] = m_params[eFreePos1];
-    pos4[ePos2] = m_params[eFreePos2];
-    pos4[eTime] = m_params[eFreeTime];
-    return pos4;
-  }
-  /// Spatial position three-vector.
+  /// Position three-vector.
   Vector3 position() const { return m_params.segment<3>(eFreePos0); }
-  /// Time coordinate.
-  double time() const { return m_params[eFreeTime]; }
 
   /// Phi direction.
   double phi() const { return VectorHelpers::phi(direction()); }

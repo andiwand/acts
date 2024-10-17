@@ -80,7 +80,7 @@ struct SimVertex {
   /// The vertex ID
   SimVertexBarcode id;
   /// The vertex four-position
-  Acts::Vector4 position4 = Acts::Vector4::Zero();
+  Acts::Vector3 position = Acts::Vector3::Zero();
   /// The vertex process type
   ActsFatras::ProcessType process = ActsFatras::ProcessType::eUndefined;
   /// The incoming particles into the vertex
@@ -90,15 +90,15 @@ struct SimVertex {
 
   /// Construct the vertex from a position and optional process type.
   ///
-  /// @param position4_ the vertex four-position
+  /// @param position_ the vertex position
   /// @param process_ the process type that generated this vertex
   ///
   /// Associated particles are left empty by default and must be filled by the
   /// user after construction.
   SimVertex(
-      SimVertexBarcode id_, const Acts::Vector4& position4_,
+      SimVertexBarcode id_, const Acts::Vector3& position_,
       ActsFatras::ProcessType process_ = ActsFatras::ProcessType::eUndefined)
-      : id(id_), position4(position4_), process(process_) {}
+      : id(id_), position(position_), process(process_) {}
   // explicitly default rule-of-five.
   SimVertex() = default;
   SimVertex(const SimVertex&) = default;
@@ -107,10 +107,6 @@ struct SimVertex {
   SimVertex& operator=(SimVertex&&) = default;
 
   constexpr SimVertexBarcode vertexId() const { return id; }
-  /// The vertex three-position.
-  auto position() const { return position4.head<3>(); }
-  /// The vertex time.
-  double time() const { return position4[3]; }
 };
 
 namespace detail {

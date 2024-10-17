@@ -104,13 +104,11 @@ ActsExamples::ProcessCode ActsExamples::RootParticleWriter::writeT(
     m_particleType.push_back(particle.pdg());
     m_process.push_back(static_cast<std::uint32_t>(particle.process()));
     // position
-    m_vx.push_back(Acts::clampValue<float>(particle.fourPosition().x() /
+    m_vx.push_back(Acts::clampValue<float>(particle.position().x() /
                                            Acts::UnitConstants::mm));
-    m_vy.push_back(Acts::clampValue<float>(particle.fourPosition().y() /
+    m_vy.push_back(Acts::clampValue<float>(particle.position().y() /
                                            Acts::UnitConstants::mm));
-    m_vz.push_back(Acts::clampValue<float>(particle.fourPosition().z() /
-                                           Acts::UnitConstants::mm));
-    m_vt.push_back(Acts::clampValue<float>(particle.fourPosition().w() /
+    m_vz.push_back(Acts::clampValue<float>(particle.position().z() /
                                            Acts::UnitConstants::mm));
     // momentum
     const auto p = particle.absoluteMomentum() / Acts::UnitConstants::GeV;

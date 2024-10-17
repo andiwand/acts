@@ -93,7 +93,6 @@ FreeVector estimateTrackParamsFromSeed(spacepoint_range_t spRange,
 
   FreeVector params = estimateTrackParamsFromSeed(
       spPositions[0], spPositions[1], spPositions[2], bField);
-  params[eFreeTime] = spTimes[0].value_or(0);
   return params;
 }
 
@@ -146,7 +145,6 @@ Result<BoundVector> estimateTrackParamsFromSeed(const GeometryContext& gctx,
   // The estimated loc0 and loc1
   params[eBoundLoc0] = bottomLocalPos.x();
   params[eBoundLoc1] = bottomLocalPos.y();
-  params[eBoundTime] = sp0->t().value_or(0);
 
   return Result<BoundVector>::success(params);
 }

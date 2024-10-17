@@ -67,17 +67,16 @@ void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
   G4PrimaryVertex* pVertex = nullptr;
 
   // We are looping through the particles and flush per vertex
-  std::optional<Acts::Vector4> lastVertex;
+  std::optional<Acts::Vector3> lastVertex;
 
   constexpr double convertLength = CLHEP::mm / Acts::UnitConstants::mm;
-  constexpr double convertTime = CLHEP::ns / Acts::UnitConstants::ns;
   constexpr double convertEnergy = CLHEP::GeV / Acts::UnitConstants::GeV;
 
   unsigned int pCounter = 0;
   unsigned int trackId = 1;
   // Loop over the input partilces and run
   for (const auto& part : inputParticles) {
-    auto currentVertex = part.fourPosition();
+    auto currentVertex = part.position();
     if (!lastVertex || !currentVertex.isApprox(*lastVertex)) {
       // Add the vertex to the event
       if (pVertex != nullptr) {
@@ -88,9 +87,9 @@ void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
         pCounter = 0;
       }
       lastVertex = currentVertex;
-      pVertex = new G4PrimaryVertex(
-          currentVertex[0] * convertLength, currentVertex[1] * convertLength,
-          currentVertex[2] * convertLength, currentVertex[3] * convertTime);
+      pVertex = new G4PrimaryVertex(currentVertex[0] * convertLength,
+                                    currentVertex[1] * convertLength,
+                                    currentVertex[2] * convertLength, 0);
     }
 
     // Add a new primary to the vertex

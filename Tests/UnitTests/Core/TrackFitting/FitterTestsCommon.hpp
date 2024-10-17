@@ -288,7 +288,7 @@ struct FitterTester {
     BOOST_REQUIRE_EQUAL(sourceLinks.size(), nMeasurements);
 
     // create a track near the tracker exit for outward->inward filtering
-    Acts::Vector4 posOuter = start.fourPosition(geoCtx);
+    Acts::Vector3 posOuter = start.position(geoCtx);
     posOuter[Acts::ePos0] = 3_m;
     Acts::CurvilinearTrackParameters startOuter(
         posOuter, start.direction(), start.qOverP(), start.covariance(),

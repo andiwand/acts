@@ -145,11 +145,11 @@ BOOST_AUTO_TEST_CASE(shared_vector_helper_test) {
 }
 
 BOOST_AUTO_TEST_CASE(VectorHelpersPosition) {
-  Vector4 pos4 = Vector4::Constant(-1);
-  pos4[ePos0] = 1;
-  pos4[ePos1] = 2;
-  pos4[ePos2] = 3;
-  BOOST_CHECK_EQUAL(position(pos4), Vector3(1, 2, 3));
+  Vector3 pos = Vector3::Constant(-1);
+  pos[ePos0] = 1;
+  pos[ePos1] = 2;
+  pos[ePos2] = 3;
+  BOOST_CHECK_EQUAL(pos, Vector3(1, 2, 3));
 
   FreeVector params = FreeVector::Constant(-1);
   params[eFreePos0] = 1;

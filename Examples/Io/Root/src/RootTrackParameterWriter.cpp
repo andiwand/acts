@@ -201,7 +201,6 @@ ProcessCode RootTrackParameterWriter::writeT(
     m_phi = params.parameters()[Acts::eBoundPhi];
     m_theta = params.parameters()[Acts::eBoundTheta];
     m_qop = params.parameters()[Acts::eBoundQOverP];
-    m_time = params.parameters()[Acts::eBoundTime];
 
     auto getError = [&params](std::size_t idx) -> float {
       if (!params.covariance().has_value()) {
@@ -219,7 +218,6 @@ ProcessCode RootTrackParameterWriter::writeT(
     m_err_phi = getError(Acts::eBoundPhi);
     m_err_theta = getError(Acts::eBoundTheta);
     m_err_qop = getError(Acts::eBoundQOverP);
-    m_err_time = getError(Acts::eBoundTime);
 
     m_charge = static_cast<int>(params.charge());
     m_p = params.absoluteMomentum();
@@ -248,7 +246,6 @@ ProcessCode RootTrackParameterWriter::writeT(
       m_t_phi = phi(truthUnitDir);
       m_t_theta = theta(truthUnitDir);
       m_t_qop = NaNfloat;
-      m_t_time = truthPos4[Acts::eTime];
 
       m_t_charge = 0;
       m_t_p = NaNfloat;
@@ -285,7 +282,6 @@ ProcessCode RootTrackParameterWriter::writeT(
           m_phi, m_t_phi, static_cast<float>(2 * std::numbers::pi));
       m_res_theta = m_theta - m_t_theta;
       m_res_qop = m_qop - m_t_qop;
-      m_res_time = m_time - m_t_time;
 
       auto getPull = [](float res, float err) -> float {
         if (std::isnan(err) || std::abs(err) < 1e-6) {
@@ -299,7 +295,6 @@ ProcessCode RootTrackParameterWriter::writeT(
       m_pull_phi = getPull(m_res_phi, m_err_phi);
       m_pull_theta = getPull(m_res_theta, m_err_theta);
       m_pull_qop = getPull(m_res_qop, m_err_qop);
-      m_pull_time = getPull(m_res_time, m_err_time);
     } else {
       m_t_matched = false;
       m_t_particleId = 0;
@@ -310,7 +305,6 @@ ProcessCode RootTrackParameterWriter::writeT(
       m_t_phi = NaNfloat;
       m_t_theta = NaNfloat;
       m_t_qop = NaNfloat;
-      m_t_time = NaNfloat;
 
       m_t_charge = 0;
       m_t_p = NaNfloat;
