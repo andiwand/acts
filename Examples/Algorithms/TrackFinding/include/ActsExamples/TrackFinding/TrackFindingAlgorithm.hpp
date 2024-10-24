@@ -99,7 +99,7 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     Acts::MeasurementSelector::Config measurementSelectorCfg;
     /// Track selector config
     std::optional<std::variant<Acts::TrackSelector::Config,
-                               Acts::TrackSelector::EtaBinnedConfig>>
+                               Acts::TrackSelector::AbsEtaBinnedConfig>>
         trackSelectorCfg = std::nullopt;
 
     /// Maximum number of propagation steps

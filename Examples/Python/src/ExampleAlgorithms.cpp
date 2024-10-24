@@ -67,12 +67,13 @@ void addExampleAlgorithms(Context& ctx) {
   }
 
   {
-    using EtaBinnedConfig = Acts::TrackSelector::EtaBinnedConfig;
+    using AbsEtaBinnedConfig = Acts::TrackSelector::AbsEtaBinnedConfig;
     using Config = Acts::TrackSelector::Config;
 
-    auto tool = py::class_<Acts::TrackSelector>(m, "TrackSelector")
-                    .def(py::init<const Config&>(), py::arg("config"))
-                    .def(py::init<const EtaBinnedConfig&>(), py::arg("config"));
+    auto tool =
+        py::class_<Acts::TrackSelector>(m, "TrackSelector")
+            .def(py::init<const Config&>(), py::arg("config"))
+            .def(py::init<const AbsEtaBinnedConfig&>(), py::arg("config"));
 
     {
       auto mc = py::class_<Acts::TrackSelector::MeasurementCounter>(
@@ -121,15 +122,15 @@ void addExampleAlgorithms(Context& ctx) {
     }
 
     {
-      auto c = py::class_<EtaBinnedConfig>(tool, "EtaBinnedConfig")
+      auto c = py::class_<AbsEtaBinnedConfig>(tool, "AbsEtaBinnedConfig")
                    .def(py::init<>())
                    .def(py::init<const Config&>());
 
       patchKwargsConstructor(c);
 
-      c.def_property_readonly("nEtaBins", &EtaBinnedConfig::nEtaBins);
+      c.def_property_readonly("nBins", &AbsEtaBinnedConfig::nBins);
 
-      ACTS_PYTHON_STRUCT_BEGIN(c, EtaBinnedConfig);
+      ACTS_PYTHON_STRUCT_BEGIN(c, AbsEtaBinnedConfig);
       ACTS_PYTHON_MEMBER(cutSets);
       ACTS_PYTHON_MEMBER(absEtaEdges);
       ACTS_PYTHON_STRUCT_END();

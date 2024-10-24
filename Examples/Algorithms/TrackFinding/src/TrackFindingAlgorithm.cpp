@@ -201,7 +201,8 @@ class BranchStopper {
           if constexpr (std::is_same_v<T, Acts::TrackSelector::Config>) {
             return &config;
           } else if constexpr (std::is_same_v<
-                                   T, Acts::TrackSelector::EtaBinnedConfig>) {
+                                   T,
+                                   Acts::TrackSelector::AbsEtaBinnedConfig>) {
             double theta = trackState.parameters()[Acts::eBoundTheta];
             double eta = Acts::AngleHelpers::etaFromTheta(theta);
             return config.hasCuts(eta) ? &config.getCuts(eta) : nullptr;

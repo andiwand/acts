@@ -94,7 +94,7 @@ std::vector<double> etaValues{-5.0, -4.5, -4.0, -3.5, -3.0, -2.5, -2.0, -1.5,
                               3.0,  3.5,  4.0,  4.5,  5.0,  1.0};
 
 BOOST_DATA_TEST_CASE(TestSingleBinCase, bdata::make(etaValues), eta) {
-  TrackSelector::EtaBinnedConfig cfgBase;
+  TrackSelector::AbsEtaBinnedConfig cfgBase;
 
   MockTrack baseTrack{};
   baseTrack.m_theta = thetaFromEta(eta);
@@ -368,7 +368,7 @@ BOOST_DATA_TEST_CASE(TestSingleBinCase, bdata::make(etaValues), eta) {
 }
 
 BOOST_AUTO_TEST_CASE(TestSingleBinEtaCutByBinEdge) {
-  TrackSelector selector{TrackSelector::EtaBinnedConfig(1.0).addCuts(2.0)};
+  TrackSelector selector{TrackSelector::AbsEtaBinnedConfig(1.0).addCuts(2.0)};
 
   BOOST_TEST_INFO_SCOPE(selector.config());
 
@@ -413,7 +413,7 @@ BOOST_AUTO_TEST_CASE(TestMultiBinCuts) {
   auto check = [&](const char* name, const factory_ptr_t& factory,
                    const prop_ptr_t& prop) {
     BOOST_TEST_CONTEXT(name) {
-      auto cfg = TrackSelector::EtaBinnedConfig{0.0};
+      auto cfg = TrackSelector::AbsEtaBinnedConfig{0.0};
 
       cfg.addCuts(2.0, [&](auto& c) { (c.*factory)(-1.0, 1.0); })
           .addCuts([&](auto& c) { (c.*factory)(-2.0, 2.0); });
@@ -513,7 +513,7 @@ BOOST_AUTO_TEST_CASE(TestMultiBinCuts) {
 }
 
 BOOST_AUTO_TEST_CASE(TestBinSelection) {
-  using EtaBinnedConfig = TrackSelector::EtaBinnedConfig;
+  using EtaBinnedConfig = TrackSelector::AbsEtaBinnedConfig;
   constexpr double inf = std::numeric_limits<double>::infinity();
 
   {
@@ -555,7 +555,7 @@ BOOST_AUTO_TEST_CASE(TestBinSelection) {
 BOOST_AUTO_TEST_CASE(TestConstructor) {
   // valid multi bin construction
   {
-    TrackSelector::EtaBinnedConfig cfg{std::vector<double>{0, 1, 4}};
+    TrackSelector::AbsEtaBinnedConfig cfg{std::vector<double>{0, 1, 4}};
     cfg.cutSets.at(0).ptMin = 0.9;
     cfg.cutSets.at(1).ptMin = 0.4;
     TrackSelector{cfg};
@@ -563,7 +563,7 @@ BOOST_AUTO_TEST_CASE(TestConstructor) {
 
   {
     // Track selector config with 2 eta bins
-    TrackSelector::EtaBinnedConfig cfg{std::vector<double>{0, 1, 4}};
+    TrackSelector::AbsEtaBinnedConfig cfg{std::vector<double>{0, 1, 4}};
 
     // just the right amount!
     TrackSelector{cfg};
@@ -584,28 +584,28 @@ BOOST_AUTO_TEST_CASE(TestConstructor) {
 
   {
     // Invalid sequence of chained construction
-    auto cfg = TrackSelector::EtaBinnedConfig(0);
+    auto cfg = TrackSelector::AbsEtaBinnedConfig(0);
     cfg.addCuts(2.0, [](auto& c) { c.loc0(-1.0, 1.0); });
     BOOST_CHECK_THROW(cfg.addCuts(1.0), std::invalid_argument);
-    BOOST_CHECK_THROW(TrackSelector::EtaBinnedConfig(0).addCuts(-2.0),
+    BOOST_CHECK_THROW(TrackSelector::AbsEtaBinnedConfig(0).addCuts(-2.0),
                       std::invalid_argument);
   }
 
   {
-    auto cfg = TrackSelector::EtaBinnedConfig(1.0);
+    auto cfg = TrackSelector::AbsEtaBinnedConfig(1.0);
 
     cfg.addCuts(2.0, [](auto& c) { c.loc0(-1.0, 1.0); });
-    BOOST_CHECK_EQUAL(cfg.nEtaBins(), 1);
+    BOOST_CHECK_EQUAL(cfg.nBins(), 1);
     BOOST_CHECK_EQUAL(cfg.getCuts(1.5).loc0Min, -1.0);
     BOOST_CHECK_EQUAL(cfg.getCuts(1.5).loc0Max, 1.0);
 
     cfg.addCuts(3.0, [](auto& c) { c.loc0(-2.0, 2.0); });
-    BOOST_CHECK_EQUAL(cfg.nEtaBins(), 2);
+    BOOST_CHECK_EQUAL(cfg.nBins(), 2);
     BOOST_CHECK_EQUAL(cfg.getCuts(2.5).loc0Min, -2.0);
     BOOST_CHECK_EQUAL(cfg.getCuts(2.5).loc0Max, 2.0);
 
     cfg.addCuts(4.0, [](auto& c) { c.loc0(-3.0, 3.0); });
-    BOOST_CHECK_EQUAL(cfg.nEtaBins(), 3);
+    BOOST_CHECK_EQUAL(cfg.nBins(), 3);
     BOOST_CHECK_EQUAL(cfg.getCuts(3.5).loc0Min, -3.0);
     BOOST_CHECK_EQUAL(cfg.getCuts(3.5).loc0Max, 3.0);
   }
