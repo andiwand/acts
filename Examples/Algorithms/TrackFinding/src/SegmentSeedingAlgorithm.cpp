@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/AngleHelpers.hpp"
 #include "Acts/Utilities/VectorHelpers.hpp"
+#include "Acts/Utilities/detail/periodic.hpp"
 #include "ActsExamples/EventData/SimSeed.hpp"
 #include "ActsExamples/EventData/SimSpacePoint.hpp"
 
@@ -259,9 +260,15 @@ SegmentSeedingAlgorithm::SegmentSeedingAlgorithm(
 
 ProcessCode SegmentSeedingAlgorithm::execute(
     const AlgorithmContext& ctx) const {
+  const float maxR = 200 * Acts::UnitConstants::mm;
+
   SpacePoints spacePoints;
   for (const auto& isp : m_inputSpacePoints) {
     for (const auto& spacePoint : (*isp)(ctx)) {
+      if (spacePoint.r() > maxR) {
+        continue;
+      }
+
       auto sp = spacePoints.emplace_back();
       sp.x() = spacePoint.x();
       sp.y() = spacePoint.y();
@@ -273,18 +280,22 @@ ProcessCode SegmentSeedingAlgorithm::execute(
 
   const float thetaMin = Acts::AngleHelpers::thetaFromEta(3.5f);
   const float thetaMax = Acts::AngleHelpers::thetaFromEta(-3.5f);
-  const std::size_t thetaSegments = 11;
+  const std::size_t thetaSegments = 1;
   const float thetaStep = (thetaMax - thetaMin) / (thetaSegments - 1);
 
-  const std::size_t phiSegments = 101;
+  const std::size_t phiSegments = 501;
   const float phiStep = 2 * M_PI / phiSegments;
 
-  const float minZ = -150 * Acts::UnitConstants::mm;
-  const float maxZ = 150 * Acts::UnitConstants::mm;
-  const float minD = 30 * Acts::UnitConstants::mm;
+  const float minZ = -200 * Acts::UnitConstants::mm;
+  const float maxZ = 200 * Acts::UnitConstants::mm;
+  const float minD = 20 * Acts::UnitConstants::mm;
   const float maxD = 300 * Acts::UnitConstants::mm;
   const float max_l13_d2 = 1 * Acts::UnitConstants::mm;
-  const float maxAbsD0 = 5 * Acts::UnitConstants::mm;
+  const float maxAbsD0 = 2 * Acts::UnitConstants::mm;
+  const float minPt = 0.5 * Acts::UnitConstants::GeV;
+  const float minR =
+      (minPt / 1 * Acts::UnitConstants::e) / (2 * Acts::UnitConstants::T);
+  const float max_l13_d4 = 3 * Acts::UnitConstants::mm;
 
   auto getThetaSegment = [&](float theta) -> int {
     return std::min(static_cast<std::size_t>((theta - thetaMin) / thetaStep),
@@ -292,6 +303,7 @@ ProcessCode SegmentSeedingAlgorithm::execute(
   };
 
   auto getPhiSegment = [&](float phi) -> int {
+    phi = Acts::detail::radian_pos(phi);
     return std::min(static_cast<std::size_t>(phi / phiStep), phiSegments - 1);
   };
 
@@ -304,7 +316,7 @@ ProcessCode SegmentSeedingAlgorithm::execute(
   for (auto sp : spacePoints) {
     const auto thetaSegment = getThetaSegment(sp.theta());
     const auto phiSegment = getPhiSegment(sp.phi());
-    for (int j = thetaSegment - 1; j <= thetaSegment + 1; ++j) {
+    for (int j = thetaSegment - 0; j <= thetaSegment + 0; ++j) {
       if (j < 0 || j >= thetaSegments) {
         continue;
       }
@@ -321,9 +333,10 @@ ProcessCode SegmentSeedingAlgorithm::execute(
   }
 
   SimSeedContainer seeds;
-  boost::container::flat_set<const SimSpacePoint*> usedSpacePoints;
 
   auto findSeeds = [&](const SpacePoints& spacePoints) {
+    boost::container::flat_set<const SimSpacePoint*> usedSpacePoints;
+
     for (std::size_t i = 0; i < spacePoints.size(); ++i) {
       auto sp1 = spacePoints[i];
 
@@ -393,17 +406,51 @@ ProcessCode SegmentSeedingAlgorithm::execute(
           }
 
           // fit a circle through sp 1, 2, 3
-          auto circle =
+          auto c123 =
               fitCircle(sp1.x(), sp1.y(), sp2.x(), sp2.y(), sp3.x(), sp3.y());
-          float d0 = distanceToCircle(circle, 0, 0);
-          if (d0 > maxAbsD0) {
+          if (c123.r < minR) {
+            continue;
+          }
+          float d0 = distanceToCircle(c123, 0, 0);
+          if (std::abs(d0) > maxAbsD0) {
             continue;
           }
 
-          seeds.push_back(SimSeed(*sp1.sp(), *sp2.sp(), *sp3.sp()));
-          usedSpacePoints.insert(sp1.sp());
-          usedSpacePoints.insert(sp2.sp());
-          usedSpacePoints.insert(sp3.sp());
+          for (std::size_t l = k + 1; l < spacePoints.size(); ++l) {
+            auto sp4 = spacePoints[l];
+
+            // skip sp 4 if already used
+            if (usedSpacePoints.contains(sp4.sp())) {
+              continue;
+            }
+
+            // approximate distance between sp 3 and 4
+            const float approx_d34 = sp4.d() - sp3.d();
+            if (approx_d34 < minD) {
+              continue;
+            }
+            if (approx_d34 > maxD) {
+              break;
+            }
+
+            const float l13_d4 = std::abs(l13_k + l13_m * sp4.z() - sp4.r()) /
+                                 std::sqrt(1 + l13_m * l13_m);
+            if (l13_d4 > max_l13_d4) {
+              continue;
+            }
+
+            const float c123_d4 = distanceToCircle(c123, sp4.x(), sp4.y());
+            if (c123_d4 > max_l13_d4) {
+              continue;
+            }
+
+            seeds.push_back(SimSeed(*sp1.sp(), *sp2.sp(), *sp3.sp()));
+            usedSpacePoints.insert(sp1.sp());
+            usedSpacePoints.insert(sp2.sp());
+            usedSpacePoints.insert(sp3.sp());
+            usedSpacePoints.insert(sp4.sp());
+            break;
+          }
         }
       }
     }

@@ -172,7 +172,7 @@ rnd = acts.examples.RandomNumbers(seed=42)
 s = acts.examples.Sequencer(
     events=args.events,
     skip=args.skip,
-    numThreads=1 if args.geant4 else -1,
+    numThreads=1,
     outputDir=str(outputDir),
 )
 
@@ -229,7 +229,7 @@ else:
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
+                    0.0125 * u.mm, 0.0125 * u.mm, 5.5 * u.mm, 1.0 * u.ns
                 ),
             ),
             multiplicity=200,
