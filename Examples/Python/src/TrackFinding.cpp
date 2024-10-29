@@ -25,6 +25,7 @@
 #include "ActsExamples/TrackFinding/MuonHoughSeeder.hpp"
 #include "ActsExamples/TrackFinding/SeedingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SeedingOrthogonalAlgorithm.hpp"
+#include "ActsExamples/TrackFinding/SegmentSeedingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/TrackParamsEstimationAlgorithm.hpp"
@@ -264,6 +265,10 @@ void addTrackFinding(Context& ctx) {
       outputSeeds, seedFilterConfig, seedFinderConfig, seedFinderOptions,
       gridConfig, gridOptions, allowSeparateRMax, zBinNeighborsTop,
       zBinNeighborsBottom, numPhiNeighbors, useExtraCuts);
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::SegmentSeedingAlgorithm, mex,
+                                "SegmentSeedingAlgorithm", inputSpacePoints,
+                                outputSeeds);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::SeedingOrthogonalAlgorithm, mex,
                                 "SeedingOrthogonalAlgorithm", inputSpacePoints,

@@ -10,7 +10,7 @@ u = acts.UnitConstants
 
 SeedingAlgorithm = Enum(
     "SeedingAlgorithm",
-    "Default TruthSmeared TruthEstimated Orthogonal HoughTransform Gbts Hashing",
+    "Default TruthSmeared TruthEstimated Orthogonal HoughTransform Gbts Hashing Segment",
 )
 
 ParticleSmearingSigmas = namedtuple(
@@ -412,6 +412,13 @@ def addSeeding(
                 spacePointGridConfigArg,
                 hashingTrainingConfigArg,
                 hashingAlgorithmConfigArg,
+                logLevel,
+            )
+        elif seedingAlgorithm == SeedingAlgorithm.Segment:
+            logger.info("Using Segment seeding")
+            seeds = addSegmentSeeding(
+                s,
+                spacePoints,
                 logLevel,
             )
         else:
@@ -1036,6 +1043,24 @@ def addHoughTransformSeeding(
     # potentially HT can be extended to also produce seeds, but it is not implemented yet
     # configuration option (outputSeeds) exists
     return ht.config.outputSeeds
+
+
+def addSegmentSeeding(
+    sequence: acts.examples.Sequencer,
+    spacePoints: str,
+    logLevel: acts.logging.Level = None,
+):
+    logLevel = acts.examples.defaultLogging(sequence, logLevel)()
+    from acts.examples import SegmentSeedingAlgorithm
+
+    seedingAlg = SegmentSeedingAlgorithm(
+        level=logLevel,
+        inputSpacePoints=[spacePoints],
+        outputSeeds="seeds",
+    )
+    sequence.addAlgorithm(seedingAlg)
+
+    return seedingAlg.config.outputSeeds
 
 
 def addGbtsSeeding(
