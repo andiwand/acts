@@ -297,6 +297,9 @@ ProcessCode SegmentSeedingAlgorithm::execute(
       (minPt / 1 * Acts::UnitConstants::e) / (2 * Acts::UnitConstants::T);
   const float max_l13_d4 = 3 * Acts::UnitConstants::mm;
 
+  // TODO modify theta so segments don't make a big angle and contain the
+  // beamspot
+
   auto getThetaSegment = [&](float theta) -> int {
     return std::min(static_cast<std::size_t>((theta - thetaMin) / thetaStep),
                     thetaSegments - 1);
@@ -336,6 +339,8 @@ ProcessCode SegmentSeedingAlgorithm::execute(
 
   auto findSeeds = [&](const SpacePoints& spacePoints) {
     boost::container::flat_set<const SimSpacePoint*> usedSpacePoints;
+
+    // TODO break all loops if found and continue with next sp1?
 
     for (std::size_t i = 0; i < spacePoints.size(); ++i) {
       auto sp1 = spacePoints[i];
