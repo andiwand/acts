@@ -223,18 +223,16 @@ else:
                 args.gun_pt_range[1] * u.GeV,
                 transverse=True,
             ),
-            EtaConfig(args.gun_eta_range[0], args.gun_eta_range[1]),
-            PhiConfig(0.0, 360.0 * u.degree),
-            ParticleConfig(
-                args.gun_particles, acts.PdgParticle.eMuon, randomizeCharge=True
-            ),
+            EtaConfig(args.gun_eta_range[0], args.gun_eta_range[1], uniform=True),
+            PhiConfig(-180.0 * u.degree, 180.0 * u.degree),
+            ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
                     0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
                 ),
             ),
-            multiplicity=args.gun_multiplicity,
+            multiplicity=200,
             rnd=rnd,
         )
     else:
