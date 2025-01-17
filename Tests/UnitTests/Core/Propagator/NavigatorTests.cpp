@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     Navigator::Options options(tgContext);
 
     Navigator::State state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
 
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
@@ -148,7 +148,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     Navigator::Options options(tgContext);
 
     Navigator::State state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
 
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
@@ -170,7 +170,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     Navigator::Options options(tgContext);
 
     Navigator::State state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
 
     ACTS_INFO("        i) Because target is reached");
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     state.startSurface = startSurf;
     state.targetSurface = startSurf;
     state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
     BOOST_CHECK(testNavigatorStatePointers(state, startVol, startLay, startSurf,
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     startVol = tGeometry->lowestTrackingVolume(tgContext, position);
     startLay = startVol->associatedLayer(tgContext, position);
     state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
     BOOST_CHECK(testNavigatorStatePointers(state, startVol, startLay, nullptr,
@@ -218,7 +218,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     ACTS_INFO("    b) Initialise having a start surface");
     state.startSurface = startSurf;
     state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
     BOOST_CHECK(testNavigatorStatePointers(state, startVol, startLay, startSurf,
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE(Navigator_status_methods) {
     ACTS_INFO("    c) Initialise having a start volume");
     state.startVolume = startVol;
     state =
-        navigator.makeState(options, position, direction, Direction::Forward)
+        navigator.makeState(options, position, direction, Direction::Forward())
             .value();
     BOOST_CHECK(testNavigatorStateVectors(state, 0u, 0u, 0u));
     BOOST_CHECK(testNavigatorStatePointers(state, startVol, startLay, nullptr,
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(Navigator_target_methods) {
   // - this will call resolveLayers() as well
   // - and thus should call a return to the stepper
   Navigator::State state =
-      navigator.makeState(options, position, direction, Direction::Forward)
+      navigator.makeState(options, position, direction, Direction::Forward())
           .value();
   // Check that the currentVolume is set
   BOOST_CHECK_NE(state.currentVolume, nullptr);

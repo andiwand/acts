@@ -272,7 +272,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsForwardBackward) {
                                              Acts::Logging::Level::VERBOSE));
 
   PropagatorOptions options(geoContext, mfContext);
-  options.direction = Acts::Direction::Forward;
+  options.direction = Acts::Direction::Forward();
 
   Propagator propagator(
       stepper, navigator,
@@ -288,7 +288,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsForwardBackward) {
   auto resultFwd = propagator.propagate(startFwd, options).value();
   auto statesFwd = resultFwd.get<StateRecorder::result_type>();
 
-  options.direction = Acts::Direction::Backward;
+  options.direction = Acts::Direction::Backward();
 
   Acts::Vector4 posBwd(14, 0, 0, 0);
   Acts::CurvilinearTrackParameters startBwd(
@@ -432,7 +432,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsAmbiguity) {
                                              Acts::Logging::Level::VERBOSE));
 
   PropagatorOptions options(geoContext, mfContext);
-  options.direction = Acts::Direction::Forward;
+  options.direction = Acts::Direction::Forward();
 
   Propagator propagator(
       stepper, navigator,
@@ -450,7 +450,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsAmbiguity) {
   auto resultFwd = propagator.propagate(start, options).value();
   auto statesFwd = resultFwd.get<StateRecorder::result_type>();
 
-  options.direction = Acts::Direction::Backward;
+  options.direction = Acts::Direction::Backward();
 
   auto resultBwd = propagator.propagate(start, options).value();
   auto statesBwd = resultBwd.get<StateRecorder::result_type>();
@@ -547,7 +547,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsMultipleIntersection) {
                                              Acts::Logging::Level::VERBOSE));
 
   PropagatorOptions options(geoContext, mfContext);
-  options.direction = Acts::Direction::Forward;
+  options.direction = Acts::Direction::Forward();
 
   Propagator propagator(
       stepper, navigator,
@@ -565,7 +565,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsMultipleIntersection) {
   auto resultFwd = propagator.propagate(startFwd, options).value();
   auto statesFwd = resultFwd.get<StateRecorder::result_type>();
 
-  options.direction = Acts::Direction::Backward;
+  options.direction = Acts::Direction::Backward();
   Acts::Vector4 posBwd(5, 0, 0, 0);
   Acts::CurvilinearTrackParameters startBwd(
       posBwd, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
