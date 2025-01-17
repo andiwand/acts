@@ -268,7 +268,7 @@ struct GaussianSumFitter {
 
       // Type deduction for propagation result to pass on errors
       using OptionsType = decltype(fwdPropOptions);
-      using StateType = decltype(stateRes)::ValueType;
+      using StateType = typename decltype(stateRes)::ValueType;
       using PropagationResultType =
           decltype(m_propagator.propagate(std::declval<StateType&>()));
       using ResultType = decltype(m_propagator.makeResult(
@@ -343,7 +343,7 @@ struct GaussianSumFitter {
 
       // Type deduction for propagation result to pass on errors
       using OptionsType = decltype(bwdPropOptions);
-      using StateType = decltype(stateRes)::ValueType;
+      using StateType = typename decltype(stateRes)::ValueType;
       using PropagationResultType =
           decltype(m_propagator.propagate(std::declval<StateType&>()));
       using ResultType = decltype(m_propagator.makeResult(
