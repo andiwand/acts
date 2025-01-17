@@ -264,21 +264,21 @@ struct GaussianSumFitter {
         params = sParameters;
       }
 
-      auto state = m_propagator.makeState(*params, fwdPropOptions);
+      auto stateRes = m_propagator.makeState(*params, fwdPropOptions);
 
       // Type deduction for propagation result to pass on errors
       using OptionsType = decltype(fwdPropOptions);
-      using StateType = decltype(state);
+      using StateType = decltype(stateRes)::ValueType;
       using PropagationResultType =
           decltype(m_propagator.propagate(std::declval<StateType&>()));
       using ResultType = decltype(m_propagator.makeResult(
           std::declval<StateType&&>(), std::declval<PropagationResultType>(),
           std::declval<const OptionsType&>(), false));
 
-      auto initRes = m_propagator.initialize(state);
-      if (!initRes.ok()) {
-        return ResultType::failure(initRes.error());
+      if (!stateRes.ok()) {
+        return ResultType::failure(stateRes.error());
       }
+      auto& state = *stateRes;
 
       auto& r = state.template get<typename GsfActor::result_type>();
       r.fittedStates = &trackContainer.trackStateContainer();
@@ -335,7 +335,7 @@ struct GaussianSumFitter {
                                   : sParameters.referenceSurface();
 
       const auto& params = *fwdGsfResult.lastMeasurementState;
-      auto state =
+      auto stateRes =
           m_propagator.template makeState<MultiComponentBoundTrackParameters,
                                           decltype(bwdPropOptions),
                                           MultiStepperSurfaceReached>(
@@ -343,17 +343,17 @@ struct GaussianSumFitter {
 
       // Type deduction for propagation result to pass on errors
       using OptionsType = decltype(bwdPropOptions);
-      using StateType = decltype(state);
+      using StateType = decltype(stateRes)::ValueType;
       using PropagationResultType =
           decltype(m_propagator.propagate(std::declval<StateType&>()));
       using ResultType = decltype(m_propagator.makeResult(
           std::declval<StateType&&>(), std::declval<PropagationResultType>(),
           target, std::declval<const OptionsType&>()));
 
-      auto initRes = m_propagator.initialize(state);
-      if (!initRes.ok()) {
-        return ResultType::failure(initRes.error());
+      if (!stateRes.ok()) {
+        return ResultType::failure(stateRes.error());
       }
+      auto& state = *stateRes;
 
       assert(
           (fwdGsfResult.lastMeasurementTip != MultiTrajectoryTraits::kInvalid &&

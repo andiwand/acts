@@ -682,10 +682,16 @@ class CombinatorialKalmanFilter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &currentState.referenceSurface();
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state.navigation, stepper.position(state.stepping),
-                           stepper.direction(state.stepping),
-                           state.options.direction);
+      auto navigationState = navigator.makeState(
+          navigationOptions, stepper.position(state.stepping),
+          stepper.direction(state.stepping), state.options.direction);
+      if (!navigationState.ok()) {
+        ACTS_ERROR(
+            "Navigation state creation failed: " << navigationState.error());
+        result.lastError = navigationState.error();
+        return;
+      }
+      state.navigation = std::move(*navigationState);
 
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
@@ -1222,19 +1228,15 @@ class CombinatorialKalmanFilter {
               source_link_iterator_t>>(&defaultTrackStateCreator);
     }
 
-    auto propState =
+    auto propStateRes =
         m_propagator.template makeState<start_parameters_t, PropagatorOptions,
                                         StubPathLimitReached>(initialParameters,
                                                               propOptions);
-
-    auto initResult =
-        m_propagator
-            .template initialize<decltype(propState), StubPathLimitReached>(
-                propState);
-    if (!initResult.ok()) {
-      ACTS_ERROR("Propagation initialization failed: " << initResult.error());
-      return initResult.error();
+    if (!propStateRes.ok()) {
+      ACTS_ERROR("Propagation initialization failed: " << propStateRes.error());
+      return propStateRes.error();
     }
+    auto& propState = *propStateRes;
 
     auto& r =
         propState

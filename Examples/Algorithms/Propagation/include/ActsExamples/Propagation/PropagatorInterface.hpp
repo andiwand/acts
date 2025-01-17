@@ -90,12 +90,11 @@ class ConcretePropagator : public PropagatorInterface {
     // Set a maximum step size
     options.stepping.maxStepSize = cfg.maxStepSize;
 
-    auto state = m_propagator.makeState(startParameters, options);
-
-    auto resultInit = m_propagator.initialize(state);
-    if (!resultInit.ok()) {
-      return resultInit.error();
+    auto resultState = m_propagator.makeState(startParameters, options);
+    if (!resultState.ok()) {
+      return resultState.error();
     }
+    auto& state = *resultState;
 
     // Propagate using the propagator
     auto resultTmp = m_propagator.propagate(state);

@@ -133,11 +133,6 @@ class DirectNavigator {
                                                 Logging::INFO))
       : m_logger{std::move(_logger)} {}
 
-  State makeState(const Options& options) const {
-    State state(options);
-    return state;
-  }
-
   const Surface* currentSurface(const State& state) const {
     return state.currentSurface;
   }
@@ -164,60 +159,12 @@ class DirectNavigator {
     return state.navigationBreak;
   }
 
-  /// @brief Initialize the navigator
-  ///
-  /// This function initializes the navigator for a new propagation.
-  ///
-  /// @param state The navigation state
-  /// @param position The start position
-  /// @param direction The start direction
-  /// @param propagationDirection The propagation direction
-  Result<void> initialize(State& state, const Vector3& position,
+  Result<State> makeState(const Options& options, const Vector3& position,
                           const Vector3& direction,
                           Direction propagationDirection) const {
-    (void)position;
-    (void)direction;
-
-    ACTS_VERBOSE("Initialize. Surface sequence for navigation:");
-    for (const Surface* surface : state.options.surfaces) {
-      ACTS_VERBOSE(surface->geometryId()
-                   << " - "
-                   << surface->center(state.options.geoContext).transpose());
-    }
-
-    state.direction = propagationDirection;
-
-    // We set the current surface to the start surface
-    state.currentSurface = state.options.startSurface;
-    if (state.currentSurface != nullptr) {
-      ACTS_VERBOSE("Current surface set to start surface "
-                   << state.currentSurface->geometryId());
-    } else {
-      ACTS_VERBOSE("Current surface set to nullptr");
-    }
-
-    // Reset the surface index
-    state.resetSurfaceIndex();
-    bool foundStartSurface = false;
-    for (const Surface* surface : state.options.surfaces) {
-      if (surface == state.currentSurface) {
-        foundStartSurface = true;
-        break;
-      }
-      state.nextSurface();
-    }
-    ACTS_VERBOSE("Initial surface index set to " << state.surfaceIndex);
-    if (!foundStartSurface) {
-      ACTS_DEBUG(
-          "Did not find the start surface in the sequence. Assuming it is not "
-          "part of the sequence. Trusting the correctness of the input "
-          "sequence. Resetting the surface index.");
-      state.resetSurfaceIndex();
-    }
-
-    state.navigationBreak = false;
-
-    return Result<void>::success();
+    State state(options);
+    initialize(state, position, direction, propagationDirection);
+    return Result<State>::success(std::move(state));
   }
 
   /// @brief Get the next target surface
@@ -316,6 +263,60 @@ class DirectNavigator {
   }
 
  private:
+  /// @brief Initialize the navigator
+  ///
+  /// This function initializes the navigator for a new propagation.
+  ///
+  /// @param state The navigation state
+  /// @param position The start position
+  /// @param direction The start direction
+  /// @param propagationDirection The propagation direction
+  void initialize(State& state, const Vector3& position,
+                  const Vector3& direction,
+                  Direction propagationDirection) const {
+    (void)position;
+    (void)direction;
+
+    ACTS_VERBOSE("Initialize. Surface sequence for navigation:");
+    for (const Surface* surface : state.options.surfaces) {
+      ACTS_VERBOSE(surface->geometryId()
+                   << " - "
+                   << surface->center(state.options.geoContext).transpose());
+    }
+
+    state.direction = propagationDirection;
+
+    // We set the current surface to the start surface
+    state.currentSurface = state.options.startSurface;
+    if (state.currentSurface != nullptr) {
+      ACTS_VERBOSE("Current surface set to start surface "
+                   << state.currentSurface->geometryId());
+    } else {
+      ACTS_VERBOSE("Current surface set to nullptr");
+    }
+
+    // Reset the surface index
+    state.resetSurfaceIndex();
+    bool foundStartSurface = false;
+    for (const Surface* surface : state.options.surfaces) {
+      if (surface == state.currentSurface) {
+        foundStartSurface = true;
+        break;
+      }
+      state.nextSurface();
+    }
+    ACTS_VERBOSE("Initial surface index set to " << state.surfaceIndex);
+    if (!foundStartSurface) {
+      ACTS_DEBUG(
+          "Did not find the start surface in the sequence. Assuming it is not "
+          "part of the sequence. Trusting the correctness of the input "
+          "sequence. Resetting the surface index.");
+      state.resetSurfaceIndex();
+    }
+
+    state.navigationBreak = false;
+  }
+
   ObjectIntersection<Surface> chooseIntersection(
       const GeometryContext& gctx, const Surface& surface,
       const Vector3& position, const Vector3& direction,

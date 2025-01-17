@@ -225,13 +225,6 @@ class Navigator {
                          getDefaultLogger("Navigator", Logging::Level::INFO))
       : m_cfg{std::move(cfg)}, m_logger{std::move(_logger)} {}
 
-  State makeState(const Options& options) const {
-    State state(options);
-    state.startSurface = options.startSurface;
-    state.targetSurface = options.targetSurface;
-    return state;
-  }
-
   const Surface* currentSurface(const State& state) const {
     return state.currentSurface;
   }
@@ -263,104 +256,20 @@ class Navigator {
     return state.navigationBreak;
   }
 
-  /// @brief Initialize the navigator state
-  ///
-  /// This function initializes the navigator state for a new propagation.
-  ///
-  /// @param state The navigation state
-  /// @param position The start position
-  /// @param direction The start direction
-  /// @param propagationDirection The propagation direction
-  ///
-  /// @return Indication if the initialization was successful
-  Result<void> initialize(State& state, const Vector3& position,
+  Result<State> makeState(const Options& options, const Vector3& position,
                           const Vector3& direction,
                           Direction propagationDirection) const {
-    (void)propagationDirection;
+    State state(options);
 
-    ACTS_VERBOSE(volInfo(state) << "Initialization.");
+    state.startSurface = options.startSurface;
+    state.targetSurface = options.targetSurface;
 
-    state.reset();
-
-    // Fast Navigation initialization for start condition:
-    // - short-cut through object association, saves navigation in the
-    // - geometry and volume tree search for the lowest volume
-    if (state.startSurface != nullptr &&
-        state.startSurface->associatedLayer() != nullptr) {
-      ACTS_VERBOSE(
-          volInfo(state)
-          << "Fast start initialization through association from Surface.");
-
-      state.startLayer = state.startSurface->associatedLayer();
-      state.startVolume = state.startLayer->trackingVolume();
-    } else if (state.startVolume != nullptr) {
-      ACTS_VERBOSE(
-          volInfo(state)
-          << "Fast start initialization through association from Volume.");
-
-      state.startLayer = state.startVolume->associatedLayer(
-          state.options.geoContext, position);
-    } else {
-      ACTS_VERBOSE(volInfo(state)
-                   << "Slow start initialization through search.");
-      ACTS_VERBOSE(volInfo(state)
-                   << "Starting from position " << toString(position)
-                   << " and direction " << toString(direction));
-
-      // current volume and layer search through global search
-      state.startVolume = m_cfg.trackingGeometry->lowestTrackingVolume(
-          state.options.geoContext, position);
-
-      if (state.startVolume != nullptr) {
-        state.startLayer = state.startVolume->associatedLayer(
-            state.options.geoContext, position);
-      } else {
-        ACTS_ERROR(volInfo(state)
-                   << "No start volume resolved. Nothing left to do.");
-        state.navigationBreak = true;
-      }
+    auto result = initialize(state, position, direction, propagationDirection);
+    if (!result.ok()) {
+      return Result<State>::failure(result.error());
     }
 
-    state.currentVolume = state.startVolume;
-    state.currentLayer = state.startLayer;
-    state.currentSurface = state.startSurface;
-
-    if (state.currentVolume != nullptr) {
-      ACTS_VERBOSE(volInfo(state) << "Start volume resolved "
-                                  << state.currentVolume->geometryId());
-
-      if (!state.currentVolume->inside(position,
-                                       state.options.surfaceTolerance)) {
-        ACTS_DEBUG(
-            volInfo(state)
-            << "We did not end up inside the expected volume. position = "
-            << position.transpose());
-
-        return Result<void>::failure(NavigatorError::NotInsideExpectedVolume);
-      }
-    }
-    if (state.currentLayer != nullptr) {
-      ACTS_VERBOSE(volInfo(state) << "Start layer resolved "
-                                  << state.currentLayer->geometryId());
-    }
-    if (state.currentSurface != nullptr) {
-      ACTS_VERBOSE(volInfo(state) << "Start surface resolved "
-                                  << state.currentSurface->geometryId());
-
-      if (!state.currentSurface->isOnSurface(
-              state.options.geoContext, position, direction,
-              BoundaryTolerance::Infinite(), state.options.surfaceTolerance)) {
-        ACTS_DEBUG(volInfo(state)
-                   << "We did not end up on the expected surface. surface = "
-                   << state.currentSurface->geometryId()
-                   << " position = " << position.transpose()
-                   << " direction = " << direction.transpose());
-
-        return Result<void>::failure(NavigatorError::NotOnExpectedSurface);
-      }
-    }
-
-    return Result<void>::success();
+    return Result<State>::success(std::move(state));
   }
 
   /// @brief Get the next target surface
@@ -579,6 +488,106 @@ class Navigator {
   }
 
  private:
+  /// @brief Initialize the navigator state
+  ///
+  /// This function initializes the navigator state for a new propagation.
+  ///
+  /// @param state The navigation state
+  /// @param position The start position
+  /// @param direction The start direction
+  /// @param propagationDirection The propagation direction
+  ///
+  /// @return Indication if the initialization was successful
+  Result<void> initialize(State& state, const Vector3& position,
+                          const Vector3& direction,
+                          Direction propagationDirection) const {
+    (void)propagationDirection;
+
+    ACTS_VERBOSE(volInfo(state) << "Initialization.");
+
+    state.reset();
+
+    // Fast Navigation initialization for start condition:
+    // - short-cut through object association, saves navigation in the
+    // - geometry and volume tree search for the lowest volume
+    if (state.startSurface != nullptr &&
+        state.startSurface->associatedLayer() != nullptr) {
+      ACTS_VERBOSE(
+          volInfo(state)
+          << "Fast start initialization through association from Surface.");
+
+      state.startLayer = state.startSurface->associatedLayer();
+      state.startVolume = state.startLayer->trackingVolume();
+    } else if (state.startVolume != nullptr) {
+      ACTS_VERBOSE(
+          volInfo(state)
+          << "Fast start initialization through association from Volume.");
+
+      state.startLayer = state.startVolume->associatedLayer(
+          state.options.geoContext, position);
+    } else {
+      ACTS_VERBOSE(volInfo(state)
+                   << "Slow start initialization through search.");
+      ACTS_VERBOSE(volInfo(state)
+                   << "Starting from position " << toString(position)
+                   << " and direction " << toString(direction));
+
+      // current volume and layer search through global search
+      state.startVolume = m_cfg.trackingGeometry->lowestTrackingVolume(
+          state.options.geoContext, position);
+
+      if (state.startVolume != nullptr) {
+        state.startLayer = state.startVolume->associatedLayer(
+            state.options.geoContext, position);
+      } else {
+        ACTS_ERROR(volInfo(state)
+                   << "No start volume resolved. Nothing left to do.");
+        state.navigationBreak = true;
+      }
+    }
+
+    state.currentVolume = state.startVolume;
+    state.currentLayer = state.startLayer;
+    state.currentSurface = state.startSurface;
+
+    if (state.currentVolume != nullptr) {
+      ACTS_VERBOSE(volInfo(state) << "Start volume resolved "
+                                  << state.currentVolume->geometryId());
+
+      if (!state.currentVolume->inside(position,
+                                       state.options.surfaceTolerance)) {
+        ACTS_DEBUG(
+            volInfo(state)
+            << "We did not end up inside the expected volume. position = "
+            << position.transpose());
+
+        return Result<void>::failure(NavigatorError::NotInsideExpectedVolume);
+      }
+    }
+    if (state.currentLayer != nullptr) {
+      ACTS_VERBOSE(volInfo(state) << "Start layer resolved "
+                                  << state.currentLayer->geometryId());
+    }
+    if (state.currentSurface != nullptr) {
+      ACTS_VERBOSE(volInfo(state) << "Start surface resolved "
+                                  << state.currentSurface->geometryId());
+
+      if (!state.currentSurface->isOnSurface(
+              state.options.geoContext, position, direction,
+              BoundaryTolerance::Infinite(), state.options.surfaceTolerance)) {
+        ACTS_DEBUG(volInfo(state)
+                   << "We did not end up on the expected surface. surface = "
+                   << state.currentSurface->geometryId()
+                   << " position = " << position.transpose()
+                   << " direction = " << direction.transpose());
+
+        return Result<void>::failure(NavigatorError::NotOnExpectedSurface);
+      }
+    }
+
+    return Result<void>::success();
+  }
+
   /// @brief Resolve compatible surfaces
   ///
   /// This function resolves the compatible surfaces for the navigation.

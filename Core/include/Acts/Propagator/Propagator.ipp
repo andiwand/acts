@@ -199,16 +199,17 @@ auto Propagator<S, N>::propagate(const parameters_t& start,
 
   auto state = makeState<parameters_t, propagator_options_t, path_aborter_t>(
       start, options);
-
-  auto initRes = initialize<decltype(state), path_aborter_t>(state);
-  if (!initRes.ok()) {
-    return initRes.error();
+  if (!state.ok()) {
+    return Result<actor_list_t_result_t<
+        StepperCurvilinearTrackParameters,
+        typename propagator_options_t::actor_list_type>>::failure(state
+                                                                      .error());
   }
 
   // Perform the actual propagation
-  auto propagationResult = propagate(state);
+  auto propagationResult = propagate(*state);
 
-  return makeResult(std::move(state), propagationResult, options,
+  return makeResult(std::move(*state), propagationResult, options,
                     makeCurvilinear);
 }
 
@@ -226,16 +227,17 @@ auto Propagator<S, N>::propagate(const parameters_t& start,
 
   auto state = makeState<parameters_t, propagator_options_t, target_aborter_t,
                          path_aborter_t>(start, target, options);
-
-  auto initRes = initialize<decltype(state), path_aborter_t>(state);
-  if (!initRes.ok()) {
-    return initRes.error();
+  if (!state.ok()) {
+    return Result<actor_list_t_result_t<
+        StepperBoundTrackParameters,
+        typename propagator_options_t::actor_list_type>>::failure(state
+                                                                      .error());
   }
 
   // Perform the actual propagation
-  auto propagationResult = propagate(state);
+  auto propagationResult = propagate(*state);
 
-  return makeResult(std::move(state), propagationResult, target, options);
+  return makeResult(std::move(*state), propagationResult, target, options);
 }
 
 template <typename S, typename N>
@@ -268,16 +270,8 @@ auto Propagator<S, N>::makeState(const parameters_t& start,
       actor_list_t_state_t<OptionsType,
                            typename propagator_options_t::actor_list_type>;
 
-  static_assert(
-      detail::propagator_stepper_compatible_with<S, StateType, N>,
-      "Step method of the Stepper is not compatible with the propagator "
-      "state");
-
-  // Initialize the internal propagator state
-  StateType state{eOptions, m_stepper.makeState(eOptions.stepping, start),
-                  m_navigator.makeState(eOptions.navigation)};
-
-  return state;
+  return makeStateInternal<parameters_t, OptionsType, path_aborter_t,
+                           StateType>(start, eOptions);
 }
 
 template <typename S, typename N>
@@ -307,16 +301,44 @@ auto Propagator<S, N>::makeState(const parameters_t& start,
       actor_list_t_state_t<OptionsType,
                            typename propagator_options_t::actor_list_type>;
 
+  return makeStateInternal<parameters_t, OptionsType, path_aborter_t,
+                           StateType>(start, eOptions);
+}
+
+template <typename S, typename N>
+template <typename parameters_t, typename propagator_options_t,
+          typename path_aborter_t, typename state_t>
+auto Propagator<S, N>::makeStateInternal(
+    const parameters_t& start,
+    const propagator_options_t& options) const -> Result<state_t> {
   static_assert(
-      detail::propagator_stepper_compatible_with<S, StateType, N>,
+      detail::propagator_stepper_compatible_with<S, state_t, N>,
       "Step method of the Stepper is not compatible with the propagator "
       "state");
 
   // Initialize the internal propagator state
-  StateType state{eOptions, m_stepper.makeState(eOptions.stepping, start),
-                  m_navigator.makeState(eOptions.navigation)};
+  auto steppingState = m_stepper.makeState(options.stepping, start);
 
-  return state;
+  Vector3 position = m_stepper.position(steppingState);
+  Vector3 direction = options.direction * m_stepper.direction(steppingState);
+
+  auto navigationState = m_navigator.makeState(options.navigation, position,
+                                               direction, options.direction);
+  if (!navigationState.ok()) {
+    return navigationState.error();
+  }
+
+  state_t state{options, std::move(steppingState), std::move(*navigationState)};
+
+  state.position = position;
+  state.direction = direction;
+
+  // Apply the loop protection - it resets the internal path limit
+  detail::setupLoopProtection(
+      state, m_stepper, state.options.actorList.template get<path_aborter_t>(),
+      false, logger());
+
+  return Result<state_t>::success(std::move(state));
 }
 
 template <typename S, typename N>
@@ -406,29 +428,6 @@ auto Propagator<S, N>::makeResult(propagator_state_t state,
     result.transportJacobian = std::get<Jacobian>(bs);
   }
   return Result<ResultType>::success(std::move(result));
-}
-
-template <typename S, typename N>
-template <typename propagator_state_t, typename path_aborter_t>
-Result<void> Propagator<S, N>::initialize(propagator_state_t& state) const {
-  state.position = m_stepper.position(state.stepping);
-  state.direction =
-      state.options.direction * m_stepper.direction(state.stepping);
-
-  // Navigator initialize state call
-  auto navInitRes =
-      m_navigator.initialize(state.navigation, state.position, state.direction,
-                             state.options.direction);
-  if (!navInitRes.ok()) {
-    return navInitRes.error();
-  }
-
-  // Apply the loop protection - it resets the internal path limit
-  detail::setupLoopProtection(
-      state, m_stepper, state.options.actorList.template get<path_aborter_t>(),
-      false, logger());
-
-  return Result<void>::success();
 }
 
 template <typename S, typename N>

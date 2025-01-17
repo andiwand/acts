@@ -83,11 +83,6 @@ class DetectorNavigator {
                                                   Logging::Level::INFO))
       : m_cfg{cfg}, m_logger{std::move(_logger)} {}
 
-  State makeState(const Options& options) const {
-    State state(options);
-    return state;
-  }
-
   const Surface* currentSurface(const State& state) const {
     return state.currentSurface;
   }
@@ -116,32 +111,17 @@ class DetectorNavigator {
     return state.navigationBreak;
   }
 
-  Result<void> initialize(State& state, const Vector3& position,
+  Result<State> makeState(const Options& options, const Vector3& position,
                           const Vector3& direction,
                           Direction propagationDirection) const {
-    (void)propagationDirection;
+    State state(options);
 
-    ACTS_VERBOSE(volInfo(state) << posInfo(state, position) << "initialize");
-
-    if (state.currentDetector == nullptr) {
-      ACTS_VERBOSE("Assigning detector from the config.");
-      state.currentDetector = m_cfg.detector;
-    }
-    if (state.currentDetector == nullptr) {
-      throw std::invalid_argument("DetectorNavigator: no detector assigned");
+    auto result = initialize(state, position, direction, propagationDirection);
+    if (!result.ok()) {
+      return Result<State>::failure(result.error());
     }
 
-    fillNavigationState(position, direction, state);
-    if (state.currentVolume == nullptr) {
-      state.currentVolume = state.currentDetector->findDetectorVolume(
-          state.options.geoContext, state.position);
-    }
-    if (state.currentVolume == nullptr) {
-      throw std::invalid_argument("DetectorNavigator: no current volume found");
-    }
-    updateCandidateSurfaces(state, position);
-
-    return Result<void>::success();
+    return Result<State>::success(std::move(state));
   }
 
   NavigationTarget nextTarget(State& state, const Vector3& position,
@@ -306,6 +286,34 @@ class DetectorNavigator {
   }
 
   const Logger& logger() const { return *m_logger; }
+
+  Result<void> initialize(State& state, const Vector3& position,
+                          const Vector3& direction,
+                          Direction propagationDirection) const {
+    (void)propagationDirection;
+
+    ACTS_VERBOSE(volInfo(state) << posInfo(state, position) << "initialize");
+
+    if (state.currentDetector == nullptr) {
+      ACTS_VERBOSE("Assigning detector from the config.");
+      state.currentDetector = m_cfg.detector;
+    }
+    if (state.currentDetector == nullptr) {
+      throw std::invalid_argument("DetectorNavigator: no detector assigned");
+    }
+
+    fillNavigationState(position, direction, state);
+    if (state.currentVolume == nullptr) {
+      state.currentVolume = state.currentDetector->findDetectorVolume(
+          state.options.geoContext, state.position);
+    }
+    if (state.currentVolume == nullptr) {
+      throw std::invalid_argument("DetectorNavigator: no current volume found");
+    }
+    updateCandidateSurfaces(state, position);
+
+    return Result<void>::success();
+  }
 
   /// This checks if a navigation break had been triggered or navigator
   /// is misconfigured

@@ -561,10 +561,15 @@ class KalmanFitter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &st.referenceSurface();
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state.navigation, stepper.position(state.stepping),
-                           stepper.direction(state.stepping),
-                           state.options.direction);
+      auto navigationState = navigator.makeState(
+          navigationOptions, stepper.position(state.stepping),
+          stepper.direction(state.stepping), state.options.direction);
+      if (!navigationState.ok()) {
+        ACTS_ERROR(
+            "Error in navigation state creation: " << navigationState.error());
+        return navigationState.error();
+      }
+      state.navigation = std::move(*navigationState);
 
       // Update material effects for last measurement state in reversed
       // direction
@@ -1045,10 +1050,15 @@ class KalmanFitter {
       auto navigationOptions = state.navigation.options;
       navigationOptions.startSurface = &surface;
       navigationOptions.targetSurface = nullptr;
-      state.navigation = navigator.makeState(navigationOptions);
-      navigator.initialize(state.navigation, stepper.position(state.stepping),
-                           stepper.direction(state.stepping),
-                           state.options.direction);
+      auto navigationState = navigator.makeState(
+          navigationOptions, stepper.position(state.stepping),
+          stepper.direction(state.stepping), state.options.direction);
+      if (!navigationState.ok()) {
+        ACTS_ERROR(
+            "Error in navigation state creation: " << navigationState.error());
+        return navigationState.error();
+      }
+      state.navigation = std::move(*navigationState);
 
       return Result<void>::success();
     }
@@ -1236,15 +1246,14 @@ class KalmanFitter {
                 const propagator_options_t& propagatorOptions,
                 track_container_t& trackContainer) const
       -> Result<typename track_container_t::TrackProxy> {
-    auto propagatorState =
+    auto propagatorStateResult =
         m_propagator.makeState(sParameters, propagatorOptions);
-
-    auto propagatorInitResult = m_propagator.initialize(propagatorState);
-    if (!propagatorInitResult.ok()) {
+    if (!propagatorStateResult.ok()) {
       ACTS_ERROR("Propagation initialization failed: "
-                 << propagatorInitResult.error());
-      return propagatorInitResult.error();
+                 << propagatorStateResult.error());
+      return propagatorStateResult.error();
     }
+    auto& propagatorState = *propagatorStateResult;
 
     auto& kalmanResult =
         propagatorState.template get<KalmanFitterResult<traj_t>>();

@@ -145,6 +145,7 @@ class TryAllNavigatorBase {
     return state.navigationBreak;
   }
 
+ protected:
   /// @brief Initialize the navigator
   ///
   /// This method initializes the navigator for a new propagation. It sets the
@@ -199,7 +200,6 @@ class TryAllNavigatorBase {
     return Result<void>::success();
   }
 
- protected:
   /// Helper method to initialize navigation candidates for the current volume.
   void initializeVolumeCandidates(State& state) const {
     const TrackingVolume* volume = state.currentVolume;
@@ -261,14 +261,6 @@ class TryAllNavigator : public TryAllNavigatorBase {
                       getDefaultLogger("TryAllNavigator", Logging::INFO))
       : TryAllNavigatorBase(std::move(cfg), std::move(logger)) {}
 
-  State makeState(const Options& options) const {
-    State state(options);
-    state.startSurface = options.startSurface;
-    state.targetSurface = options.targetSurface;
-
-    return state;
-  }
-
   using TryAllNavigatorBase::currentSurface;
   using TryAllNavigatorBase::currentVolume;
   using TryAllNavigatorBase::currentVolumeMaterial;
@@ -277,28 +269,20 @@ class TryAllNavigator : public TryAllNavigatorBase {
   using TryAllNavigatorBase::startSurface;
   using TryAllNavigatorBase::targetSurface;
 
-  /// @brief Initialize the navigator
-  ///
-  /// This method initializes the navigator for a new propagation. It sets the
-  /// current volume and surface to the start volume and surface, respectively.
-  ///
-  /// @param state The navigation state
-  /// @param position The starting position
-  /// @param direction The starting direction
-  /// @param propagationDirection The propagation direction
-  Result<void> initialize(State& state, const Vector3& position,
+  Result<State> makeState(const Options& options, const Vector3& position,
                           const Vector3& direction,
                           Direction propagationDirection) const {
-    auto baseRes = TryAllNavigatorBase::initialize(state, position, direction,
-                                                   propagationDirection);
-    if (!baseRes.ok()) {
-      return baseRes.error();
+    State state(options);
+
+    state.startSurface = options.startSurface;
+    state.targetSurface = options.targetSurface;
+
+    auto result = initialize(state, position, direction, propagationDirection);
+    if (!result.ok()) {
+      return Result<State>::failure(result.error());
     }
 
-    // Initialize navigation candidates for the start volume
-    reinitializeCandidates(state);
-
-    return Result<void>::success();
+    return Result<State>::success(std::move(state));
   }
 
   /// @brief Get the next target surface
@@ -524,6 +508,30 @@ class TryAllNavigator : public TryAllNavigatorBase {
   }
 
  private:
+  /// @brief Initialize the navigator
+  ///
+  /// This method initializes the navigator for a new propagation. It sets the
+  /// current volume and surface to the start volume and surface, respectively.
+  ///
+  /// @param state The navigation state
+  /// @param position The starting position
+  /// @param direction The starting direction
+  /// @param propagationDirection The propagation direction
+  Result<void> initialize(State& state, const Vector3& position,
+                          const Vector3& direction,
+                          Direction propagationDirection) const {
+    auto baseRes = TryAllNavigatorBase::initialize(state, position, direction,
+                                                   propagationDirection);
+    if (!baseRes.ok()) {
+      return baseRes.error();
+    }
+
+    // Initialize navigation candidates for the start volume
+    reinitializeCandidates(state);
+
+    return Result<void>::success();
+  }
+
   /// Helper method to reset and reinitialize the navigation candidates.
   void reinitializeCandidates(State& state) const {
     state.navigationCandidates.clear();
@@ -589,14 +597,6 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
                                                Logging::INFO))
       : TryAllNavigatorBase(std::move(cfg), std::move(logger)) {}
 
-  State makeState(const Options& options) const {
-    State state(options);
-    state.startSurface = options.startSurface;
-    state.targetSurface = options.targetSurface;
-
-    return state;
-  }
-
   using TryAllNavigatorBase::currentSurface;
   using TryAllNavigatorBase::currentVolume;
   using TryAllNavigatorBase::currentVolumeMaterial;
@@ -605,30 +605,20 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
   using TryAllNavigatorBase::startSurface;
   using TryAllNavigatorBase::targetSurface;
 
-  /// @brief Initialize the navigator
-  ///
-  /// This method initializes the navigator for a new propagation. It sets the
-  /// current volume and surface to the start volume and surface, respectively.
-  ///
-  /// @param state The navigation state
-  /// @param position The starting position
-  /// @param direction The starting direction
-  /// @param propagationDirection The propagation direction
-  Result<void> initialize(State& state, const Vector3& position,
+  Result<State> makeState(const Options& options, const Vector3& position,
                           const Vector3& direction,
                           Direction propagationDirection) const {
-    auto baseRes = TryAllNavigatorBase::initialize(state, position, direction,
-                                                   propagationDirection);
-    if (!baseRes.ok()) {
-      return baseRes.error();
+    State state(options);
+
+    state.startSurface = options.startSurface;
+    state.targetSurface = options.targetSurface;
+
+    auto result = initialize(state, position, direction, propagationDirection);
+    if (!result.ok()) {
+      return Result<State>::failure(result.error());
     }
 
-    // Initialize navigation candidates for the start volume
-    reinitializeCandidates(state);
-
-    state.lastPosition.reset();
-
-    return Result<void>::success();
+    return state;
   }
 
   /// @brief Get the next target surface
@@ -872,6 +862,32 @@ class TryAllOverstepNavigator : public TryAllNavigatorBase {
   }
 
  private:
+  /// @brief Initialize the navigator
+  ///
+  /// This method initializes the navigator for a new propagation. It sets the
+  /// current volume and surface to the start volume and surface, respectively.
+  ///
+  /// @param state The navigation state
+  /// @param position The starting position
+  /// @param direction The starting direction
+  /// @param propagationDirection The propagation direction
+  Result<void> initialize(State& state, const Vector3& position,
+                          const Vector3& direction,
+                          Direction propagationDirection) const {
+    auto baseRes = TryAllNavigatorBase::initialize(state, position, direction,
+                                                   propagationDirection);
+    if (!baseRes.ok()) {
+      return baseRes.error();
+    }
+
+    // Initialize navigation candidates for the start volume
+    reinitializeCandidates(state);
+
+    state.lastPosition.reset();
+
+    return Result<void>::success();
+  }
+
   /// Helper method to reset and reinitialize the navigation candidates.
   void reinitializeCandidates(State& state) const {
     state.navigationCandidates.clear();

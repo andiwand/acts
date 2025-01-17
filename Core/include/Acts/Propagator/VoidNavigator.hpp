@@ -48,11 +48,6 @@ class VoidNavigator {
     NavigatorStatistics statistics;
   };
 
-  State makeState(const Options& options) const {
-    State state(options);
-    return state;
-  }
-
   const Surface* currentSurface(const State& /*state*/) const {
     return nullptr;
   }
@@ -63,10 +58,11 @@ class VoidNavigator {
 
   bool navigationBreak(const State& /*state*/) const { return true; }
 
-  Result<void> initialize(State& /*state*/, const Vector3& /*position*/,
+  Result<State> makeState(const Options& options, const Vector3& /*position*/,
                           const Vector3& /*direction*/,
                           Direction /*propagationDirection*/) const {
-    return Result<void>::success();
+    State state(options);
+    return Result<State>::success(state);
   }
 
   NavigationTarget nextTarget(State& /*state*/, const Vector3& /*position*/,

@@ -97,9 +97,8 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
 
     Propagator propagator(stepper, navigator);
 
-    auto state = propagator.makeState(start, options);
-
-    BOOST_CHECK_THROW(propagator.initialize(state), std::invalid_argument);
+    BOOST_CHECK_THROW(propagator.makeState(start, options),
+                      std::invalid_argument);
   }
 
   // Run with geometry but without resolving
@@ -116,11 +115,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
                      Acts::Experimental::DetectorNavigator>
         propagator(stepper, navigator);
 
-    auto state = propagator.makeState(start, options);
-
-    navigator.initialize(state.navigation, stepper.position(state.stepping),
-                         stepper.direction(state.stepping),
-                         state.options.direction);
+    auto state = propagator.makeState(start, options).value();
 
     navigator.nextTarget(state.navigation, stepper.position(state.stepping),
                          stepper.direction(state.stepping));
@@ -148,9 +143,8 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
                      Acts::Experimental::DetectorNavigator>
         propagator(stepper, navigator);
 
-    auto state = propagator.makeState(startEoW, options);
-
-    BOOST_CHECK_THROW(propagator.initialize(state), std::invalid_argument);
+    BOOST_CHECK_THROW(propagator.makeState(startEoW, options),
+                      std::invalid_argument);
   }
 
   // Initialize properly
@@ -164,11 +158,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsInitialization) {
                      Acts::Experimental::DetectorNavigator>
         propagator(stepper, navigator);
 
-    auto state = propagator.makeState(start, options);
-
-    navigator.initialize(state.navigation, stepper.position(state.stepping),
-                         stepper.direction(state.stepping),
-                         state.options.direction);
+    auto state = propagator.makeState(start, options).value();
 
     auto initState = state.navigation;
     BOOST_CHECK_EQUAL(initState.currentDetector, detector.get());
