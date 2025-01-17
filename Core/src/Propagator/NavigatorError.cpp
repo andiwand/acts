@@ -23,9 +23,11 @@ class NavigatorErrorCategory : public std::error_category {
 
     switch (static_cast<NavigatorError>(c)) {
       case NavigatorError::NotInsideExpectedVolume:
-        return "We did not end up inside the volume.";
+        return "We did not end up inside the volume";
       case NavigatorError::NotOnExpectedSurface:
         return "Stepper not on surface";
+      case NavigatorError::NoTrackingGeometry:
+        return "No tracking geometry";
       default:
         return "unknown";
     }

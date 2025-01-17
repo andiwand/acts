@@ -17,6 +17,7 @@ enum class NavigatorError {
   // ensure all values are non-zero
   NotInsideExpectedVolume = 1,
   NotOnExpectedSurface = 2,
+  NoTrackingGeometry = 3,
 };
 
 std::error_code make_error_code(Acts::NavigatorError e);

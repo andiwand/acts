@@ -507,6 +507,10 @@ class Navigator {
 
     state.reset();
 
+    if (m_cfg.trackingGeometry == nullptr) {
+      return Result<void>::failure(NavigatorError::NoTrackingGeometry);
+    }
+
     // Fast Navigation initialization for start condition:
     // - short-cut through object association, saves navigation in the
     // - geometry and volume tree search for the lowest volume
