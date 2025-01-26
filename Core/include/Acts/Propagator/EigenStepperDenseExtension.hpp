@@ -94,6 +94,10 @@ struct EigenStepperDenseExtension {
 
     // i = 0 is used for setup and evaluation of k
     if constexpr (i == 0) {
+      if (!firstQOverP) {
+        firstQOverP = stepper.qOverP(state.stepping);
+      }
+
       // Set up for energy loss
       Vector3 position = stepper.position(state.stepping);
       material = volumeMaterial->material(position.template cast<double>());
