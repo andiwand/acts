@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/Geant4/Geant4DetectorSurfaceFactory.hpp"
 
@@ -12,10 +12,12 @@
 #include "Acts/Plugins/Geant4/Geant4DetectorElement.hpp"
 #include "Acts/Plugins/Geant4/Geant4PhysicalVolumeSelectors.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Utilities/StringHelpers.hpp"
 
 #include <utility>
 
 #include "G4LogicalVolume.hh"
+#include "G4Transform3D.hh"
 #include "G4VPhysicalVolume.hh"
 
 void Acts::Geant4DetectorSurfaceFactory::construct(
@@ -25,12 +27,13 @@ void Acts::Geant4DetectorSurfaceFactory::construct(
   auto g4Translation = g4PhysVol.GetTranslation();
   auto g4Rotation = g4PhysVol.GetRotation();
 
-  G4Transform3D g4Transform =
-      (g4Rotation == nullptr)
-          ? G4Transform3D(CLHEP::HepRotation(), g4Translation)
-          : G4Transform3D(*g4Rotation, g4Translation);
+  auto newTranslation =
+      g4ToGlobal.getTranslation() + g4ToGlobal.getRotation() * g4Translation;
+  auto newRotation = (g4Rotation == nullptr)
+                         ? g4ToGlobal.getRotation() * CLHEP::HepRotation()
+                         : g4ToGlobal.getRotation() * g4Rotation->inverse();
 
-  G4Transform3D newToGlobal = g4ToGlobal * g4Transform;
+  G4Transform3D newToGlobal(newRotation, newTranslation);
 
   // Get the logical volume
   auto g4LogicalVolume = g4PhysVol.GetLogicalVolume();

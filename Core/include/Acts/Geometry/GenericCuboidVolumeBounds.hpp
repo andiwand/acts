@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -77,7 +77,7 @@ class GenericCuboidVolumeBounds : public VolumeBounds {
   /// It will throw an exception if the orientation prescription is not adequate
   ///
   /// @return a vector of surfaces bounding this volume
-  OrientedSurfaces orientedSurfaces(
+  std::vector<OrientedSurface> orientedSurfaces(
       const Transform3& transform = Transform3::Identity()) const override;
 
   /// Construct bounding box for this shape
@@ -88,6 +88,15 @@ class GenericCuboidVolumeBounds : public VolumeBounds {
   Volume::BoundingBox boundingBox(const Transform3* trf = nullptr,
                                   const Vector3& envelope = {0, 0, 0},
                                   const Volume* entity = nullptr) const final;
+
+  /// Get the canonical direction values, i.e. the axis directions
+  /// that fully describe the shape's extent
+  ///
+  /// @return vector of canonical binning values
+  std::vector<AxisDirection> canonicalAxes() const override {
+    using enum AxisDirection;
+    return {AxisX, AxisY, AxisZ};
+  };
 
   /// @param sl is the output stream to be written into
   std::ostream& toStream(std::ostream& sl) const override;

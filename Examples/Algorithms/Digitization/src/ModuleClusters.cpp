@@ -1,14 +1,15 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Digitization/ModuleClusters.hpp"
 
 #include "Acts/Clusterization/Clusterization.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "ActsExamples/Digitization/MeasurementCreation.hpp"
 #include "ActsFatras/Digitization/Channelizer.hpp"
 
@@ -16,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -31,7 +33,7 @@ void ModuleClusters::add(DigitizedParameters params, simhit_t simhit) {
 
   if (m_merge && !params.cluster.channels.empty()) {
     // Break-up the cluster
-    for (auto cell : params.cluster.channels) {
+    for (const auto& cell : params.cluster.channels) {
       ModuleValue mval_cell = mval;
       mval_cell.value = cell;
       m_moduleValues.push_back(std::move(mval_cell));
@@ -138,8 +140,7 @@ std::vector<std::size_t> ModuleClusters::nonGeoEntries(
   std::vector<std::size_t> retv;
   for (std::size_t i = 0; i < indices.size(); i++) {
     auto idx = indices.at(i);
-    if (std::find(m_geoIndices.begin(), m_geoIndices.end(), idx) ==
-        m_geoIndices.end()) {
+    if (!rangeContainsValue(m_geoIndices, idx)) {
       retv.push_back(i);
     }
   }
@@ -185,12 +186,12 @@ std::vector<std::vector<ModuleValue>> ModuleClusters::mergeParameters(
       for (ModuleValue& thisval : thisvec) {
         // Loop over non-geometric dimensions
         for (auto k : nonGeoEntries(thisval.paramIndices)) {
-          Acts::ActsScalar p_i = thisval.paramValues.at(k);
-          Acts::ActsScalar p_j = values.at(j).paramValues.at(k);
-          Acts::ActsScalar v_i = thisval.paramVariances.at(k);
-          Acts::ActsScalar v_j = values.at(j).paramVariances.at(k);
+          double p_i = thisval.paramValues.at(k);
+          double p_j = values.at(j).paramValues.at(k);
+          double v_i = thisval.paramVariances.at(k);
+          double v_j = values.at(j).paramVariances.at(k);
 
-          Acts::ActsScalar left = 0, right = 0;
+          double left = 0, right = 0;
           if (p_i < p_j) {
             left = p_i + m_nsigma * std::sqrt(v_i);
             right = p_j - m_nsigma * std::sqrt(v_j);
@@ -218,15 +219,15 @@ std::vector<std::vector<ModuleValue>> ModuleClusters::mergeParameters(
         thisvec.push_back(std::move(values.at(j)));
       }
     }  // Loop on `j'
-  }    // Loop on `i'
+  }  // Loop on `i'
   return retv;
 }
 
 ModuleValue ModuleClusters::squash(std::vector<ModuleValue>& values) {
   ModuleValue mval;
-  Acts::ActsScalar tot = 0;
-  Acts::ActsScalar tot2 = 0;
-  std::vector<Acts::ActsScalar> weights;
+  double tot = 0;
+  double tot2 = 0;
+  std::vector<double> weights;
 
   // First, start by computing cell weights
   for (ModuleValue& other : values) {
@@ -244,19 +245,16 @@ ModuleValue ModuleClusters::squash(std::vector<ModuleValue>& values) {
     ModuleValue& other = values.at(i);
     for (std::size_t j = 0; j < other.paramIndices.size(); j++) {
       auto idx = other.paramIndices.at(j);
-      if (std::find(m_geoIndices.begin(), m_geoIndices.end(), idx) ==
-          m_geoIndices.end()) {
-        if (std::find(mval.paramIndices.begin(), mval.paramIndices.end(),
-                      idx) == mval.paramIndices.end()) {
+      if (!rangeContainsValue(m_geoIndices, idx)) {
+        if (!rangeContainsValue(mval.paramIndices, idx)) {
           mval.paramIndices.push_back(idx);
         }
         if (mval.paramValues.size() < (j + 1)) {
           mval.paramValues.push_back(0);
           mval.paramVariances.push_back(0);
         }
-        Acts::ActsScalar f = weights.at(i) / (tot > 0 ? tot : 1);
-        Acts::ActsScalar f2 =
-            weights.at(i) * weights.at(i) / (tot2 > 0 ? tot2 : 1);
+        double f = weights.at(i) / (tot > 0 ? tot : 1);
+        double f2 = weights.at(i) * weights.at(i) / (tot2 > 0 ? tot2 : 1);
         mval.paramValues.at(j) += f * other.paramValues.at(j);
         mval.paramVariances.at(j) += f2 * other.paramVariances.at(j);
       }
@@ -270,9 +268,9 @@ ModuleValue ModuleClusters::squash(std::vector<ModuleValue>& values) {
   Acts::Vector2 pos(0., 0.);
   Acts::Vector2 var(0., 0.);
 
-  std::size_t b0min = SIZE_MAX;
+  std::size_t b0min = std::numeric_limits<std::size_t>::max();
   std::size_t b0max = 0;
-  std::size_t b1min = SIZE_MAX;
+  std::size_t b1min = std::numeric_limits<std::size_t>::max();
   std::size_t b1max = 0;
 
   for (std::size_t i = 0; i < values.size(); i++) {

@@ -4,7 +4,7 @@ or *A Common Tracking Software* if you do not like recursive acronyms
 
 [![10.5281/zenodo.5141418](https://zenodo.org/badge/DOI/10.5281/zenodo.5141418.svg)](https://doi.org/10.5281/zenodo.5141418)
 [![Chat on Mattermost](https://badgen.net/badge/chat/on%20mattermost/cyan)](https://mattermost.web.cern.ch/acts/)
-[![coverage](https://badgen.net/codecov/c/github/acts-project/acts/main)](https://codecov.io/gh/acts-project/acts/branch/main)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=acts-project_acts&metric=coverage)](https://sonarcloud.io/summary/new_code?id=acts-project_acts)
 [![Latest release](https://badgen.net/github/release/acts-project/acts)](https://github.com/acts-project/acts/releases)
 [![Status](https://badgen.net/github/checks/acts-project/acts/main)](https://github.com/acts-project/acts/actions)
 [![Metrics](https://badgen.net/badge/metric/tracker/purple)](https://acts-project.github.io/metrics/)
@@ -17,8 +17,8 @@ More information can be found in the [Acts documentation](https://acts.readthedo
 ## Quick start
 
 Acts is developed in C++ and is build using [CMake](https://cmake.org). Building
-the core library requires a C++17 compatible compiler,
-[Boost](http://boost.org), and [Eigen](http://eigen.tuxfamily.org). The
+the core library requires a C++20 compatible compiler,
+[Boost](https://www.boost.org), and [Eigen](https://eigen.tuxfamily.org). The
 following commands will clone the repository, configure, and build the core
 library
 
@@ -70,7 +70,7 @@ Contributors to the Acts project are listed in the [AUTHORS](AUTHORS) file.
 
 The Acts project is published under the terms of the Mozilla Public License, v. 2.0.
 A copy of the license can be found in the [LICENSE](LICENSE) file or at
-http://mozilla.org/MPL/2.0/ .
+https://mozilla.org/MPL/2.0/ .
 
 The Acts project contains copies of the following external packages:
 

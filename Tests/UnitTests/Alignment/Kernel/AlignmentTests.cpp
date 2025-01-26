@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -116,8 +116,8 @@ struct TelescopeDetector {
     using namespace UnitLiterals;
 
     unsigned int nLayers = 6;
-    std::vector<ActsScalar> positions = {-500_mm, -300_mm, -100_mm,
-                                         100_mm,  300_mm,  500_mm};
+    std::vector<double> positions = {-500_mm, -300_mm, -100_mm,
+                                     100_mm,  300_mm,  500_mm};
     auto length = positions.back() - positions.front();
 
     std::vector<LayerPtr> layers(nLayers);
@@ -143,7 +143,7 @@ struct TelescopeDetector {
     // The volume transform
     Translation3 transVol(0, 0, 0);
     Transform3 trafoVol(rotation * transVol);
-    VolumeBoundsPtr boundsVol = std::make_shared<const CuboidVolumeBounds>(
+    auto boundsVol = std::make_shared<CuboidVolumeBounds>(
         rBounds->halfLengthX() + 10._mm, rBounds->halfLengthY() + 10._mm,
         length + 10._mm);
 
@@ -158,12 +158,12 @@ struct TelescopeDetector {
     // Create the layer array
     std::unique_ptr<const LayerArray> layArr(layArrCreator.layerArray(
         geoContext, layVec, positions.front() - 2._mm, positions.back() + 2._mm,
-        BinningType::arbitrary, BinningValue::binX));
+        BinningType::arbitrary, AxisDirection::AxisX));
 
     // Build the tracking volume
-    auto trackVolume =
-        TrackingVolume::create(trafoVol, boundsVol, nullptr, std::move(layArr),
-                               nullptr, {}, "Telescope");
+    auto trackVolume = std::make_shared<TrackingVolume>(
+        trafoVol, boundsVol, nullptr, std::move(layArr), nullptr,
+        MutableTrackingVolumeVector{}, "Telescope");
 
     return std::make_shared<const TrackingGeometry>(trackVolume);
   }
@@ -239,7 +239,7 @@ const MeasurementResolutionMap resolutions = {
 
 struct KalmanFitterInputTrajectory {
   // The source links
-  std::vector<TestSourceLink> sourcelinks;
+  std::vector<TestSourceLink> sourceLinks;
   // The start parameters
   std::optional<CurvilinearTrackParameters> startParameters;
 };
@@ -264,7 +264,7 @@ std::vector<KalmanFitterInputTrajectory> createTrajectories(
     // Extract measurements from result of propagation.
     KalmanFitterInputTrajectory traj;
     traj.startParameters = start;
-    traj.sourcelinks = measurements.sourceLinks;
+    traj.sourceLinks = measurements.sourceLinks;
 
     trajectories.push_back(std::move(traj));
   }
@@ -300,7 +300,7 @@ BOOST_AUTO_TEST_CASE(ZeroFieldKalmanAlignment) {
   extensions.surfaceAccessor
       .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
   KalmanFitterOptions kfOptions(geoCtx, magCtx, calCtx, extensions,
-                                PropagatorPlainOptions());
+                                PropagatorPlainOptions(geoCtx, magCtx));
 
   // Construct a non-updating alignment updater
   AlignedTransformUpdater voidAlignUpdater =
@@ -330,7 +330,7 @@ BOOST_AUTO_TEST_CASE(ZeroFieldKalmanAlignment) {
   kfOptions.referenceSurface = &(*inputTraj.startParameters).referenceSurface();
 
   auto evaluateRes = alignZero.evaluateTrackAlignmentState(
-      kfOptions.geoContext, inputTraj.sourcelinks, *inputTraj.startParameters,
+      kfOptions.geoContext, inputTraj.sourceLinks, *inputTraj.startParameters,
       kfOptions, idxedAlignSurfaces, AlignmentMask::All);
   BOOST_CHECK(evaluateRes.ok());
 
@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE(ZeroFieldKalmanAlignment) {
   std::vector<CurvilinearTrackParameters> sParametersCollection;
   sParametersCollection.reserve(10);
   for (const auto& traj : trajectories) {
-    trajCollection.push_back(traj.sourcelinks);
+    trajCollection.push_back(traj.sourceLinks);
     sParametersCollection.push_back(*traj.startParameters);
   }
   auto alignRes =

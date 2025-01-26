@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -31,11 +31,7 @@
 #include "ActsExamples/GenericDetector/LayerBuilderT.hpp"
 #include "ActsExamples/GenericDetector/ProtoLayerCreatorT.hpp"
 
-#include <array>
-#include <cmath>
 #include <cstddef>
-#include <iostream>
-#include <list>
 #include <memory>
 #include <string>
 #include <utility>
@@ -48,8 +44,7 @@ class IMaterialDecorator;
 class ISurfaceMaterial;
 }  // namespace Acts
 
-namespace ActsExamples {
-namespace Generic {
+namespace ActsExamples::Generic {
 
 /// Helper method for positioning
 /// @param radius is the cylinder radius
@@ -109,7 +104,7 @@ std::vector<std::vector<Acts::Vector3>> modulePositionsDisc(
 /// return a unique vector to the tracking geometry
 template <typename detector_element_t>
 std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
-    const typename detector_element_t::ContextType& gctxIn,
+    const Acts::GeometryContext& gctxIn,
     std::vector<std::vector<std::shared_ptr<detector_element_t>>>&
         detectorStore,
     std::size_t level,
@@ -160,17 +155,22 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
 
   // Prepare the proto material - in case it's designed to do so
   // - cylindrical
-  Acts::BinUtility pCylinderUtility(10, -1, 1, Acts::closed, Acts::binPhi);
-  pCylinderUtility += Acts::BinUtility(10, -1, 1, Acts::open, Acts::binZ);
+  Acts::BinUtility pCylinderUtility(10, -1, 1, Acts::closed,
+                                    Acts::AxisDirection::AxisPhi);
+  pCylinderUtility +=
+      Acts::BinUtility(10, -1, 1, Acts::open, Acts::AxisDirection::AxisZ);
   auto pCylinderMaterial =
       std::make_shared<const Acts::ProtoSurfaceMaterial>(pCylinderUtility);
   // - disc
-  Acts::BinUtility pDiscUtility(10, 0, 1, Acts::open, Acts::binR);
-  pDiscUtility += Acts::BinUtility(10, -1, 1, Acts::closed, Acts::binPhi);
+  Acts::BinUtility pDiscUtility(10, 0, 1, Acts::open,
+                                Acts::AxisDirection::AxisR);
+  pDiscUtility +=
+      Acts::BinUtility(10, -1, 1, Acts::closed, Acts::AxisDirection::AxisPhi);
   auto pDiscMaterial =
       std::make_shared<const Acts::ProtoSurfaceMaterial>(pDiscUtility);
   // - plane
-  Acts::BinUtility pPlaneUtility(1, -1, 1, Acts::open, Acts::binX);
+  Acts::BinUtility pPlaneUtility(1, -1, 1, Acts::open,
+                                 Acts::AxisDirection::AxisX);
   auto pPlaneMaterial =
       std::make_shared<const Acts::ProtoSurfaceMaterial>(pPlaneUtility);
 
@@ -204,7 +204,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
   bpvConfig.layerEnvelopeR = {1. * Acts::UnitConstants::mm,
                               1. * Acts::UnitConstants::mm};
   bpvConfig.buildToRadiusZero = true;
-  bpvConfig.volumeSignature = 0;
   auto beamPipeVolumeBuilder =
       std::make_shared<const Acts::CylinderVolumeBuilder>(
           bpvConfig,
@@ -272,11 +271,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
   pplConfig.centralModuleMaterial = {
       pCentralModuleMaterial, pCentralModuleMaterial, pCentralModuleMaterial,
       pCentralModuleMaterial};
-  // pitch definitions
-  pplConfig.centralModuleReadoutBinsX = {336, 336, 336, 336};
-  pplConfig.centralModuleReadoutBinsY = {1280, 1280, 1280, 1280};
-  pplConfig.centralModuleReadoutSide = {-1, -1, -1, -1};
-  pplConfig.centralModuleLorentzAngle = {0.12, 0.12, 0.12, 0.12};
 
   // no frontside/backside
   pplConfig.centralModuleFrontsideStereo = {};
@@ -328,13 +322,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
   pplConfig.posnegModulePhiBins =
       std::vector<std::vector<std::size_t>>(7, perBP);
   pplConfig.posnegModuleThickness = std::vector<std::vector<double>>(7, perT);
-  pplConfig.posnegModuleReadoutBinsX =
-      std::vector<std::vector<std::size_t>>(7, perBX);
-  pplConfig.posnegModuleReadoutBinsY =
-      std::vector<std::vector<std::size_t>>(7, perBY);
-  pplConfig.posnegModuleReadoutSide = std::vector<std::vector<int>>(7, perRS);
-  pplConfig.posnegModuleLorentzAngle =
-      std::vector<std::vector<double>>(7, perLA);
   pplConfig.posnegModuleMaterial =
       std::vector<std::vector<std::shared_ptr<const Acts::ISurfaceMaterial>>>(
           7, perM);
@@ -392,7 +379,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
   pvbConfig.layerEnvelopeR = {1. * Acts::UnitConstants::mm,
                               5. * Acts::UnitConstants::mm};
   pvbConfig.layerBuilder = pixelLayerBuilder;
-  pvbConfig.volumeSignature = 0;
   auto pixelVolumeBuilder = std::make_shared<const Acts::CylinderVolumeBuilder>(
       pvbConfig, Acts::getDefaultLogger("PixelVolumeBuilder", volumeLLevel));
   // add to the list of builders
@@ -426,7 +412,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     pstvolConfig.volumeName = "PST";
     pstvolConfig.buildToRadiusZero = false;
     pstvolConfig.layerBuilder = pstBuilder;
-    pstvolConfig.volumeSignature = 0;
     auto pstVolumeBuilder = std::make_shared<const Acts::CylinderVolumeBuilder>(
         pstvolConfig, Acts::getDefaultLogger("PSTVolumeBuilder", volumeLLevel));
     // add to the detector builds
@@ -493,11 +478,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     ssplConfig.centralModuleThickness = {ssCentralModuleT, ssCentralModuleT,
                                          ssCentralModuleT, ssCentralModuleT};
 
-    ssplConfig.centralModuleReadoutBinsX = {600, 600, 600, 600};  // 80 um pitch
-    ssplConfig.centralModuleReadoutBinsY = {90, 90, 90, 90};  // 1.2 mm strixels
-    ssplConfig.centralModuleReadoutSide = {1, 1, 1, 1};
-    ssplConfig.centralModuleLorentzAngle = {0.12, 0.12, 0.12, 0.12};
-
     ssplConfig.centralModuleMaterial = {
         ssCentralModuleMaterial, ssCentralModuleMaterial,
         ssCentralModuleMaterial, ssCentralModuleMaterial};
@@ -523,13 +503,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     std::vector<double> mrMaxHx = {24.2, 32.2, 40.0};
     std::vector<double> mrHy = {78., 78., 78.};
 
-    // simplified strixels readout
-    std::vector<std::size_t> mrReadoutBinsX = {605, 805, 1000};  // 80 um pitch
-    std::vector<std::size_t> mrReadoutBinsY = {130, 130,
-                                               130};  // 1.2 mm strixels
-    std::vector<int> mrReadoutSide = {1, 1, 1};
-    std::vector<double> mrLorentzAngle = {0., 0., 0.};
-
     std::vector<std::size_t> mPhiBins = {54, 56, 60};
     std::vector<double> mThickness = {ssEndcapModuleT, ssEndcapModuleT,
                                       ssEndcapModuleT};
@@ -553,15 +526,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
         std::vector<std::vector<std::size_t>>(nposnegs, mPhiBins);
     ssplConfig.posnegModuleThickness =
         std::vector<std::vector<double>>(nposnegs, mThickness);
-
-    ssplConfig.posnegModuleReadoutBinsX =
-        std::vector<std::vector<std::size_t>>(nposnegs, mrReadoutBinsX);
-    ssplConfig.posnegModuleReadoutBinsY =
-        std::vector<std::vector<std::size_t>>(nposnegs, mrReadoutBinsY);
-    ssplConfig.posnegModuleReadoutSide =
-        std::vector<std::vector<int>>(nposnegs, mrReadoutSide);
-    ssplConfig.posnegModuleLorentzAngle =
-        std::vector<std::vector<double>>(nposnegs, mrLorentzAngle);
 
     ssplConfig.posnegModuleMaterial =
         std::vector<std::vector<std::shared_ptr<const Acts::ISurfaceMaterial>>>(
@@ -622,7 +586,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     ssvbConfig.volumeName = "SStrip";
     ssvbConfig.buildToRadiusZero = false;
     ssvbConfig.layerBuilder = sstripLayerBuilder;
-    ssvbConfig.volumeSignature = 0;
     auto sstripVolumeBuilder =
         std::make_shared<const Acts::CylinderVolumeBuilder>(
             ssvbConfig,
@@ -690,11 +653,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     lsplConfig.centralModuleMaterial = {lsCentralModuleMaterial,
                                         lsCentralModuleMaterial};
 
-    lsplConfig.centralModuleReadoutBinsX = {400, 400};  // 120 um pitch
-    lsplConfig.centralModuleReadoutBinsY = {10, 10};    // 10 strips = 10.8 mm
-    lsplConfig.centralModuleReadoutSide = {1, 1};
-    lsplConfig.centralModuleLorentzAngle = {0.08, 0.08};
-
     lsplConfig.centralModuleFrontsideStereo = {};
     lsplConfig.centralModuleBacksideStereo = {};
     lsplConfig.centralModuleBacksideGap = {};
@@ -720,11 +678,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     mThickness = {lsEndcapModuleT, lsEndcapModuleT};
     mMaterial = {lsEndcapModuleMaterial, lsEndcapModuleMaterial};
 
-    mrReadoutBinsX = {1070, 1200};  // 120 um pitch
-    mrReadoutBinsY = {15, 15};      // 15 strips - 10.2 mm
-    mrReadoutSide = {1, 1};
-    mrLorentzAngle = {0., 0.};
-
     // endcap
     lsplConfig.posnegLayerBinMultipliers = {1, 2};
     lsplConfig.posnegLayerPositionsZ = {1220., 1500., 1800.,
@@ -742,15 +695,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
         std::vector<std::vector<std::size_t>>(nposnegs, mPhiBins);
     lsplConfig.posnegModuleThickness =
         std::vector<std::vector<double>>(nposnegs, mThickness);
-
-    lsplConfig.posnegModuleReadoutBinsX =
-        std::vector<std::vector<std::size_t>>(nposnegs, mrReadoutBinsX);
-    lsplConfig.posnegModuleReadoutBinsY =
-        std::vector<std::vector<std::size_t>>(nposnegs, mrReadoutBinsY);
-    lsplConfig.posnegModuleReadoutSide =
-        std::vector<std::vector<int>>(nposnegs, mrReadoutSide);
-    lsplConfig.posnegModuleLorentzAngle =
-        std::vector<std::vector<double>>(nposnegs, mrLorentzAngle);
 
     lsplConfig.posnegModuleMaterial =
         std::vector<std::vector<std::shared_ptr<const Acts::ISurfaceMaterial>>>(
@@ -808,7 +752,6 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
     lsvbConfig.volumeName = "LStrip";
     lsvbConfig.buildToRadiusZero = false;
     lsvbConfig.layerBuilder = lstripLayerBuilder;
-    lsvbConfig.volumeSignature = 0;
     auto lstripVolumeBuilder =
         std::make_shared<const Acts::CylinderVolumeBuilder>(
             lsvbConfig,
@@ -836,9 +779,8 @@ std::unique_ptr<const Acts::TrackingGeometry> buildDetector(
           Acts::getDefaultLogger("TrackerGeometryBuilder", volumeLLevel));
   // get the geometry
   auto trackingGeometry = cylinderGeometryBuilder->trackingGeometry(gctx);
-  /// return the tracking geometry
+  // return the tracking geometry
   return trackingGeometry;
 }
 
-}  // end of namespace Generic
-}  // end of namespace ActsExamples
+}  // namespace ActsExamples::Generic

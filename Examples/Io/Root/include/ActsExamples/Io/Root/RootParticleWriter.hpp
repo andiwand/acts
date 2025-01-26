@@ -1,15 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
@@ -38,11 +37,6 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
   struct Config {
     /// Input particle collection to write.
     std::string inputParticles;
-    /// Optional. If given, the the energy loss and traversed material is
-    /// computed and written.
-    std::string inputFinalParticles;
-    /// Optional. If given, the number of measurements is computed and written.
-    std::string inputSimHits;
     /// Path to the output file.
     std::string filePath;
     /// Output file access mode.
@@ -77,17 +71,13 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimParticleContainer> m_inputFinalParticles{
-      this, "InputFinalParticles"};
-  ReadDataHandle<SimHitContainer> m_inputSimHits{this, "InputSimHits"};
-
   std::mutex m_writeMutex;
 
   TFile* m_outputFile = nullptr;
   TTree* m_outputTree = nullptr;
 
   /// Event identifier.
-  uint32_t m_eventId = 0;
+  std::uint32_t m_eventId = 0;
   /// Event-unique particle identifier a.k.a barcode.
   std::vector<std::uint64_t> m_particleId;
   /// Particle type a.k.a. PDG particle number
@@ -98,7 +88,6 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
   std::vector<float> m_vx;
   std::vector<float> m_vy;
   std::vector<float> m_vz;
-  // Production time in ns.
   std::vector<float> m_vt;
   /// Total momentum in GeV
   std::vector<float> m_p;
@@ -124,7 +113,6 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
   std::vector<std::uint32_t> m_generation;
   std::vector<std::uint32_t> m_subParticle;
 
-  // Optional information depending on input collections.
   /// Total energy loss in GeV.
   std::vector<float> m_eLoss;
   /// Accumulated material
@@ -133,6 +121,8 @@ class RootParticleWriter final : public WriterT<SimParticleContainer> {
   std::vector<float> m_pathInL0;
   /// Number of hits.
   std::vector<std::int32_t> m_numberOfHits;
+  /// Particle outcome
+  std::vector<std::uint32_t> m_outcome;
 };
 
 }  // namespace ActsExamples

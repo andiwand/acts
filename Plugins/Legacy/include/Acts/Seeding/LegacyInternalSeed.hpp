@@ -1,21 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 ///////////////////////////////////////////////////////////////////
 // InternalSeed.hpp Acts project
 ///////////////////////////////////////////////////////////////////
 
 #pragma once
+
 #include "Acts/Seeding/LegacySeed.hpp"
 #include "Acts/Seeding/SPForSeed.hpp"
 
-namespace Acts {
-namespace Legacy {
+namespace Acts::Legacy {
 template <typename SpacePoint>
 class InternalSeed {
   /////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +143,7 @@ inline bool InternalSeed<SpacePoint>::set3(Acts::Legacy::Seed<SpacePoint>& s) {
   s.add(m_s0->spacepoint);
   s.add(m_s1->spacepoint);
   s.add(m_s2->spacepoint);
-  s.setZVertex(double(m_z));
+  s.setZVertex(static_cast<double>(m_z));
   return true;
 }
 
@@ -170,5 +170,4 @@ inline bool InternalSeed<SpacePoint>::setQuality(float q) {
 
 /// @endcond
 
-}  // namespace Legacy
-}  // namespace Acts
+}  // namespace Acts::Legacy

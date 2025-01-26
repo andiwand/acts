@@ -1,14 +1,15 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinningData.hpp"
 #include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
@@ -18,6 +19,7 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -46,7 +48,7 @@ class BinUtility {
   /// Constructor with only a Transform3
   ///
   /// @param tForm is the local to global transform
-  BinUtility(const Transform3& tForm)
+  explicit BinUtility(const Transform3& tForm)
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {
     m_binningData.reserve(3);
   }
@@ -55,8 +57,8 @@ class BinUtility {
   ///
   /// @param bData is the provided binning data
   /// @param tForm is the (optional) transform
-  BinUtility(const BinningData& bData,
-             const Transform3& tForm = Transform3::Identity())
+  explicit BinUtility(const BinningData& bData,
+                      const Transform3& tForm = Transform3::Identity())
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {
     m_binningData.reserve(3);
     m_binningData.push_back(bData);
@@ -68,10 +70,10 @@ class BinUtility {
   /// @param min in the minimal value
   /// @param max is the maximal value
   /// @param opt is the binning option : open, closed
-  /// @param value is the binninb value : binX, binY, binZ, etc.
+  /// @param value is the axis direction : AxisX, AxisY, AxisZ, etc.
   /// @param tForm is the (optional) transform
   BinUtility(std::size_t bins, float min, float max, BinningOption opt = open,
-             BinningValue value = binX,
+             AxisDirection value = AxisDirection::AxisX,
              const Transform3& tForm = Transform3::Identity())
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {
     m_binningData.reserve(3);
@@ -82,10 +84,10 @@ class BinUtility {
   ///
   /// @param bValues is the boundary values of the binning
   /// @param opt is the binning option : open, closed
-  /// @param value is the binninb value : binX, binY, binZ, etc.
+  /// @param value is the axis direction : AxisX, AxisY, AxisZ, etc.
   /// @param tForm is the (optional) transform
   BinUtility(std::vector<float>& bValues, BinningOption opt = open,
-             BinningValue value = binPhi,
+             AxisDirection value = AxisDirection::AxisPhi,
              const Transform3& tForm = Transform3::Identity())
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {
     m_binningData.reserve(3);
@@ -122,7 +124,7 @@ class BinUtility {
     m_transform = m_transform * gbu.transform();
     m_itransform = m_transform.inverse();
     if (m_binningData.size() + bData.size() > 3) {
-      throw "BinUtility does not support dim > 3";
+      throw std::runtime_error{"BinUtility does not support dim > 3"};
     }
     m_binningData.insert(m_binningData.end(), bData.begin(), bData.end());
     return (*this);
@@ -266,9 +268,9 @@ class BinUtility {
   /// @param ba is the binaccessor
   ///
   /// @return the binning value of the accessor entry
-  BinningValue binningValue(std::size_t ba = 0) const {
+  AxisDirection binningValue(std::size_t ba = 0) const {
     if (ba >= m_binningData.size()) {
-      throw "dimension out of bounds";
+      throw std::runtime_error{"Dimension out of bounds"};
     }
     return (m_binningData[ba].binvalue);
   }
@@ -316,13 +318,15 @@ class BinUtility {
     return ss.str();
   }
 
+  /// Overload of << operator for std::ostream for debug output
+  friend std::ostream& operator<<(std::ostream& sl, const BinUtility& bgen) {
+    return bgen.toStream(sl);
+  }
+
  private:
   std::vector<BinningData> m_binningData;  /// vector of BinningData
   Transform3 m_transform;                  /// shared transform
   Transform3 m_itransform;                 /// unique inverse transform
 };
-
-/// Overload of << operator for std::ostream for debug output
-std::ostream& operator<<(std::ostream& sl, const BinUtility& bgen);
 
 }  // namespace Acts

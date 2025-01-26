@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/TGeo/TGeoLayerBuilder.hpp"
 
@@ -149,10 +149,13 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
     if (type == 0) {
       ProtoLayer pl(gctx, lSurfaces);
       ACTS_DEBUG("- creating CylinderLayer with "
-                 << lSurfaces.size() << " surfaces at r = " << pl.medium(binR));
+                 << lSurfaces.size()
+                 << " surfaces at r = " << pl.medium(AxisDirection::AxisR));
 
-      pl.envelope[Acts::binR] = {lCfg.envelope.first, lCfg.envelope.second};
-      pl.envelope[Acts::binZ] = {lCfg.envelope.second, lCfg.envelope.second};
+      pl.envelope[Acts::AxisDirection::AxisR] = {lCfg.envelope.first,
+                                                 lCfg.envelope.second};
+      pl.envelope[Acts::AxisDirection::AxisZ] = {lCfg.envelope.second,
+                                                 lCfg.envelope.second};
       if (nb0 >= 0 && nb1 >= 0) {
         layers.push_back(
             m_cfg.layerCreator->cylinderLayer(gctx, lSurfaces, nb0, nb1, pl));
@@ -163,10 +166,13 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
     } else {
       ProtoLayer pl(gctx, lSurfaces);
       ACTS_DEBUG("- creating DiscLayer with "
-                 << lSurfaces.size() << " surfaces at z = " << pl.medium(binZ));
+                 << lSurfaces.size()
+                 << " surfaces at z = " << pl.medium(AxisDirection::AxisZ));
 
-      pl.envelope[Acts::binR] = {lCfg.envelope.first, lCfg.envelope.second};
-      pl.envelope[Acts::binZ] = {lCfg.envelope.second, lCfg.envelope.second};
+      pl.envelope[Acts::AxisDirection::AxisR] = {lCfg.envelope.first,
+                                                 lCfg.envelope.second};
+      pl.envelope[Acts::AxisDirection::AxisZ] = {lCfg.envelope.second,
+                                                 lCfg.envelope.second};
       if (nb0 >= 0 && nb1 >= 0) {
         layers.push_back(
             m_cfg.layerCreator->discLayer(gctx, lSurfaces, nb0, nb1, pl));
@@ -186,7 +192,7 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
     if (!layerCfg.parseRanges.empty()) {
       for (const auto& pRange : layerCfg.parseRanges) {
         ACTS_DEBUG("- layer parsing restricted in "
-                   << binningValueNames()[pRange.first] << " to ["
+                   << axisDirectionName(pRange.first) << " to ["
                    << pRange.second.first << "/" << pRange.second.second
                    << "].");
       }
@@ -194,19 +200,32 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
     if (!layerCfg.splitConfigs.empty()) {
       for (const auto& sConfig : layerCfg.splitConfigs) {
         ACTS_DEBUG("- layer splitting attempt in "
-                   << binningValueNames()[sConfig.first] << " with tolerance "
+                   << axisDirectionName(sConfig.first) << " with tolerance "
                    << sConfig.second << ".");
       }
     }
 
     // Either pick the configured volume or take the top level volume
+    // and retrieve its global transformation.
     TGeoVolume* tVolume =
         gGeoManager->FindVolumeFast(layerCfg.volumeName.c_str());
+    TGeoHMatrix gmatrix = TGeoIdentity((layerCfg.volumeName + "ID").c_str());
+
     if (tVolume == nullptr) {
       tVolume = gGeoManager->GetTopVolume();
       ACTS_DEBUG("- search volume is TGeo top volume");
     } else {
       ACTS_DEBUG("- setting search volume to " << tVolume->GetName());
+
+      auto node = TGeoParser::findNodeRecursive(gGeoManager->GetTopNode(),
+                                                tVolume->GetName());
+
+      if (node == nullptr) {
+        std::string volname(tVolume->GetName());
+        throw std::invalid_argument("Could not locate node for " + volname);
+      }
+
+      gmatrix = *(node->GetMatrix());
     }
 
     if (tVolume != nullptr) {
@@ -221,12 +240,12 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
       ACTS_DEBUG("- applying  " << layerCfg.parseRanges.size()
                                 << " search restrictions.");
       for (const auto& prange : layerCfg.parseRanges) {
-        ACTS_VERBOSE(" - range " << binningValueNames()[prange.first]
+        ACTS_VERBOSE(" - range " << axisDirectionName(prange.first)
                                  << " within [ " << prange.second.first << ", "
                                  << prange.second.second << "]");
       }
 
-      TGeoParser::select(tgpState, tgpOptions);
+      TGeoParser::select(tgpState, tgpOptions, gmatrix);
 
       ACTS_DEBUG("- number of selected nodes found : "
                  << tgpState.selectedNodes.size());
@@ -235,7 +254,7 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
         auto identifier =
             m_cfg.identifierProvider != nullptr
                 ? m_cfg.identifierProvider->identify(gctx, *snode.node)
-                : Identifier();
+                : TGeoDetectorElement::Identifier();
 
         auto tgElement =
             m_cfg.elementFactory(identifier, *snode.node, *snode.transform,
@@ -300,7 +319,7 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
 
 std::shared_ptr<Acts::TGeoDetectorElement>
 Acts::TGeoLayerBuilder::defaultElementFactory(
-    const Identifier& identifier, const TGeoNode& tGeoNode,
+    const TGeoDetectorElement::Identifier& identifier, const TGeoNode& tGeoNode,
     const TGeoMatrix& tGeoMatrix, const std::string& axes, double scalor,
     std::shared_ptr<const Acts::ISurfaceMaterial> material) {
   return std::make_shared<TGeoDetectorElement>(

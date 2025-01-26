@@ -1,20 +1,22 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/Volume.hpp"
 #include "Acts/Geometry/VolumeBounds.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BoundingBox.hpp"
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <iomanip>
 #include <iosfwd>
 #include <memory>
@@ -68,21 +70,20 @@ class CuboidVolumeBounds : public VolumeBounds {
   /// Constructor - from a fixed size array
   ///
   /// @param values iw the bound values
-  CuboidVolumeBounds(const std::array<double, eSize>& values) noexcept(false)
-      : m_values(values) {
-    checkConsistency();
-    buildSurfaceBounds();
-  }
+  CuboidVolumeBounds(const std::array<double, eSize>& values);
+
+  CuboidVolumeBounds(
+      std::initializer_list<std::pair<BoundValues, double>> keyValues);
 
   /// Copy Constructor
   ///
   /// @param bobo is the source volume bounds to be copied
-  CuboidVolumeBounds(const CuboidVolumeBounds& bobo);
+  CuboidVolumeBounds(const CuboidVolumeBounds& bobo) = default;
 
   /// Assignment operator
   ///
   /// @param bobo is the source volume bounds to be assigned
-  CuboidVolumeBounds& operator=(const CuboidVolumeBounds& bobo);
+  CuboidVolumeBounds& operator=(const CuboidVolumeBounds& bobo) = default;
 
   ~CuboidVolumeBounds() override = default;
 
@@ -110,7 +111,7 @@ class CuboidVolumeBounds : public VolumeBounds {
   /// It will throw an exception if the orientation prescription is not adequate
   ///
   /// @return a vector of surfaces bounding this volume
-  OrientedSurfaces orientedSurfaces(
+  std::vector<OrientedSurface> orientedSurfaces(
       const Transform3& transform = Transform3::Identity()) const override;
 
   /// Construct bounding box for this shape
@@ -122,29 +123,47 @@ class CuboidVolumeBounds : public VolumeBounds {
                                   const Vector3& envelope = {0, 0, 0},
                                   const Volume* entity = nullptr) const final;
 
+  /// Get the canonical binning direction, i.e. the binning directions
+  /// for that fully describe the shape's extent
+  ///
+  /// @return vector of canonical binning values
+  std::vector<AxisDirection> canonicalAxes() const override {
+    using enum AxisDirection;
+    return {AxisX, AxisY, AxisZ};
+  };
+
   /// Binning borders in double
   ///
-  /// @param bValue is the binning schema used
+  /// @param aDir is the axis direction for which the
+  /// reference border is requested
   ///
   /// @return float offset to be used for the binning
-  double binningBorder(BinningValue bValue) const final;
+  double referenceBorder(AxisDirection aDir) const final;
 
   /// Access to the bound values
   /// @param bValue the class nested enum for the array access
   double get(BoundValues bValue) const { return m_values[bValue]; }
 
+  /// Set a bound value
+  /// @param bValue the bound value identifier
+  /// @param value the value to be set
+  void set(BoundValues bValue, double value);
+
+  /// Set a range of bound values
+  /// @param keyValues the initializer list of key value pairs
+  void set(std::initializer_list<std::pair<BoundValues, double>> keyValues);
+
+  /// Convert axis direction to a corresponding bound value
+  /// in local coordinate convention
+  /// @param direction the axis direction to convert
+  static BoundValues fromAxisDirection(AxisDirection direction);
+
   /// Output Method for std::ostream
   ///
-  /// @param sl is ostream operator to be dumped into
-  std::ostream& toStream(std::ostream& sl) const override;
+  /// @param os is ostream operator to be dumped into
+  std::ostream& toStream(std::ostream& os) const override;
 
  private:
-  /// Templated dumpT method
-  /// @tparam stream_t The type for the dump stream
-  /// @param dt The dump stream object
-  template <class stream_t>
-  stream_t& dumpT(stream_t& dt) const;
-
   /// The bound values ordered in a fixed size array
   std::array<double, eSize> m_values;
 
@@ -159,34 +178,4 @@ class CuboidVolumeBounds : public VolumeBounds {
   /// will throw a logic_exception if consistency is not given
   void checkConsistency() noexcept(false);
 };
-
-inline bool CuboidVolumeBounds::inside(const Vector3& pos, double tol) const {
-  return (std::abs(pos.x()) <= get(eHalfLengthX) + tol &&
-          std::abs(pos.y()) <= get(eHalfLengthY) + tol &&
-          std::abs(pos.z()) <= get(eHalfLengthZ) + tol);
-}
-
-inline std::vector<double> CuboidVolumeBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-inline void CuboidVolumeBounds::checkConsistency() noexcept(false) {
-  if (get(eHalfLengthX) <= 0 || get(eHalfLengthY) <= 0 ||
-      get(eHalfLengthZ) <= 0.) {
-    throw std::invalid_argument(
-        "CuboidVolumeBounds: invalid input, zero or negative.");
-  }
-}
-
-template <class stream_t>
-stream_t& CuboidVolumeBounds::dumpT(stream_t& dt) const {
-  dt << std::setiosflags(std::ios::fixed);
-  dt << std::setprecision(5);
-  dt << "Acts::CuboidVolumeBounds: (halfLengthX, halfLengthY, halfLengthZ) = ";
-  dt << "(" << get(eHalfLengthX) << ", " << get(eHalfLengthY) << ", "
-     << get(eHalfLengthZ) << ")";
-  return dt;
-}
 }  // namespace Acts

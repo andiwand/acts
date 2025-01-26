@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -36,10 +36,10 @@
 #include "Acts/Tests/CommonHelpers/PredefinedMaterials.hpp"
 
 #include <functional>
+#include <numbers>
 #include <vector>
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 struct CylindricalTrackingGeometry {
   std::reference_wrapper<const GeometryContext> geoContext;
@@ -89,15 +89,15 @@ struct CylindricalTrackingGeometry {
                                                   moduleHalfXmaxY, moduleHalfY);
     }
 
-    double phiStep = 2 * M_PI / nPhi;
+    double phiStep = 2 * std::numbers::pi / nPhi;
 
     for (int im = 0; im < nPhi; ++im) {
       // Get the moduleTransform
-      double phi = -M_PI + im * phiStep;
+      double phi = -std::numbers::pi + im * phiStep;
       auto mModuleTransform = Transform3(
           Translation3(ringRadius * std::cos(phi), ringRadius * std::sin(phi),
                        ringZ + (im % 2) * zStagger) *
-          AngleAxis3(phi - 0.5 * M_PI, Vector3::UnitZ()) *
+          AngleAxis3(phi - std::numbers::pi / 2., Vector3::UnitZ()) *
           AngleAxis3(moduleTilt, Vector3::UnitY()));
 
       // Create the detector element
@@ -187,17 +187,19 @@ struct CylindricalTrackingGeometry {
     std::vector<Vector3> mPositions;
     mPositions.reserve(nPhiBins * nZbins);
     // prep work
-    double phiStep = 2 * M_PI / (nPhiBins);
-    double minPhi = -M_PI + 0.5 * phiStep;
+    double phiStep = 2 * std::numbers::pi / (nPhiBins);
+    double minPhi = -std::numbers::pi + phiStep / 2.;
     double zStart = -0.5 * (nZbins - 1) * (2 * moduleHalfLength - lOverlap);
     double zStep = 2 * std::abs(zStart) / (nZbins - 1);
     // loop over the bins
-    for (std::size_t zBin = 0; zBin < std::size_t(nZbins); ++zBin) {
+    for (std::size_t zBin = 0; zBin < static_cast<std::size_t>(nZbins);
+         ++zBin) {
       // prepare z and r
       double moduleZ = zStart + zBin * zStep;
       double moduleR =
           (zBin % 2) != 0u ? radius - 0.5 * zStagger : radius + 0.5 * zStagger;
-      for (std::size_t phiBin = 0; phiBin < std::size_t(nPhiBins); ++phiBin) {
+      for (std::size_t phiBin = 0; phiBin < static_cast<std::size_t>(nPhiBins);
+           ++phiBin) {
         // calculate the current phi value
         double modulePhi = minPhi + phiBin * phiStep;
         mPositions.push_back(Vector3(moduleR * cos(modulePhi),
@@ -259,7 +261,6 @@ struct CylindricalTrackingGeometry {
     bpvConfig.layerBuilder = beamPipeBuilder;
     bpvConfig.layerEnvelopeR = {1_mm, 1_mm};
     bpvConfig.buildToRadiusZero = true;
-    bpvConfig.volumeSignature = 0;
     auto beamPipeVolumeBuilder = std::make_shared<const CylinderVolumeBuilder>(
         bpvConfig, getDefaultLogger("BeamPipeVolumeBuilder", volumeLLevel));
 
@@ -303,7 +304,7 @@ struct CylindricalTrackingGeometry {
 
       // create the layer and store it
       ProtoLayer protoLayer(geoContext, layerSurfaces);
-      protoLayer.envelope[binR] = {0.5, 0.5};
+      protoLayer.envelope[AxisDirection::AxisR] = {0.5, 0.5};
       auto pLayer = layerCreator->cylinderLayer(
           geoContext, std::move(layerSurfacePtrs), pLayerBinning[ilp].first,
           pLayerBinning[ilp].second, protoLayer);
@@ -317,14 +318,14 @@ struct CylindricalTrackingGeometry {
     }  // loop over layers
 
     // layer array
-    auto pLayerArray = layerArrayCreator->layerArray(geoContext, pLayers, 25.,
-                                                     300., arbitrary, binR);
+    auto pLayerArray = layerArrayCreator->layerArray(
+        geoContext, pLayers, 25., 300., arbitrary, AxisDirection::AxisR);
     auto pVolumeBounds =
-        std::make_shared<const CylinderVolumeBounds>(25., 300., 1100.);
+        std::make_shared<CylinderVolumeBounds>(25., 300., 1100.);
     // create the Tracking volume
-    auto pVolume = TrackingVolume::create(Transform3::Identity(), pVolumeBounds,
-                                          nullptr, std::move(pLayerArray),
-                                          nullptr, {}, "Pixel::Barrel");
+    auto pVolume = std::make_shared<TrackingVolume>(
+        Transform3::Identity(), pVolumeBounds, nullptr, std::move(pLayerArray),
+        nullptr, MutableTrackingVolumeVector{}, "Pixel::Barrel");
 
     // The combined volume
     auto detectorVolume = cylinderVolumeHelper->createContainerTrackingVolume(
@@ -335,5 +336,4 @@ struct CylindricalTrackingGeometry {
   }
 };
 
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

@@ -1,14 +1,15 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
+#include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Tests/CommonHelpers/DataDirectory.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
 
@@ -16,8 +17,7 @@
 #include <iterator>
 #include <regex>
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 using namespace Acts::UnitLiterals;
 using Covariance = BoundSquareMatrix;
@@ -40,7 +40,7 @@ struct VertexInfo {
   double trk1Chi2 = 0;
 };
 
-inline std::tuple<Vertex<BoundTrackParameters>, std::vector<VertexInfo>,
+inline std::tuple<Vertex, std::vector<VertexInfo>,
                   std::vector<BoundTrackParameters>>
 readTracksAndVertexCSV(const std::string& toolString,
                        const std::string& fileBase = "vertexing_event_mu20") {
@@ -63,7 +63,7 @@ readTracksAndVertexCSV(const std::string& toolString,
   std::shared_ptr<PerigeeSurface> perigeeSurface;
   std::vector<BoundTrackParameters> tracks;
   std::vector<VertexInfo> vertices;
-  Vertex<BoundTrackParameters> beamspotConstraint;
+  Vertex beamspotConstraint;
 
   // Read in beamspot data
   std::getline(beamspotData, line);  // skip header
@@ -143,8 +143,7 @@ readTracksAndVertexCSV(const std::string& toolString,
     vertices.push_back(vertexInfo);
   }
 
-  return std::make_tuple(beamspotConstraint, vertices, tracks);
+  return {beamspotConstraint, vertices, tracks};
 }
 
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

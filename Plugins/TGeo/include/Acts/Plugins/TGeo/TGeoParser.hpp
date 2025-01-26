@@ -1,16 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 
 #include <memory>
 #include <string>
@@ -69,15 +69,22 @@ struct TGeoParser {
     /// Scaling from TGeo to ROOT
     double unit = 1 * UnitConstants::cm;
     /// Parse restrictions, several can apply
-    std::vector<std::pair<BinningValue, ParseRange> > parseRanges = {};
+    std::vector<std::pair<AxisDirection, ParseRange> > parseRanges = {};
   };
 
   /// The parsing module, it takes the top Volume and recursively steps down
   /// @param state [out] The parsing state configuration, passed through
-  /// @param options [in] The parsing options as requiremed
+  /// @param options [in] The parsing options as required
   /// @param gmatrix The current built-up transform to global at this depth
   static void select(State& state, const Options& options,
                      const TGeoMatrix& gmatrix = TGeoIdentity("ID"));
-};
 
+  /// Simple utility function that recursively finds the node by the volume name
+  /// in the tgeo branch.
+  /// @param currentNode [in] the pointer to the current node in the branch
+  /// @param volumeName  [in] the name of the volume to be searched for
+  /// @return the pointer to the node corresponding to the volume
+  static TGeoNode* findNodeRecursive(TGeoNode* currentNode,
+                                     const char* volumeName);
+};
 }  // namespace Acts

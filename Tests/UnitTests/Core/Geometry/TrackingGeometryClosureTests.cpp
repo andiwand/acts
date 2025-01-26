@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -29,8 +29,7 @@
 
 using namespace Acts::UnitLiterals;
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 // Create a test context
 GeometryContext tgContext = GeometryContext();
@@ -313,9 +312,12 @@ BOOST_AUTO_TEST_CASE(TrackingGeometry_testVisitSurfaces) {
   // method is called on the expected number of surfaces
   std::size_t nSurfaces = 0;
   tGeometry.visitSurfaces([&nSurfaces](const auto*) { nSurfaces++; });
-
   BOOST_CHECK_EQUAL(nSurfaces, 9u);
+
+  // this will also cover TrackingVolume::visitVolumes
+  std::size_t nVolumes = 0;
+  tGeometry.visitVolumes([&nVolumes](const auto*) { nVolumes++; });
+  BOOST_CHECK_EQUAL(nVolumes, 5u);
 }
 
-}  //  end of namespace Test
-}  //  end of namespace Acts
+}  // namespace Acts::Test

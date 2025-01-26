@@ -1,16 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
@@ -21,6 +21,7 @@
 #include "Acts/Utilities/HashedString.hpp"
 
 #include <random>
+#include <stdexcept>
 
 namespace Acts::detail::Test {
 
@@ -197,6 +198,9 @@ class MultiTrajectoryTestsCommon {
     alwaysPresent(ts);
     ts.allocateCalibrated(5);
     BOOST_CHECK(ts.hasCalibrated());
+    BOOST_CHECK_EQUAL(ts.template calibrated<5>(), ActsVector<5>::Zero());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<5>(),
+                      ActsSquareMatrix<5>::Zero());
 
     ts = t.getTrackState(t.addTrackState(PM::None));
     BOOST_CHECK(!ts.hasPredicted());
@@ -243,6 +247,9 @@ class MultiTrajectoryTestsCommon {
     BOOST_CHECK(!ts.hasJacobian());
     ts.allocateCalibrated(5);
     BOOST_CHECK(ts.hasCalibrated());
+    BOOST_CHECK_EQUAL(ts.template calibrated<5>(), ActsVector<5>::Zero());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<5>(),
+                      ActsSquareMatrix<5>::Zero());
 
     ts = t.getTrackState(t.addTrackState(PM::Jacobian));
     BOOST_CHECK(!ts.hasPredicted());
@@ -252,6 +259,72 @@ class MultiTrajectoryTestsCommon {
     BOOST_CHECK(!ts.hasProjector());
     BOOST_CHECK(ts.hasJacobian());
     alwaysPresent(ts);
+  }
+
+  void testAddTrackStateComponents() {
+    using PM = TrackStatePropMask;
+
+    trajectory_t t = m_factory.create();
+
+    auto ts = t.makeTrackState(PM::None);
+    BOOST_CHECK(!ts.hasPredicted());
+    BOOST_CHECK(!ts.hasFiltered());
+    BOOST_CHECK(!ts.hasSmoothed());
+    BOOST_CHECK(!ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+
+    ts.addComponents(PM::None);
+    BOOST_CHECK(!ts.hasPredicted());
+    BOOST_CHECK(!ts.hasFiltered());
+    BOOST_CHECK(!ts.hasSmoothed());
+    BOOST_CHECK(!ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+
+    ts.addComponents(PM::Predicted);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(!ts.hasFiltered());
+    BOOST_CHECK(!ts.hasSmoothed());
+    BOOST_CHECK(!ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+
+    ts.addComponents(PM::Filtered);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(ts.hasFiltered());
+    BOOST_CHECK(!ts.hasSmoothed());
+    BOOST_CHECK(!ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+
+    ts.addComponents(PM::Smoothed);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(ts.hasFiltered());
+    BOOST_CHECK(ts.hasSmoothed());
+    BOOST_CHECK(!ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+
+    ts.addComponents(PM::Calibrated);
+    ts.allocateCalibrated(5);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(ts.hasFiltered());
+    BOOST_CHECK(ts.hasSmoothed());
+    BOOST_CHECK(ts.hasCalibrated());
+    BOOST_CHECK(!ts.hasJacobian());
+    BOOST_CHECK_EQUAL(ts.template calibrated<5>(), ActsVector<5>::Zero());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<5>(),
+                      ActsSquareMatrix<5>::Zero());
+
+    ts.addComponents(PM::Jacobian);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(ts.hasFiltered());
+    BOOST_CHECK(ts.hasSmoothed());
+    BOOST_CHECK(ts.hasCalibrated());
+    BOOST_CHECK(ts.hasJacobian());
+
+    ts.addComponents(PM::All);
+    BOOST_CHECK(ts.hasPredicted());
+    BOOST_CHECK(ts.hasFiltered());
+    BOOST_CHECK(ts.hasSmoothed());
+    BOOST_CHECK(ts.hasCalibrated());
+    BOOST_CHECK(ts.hasJacobian());
   }
 
   void testTrackStateProxyCrossTalk(std::default_random_engine& rng) {
@@ -269,7 +342,7 @@ class MultiTrajectoryTestsCommon {
     auto tsb = traj.getTrackState(index);
     // then modify one and check that the other was modified as well
     {
-      auto [par, cov] = generateBoundParametersCovariance(rng);
+      auto [par, cov] = generateBoundParametersCovariance(rng, {});
       tsb.predicted() = par;
       tsb.predictedCovariance() = cov;
       BOOST_CHECK_EQUAL(tsa.predicted(), par);
@@ -278,7 +351,7 @@ class MultiTrajectoryTestsCommon {
       BOOST_CHECK_EQUAL(tsb.predictedCovariance(), cov);
     }
     {
-      auto [par, cov] = generateBoundParametersCovariance(rng);
+      auto [par, cov] = generateBoundParametersCovariance(rng, {});
       tsb.filtered() = par;
       tsb.filteredCovariance() = cov;
       BOOST_CHECK_EQUAL(tsa.filtered(), par);
@@ -287,7 +360,7 @@ class MultiTrajectoryTestsCommon {
       BOOST_CHECK_EQUAL(tsb.filteredCovariance(), cov);
     }
     {
-      auto [par, cov] = generateBoundParametersCovariance(rng);
+      auto [par, cov] = generateBoundParametersCovariance(rng, {});
       tsb.smoothed() = par;
       tsb.smoothedCovariance() = cov;
       BOOST_CHECK_EQUAL(tsa.smoothed(), par);
@@ -315,8 +388,14 @@ class MultiTrajectoryTestsCommon {
     }
     {
       // reset measurements w/ full parameters
-      auto [measPar, measCov] = generateBoundParametersCovariance(rng);
+      auto [measPar, measCov] = generateBoundParametersCovariance(rng, {});
+      // Explicitly unset to avoid error below
+      tsb.unset(TrackStatePropMask::Calibrated);
       tsb.allocateCalibrated(eBoundSize);
+      BOOST_CHECK_EQUAL(tsb.template calibrated<eBoundSize>(),
+                        BoundVector::Zero());
+      BOOST_CHECK_EQUAL(tsb.template calibratedCovariance<eBoundSize>(),
+                        BoundMatrix::Zero());
       tsb.template calibrated<eBoundSize>() = measPar;
       tsb.template calibratedCovariance<eBoundSize>() = measCov;
       BOOST_CHECK_EQUAL(tsa.template calibrated<eBoundSize>(), measPar);
@@ -328,11 +407,19 @@ class MultiTrajectoryTestsCommon {
     }
     {
       // reset only the effective measurements
-      auto [measPar, measCov] = generateBoundParametersCovariance(rng);
+      auto [measPar, measCov] = generateBoundParametersCovariance(rng, {});
       std::size_t nMeasurements = tsb.effectiveCalibrated().rows();
       auto effPar = measPar.head(nMeasurements);
       auto effCov = measCov.topLeftCorner(nMeasurements, nMeasurements);
-      tsb.allocateCalibrated(eBoundSize);
+      tsb.allocateCalibrated(
+          eBoundSize);  // no allocation, but we expect it to be reset to zero
+                        // with this overload
+      BOOST_CHECK_EQUAL(tsa.effectiveCalibrated(), BoundVector::Zero());
+      BOOST_CHECK_EQUAL(tsa.effectiveCalibratedCovariance(),
+                        BoundMatrix::Zero());
+      BOOST_CHECK_EQUAL(tsa.effectiveCalibrated(), BoundVector::Zero());
+      BOOST_CHECK_EQUAL(tsa.effectiveCalibratedCovariance(),
+                        BoundMatrix::Zero());
       tsb.effectiveCalibrated() = effPar;
       tsb.effectiveCalibratedCovariance() = effCov;
       BOOST_CHECK_EQUAL(tsa.effectiveCalibrated(), effPar);
@@ -382,17 +469,18 @@ class MultiTrajectoryTestsCommon {
     BOOST_CHECK_EQUAL(
         ts.getUncalibratedSourceLink().template get<TestSourceLink>().sourceId,
         pc.sourceLink.sourceId);
-    auto meas = testSourceLinkCalibratorReturn<trajectory_t>(
-        gctx, cctx, SourceLink{ttsb.sourceLink}, ts);
+    // Explicitly unset to avoid error below
+    ts.unset(TrackStatePropMask::Calibrated);
+    testSourceLinkCalibrator<trajectory_t>(gctx, cctx,
+                                           SourceLink{ttsb.sourceLink}, ts);
     BOOST_CHECK_EQUAL(
         ts.getUncalibratedSourceLink().template get<TestSourceLink>().sourceId,
         ttsb.sourceLink.sourceId);
-    auto m2 = std::get<Acts::Measurement<BoundIndices, 2u>>(meas);
 
     BOOST_CHECK_EQUAL(ts.calibratedSize(), 2);
-    BOOST_CHECK_EQUAL(ts.effectiveCalibrated(), m2.parameters());
-    BOOST_CHECK_EQUAL(ts.effectiveCalibratedCovariance(), m2.covariance());
-    BOOST_CHECK_EQUAL(ts.effectiveProjector(), m2.projector());
+    BOOST_CHECK_EQUAL(ts.effectiveCalibrated(), ttsb.sourceLink.parameters);
+    BOOST_CHECK_EQUAL(ts.effectiveCalibratedCovariance(),
+                      ttsb.sourceLink.covariance);
   }
 
   void testTrackStateProxyStorage(std::default_random_engine& rng,
@@ -461,25 +549,6 @@ class MultiTrajectoryTestsCommon {
         BOOST_CHECK_EQUAL(ts.template calibratedCovariance<measdim>(), expCov);
       });
     }
-
-    BOOST_CHECK(ts.hasProjector());
-    ActsMatrix<MultiTrajectoryTraits::MeasurementSizeMax, eBoundSize> fullProj;
-    fullProj.setZero();
-    {
-      Acts::GeometryContext gctx;
-      Acts::CalibrationContext cctx;
-      // create a temporary measurement to extract the projector matrix
-      auto meas = testSourceLinkCalibratorReturn<trajectory_t>(
-          gctx, cctx, SourceLink{pc.sourceLink}, ts);
-      std::visit(
-          [&](const auto& m) {
-            fullProj.topLeftCorner(nMeasurements, eBoundSize) = m.projector();
-          },
-          meas);
-    }
-    BOOST_CHECK_EQUAL(ts.effectiveProjector(),
-                      fullProj.topLeftCorner(nMeasurements, eBoundSize));
-    BOOST_CHECK_EQUAL(ts.projector(), fullProj);
   }
 
   void testTrackStateProxyAllocations(std::default_random_engine& rng) {
@@ -698,13 +767,16 @@ class MultiTrajectoryTestsCommon {
     });
 
     BOOST_CHECK_NE(ts1.calibratedSize(), ts2.calibratedSize());
-    BOOST_CHECK_NE(ts1.projector(), ts2.projector());
+    BOOST_CHECK(ts1.projectorSubspaceIndices() !=
+                ts2.projectorSubspaceIndices());
 
     BOOST_CHECK_NE(ts1.jacobian(), ts2.jacobian());
     BOOST_CHECK_NE(ts1.chi2(), ts2.chi2());
     BOOST_CHECK_NE(ts1.pathLength(), ts2.pathLength());
     BOOST_CHECK_NE(&ts1.referenceSurface(), &ts2.referenceSurface());
 
+    // Explicitly unset to avoid error below
+    ts1.unset(TrackStatePropMask::Calibrated);
     ts1.copyFrom(ts2);
 
     BOOST_CHECK_EQUAL(ts1.predicted(), ts2.predicted());
@@ -727,7 +799,8 @@ class MultiTrajectoryTestsCommon {
     });
 
     BOOST_CHECK_EQUAL(ts1.calibratedSize(), ts2.calibratedSize());
-    BOOST_CHECK_EQUAL(ts1.projector(), ts2.projector());
+    BOOST_CHECK(ts1.projectorSubspaceIndices() ==
+                ts2.projectorSubspaceIndices());
 
     BOOST_CHECK_EQUAL(ts1.jacobian(), ts2.jacobian());
     BOOST_CHECK_EQUAL(ts1.chi2(), ts2.chi2());
@@ -738,6 +811,8 @@ class MultiTrajectoryTestsCommon {
     ts2 = mkts(PM::Predicted | PM::Jacobian | PM::Calibrated);
     ts2.copyFrom(ots2, PM::Predicted | PM::Jacobian | PM::Calibrated);
     // copy into empty ts, only copy some
+    // explicitly unset to avoid error below
+    ts1.unset(TrackStatePropMask::Calibrated);
     ts1.copyFrom(ots1);  // reset to original
     // is different again
     BOOST_CHECK_NE(ts1.predicted(), ts2.predicted());
@@ -752,13 +827,16 @@ class MultiTrajectoryTestsCommon {
     });
 
     BOOST_CHECK_NE(ts1.calibratedSize(), ts2.calibratedSize());
-    BOOST_CHECK_NE(ts1.projector(), ts2.projector());
+    BOOST_CHECK(ts1.projectorSubspaceIndices() !=
+                ts2.projectorSubspaceIndices());
 
     BOOST_CHECK_NE(ts1.jacobian(), ts2.jacobian());
     BOOST_CHECK_NE(ts1.chi2(), ts2.chi2());
     BOOST_CHECK_NE(ts1.pathLength(), ts2.pathLength());
     BOOST_CHECK_NE(&ts1.referenceSurface(), &ts2.referenceSurface());
 
+    // Explicitly unset to avoid error below
+    ts1.unset(TrackStatePropMask::Calibrated);
     ts1.copyFrom(ts2);
 
     // some components are same now
@@ -774,7 +852,8 @@ class MultiTrajectoryTestsCommon {
     });
 
     BOOST_CHECK_EQUAL(ts1.calibratedSize(), ts2.calibratedSize());
-    BOOST_CHECK_EQUAL(ts1.projector(), ts2.projector());
+    BOOST_CHECK(ts1.projectorSubspaceIndices() ==
+                ts2.projectorSubspaceIndices());
 
     BOOST_CHECK_EQUAL(ts1.jacobian(), ts2.jacobian());
     BOOST_CHECK_EQUAL(ts1.chi2(), ts2.chi2());              // always copied
@@ -786,21 +865,21 @@ class MultiTrajectoryTestsCommon {
   void testTrackStateCopyDynamicColumns() {
     // mutable source
     trajectory_t mtj = m_factory.create();
-    mtj.template addColumn<uint64_t>("counter");
-    mtj.template addColumn<uint8_t>("odd");
+    mtj.template addColumn<std::uint64_t>("counter");
+    mtj.template addColumn<std::uint8_t>("odd");
 
     trajectory_t mtj2 = m_factory.create();
     // doesn't have the dynamic column
 
     trajectory_t mtj3 = m_factory.create();
-    mtj3.template addColumn<uint64_t>("counter");
-    mtj3.template addColumn<uint8_t>("odd");
+    mtj3.template addColumn<std::uint64_t>("counter");
+    mtj3.template addColumn<std::uint8_t>("odd");
 
     for (MultiTrajectoryTraits::IndexType i = 0; i < 10; i++) {
       auto ts =
           mtj.getTrackState(mtj.addTrackState(TrackStatePropMask::All, i));
-      ts.template component<uint64_t>("counter") = i;
-      ts.template component<uint8_t>("odd") = i % 2 == 0;
+      ts.template component<std::uint64_t>("counter") = i;
+      ts.template component<std::uint8_t>("odd") = i % 2 == 0;
 
       auto ts2 =
           mtj2.getTrackState(mtj2.addTrackState(TrackStatePropMask::All, i));
@@ -813,10 +892,10 @@ class MultiTrajectoryTestsCommon {
 
       BOOST_CHECK_NE(ts3.index(), MultiTrajectoryTraits::kInvalid);
 
-      BOOST_CHECK_EQUAL(ts.template component<uint64_t>("counter"),
-                        ts3.template component<uint64_t>("counter"));
-      BOOST_CHECK_EQUAL(ts.template component<uint8_t>("odd"),
-                        ts3.template component<uint8_t>("odd"));
+      BOOST_CHECK_EQUAL(ts.template component<std::uint64_t>("counter"),
+                        ts3.template component<std::uint64_t>("counter"));
+      BOOST_CHECK_EQUAL(ts.template component<std::uint8_t>("odd"),
+                        ts3.template component<std::uint8_t>("odd"));
     }
 
     std::size_t before = mtj.size();
@@ -825,8 +904,8 @@ class MultiTrajectoryTestsCommon {
     BOOST_REQUIRE_EQUAL(cmtj.size(), before);
 
     VectorMultiTrajectory mtj5;
-    mtj5.addColumn<uint64_t>("counter");
-    mtj5.addColumn<uint8_t>("odd");
+    mtj5.addColumn<std::uint64_t>("counter");
+    mtj5.addColumn<std::uint8_t>("odd");
 
     for (std::size_t i = 0; i < 10; i++) {
       auto ts4 = cmtj.getTrackState(i);  // const source!
@@ -837,10 +916,10 @@ class MultiTrajectoryTestsCommon {
 
       BOOST_CHECK_NE(ts5.index(), MultiTrajectoryTraits::kInvalid);
 
-      BOOST_CHECK_EQUAL(ts4.template component<uint64_t>("counter"),
-                        ts5.template component<uint64_t>("counter"));
-      BOOST_CHECK_EQUAL(ts4.template component<uint8_t>("odd"),
-                        ts5.template component<uint8_t>("odd"));
+      BOOST_CHECK_EQUAL(ts4.template component<std::uint64_t>("counter"),
+                        ts5.template component<std::uint64_t>("counter"));
+      BOOST_CHECK_EQUAL(ts4.template component<std::uint8_t>("odd"),
+                        ts5.template component<std::uint8_t>("odd"));
     }
   }
 
@@ -1046,8 +1125,8 @@ class MultiTrajectoryTestsCommon {
     auto test = [&](const std::string& col, auto value) {
       using T = decltype(value);
       std::string col2 = col + "_2";
-      HashedString h{hashString(col)};
-      HashedString h2{hashString(col2)};
+      HashedString h{hashStringDynamic(col)};
+      HashedString h2{hashStringDynamic(col2)};
 
       trajectory_t traj = m_factory.create();
       BOOST_CHECK(!traj.hasColumn(h));
@@ -1076,12 +1155,12 @@ class MultiTrajectoryTestsCommon {
       BOOST_CHECK_EQUAL(ts1.template component<T>(col), value);
     };
 
-    test("uint32_t", uint32_t(1));
-    test("uint64_t", uint64_t(2));
-    test("int32_t", int32_t(-3));
-    test("int64_t", int64_t(-4));
-    test("float", float(8.9));
-    test("double", double(656.2));
+    test("std_uint32_t", std::uint32_t{1});
+    test("std_uint64_t", std::uint64_t{2});
+    test("std_int32_t", std::int32_t{-3});
+    test("std_int64_t", std::int64_t{-4});
+    test("float", float{8.9});
+    test("double", double{656.2});
 
     trajectory_t traj = m_factory.create();
     traj.template addColumn<int>("extra_column");
@@ -1131,10 +1210,46 @@ class MultiTrajectoryTestsCommon {
       }
     };
 
-    runTest([](const std::string& c) { return hashString(c.c_str()); });
+    runTest([](const std::string& c) { return hashStringDynamic(c.c_str()); });
     // runTest([](const std::string& c) { return c.c_str(); });
     // runTest([](const std::string& c) { return c; });
     // runTest([](std::string_view c) { return c; });
+  }
+
+  void testMultiTrajectoryAllocateCalibratedInit(
+      std::default_random_engine& rng) {
+    trajectory_t traj = m_factory.create();
+    auto ts = traj.makeTrackState(TrackStatePropMask::All);
+
+    BOOST_CHECK_EQUAL(ts.calibratedSize(), MultiTrajectoryTraits::kInvalid);
+
+    auto [par, cov] = generateBoundParametersCovariance(rng, {});
+
+    ts.allocateCalibrated(par.head<3>(), cov.topLeftCorner<3, 3>());
+
+    BOOST_CHECK_EQUAL(ts.calibratedSize(), 3);
+    BOOST_CHECK_EQUAL(ts.template calibrated<3>(), par.head<3>());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<3>(),
+                      (cov.topLeftCorner<3, 3>()));
+
+    auto [par2, cov2] = generateBoundParametersCovariance(rng, {});
+
+    ts.allocateCalibrated(3);
+    BOOST_CHECK_EQUAL(ts.template calibrated<3>(), Vector3::Zero());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<3>(),
+                      ActsSquareMatrix<3>::Zero());
+
+    ts.allocateCalibrated(par2.head<3>(), cov2.topLeftCorner<3, 3>());
+    BOOST_CHECK_EQUAL(ts.calibratedSize(), 3);
+    // The values are re-assigned
+    BOOST_CHECK_EQUAL(ts.template calibrated<3>(), par2.head<3>());
+    BOOST_CHECK_EQUAL(ts.template calibratedCovariance<3>(),
+                      (cov2.topLeftCorner<3, 3>()));
+
+    // Re-allocation with a different measurement dimension is an error
+    BOOST_CHECK_THROW(
+        ts.allocateCalibrated(par2.head<4>(), cov2.topLeftCorner<4, 4>()),
+        std::invalid_argument);
   }
 };
 }  // namespace Acts::detail::Test

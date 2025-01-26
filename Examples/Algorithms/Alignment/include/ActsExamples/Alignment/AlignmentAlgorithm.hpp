@@ -1,16 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
+#include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/TrackFitting/KalmanFitter.hpp"
 #include "ActsAlignment/Kernel/Alignment.hpp"
-#include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
 #include "ActsExamples/EventData/Track.hpp"
@@ -23,6 +23,35 @@
 #include <vector>
 
 namespace ActsExamples {
+
+class AlignmentGroup {
+ public:
+  AlignmentGroup(const std::string& name,
+                 const std::vector<Acts::GeometryIdentifier>& geoIds)
+      : m_name(name), m_map(constructHierarchyMap(geoIds)) {}
+
+  // Access the name of the group
+  std::string getNameOfGroup() const { return m_name; }
+
+  // Useful for testing
+  bool has(Acts::GeometryIdentifier geoId) {
+    auto it = m_map.find(geoId);
+    return (it == m_map.end()) ? false : *it;
+  }
+
+ private:
+  std::string m_name;  //  storing the name in the class
+  Acts::GeometryHierarchyMap<bool> m_map;
+
+  Acts::GeometryHierarchyMap<bool> constructHierarchyMap(
+      const std::vector<Acts::GeometryIdentifier>& geoIds) {
+    std::vector<Acts::GeometryHierarchyMap<bool>::InputElement> ies;
+    for (const auto& geoId : geoIds) {
+      ies.emplace_back(geoId, true);
+    }
+    return Acts::GeometryHierarchyMap<bool>(ies);
+  }
+};
 
 class AlignmentAlgorithm final : public IAlgorithm {
  public:
@@ -58,8 +87,6 @@ class AlignmentAlgorithm final : public IAlgorithm {
   struct Config {
     /// Input measurements collection.
     std::string inputMeasurements;
-    /// Input source links collection.
-    std::string inputSourceLinks;
     /// Input proto tracks collection, i.e. groups of hit indices.
     std::string inputProtoTracks;
     /// Input initial track parameter estimates for for each proto track.
@@ -82,6 +109,7 @@ class AlignmentAlgorithm final : public IAlgorithm {
     std::size_t maxNumIterations = 100;
     /// Number of tracks to be used for alignment
     int maxNumTracks = -1;
+    std::vector<AlignmentGroup> m_groups;
   };
 
   /// Constructor of the alignment algorithm
@@ -102,8 +130,6 @@ class AlignmentAlgorithm final : public IAlgorithm {
 
   ReadDataHandle<MeasurementContainer> m_inputMeasurements{this,
                                                            "InputMeasurements"};
-  ReadDataHandle<IndexSourceLinkContainer> m_inputSourceLinks{
-      this, "InputSourceLinks"};
   ReadDataHandle<TrackParametersContainer> m_inputInitialTrackParameters{
       this, "InputInitialTrackParameters"};
   ReadDataHandle<ProtoTrackContainer> m_inputProtoTracks{this,

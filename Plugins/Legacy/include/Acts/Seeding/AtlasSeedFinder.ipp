@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 ///////////////////////////////////////////////////////////////////
 // AtlasSeedFinder.ipp Acts project
 ///////////////////////////////////////////////////////////////////
 
 #include <algorithm>
+#include <numbers>
 
 ///////////////////////////////////////////////////////////////////
 // Constructor
@@ -141,7 +142,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::newEvent(int iteration,
     if (!sps) {
       continue;
     }
-    int ir = int(sps->radius() * irstep);
+    int ir = static_cast<int>(sps->radius() * irstep);
     if (ir > irmax) {
       ir = irmax;
     }
@@ -205,7 +206,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::findNext() {
 ///////////////////////////////////////////////////////////////////
 template <class SpacePoint>
 void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
-  m_ptmin = fabs(m_ptmin);
+  m_ptmin = std::abs(m_ptmin);
 
   if (m_ptmin < 100.) {
     m_ptmin = 100.;
@@ -218,7 +219,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
     m_divermax = m_diversss;
   }
 
-  if (fabs(m_etamin) < .1) {
+  if (std::abs(m_etamin) < 0.1) {
     m_etamin = -m_etamax;
   }
   m_dzdrmax0 = 1. / tan(2. * atan(exp(-m_etamax)));
@@ -227,7 +228,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
   // scattering factor. depends on error, forward direction and distance between
   // SP
   m_COF = 134 * .05 * 9.;
-  m_ipt = 1. / fabs(.9 * m_ptmin);
+  m_ipt = 1. / std::abs(0.9 * m_ptmin);
   m_ipt2 = m_ipt * m_ipt;
   m_K = 0.;
 
@@ -236,7 +237,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
 
   // Build radius sorted containers
   //
-  r_size = int((r_rmax + .1) / r_rstep);
+  r_size = static_cast<int>((r_rmax + .1) / r_rstep);
   r_Sorted = new std::list<Acts::Legacy::SPForSeed<SpacePoint>*>[r_size];
   r_index = new int[r_size];
   r_map = new int[r_size];
@@ -247,9 +248,9 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
 
   // Build radius-azimuthal sorted containers
   //
-  const float pi2 = 2. * M_PI;
+  const float pi2 = 2. * std::numbers::pi;
   const int NFmax = 53;
-  const float sFmax = float(NFmax) / pi2;
+  const float sFmax = static_cast<float>(NFmax) / pi2;
   const float m_sFmin = 100. / 60.;
   // make phi-slices for 400MeV tracks, unless ptMin is even smaller
   float ptm = 400.;
@@ -263,7 +264,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildFrameWork() {
   } else if (m_sF < m_sFmin) {
     m_sF = m_sFmin;
   }
-  m_fNmax = int(pi2 * m_sF);
+  m_fNmax = static_cast<int>(pi2 * m_sF);
   if (m_fNmax >= NFmax) {
     m_fNmax = NFmax - 1;
   }
@@ -392,9 +393,9 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildBeamFrameWork() {
   double by = m_config.beamPosY;
   double bz = m_config.beamPosZ;
 
-  m_xbeam = float(bx);
-  m_ybeam = float(by);
-  m_zbeam = float(bz);
+  m_xbeam = static_cast<float>(bx);
+  m_ybeam = static_cast<float>(by);
+  m_zbeam = static_cast<float>(bz);
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -403,9 +404,9 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::buildBeamFrameWork() {
 template <class SpacePoint>
 void Acts::Legacy::AtlasSeedFinder<SpacePoint>::convertToBeamFrameWork(
     SpacePoint* const& sp, float* r) {
-  r[0] = float(sp->x) - m_xbeam;
-  r[1] = float(sp->y) - m_ybeam;
-  r[2] = float(sp->z) - m_zbeam;
+  r[0] = static_cast<float>(sp->x) - m_xbeam;
+  r[1] = static_cast<float>(sp->y) - m_ybeam;
+  r[2] = static_cast<float>(sp->z) - m_zbeam;
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -413,7 +414,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::convertToBeamFrameWork(
 ///////////////////////////////////////////////////////////////////
 template <class SpacePoint>
 void Acts::Legacy::AtlasSeedFinder<SpacePoint>::fillLists() {
-  const float pi2 = 2. * M_PI;
+  const float pi2 = 2. * std::numbers::pi;
   typename std::list<Acts::Legacy::SPForSeed<SpacePoint>*>::iterator r, re;
 
   int ir0 = 0;
@@ -456,7 +457,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::fillLists() {
         F += pi2;
       }
 
-      int f = int(F * m_sF);
+      int f = static_cast<int>(F * m_sF);
       if (f < 0) {
         f = m_fNmax;
       } else if (f > m_fNmax) {
@@ -646,7 +647,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::production3Sp(
         }
         // forward direction of SP duplet
         float Tz = (Z - (*r)->z()) / dR;
-        float aTz = fabs(Tz);
+        float aTz = std::abs(Tz);
         // why also exclude seeds with small pseudorapidity??
         if (aTz < m_dzdrmin || aTz > m_dzdrmax) {
           continue;
@@ -690,7 +691,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::production3Sp(
         }
 
         float Tz = ((*r)->z() - Z) / dR;
-        float aTz = fabs(Tz);
+        float aTz = std::abs(Tz);
 
         if (aTz < m_dzdrmin || aTz > m_dzdrmax) {
           continue;
@@ -793,14 +794,14 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::production3Sp(
           continue;
         }
 
-        float Im = fabs((A - B * R) * R);
+        float Im = std::abs((A - B * R) * R);
 
         if (Im <= imax) {
           // Add penalty factor dependent on difference between cot(theta) to
           // the quality Im (previously Impact)
           float dr = 0;
           m_R[t] < m_R[b] ? dr = m_R[t] : dr = m_R[b];
-          Im += fabs((Tzb - m_Tz[t]) / (dr * sTzb2));
+          Im += std::abs((Tzb - m_Tz[t]) / (dr * sTzb2));
           // B/sqrt(S2) = 1/helixradius
           m_CmSp.push_back(std::make_pair(B / sqrt(S2), m_SP[t]));
           m_SP[t]->setParam(Im);
@@ -926,7 +927,7 @@ void Acts::Legacy::AtlasSeedFinder<SpacePoint>::
       }
       // Compared seeds should have at least deltaRMin distance
       float Rj = (*j).second->radius();
-      if (fabs(Rj - Ri) < m_drmin) {
+      if (std::abs(Rj - Ri) < m_drmin) {
         continue;
       }
 

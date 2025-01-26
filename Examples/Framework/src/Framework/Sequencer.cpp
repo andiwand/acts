@@ -1,15 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Framework/Sequencer.hpp"
 
 #include "Acts/Plugins/FpeMonitoring/FpeMonitor.hpp"
-#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
@@ -26,9 +25,8 @@
 #include <atomic>
 #include <cctype>
 #include <chrono>
-#include <cstdint>
 #include <cstdlib>
-#include <exception>
+#include <fstream>
 #include <functional>
 #include <iterator>
 #include <limits>
@@ -41,17 +39,11 @@
 #include <string_view>
 #include <typeinfo>
 
-#include <boost/stacktrace/stacktrace.hpp>
-
-#ifndef ACTS_EXAMPLES_NO_TBB
 #include <TROOT.h>
-#endif
-
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/core/demangle.hpp>
-#include <dfe/dfe_io_dsv.hpp>
-#include <dfe/dfe_namedtuple.hpp>
+#include <boost/stacktrace/stacktrace.hpp>
 
 namespace ActsExamples {
 
@@ -67,7 +59,8 @@ std::string_view getAlgorithmType(const SequenceElement& element) {
   return "Algorithm";
 }
 
-// Saturated addition that does not overflow and exceed SIZE_MAX.
+// Saturated addition that does not overflow and exceed
+// std::numeric_limits<std::size_t>::max().
 //
 // From http://locklessinc.com/articles/sat_arithmetic/
 std::size_t saturatedAdd(std::size_t a, std::size_t b) {
@@ -108,16 +101,12 @@ Sequencer::Sequencer(const Sequencer::Config& cfg)
       m_taskArena((m_cfg.numThreads < 0) ? tbb::task_arena::automatic
                                          : m_cfg.numThreads),
       m_logger(Acts::getDefaultLogger("Sequencer", m_cfg.logLevel)) {
-#ifndef ACTS_EXAMPLES_NO_TBB
   if (m_cfg.numThreads == 1) {
-#endif
     ACTS_INFO("Create Sequencer (single-threaded)");
-#ifndef ACTS_EXAMPLES_NO_TBB
   } else {
     ROOT::EnableThreadSafety();
     ACTS_INFO("Create Sequencer with " << m_cfg.numThreads << " threads");
   }
-#endif
 
   const char* envvar = std::getenv("ACTS_SEQUENCER_DISABLE_FPEMON");
   if (envvar != nullptr) {
@@ -125,6 +114,13 @@ Sequencer::Sequencer(const Sequencer::Config& cfg)
         "Overriding FPE tracking Sequencer based on environment variable "
         "ACTS_SEQUENCER_DISABLE_FPEMON");
     m_cfg.trackFpes = false;
+  }
+
+  if (m_cfg.trackFpes && !m_cfg.fpeMasks.empty() &&
+      !Acts::FpeMonitor::canSymbolize()) {
+    ACTS_ERROR("FPE monitoring is enabled but symbolization is not available");
+    throw std::runtime_error(
+        "FPE monitoring is enabled but symbolization is not available");
   }
 }
 
@@ -172,10 +168,6 @@ void Sequencer::addElement(const std::shared_ptr<SequenceElement>& element) {
   elementTypeCapitalized[0] = std::toupper(elementTypeCapitalized[0]);
   ACTS_INFO("Add " << elementType << " '" << element->name() << "'");
 
-  if (!m_cfg.runDataFlowChecks) {
-    return;
-  }
-
   auto symbol = [&](const char* in) {
     std::string s = demangleAndShorten(in);
     std::size_t pos = 0;
@@ -219,7 +211,7 @@ void Sequencer::addElement(const std::shared_ptr<SequenceElement>& element) {
                            << " '" << handle->key()
                            << "' at this point in the sequence."
                            << "\n   Needed for read data handle '"
-                           << handle->name() << "'")
+                           << handle->name() << "'");
       valid = false;
     }
   }
@@ -261,17 +253,26 @@ void Sequencer::addElement(const std::shared_ptr<SequenceElement>& element) {
 
 void Sequencer::addWhiteboardAlias(const std::string& aliasName,
                                    const std::string& objectName) {
-  auto [it, success] =
-      m_whiteboardObjectAliases.insert({objectName, aliasName});
-  if (!success) {
-    throw std::invalid_argument("Alias to '" + aliasName + "' -> '" +
-                                objectName + "' already set");
+  const auto range = m_whiteboardObjectAliases.equal_range(objectName);
+  for (auto it = range.first; it != range.second; ++it) {
+    const auto& [key, value] = *it;
+    if (value == aliasName) {
+      ACTS_INFO("Key '" << objectName << "' aliased to '" << aliasName
+                        << "' already set");
+      return;
+    }
   }
 
-  if (auto oit = m_whiteBoardState.find(objectName);
-      oit != m_whiteBoardState.end()) {
-    m_whiteBoardState[aliasName] = oit->second;
+  m_whiteboardObjectAliases.insert({objectName, aliasName});
+
+  auto oit = m_whiteBoardState.find(objectName);
+  if (oit == m_whiteBoardState.end()) {
+    ACTS_ERROR("Key '" << objectName << "' does not exist");
+    return;
   }
+
+  ACTS_INFO("Key '" << objectName << "' aliased to '" << aliasName << "'");
+  m_whiteBoardState[aliasName] = oit->second;
 }
 
 std::vector<std::string> Sequencer::listAlgorithmNames() const {
@@ -290,7 +291,9 @@ std::vector<std::string> Sequencer::listAlgorithmNames() const {
 }
 
 std::pair<std::size_t, std::size_t> Sequencer::determineEventsRange() const {
-  constexpr auto kInvalidEventsRange = std::make_pair(SIZE_MAX, SIZE_MAX);
+  constexpr auto kInvalidEventsRange =
+      std::make_pair(std::numeric_limits<std::size_t>::max(),
+                     std::numeric_limits<std::size_t>::max());
 
   // Note on skipping events:
   //
@@ -303,7 +306,7 @@ std::pair<std::size_t, std::size_t> Sequencer::determineEventsRange() const {
 
   // determine intersection of event ranges available from readers
   std::size_t beg = 0u;
-  std::size_t end = SIZE_MAX;
+  std::size_t end = std::numeric_limits<std::size_t>::max();
   for (const auto& reader : m_readers) {
     auto available = reader->availableEvents();
     beg = std::max(beg, available.first);
@@ -313,7 +316,8 @@ std::pair<std::size_t, std::size_t> Sequencer::determineEventsRange() const {
   // since we use event ranges (and not just num events) they might not
   // overlap
   if (end < beg) {
-    ACTS_ERROR("Available events ranges from readers do not overlap");
+    ACTS_ERROR("Available events ranges from readers do not overlap (beg="
+               << beg << ", end=" << end << ")");
     return kInvalidEventsRange;
   }
   // configured readers without available events makes no sense
@@ -328,7 +332,8 @@ std::pair<std::size_t, std::size_t> Sequencer::determineEventsRange() const {
     return kInvalidEventsRange;
   }
   // events range was not defined by either the readers or user command line.
-  if ((beg == 0u) && (end == SIZE_MAX) && (!m_cfg.events.has_value())) {
+  if ((beg == 0u) && (end == std::numeric_limits<std::size_t>::max()) &&
+      (!m_cfg.events.has_value())) {
     ACTS_ERROR("Could not determine number of events");
     return kInvalidEventsRange;
   }
@@ -360,7 +365,7 @@ struct StopWatch {
   Timepoint start;
   Duration& store;
 
-  StopWatch(Duration& s) : start(Clock::now()), store(s) {}
+  explicit StopWatch(Duration& s) : start(Clock::now()), store(s) {}
   ~StopWatch() { store += Clock::now() - start; }
 };
 
@@ -385,27 +390,20 @@ inline std::string perEvent(D duration, std::size_t numEvents) {
   return asString(duration / numEvents) + "/event";
 }
 
-// Store timing data
-struct TimingInfo {
-  std::string identifier;
-  double time_total_s = 0;
-  double time_perevent_s = 0;
-
-  DFE_NAMEDTUPLE(TimingInfo, identifier, time_total_s, time_perevent_s);
-};
-
 void storeTiming(const std::vector<std::string>& identifiers,
                  const std::vector<Duration>& durations, std::size_t numEvents,
                  const std::string& path) {
-  dfe::NamedTupleTsvWriter<TimingInfo> writer(path, 4);
+  std::ofstream file(path);
+
+  file << "identifier,time_total_s,time_perevent_s\n";
+
   for (std::size_t i = 0; i < identifiers.size(); ++i) {
-    TimingInfo info;
-    info.identifier = identifiers[i];
-    info.time_total_s =
+    const auto time_total_s =
         std::chrono::duration_cast<Seconds>(durations[i]).count();
-    info.time_perevent_s = info.time_total_s / numEvents;
-    writer.append(info);
+    file << identifiers[i] << "," << time_total_s << ","
+         << time_total_s / numEvents << "\n";
   }
+  file << "\n";
 }
 }  // namespace
 
@@ -420,7 +418,8 @@ int Sequencer::run() {
   // processing only works w/ a well-known number of events
   // error message is already handled by the helper function
   std::pair<std::size_t, std::size_t> eventsRange = determineEventsRange();
-  if ((eventsRange.first == SIZE_MAX) && (eventsRange.second == SIZE_MAX)) {
+  if ((eventsRange.first == std::numeric_limits<std::size_t>::max()) &&
+      (eventsRange.second == std::numeric_limits<std::size_t>::max())) {
     return EXIT_FAILURE;
   }
 
@@ -610,7 +609,7 @@ void Sequencer::fpeReport() const {
     auto merged = std::accumulate(
         fpe.begin(), fpe.end(), Acts::FpeMonitor::Result{},
         [](const auto& lhs, const auto& rhs) { return lhs.merged(rhs); });
-    if (!merged) {
+    if (!merged.hasStackTraces()) {
       // no FPEs to report
       continue;
     }
@@ -621,13 +620,11 @@ void Sequencer::fpeReport() const {
 
     std::vector<std::reference_wrapper<const Acts::FpeMonitor::Result::FpeInfo>>
         sorted;
-    std::transform(
-        merged.stackTraces().begin(), merged.stackTraces().end(),
-        std::back_inserter(sorted),
-        [](const auto& f) -> const auto& { return f; });
-    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-      return a.get().count > b.get().count;
-    });
+    std::transform(merged.stackTraces().begin(), merged.stackTraces().end(),
+                   std::back_inserter(sorted),
+                   [](const auto& f) -> const auto& { return f; });
+    std::ranges::sort(sorted, std::greater{},
+                      [](const auto& s) { return s.get().count; });
 
     std::vector<std::reference_wrapper<const Acts::FpeMonitor::Result::FpeInfo>>
         remaining;

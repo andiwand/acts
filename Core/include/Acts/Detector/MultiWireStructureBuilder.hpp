@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -21,8 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 
 class MultiWireStructureBuilder {
  public:
@@ -39,7 +38,7 @@ class MultiWireStructureBuilder {
     Transform3 transform = Transform3::Identity();
 
     /// The bounds of the multi-wire volume
-    std::vector<ActsScalar> mlBounds = {};
+    std::vector<double> mlBounds = {};
 
     // The binning of the multi wire structure
     std::vector<ProtoBinning> mlBinning = {};
@@ -75,5 +74,4 @@ class MultiWireStructureBuilder {
   std::unique_ptr<const Acts::Logger> mLogger;
 };
 
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental

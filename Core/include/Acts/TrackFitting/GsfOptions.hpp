@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -29,7 +29,7 @@ enum class ComponentMergeMethod { eMean, eMaxWeight };
 ///
 /// Encapsulates a component of a Gaussian mixture as used by the GSF
 struct GsfComponent {
-  ActsScalar weight = 0;
+  double weight = 0;
   BoundVector boundPars = BoundVector::Zero();
   BoundSquareMatrix boundCov = BoundSquareMatrix::Identity();
 };
@@ -55,8 +55,8 @@ struct GsfExtensions {
       Delegate<void(const GeometryContext &, const CalibrationContext &,
                     const SourceLink &, TrackStateProxy)>;
 
-  using Updater = Delegate<Result<void>(
-      const GeometryContext &, TrackStateProxy, Direction, const Logger &)>;
+  using Updater = Delegate<Result<void>(const GeometryContext &,
+                                        TrackStateProxy, const Logger &)>;
 
   using OutlierFinder = Delegate<bool(ConstTrackStateProxy)>;
 
@@ -116,9 +116,13 @@ struct GsfOptions {
 
   ComponentMergeMethod componentMergeMethod = ComponentMergeMethod::eMaxWeight;
 
-#if __cplusplus < 202002L
-  GsfOptions() = delete;
-#endif
+  GsfOptions(const GeometryContext &geoCtxt,
+             const MagneticFieldContext &magFieldCtxt,
+             const CalibrationContext &calibCtxt)
+      : geoContext(geoCtxt),
+        magFieldContext(magFieldCtxt),
+        calibrationContext(calibCtxt),
+        propagatorPlainOptions(geoCtxt, magFieldCtxt) {}
 };
 
 }  // namespace Acts

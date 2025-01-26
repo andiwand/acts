@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -16,9 +16,14 @@
 
 #include <G4UserSteppingAction.hh>
 
+class G4VPhysicalVolume;
 class G4Step;
 
-namespace ActsExamples {
+namespace Acts {
+class Surface;
+}
+
+namespace ActsExamples::Geant4 {
 
 /// The G4SteppingAction that is called for every step in
 /// the simulation process.
@@ -36,6 +41,9 @@ class SensitiveSteppingAction : public G4UserSteppingAction {
     bool neutral = false;
     bool primary = true;
     bool secondary = true;
+
+    /// step logging mode
+    bool stepLogging = false;
   };
 
   /// Construct the stepping action
@@ -52,6 +60,15 @@ class SensitiveSteppingAction : public G4UserSteppingAction {
   /// @param step is the Geant4 step of the particle
   void UserSteppingAction(const G4Step* step) override;
 
+  /// Set the multimap that correlates G4VPhysicalVolumes to Acts::Surfaces
+  ///
+  /// @param surfaceMapping the multimap of physical volumes to surfaces
+  void assignSurfaceMapping(
+      const std::multimap<const G4VPhysicalVolume*, const Acts::Surface*>&
+          surfaceMapping) {
+    m_surfaceMapping = surfaceMapping;
+  }
+
  protected:
   Config m_cfg;
 
@@ -64,6 +81,9 @@ class SensitiveSteppingAction : public G4UserSteppingAction {
 
   /// The looging instance
   std::unique_ptr<const Acts::Logger> m_logger;
+
+  std::multimap<const G4VPhysicalVolume*, const Acts::Surface*>
+      m_surfaceMapping;
 };
 
-}  // namespace ActsExamples
+}  // namespace ActsExamples::Geant4

@@ -1,18 +1,18 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 // TODO: update to C++17 style
 // Consider to moving to detail subdirectory
 #include <fstream>
-#include <iostream>
 #include <map>
+#include <memory>
 #include <vector>
 
 namespace Acts {
@@ -39,15 +39,10 @@ class GbtsConnector {
 
   GbtsConnector(std::ifstream &inFile);
 
-  ~GbtsConnector();
-
   float m_etaBin{};
 
   std::map<int, std::vector<struct LayerGroup>> m_layerGroups;
-  std::map<int, std::vector<Acts::GbtsConnection *>> m_connMap;
-  // TODO: change to std::map<int, std::vector<Acts::GbtsConnection> >
-  // m_connMap; or   std::map<int,
-  // std::vector<std::unique_ptr<Acts::GbtsConnection>> > m_connMap;
+  std::map<int, std::vector<std::unique_ptr<Acts::GbtsConnection>>> m_connMap;
 };
 
 }  // namespace Acts

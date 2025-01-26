@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/Root/RootTrackSummaryReader.hpp"
 
@@ -16,21 +16,22 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Io/Root/RootUtility.hpp"
 #include "ActsFatras/EventData/Particle.hpp"
 
 #include <iostream>
 #include <stdexcept>
 
 #include <TChain.h>
-#include <TMathBase.h>
 
-ActsExamples::RootTrackSummaryReader::RootTrackSummaryReader(
-    const ActsExamples::RootTrackSummaryReader::Config& config,
-    Acts::Logging::Level level)
-    : ActsExamples::IReader(),
+namespace ActsExamples {
+
+RootTrackSummaryReader::RootTrackSummaryReader(
+    const RootTrackSummaryReader::Config& config, Acts::Logging::Level level)
+    : IReader(),
       m_logger{Acts::getDefaultLogger(name(), level)},
       m_cfg(config) {
-  m_inputChain = new TChain(m_cfg.treeName.c_str());
+  m_inputChain = std::make_unique<TChain>(m_cfg.treeName.c_str());
 
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing input filename");
@@ -96,22 +97,25 @@ ActsExamples::RootTrackSummaryReader::RootTrackSummaryReader(
   m_events = m_inputChain->GetEntries();
   ACTS_DEBUG("The full chain has " << m_events << " entries.");
 
-  // If the events are not in order, get the entry numbers for ordered events
-  if (!m_cfg.orderedEvents) {
+  // Sort the entry numbers of the events
+  {
+    // necessary to guarantee that m_inputChain->GetV1() is valid for the
+    // entire range
+    m_inputChain->SetEstimate(m_events + 1);
+
     m_entryNumbers.resize(m_events);
     m_inputChain->Draw("event_nr", "", "goff");
-    // Sort to get the entry numbers of the ordered events
-    TMath::Sort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
-                m_entryNumbers.data(), false);
+    RootUtility::stableSort(m_inputChain->GetEntries(), m_inputChain->GetV1(),
+                            m_entryNumbers.data(), false);
   }
 }
 
-std::pair<std::size_t, std::size_t>
-ActsExamples::RootTrackSummaryReader::availableEvents() const {
+std::pair<std::size_t, std::size_t> RootTrackSummaryReader::availableEvents()
+    const {
   return {0u, m_events};
 }
 
-ActsExamples::RootTrackSummaryReader::~RootTrackSummaryReader() {
+RootTrackSummaryReader::~RootTrackSummaryReader() {
   delete m_multiTrajNr;
   delete m_subTrajNr;
   delete m_nStates;
@@ -155,8 +159,7 @@ ActsExamples::RootTrackSummaryReader::~RootTrackSummaryReader() {
   delete m_err_eT_fit;
 }
 
-ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
-    const ActsExamples::AlgorithmContext& context) {
+ProcessCode RootTrackSummaryReader::read(const AlgorithmContext& context) {
   ACTS_DEBUG("Trying to read recorded tracks.");
 
   // read in the fitted track parameters and particles
@@ -174,10 +177,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
     SimParticleContainer truthParticleCollection;
 
     // Read the correct entry
-    auto entry = context.eventNumber;
-    if (!m_cfg.orderedEvents && entry < m_entryNumbers.size()) {
-      entry = m_entryNumbers[entry];
-    }
+    auto entry = m_entryNumbers.at(context.eventNumber);
     m_inputChain->GetEntry(entry);
     ACTS_INFO("Reading event: " << context.eventNumber
                                 << " stored as entry: " << entry);
@@ -212,7 +212,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
 
     unsigned int nTruthParticles = m_t_vx->size();
     for (unsigned int i = 0; i < nTruthParticles; i++) {
-      ActsFatras::Particle truthParticle;
+      SimParticleState truthParticle;
 
       truthParticle.setPosition4((*m_t_vx)[i], (*m_t_vy)[i], (*m_t_vz)[i],
                                  (*m_t_time)[i]);
@@ -220,7 +220,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
       truthParticle.setParticleId((*m_majorityParticleId)[i]);
 
       truthParticleCollection.insert(truthParticleCollection.end(),
-                                     truthParticle);
+                                     SimParticle(truthParticle, truthParticle));
     }
     // Write the collections to the EventStore
     m_outputTrackParameters(context, std::move(trackParameterCollection));
@@ -229,5 +229,7 @@ ActsExamples::ProcessCode ActsExamples::RootTrackSummaryReader::read(
     ACTS_WARNING("Could not read in event.");
   }
   // Return success flag
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

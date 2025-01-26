@@ -1,17 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Propagator/detail/PointwiseMaterialInteraction.hpp"
 
 #include "Acts/Material/Interactions.hpp"
 
-namespace Acts {
-namespace detail {
+namespace Acts::detail {
 
 void PointwiseMaterialInteraction::evaluatePointwiseMaterialInteraction(
     bool multipleScattering, bool energyLoss) {
@@ -52,5 +51,4 @@ double PointwiseMaterialInteraction::updateVariance(
   return std::max(0., variance + std::copysign(change, updateMode));
 }
 
-}  // namespace detail
-}  // end of namespace Acts
+}  // namespace Acts::detail

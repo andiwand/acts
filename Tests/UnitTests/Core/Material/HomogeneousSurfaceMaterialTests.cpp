@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -18,9 +18,7 @@
 
 #include <utility>
 
-namespace Acts {
-
-namespace Test {
+namespace Acts::Test {
 
 /// Test the constructors
 BOOST_AUTO_TEST_CASE(HomogeneousSurfaceMaterial_construction_test) {
@@ -55,9 +53,9 @@ BOOST_AUTO_TEST_CASE(HomogeneousSurfaceMaterial_scaling_test) {
   matHalf.scaleThickness(0.5);
 
   HomogeneousSurfaceMaterial hsm(mat, 1.);
-  hsm *= 0.5;
+  hsm.scale(0.5);
 
-  auto matBin = hsm.materialSlab(0, 0);
+  auto matBin = hsm.materialSlab(Vector3(0., 0., 0.));
 
   BOOST_CHECK_EQUAL(matBin, matHalf);
   BOOST_CHECK_NE(matBin, mat);
@@ -79,15 +77,13 @@ BOOST_AUTO_TEST_CASE(HomogeneousSurfaceMaterial_access_test) {
 
   auto mat2d = hsmfwd.materialSlab(Vector2{0., 0.});
   auto mat3d = hsmfwd.materialSlab(Vector3{0., 0., 0.});
-  auto matbin = hsmfwd.materialSlab(0, 0);
 
   // Test equality of the copy
   BOOST_CHECK_EQUAL(mat, mat2d);
   BOOST_CHECK_EQUAL(mat, mat3d);
-  BOOST_CHECK_EQUAL(mat, matbin);
 
-  Direction fDir = Direction::Forward;
-  Direction bDir = Direction::Backward;
+  Direction fDir = Direction::Forward();
+  Direction bDir = Direction::Backward();
 
   MaterialUpdateStage pre = MaterialUpdateStage::PreUpdate;
   MaterialUpdateStage full = MaterialUpdateStage::FullUpdate;
@@ -174,5 +170,4 @@ BOOST_AUTO_TEST_CASE(HomogeneousSurfaceMaterial_access_test) {
   BOOST_CHECK_EQUAL(mat, matFwdPre);
   BOOST_CHECK_EQUAL(vacuum, matBwdPre);
 }
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

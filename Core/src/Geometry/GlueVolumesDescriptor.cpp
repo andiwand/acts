@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Geometry/GlueVolumesDescriptor.hpp"
 
@@ -57,7 +57,8 @@ std::string Acts::GlueVolumesDescriptor::screenOutput() const {
     const std::vector<TrackingVolumePtr>& glueVolumesVector =
         glueVolumes(gFace)->arrayObjects();
     // loop over the TrackingVolumes
-    sl << "        -----> Processing Face: " << int(gFace) << " - has ";
+    sl << "        -----> Processing Face: " << static_cast<int>(gFace)
+       << " - has ";
     sl << glueVolumesVector.size()
        << " TrackingVolumes marked as 'GlueVolumes' " << std::endl;
     for (auto& glueVolume : glueVolumesVector) {

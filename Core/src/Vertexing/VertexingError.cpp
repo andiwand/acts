@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Vertexing/VertexingError.hpp"
 
@@ -34,6 +34,14 @@ class VertexingErrorCategory : public std::error_category {
         return "Unable to find element.";
       case VertexingError::NoCovariance:
         return "No covariance provided.";
+      case VertexingError::SingularMatrix:
+        return "Encountered non-invertible matrix.";
+      case VertexingError::NonPositiveVariance:
+        return "Encountered negative or zero variance.";
+      case VertexingError::MatrixNotPositiveDefinite:
+        return "Encountered a matrix that is not positive definite.";
+      case VertexingError::InvalidInput:
+        return "Invalid input provided.";
       default:
         return "unknown";
     }

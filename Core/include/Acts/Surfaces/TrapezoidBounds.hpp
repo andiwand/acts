@@ -1,24 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 
-#include <algorithm>
 #include <array>
-#include <cmath>
 #include <iosfwd>
-#include <stdexcept>
 #include <vector>
 
 namespace Acts {
@@ -36,37 +33,25 @@ class TrapezoidBounds : public PlanarBounds {
     eHalfLengthXnegY = 0,
     eHalfLengthXposY = 1,
     eHalfLengthY = 2,
-    eSize = 3
+    eRotationAngle = 3,
+    eSize = 4
   };
-
-  TrapezoidBounds() = delete;
 
   /// Constructor for symmetric Trapezoid
   ///
   /// @param halfXnegY minimal half length X, definition at negative Y
   /// @param halfXposY maximal half length X, definition at positive Y
   /// @param halfY half length Y - defined at x=0
-  TrapezoidBounds(double halfXnegY, double halfXposY,
-                  double halfY) noexcept(false)
-      : m_values({halfXnegY, halfXposY, halfY}),
-        m_boundingBox(std::max(halfXnegY, halfXposY), halfY) {
-    checkConsistency();
-  }
+  /// @param rotAngle: rotation angle of the bounds w.r.t coordinate axes
+  TrapezoidBounds(double halfXnegY, double halfXposY, double halfY,
+                  double rotAngle = 0.) noexcept(false);
 
   /// Constructor for symmetric Trapezoid - from fixed size array
   ///
   /// @param values the values to be stream in
-  TrapezoidBounds(const std::array<double, eSize>& values) noexcept(false)
-      : m_values(values),
-        m_boundingBox(
-            std::max(values[eHalfLengthXnegY], values[eHalfLengthXposY]),
-            values[eHalfLengthY]) {
-    checkConsistency();
-  }
+  TrapezoidBounds(const std::array<double, eSize>& values) noexcept(false);
 
-  ~TrapezoidBounds() override;
-
-  BoundsType type() const final;
+  BoundsType type() const final { return SurfaceBounds::eTrapezoid; }
 
   std::vector<double> values() const final;
 
@@ -108,21 +93,21 @@ class TrapezoidBounds : public PlanarBounds {
   /// x_{min}) @f$
   ///
   /// @param lposition Local position (assumed to be in right surface frame)
-  /// @param bcheck boundary check directive
+  /// @param boundaryTolerance boundary check directive
   ///
   /// @return boolean indicator for the success of this operation
   bool inside(const Vector2& lposition,
-              const BoundaryCheck& bcheck) const final;
+              const BoundaryTolerance& boundaryTolerance) const final;
 
   /// Return the vertices
   ///
-  /// @param lseg the number of segments used to approximate
-  /// and eventually curved line
+  /// @param ignoredSegments is and ignored parameter used to describe
+  /// the number of segments to approximate curved sectors.
   ///
   /// @note the number of segments is ignored in this representation
   ///
   /// @return vector for vertices in 2D
-  std::vector<Vector2> vertices(unsigned int lseg = 1) const final;
+  std::vector<Vector2> vertices(unsigned int ignoredSegments = 0u) const final;
 
   // Bounding box representation
   const RectangleBounds& boundingBox() const final;
@@ -140,24 +125,11 @@ class TrapezoidBounds : public PlanarBounds {
   std::array<double, eSize> m_values;
   RectangleBounds m_boundingBox;
 
+  void rotateBoundingBox() noexcept(false);
+
   /// Check the input values for consistency, will throw a logic_exception
   /// if consistency is not given
   void checkConsistency() noexcept(false);
 };
-
-inline std::vector<double> TrapezoidBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-inline void TrapezoidBounds::checkConsistency() noexcept(false) {
-  if (get(eHalfLengthXnegY) <= 0. || get(eHalfLengthXposY) <= 0.) {
-    throw std::invalid_argument("TrapezoidBounds: invalid local x setup");
-  }
-  if (get(eHalfLengthY) <= 0.) {
-    throw std::invalid_argument("TrapezoidBounds: invalid local y setup");
-  }
-}
 
 }  // namespace Acts

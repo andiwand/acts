@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,12 +11,12 @@ def prepareDataSet(data: pd.DataFrame) -> pd.DataFrame:
     """Format the dataset that have been written from the Csv file"""
     """
     @param[in] data: input DataFrame containing 1 event
-    @return: Formatted DataFrame 
+    @return: Formatted DataFrame
     """
     data = data
     # Remove tracks with less than 7 measurements
     data = data[data["nMeasurements"] > 6]
-    # data = data.sort_values("good/duplicate/fake", ascending=False)
+    data = data.sort_values("good/duplicate/fake", ascending=False)
     # Remove pure duplicate (tracks purely identical) keep the ones good one if among them.
     data = data.drop_duplicates(
         subset=[
@@ -35,7 +34,6 @@ def prepareDataSet(data: pd.DataFrame) -> pd.DataFrame:
     data = data.set_index("particleId")
     # Transform the hit list from a string to an actual list
     hitsIds = []
-    mergedIds = []
     for list in data["Hits_ID"].values:
         hitsIds.append(ast.literal_eval(list))
     data["Hits_ID"] = hitsIds

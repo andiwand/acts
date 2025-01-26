@@ -1,18 +1,19 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Plugins/Json/AlgebraJsonConverter.hpp"
 #include "Acts/Plugins/Json/GridJsonConverter.hpp"
+#include "Acts/Plugins/Json/UtilitiesJsonConverter.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Grid.hpp"
 #include "Acts/Utilities/GridAxisGenerators.hpp"
-#include "Acts/Utilities/detail/AxisFwd.hpp"
 
 #include <tuple>
 
@@ -45,8 +46,8 @@ nlohmann::json convertImpl(const index_grid& indexGrid, bool detray = false,
     jCasts.push_back(indexGrid.casts[0u]);
     jCasts.push_back(indexGrid.casts[1u]);
     // Check for axis swap (detray version)
-    swapAxes = checkSwap &&
-               (indexGrid.casts[0u] == binZ && indexGrid.casts[1u] == binPhi);
+    swapAxes = checkSwap && (indexGrid.casts[0u] == AxisDirection::AxisZ &&
+                             indexGrid.casts[1u] == AxisDirection::AxisPhi);
   }
   jIndexedGrid["casts"] = jCasts;
   jIndexedGrid["transform"] =
@@ -79,16 +80,17 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
   /// Helper extractor for equidistant axis
   /// @param jAxis is the axis
   auto eqExtractor = [](const nlohmann::json& jAxis)
-      -> std::tuple<std::array<ActsScalar, 2u>, std::size_t> {
-    std::array<ActsScalar, 2u> range = jAxis["range"];
+      -> std::tuple<std::array<double, 2u>, std::size_t> {
+    std::array<double, 2u> range = jAxis["range"];
     std::size_t bins = jAxis["bins"];
-    return std::make_tuple(range, bins);
+    return {range, bins};
   };
 
   /// Helper extractor for variable axis
   /// @param jAxis the axis
-  auto vExtractor = [](const nlohmann::json& jAxis) -> std::vector<ActsScalar> {
-    return std::vector<ActsScalar>(jAxis["boundaries"]);
+  auto vExtractor = [](const nlohmann::json& jAxis) -> std::vector<double> {
+    std::vector<double> vEx(jAxis["boundaries"]);
+    return vEx;
   };
 
   // Peek into the json object to understand what to do
@@ -97,21 +99,21 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
       Transform3 transform =
           Transform3JsonConverter::fromJson(jUpdater["transform"]);
       auto jGrid = jUpdater["grid"];
-      auto jCasts = jUpdater["casts"].get<std::vector<BinningValue>>();
+      auto jCasts = jUpdater["casts"].get<std::vector<AxisDirection>>();
       auto jAxes = jGrid["axes"];
 
       // 1D cases
       if (jAxes.size() == 1u) {
-        BinningValue bValue = jCasts[0u];
+        AxisDirection bValue = jCasts[0u];
         auto jAxis = jAxes[0u];
 
-        detail::AxisType axisType = jAxis["type"];
-        detail::AxisBoundaryType axisBoundaryType = jAxis["boundary_type"];
+        AxisType axisType = jAxis["type"];
+        AxisBoundaryType axisBoundaryType = jAxis["boundary_type"];
 
         // Equidistant axis
-        if (axisType == detail::AxisType::Equidistant) {
+        if (axisType == AxisType::Equidistant) {
           auto [range, bins] = eqExtractor(jAxis);
-          if (axisBoundaryType == detail::AxisBoundaryType::Closed) {
+          if (axisBoundaryType == AxisBoundaryType::Closed) {
             EqClosed ecAG{range, bins};
             auto grid =
                 GridJsonConverter::fromJson<EqClosed, ValueType>(jGrid, ecAG);
@@ -126,7 +128,7 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
           }
         } else {
           // Variable type
-          if (axisBoundaryType == detail::AxisBoundaryType::Closed) {
+          if (axisBoundaryType == AxisBoundaryType::Closed) {
             VarClosed vcAG{vExtractor(jAxis)};
             auto grid =
                 GridJsonConverter::fromJson<VarClosed, ValueType>(jGrid, vcAG);
@@ -144,20 +146,20 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
         // This currently writes out only the main options of 2D grids
         // nota bene: it assumes if one axis is closed, it is axis B
 
-        BinningValue bValueA = jCasts[0u];
-        BinningValue bValueB = jCasts[1u];
+        AxisDirection bValueA = jCasts[0u];
+        AxisDirection bValueB = jCasts[1u];
         auto jAxisA = jAxes[0u];
         auto jAxisB = jAxes[1u];
 
-        detail::AxisType axisTypeA = jAxisA["type"];
-        detail::AxisType axisTypeB = jAxisB["type"];
-        detail::AxisBoundaryType axisBoundaryTypeB = jAxisB["boundary_type"];
+        AxisType axisTypeA = jAxisA["type"];
+        AxisType axisTypeB = jAxisB["type"];
+        AxisBoundaryType axisBoundaryTypeB = jAxisB["boundary_type"];
 
-        if (axisBoundaryTypeB != detail::AxisBoundaryType::Closed) {
+        if (axisBoundaryTypeB != AxisBoundaryType::Closed) {
           // First axis equidistant
-          if (axisTypeA == detail::AxisType::Equidistant) {
+          if (axisTypeA == AxisType::Equidistant) {
             auto [rangeA, binsA] = eqExtractor(jAxisA);
-            if (axisTypeB == detail::AxisType::Equidistant) {
+            if (axisTypeB == AxisType::Equidistant) {
               auto [rangeB, binsB] = eqExtractor(jAxisB);
               EqBoundEqBound ebebAG{rangeA, binsA, rangeB, binsB};
               auto grid =
@@ -174,7 +176,7 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
                                              {bValueA, bValueB}, transform);
             }
           } else {
-            if (axisTypeB == detail::AxisType::Equidistant) {
+            if (axisTypeB == AxisType::Equidistant) {
               auto [rangeB, binsB] = eqExtractor(jAxisB);
               VarBoundEqBound vbebAG{vExtractor(jAxisA), rangeB, binsB};
               auto grid =
@@ -193,9 +195,9 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
           }
         } else {
           // Closed cases
-          if (axisTypeA == detail::AxisType::Equidistant) {
+          if (axisTypeA == AxisType::Equidistant) {
             auto [rangeA, binsA] = eqExtractor(jAxisA);
-            if (axisTypeB == detail::AxisType::Equidistant) {
+            if (axisTypeB == AxisType::Equidistant) {
               auto [rangeB, binsB] = eqExtractor(jAxisB);
               EqBoundEqClosed ebecAG{rangeA, binsA, rangeB, binsB};
               auto grid =
@@ -212,7 +214,7 @@ updator_type generateFromJson(const nlohmann::json& jUpdater,
                                              {bValueA, bValueB}, transform);
             }
           } else {
-            if (axisTypeB == detail::AxisType::Equidistant) {
+            if (axisTypeB == AxisType::Equidistant) {
               auto [rangeB, binsB] = eqExtractor(jAxisB);
               VarBoundEqClosed vbecAG{vExtractor(jAxisA), rangeB, binsB};
               auto grid =

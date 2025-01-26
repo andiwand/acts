@@ -1,16 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Digitization/CartesianSegmentation.hpp"
-#include "Acts/Digitization/DigitizationModule.hpp"
 #include "Acts/Geometry/ApproachDescriptor.hpp"
 #include "Acts/Geometry/DetectorElementBase.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
@@ -18,11 +16,8 @@
 #include "Acts/Material/ISurfaceMaterial.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
-#include "Acts/Surfaces/RadialBounds.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/TrapezoidBounds.hpp"
-#include "Acts/Utilities/BinUtility.hpp"
-#include "Acts/Utilities/BinnedArray.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/GenericDetector/GenericDetectorElement.hpp"
 
@@ -35,9 +30,7 @@ class Surface;
 class DetecorElementBase;
 }  // namespace Acts
 
-namespace ActsExamples {
-
-namespace Generic {
+namespace ActsExamples::Generic {
 
 using Acts::VectorHelpers::eta;
 using Acts::VectorHelpers::perp;
@@ -89,14 +82,6 @@ class ProtoLayerCreatorT {
     std::vector<double> centralModuleHalfY;
     /// the module bounds: local z -> thickness
     std::vector<double> centralModuleThickness;
-    /// the central volume readout schema
-    std::vector<std::size_t> centralModuleReadoutBinsX;
-    /// the central volume readout schema
-    std::vector<std::size_t> centralModuleReadoutBinsY;
-    /// the central volume readout schema
-    std::vector<int> centralModuleReadoutSide;
-    /// the central volume readout schema
-    std::vector<double> centralModuleLorentzAngle;
     /// the module material
     std::vector<std::shared_ptr<const Acts::ISurfaceMaterial>>
         centralModuleMaterial;
@@ -126,14 +111,6 @@ class ProtoLayerCreatorT {
     std::vector<std::vector<double>> posnegModuleHalfY;
     /// the module bounds: local z -> thickness
     std::vector<std::vector<double>> posnegModuleThickness;
-    /// the central volume readout schema
-    std::vector<std::vector<std::size_t>> posnegModuleReadoutBinsX;
-    /// the central volume readout schema
-    std::vector<std::vector<std::size_t>> posnegModuleReadoutBinsY;
-    /// the central volume readout schema
-    std::vector<std::vector<int>> posnegModuleReadoutSide;
-    /// the central volume readout schema
-    std::vector<std::vector<double>> posnegModuleLorentzAngle;
     /// the module material
     std::vector<std::vector<std::shared_ptr<const Acts::ISurfaceMaterial>>>
         posnegModuleMaterial;
@@ -238,8 +215,8 @@ ProtoLayerCreatorT<detector_element_t>::centralProtoLayers(
       double moduleHalfY = m_cfg.centralModuleHalfY.at(icl);
       double moduleThickness = m_cfg.centralModuleThickness.at(icl);
       // create the shared module
-      std::shared_ptr<const Acts::PlanarBounds> moduleBounds(
-          new Acts::RectangleBounds(moduleHalfX, moduleHalfY));
+      auto moduleBounds =
+          std::make_shared<Acts::RectangleBounds>(moduleHalfX, moduleHalfY);
       std::size_t nCentralModules =
           m_cfg.centralModuleBinningSchema.at(icl).first *
           m_cfg.centralModuleBinningSchema.at(icl).second;
@@ -250,24 +227,6 @@ ProtoLayerCreatorT<detector_element_t>::centralProtoLayers(
                  << m_cfg.centralModuleBinningSchema.at(icl).second << " )");
 
       sVector.reserve(nCentralModules);
-
-      // preparation :
-      // create digitizaiton module
-      std::shared_ptr<const Acts::DigitizationModule> moduleDigitizationPtr =
-          nullptr;
-      if (!m_cfg.centralModuleReadoutBinsX.empty()) {
-        // create the CartesianSegmentation
-        std::shared_ptr<const Acts::Segmentation> moduleSegmentation =
-            std::make_shared<const Acts::CartesianSegmentation>(
-                moduleBounds, m_cfg.centralModuleReadoutBinsX.at(icl),
-                m_cfg.centralModuleReadoutBinsY.at(icl));
-        // now create the digitzation module
-        moduleDigitizationPtr =
-            std::make_shared<const Acts::DigitizationModule>(
-                moduleSegmentation, 0.5 * m_cfg.centralModuleThickness.at(icl),
-                m_cfg.centralModuleReadoutSide.at(icl),
-                m_cfg.centralModuleLorentzAngle.at(icl));
-      }
 
       // prepartation :
       // create the Module material from input
@@ -314,24 +273,28 @@ ProtoLayerCreatorT<detector_element_t>::centralProtoLayers(
               Acts::AngleAxis3(-stereo, Acts::Vector3::UnitZ());
         }
         // count the modules
-        Identifier moduleIdentifier = Identifier(identifier_type(imodule++));
+        GenericDetectorElement::Identifier moduleIdentifier =
+            static_cast<GenericDetectorElement::Identifier>(imodule++);
+
         // Finalize the transform
         auto moduleTransform = std::const_pointer_cast<const Acts::Transform3>(
             mutableModuleTransform);
         // create the module
-        auto module = std::make_shared<detector_element_t>(
+        auto moduleElement = std::make_shared<detector_element_t>(
             moduleIdentifier, moduleTransform, moduleBounds, moduleThickness,
-            moduleMaterialPtr, moduleDigitizationPtr);
+            moduleMaterialPtr);
 
         // put the module into the detector store
-        layerStore.push_back(module);
+        layerStore.push_back(moduleElement);
         // register the surface
-        sVector.push_back(module->surface().getSharedPtr());
+        sVector.push_back(moduleElement->surface().getSharedPtr());
         // IF double modules exist
         // and the backside one (if configured to do so)
         if (!m_cfg.centralModuleBacksideGap.empty()) {
           // create the module identifier
-          moduleIdentifier = Identifier(identifier_type(imodule++));
+          moduleIdentifier =
+              static_cast<GenericDetectorElement::Identifier>(imodule++);
+
           Acts::Vector3 bsModuleCenter =
               moduleCenter +
               m_cfg.centralModuleBacksideGap.at(icl) * moduleLocalZ;
@@ -348,11 +311,11 @@ ProtoLayerCreatorT<detector_element_t>::centralProtoLayers(
           moduleTransform = std::const_pointer_cast<const Acts::Transform3>(
               mutableModuleTransform);
           // create the backseide moulde
-          auto bsmodule = std::make_shared<detector_element_t>(
+          auto bsModuleElement = std::make_shared<detector_element_t>(
               moduleIdentifier, moduleTransform, moduleBounds, moduleThickness,
-              moduleMaterialPtr, moduleDigitizationPtr);
+              moduleMaterialPtr);
           // everything is set for the next module
-          layerStore.push_back(std::move(bsmodule));
+          layerStore.push_back(std::move(bsModuleElement));
         }
       }
 
@@ -363,9 +326,10 @@ ProtoLayerCreatorT<detector_element_t>::centralProtoLayers(
       // create the surface array - it will also fill the accessible binmember
       // cache if available
       Acts::ProtoLayer pl(gctx, sVector);
-      pl.envelope[Acts::binR] = {m_cfg.approachSurfaceEnvelope,
-                                 m_cfg.approachSurfaceEnvelope};
-      pl.envelope[Acts::binZ] = {layerEnvelopeCoverZ, layerEnvelopeCoverZ};
+      pl.envelope[Acts::AxisDirection::AxisR] = {m_cfg.approachSurfaceEnvelope,
+                                                 m_cfg.approachSurfaceEnvelope};
+      pl.envelope[Acts::AxisDirection::AxisZ] = {layerEnvelopeCoverZ,
+                                                 layerEnvelopeCoverZ};
 
       // Record the proto layer and the surfaces for the later layer building
       ProtoLayerSurfaces pls{std::move(pl), sVector, phiBins, zBins};
@@ -447,33 +411,15 @@ ProtoLayerCreatorT<detector_element_t>::createProtoLayers(
         double moduleHalfY = m_cfg.posnegModuleHalfY.at(ipnl).at(ipnR);
         // (1) module bounds
         // create the bounds
-        Acts::PlanarBounds* pBounds = nullptr;
+        std::shared_ptr<const Acts::PlanarBounds> moduleBounds;
         if (moduleMaxHalfX != 0. && moduleMinHalfX != moduleMaxHalfX) {
-          pBounds = new Acts::TrapezoidBounds(moduleMinHalfX, moduleMaxHalfX,
-                                              moduleHalfY);
+          moduleBounds = std::make_shared<Acts::TrapezoidBounds>(
+              moduleMinHalfX, moduleMaxHalfX, moduleHalfY);
         } else {
-          pBounds = new Acts::RectangleBounds(moduleMinHalfX, moduleHalfY);
+          moduleBounds = std::make_shared<Acts::RectangleBounds>(moduleMinHalfX,
+                                                                 moduleHalfY);
         }
-        // now create the shared bounds from it
-        std::shared_ptr<const Acts::PlanarBounds> moduleBounds(pBounds);
-        // (2) create digitizaiton module
-        std::shared_ptr<const Acts::DigitizationModule> moduleDigitizationPtr =
-            nullptr;
-        if (!m_cfg.posnegModuleReadoutBinsX.empty()) {
-          // create the CartesianSegmentation
-          std::shared_ptr<const Acts::Segmentation> moduleSegmentation =
-              std::make_shared<const Acts::CartesianSegmentation>(
-                  moduleBounds,
-                  m_cfg.posnegModuleReadoutBinsX.at(ipnl).at(ipnR),
-                  m_cfg.posnegModuleReadoutBinsY.at(ipnl).at(ipnR));
-          // now create the digitzation module
-          moduleDigitizationPtr =
-              std::make_shared<const Acts::DigitizationModule>(
-                  moduleSegmentation, 0.5 * moduleThickness,
-                  m_cfg.posnegModuleReadoutSide.at(ipnl).at(ipnR),
-                  m_cfg.posnegModuleLorentzAngle.at(ipnl).at(ipnR));
-        }
-        // (3) module material
+        // (2)) module material
         // create the Module material from input
         std::shared_ptr<const Acts::ISurfaceMaterial> moduleMaterialPtr =
             nullptr;
@@ -506,18 +452,20 @@ ProtoLayerCreatorT<detector_element_t>::createProtoLayers(
                   Acts::Translation3(moduleCenter) * moduleRotation);
 
           // create the modules identifier
-          Identifier moduleIdentifier = Identifier(identifier_type(imodule++));
+          GenericDetectorElement::Identifier moduleIdentifier =
+              static_cast<GenericDetectorElement::Identifier>(imodule++);
 
           // create the module
-          auto module = std::make_shared<detector_element_t>(
+          auto moduleElement = std::make_shared<detector_element_t>(
               moduleIdentifier, moduleTransform, moduleBounds, moduleThickness,
-              moduleMaterialPtr, moduleDigitizationPtr);
-          layerStore.push_back(module);
+              moduleMaterialPtr);
+          layerStore.push_back(moduleElement);
 
           // now deal with the potential backside
           if (!m_cfg.posnegModuleBacksideGap.empty()) {
             // increase the counter
-            moduleIdentifier = Identifier(identifier_type(imodule++));
+            moduleIdentifier =
+                static_cast<GenericDetectorElement::Identifier>(imodule++);
             // the new centers
             moduleCenter =
                 moduleCenter +
@@ -537,14 +485,14 @@ ProtoLayerCreatorT<detector_element_t>::createProtoLayers(
             moduleTransform = std::const_pointer_cast<const Acts::Transform3>(
                 mutableModuleTransform);
             // everything is set for the next module
-            auto bsmodule = std::make_shared<detector_element_t>(
+            auto bsModuleElement = std::make_shared<detector_element_t>(
                 moduleIdentifier, moduleTransform, moduleBounds,
-                moduleThickness, moduleMaterialPtr, moduleDigitizationPtr);
+                moduleThickness, moduleMaterialPtr);
             // Put into the detector store
-            layerStore.push_back(std::move(bsmodule));
+            layerStore.push_back(std::move(bsModuleElement));
           }
           // create the surface
-          esVector.push_back(module->surface().getSharedPtr());
+          esVector.push_back(moduleElement->surface().getSharedPtr());
         }
         // counter of rings
         ++ipnR;
@@ -564,9 +512,10 @@ ProtoLayerCreatorT<detector_element_t>::createProtoLayers(
       }
       // create the layers with the surface arrays
       Acts::ProtoLayer ple(gctx, esVector);
-      ple.envelope[Acts::binR] = {layerEnvelopeR, layerEnvelopeR};
-      ple.envelope[Acts::binZ] = {m_cfg.approachSurfaceEnvelope,
-                                  m_cfg.approachSurfaceEnvelope};
+      ple.envelope[Acts::AxisDirection::AxisR] = {layerEnvelopeR,
+                                                  layerEnvelopeR};
+      ple.envelope[Acts::AxisDirection::AxisZ] = {
+          m_cfg.approachSurfaceEnvelope, m_cfg.approachSurfaceEnvelope};
 
       // push it into the layer vector
       ProtoLayerSurfaces ples{std::move(ple), esVector, layerBinsR,
@@ -579,5 +528,4 @@ ProtoLayerCreatorT<detector_element_t>::createProtoLayers(
   return epLayers;
 }
 
-}  // end of namespace Generic
-}  // end of namespace ActsExamples
+}  // namespace ActsExamples::Generic

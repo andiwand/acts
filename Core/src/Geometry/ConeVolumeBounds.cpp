@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Geometry/ConeVolumeBounds.hpp"
 
@@ -24,14 +24,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
-#include <type_traits>
 #include <utility>
 
-Acts::ConeVolumeBounds::ConeVolumeBounds(double innerAlpha, double innerOffsetZ,
-                                         double outerAlpha, double outerOffsetZ,
-                                         double halflengthZ, double averagePhi,
-                                         double halfPhiSector) noexcept(false)
+namespace Acts {
+
+ConeVolumeBounds::ConeVolumeBounds(double innerAlpha, double innerOffsetZ,
+                                   double outerAlpha, double outerOffsetZ,
+                                   double halflengthZ, double averagePhi,
+                                   double halfPhiSector) noexcept(false)
     : VolumeBounds(), m_values() {
   m_values[eInnerAlpha] = innerAlpha;
   m_values[eInnerOffsetZ] = innerOffsetZ;
@@ -44,10 +46,10 @@ Acts::ConeVolumeBounds::ConeVolumeBounds(double innerAlpha, double innerOffsetZ,
   checkConsistency();
 }
 
-Acts::ConeVolumeBounds::ConeVolumeBounds(double cylinderR, double alpha,
-                                         double offsetZ, double halflengthZ,
-                                         double averagePhi,
-                                         double halfPhiSector) noexcept(false)
+ConeVolumeBounds::ConeVolumeBounds(double cylinderR, double alpha,
+                                   double offsetZ, double halflengthZ,
+                                   double averagePhi,
+                                   double halfPhiSector) noexcept(false)
     : VolumeBounds(), m_values() {
   m_values[eInnerAlpha] = 0.;
   m_values[eInnerOffsetZ] = 0.;
@@ -90,9 +92,13 @@ Acts::ConeVolumeBounds::ConeVolumeBounds(double cylinderR, double alpha,
   checkConsistency();
 }
 
-Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
+std::vector<double> ConeVolumeBounds::values() const {
+  return {m_values.begin(), m_values.end()};
+}
+
+std::vector<Acts::OrientedSurface> Acts::ConeVolumeBounds::orientedSurfaces(
     const Transform3& transform) const {
-  OrientedSurfaces oSurfaces;
+  std::vector<OrientedSurface> oSurfaces;
   oSurfaces.reserve(6);
 
   // Create an inner Cone
@@ -101,13 +107,13 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
     auto innerCone =
         Surface::makeShared<ConeSurface>(innerConeTrans, m_innerConeBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(innerCone), Direction::Forward));
+        OrientedSurface{std::move(innerCone), Direction::AlongNormal()});
   } else if (m_innerCylinderBounds != nullptr) {
     // Or alternatively the inner Cylinder
     auto innerCylinder =
         Surface::makeShared<CylinderSurface>(transform, m_innerCylinderBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(innerCylinder), Direction::Forward));
+        OrientedSurface{std::move(innerCylinder), Direction::AlongNormal()});
   }
 
   // Create an outer Cone
@@ -116,13 +122,13 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
     auto outerCone =
         Surface::makeShared<ConeSurface>(outerConeTrans, m_outerConeBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(outerCone), Direction::Backward));
+        OrientedSurface{std::move(outerCone), Direction::OppositeNormal()});
   } else if (m_outerCylinderBounds != nullptr) {
     // or alternatively an outer Cylinder
     auto outerCylinder =
         Surface::makeShared<CylinderSurface>(transform, m_outerCylinderBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(outerCylinder), Direction::Backward));
+        OrientedSurface{std::move(outerCylinder), Direction::OppositeNormal()});
   }
 
   // Set a disc at Zmin
@@ -132,7 +138,7 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
     auto negativeDisc = Surface::makeShared<DiscSurface>(negativeDiscTrans,
                                                          m_negativeDiscBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(negativeDisc), Direction::Forward));
+        OrientedSurface{std::move(negativeDisc), Direction::AlongNormal()});
   }
 
   // Set a disc at Zmax
@@ -140,7 +146,7 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
   auto positiveDisc =
       Surface::makeShared<DiscSurface>(positiveDiscTrans, m_positiveDiscBounds);
   oSurfaces.push_back(
-      OrientedSurface(std::move(positiveDisc), Direction::Backward));
+      OrientedSurface{std::move(positiveDisc), Direction::OppositeNormal()});
 
   if (m_sectorBounds) {
     RotationMatrix3 sectorRotation;
@@ -155,7 +161,7 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
     auto negSectorPlane =
         Surface::makeShared<PlaneSurface>(negSectorAbsTrans, m_sectorBounds);
     oSurfaces.push_back(
-        OrientedSurface(std::move(negSectorPlane), Direction::Positive));
+        OrientedSurface{std::move(negSectorPlane), Direction::AlongNormal()});
 
     Transform3 posSectorRelTrans{sectorRotation};
     posSectorRelTrans.prerotate(
@@ -164,13 +170,13 @@ Acts::OrientedSurfaces Acts::ConeVolumeBounds::orientedSurfaces(
     auto posSectorPlane =
         Surface::makeShared<PlaneSurface>(posSectorAbsTrans, m_sectorBounds);
 
-    oSurfaces.push_back(
-        OrientedSurface(std::move(posSectorPlane), Direction::Negative));
+    oSurfaces.push_back(OrientedSurface{std::move(posSectorPlane),
+                                        Direction::OppositeNormal()});
   }
   return oSurfaces;
 }
 
-void Acts::ConeVolumeBounds::checkConsistency() noexcept(false) {
+void ConeVolumeBounds::checkConsistency() noexcept(false) {
   if (innerRmin() > outerRmin() || innerRmax() > outerRmax()) {
     throw std::invalid_argument("ConeVolumeBounds: invalid radial input.");
   }
@@ -178,7 +184,7 @@ void Acts::ConeVolumeBounds::checkConsistency() noexcept(false) {
     throw std::invalid_argument(
         "ConeVolumeBounds: invalid longitudinal input.");
   }
-  if (get(eHalfPhiSector) < 0. || get(eHalfPhiSector) > M_PI) {
+  if (get(eHalfPhiSector) < 0. || get(eHalfPhiSector) > std::numbers::pi) {
     throw std::invalid_argument("ConeVolumeBounds: invalid phi sector setup.");
   }
   if (get(eAveragePhi) != detail::radian_sym(get(eAveragePhi))) {
@@ -190,7 +196,7 @@ void Acts::ConeVolumeBounds::checkConsistency() noexcept(false) {
   }
 }
 
-bool Acts::ConeVolumeBounds::inside(const Vector3& pos, double tol) const {
+bool ConeVolumeBounds::inside(const Vector3& pos, double tol) const {
   double z = pos.z();
   double zmin = z + tol;
   double zmax = z - tol;
@@ -199,7 +205,7 @@ bool Acts::ConeVolumeBounds::inside(const Vector3& pos, double tol) const {
     return false;
   }
   double r = VectorHelpers::perp(pos);
-  if (std::abs(get(eHalfPhiSector) - M_PI) > s_onSurfaceTolerance) {
+  if (std::abs(get(eHalfPhiSector) - std::numbers::pi) > s_onSurfaceTolerance) {
     // need to check the phi sector - approximate phi tolerance
     double phitol = tol / r;
     double phi = VectorHelpers::phi(pos);
@@ -237,7 +243,7 @@ bool Acts::ConeVolumeBounds::inside(const Vector3& pos, double tol) const {
   return true;
 }
 
-void Acts::ConeVolumeBounds::buildSurfaceBounds() {
+void ConeVolumeBounds::buildSurfaceBounds() {
   // Build inner cone or inner cylinder
   if (get(eInnerAlpha) > s_epsilon) {
     m_innerTanAlpha = std::tan(get(eInnerAlpha));
@@ -277,7 +283,7 @@ void Acts::ConeVolumeBounds::buildSurfaceBounds() {
       m_innerRmax, m_outerRmax, get(eHalfPhiSector), get(eAveragePhi));
 
   // Create the sector bounds
-  if (std::abs(get(eHalfPhiSector) - M_PI) > s_epsilon) {
+  if (std::abs(get(eHalfPhiSector) - std::numbers::pi) > s_epsilon) {
     // The 4 points building the sector
     std::vector<Vector2> polyVertices = {{-get(eHalfLengthZ), m_innerRmin},
                                          {get(eHalfLengthZ), m_innerRmax},
@@ -288,16 +294,48 @@ void Acts::ConeVolumeBounds::buildSurfaceBounds() {
   }
 }
 
-// ostream operator overload
-std::ostream& Acts::ConeVolumeBounds::toStream(std::ostream& sl) const {
-  return dumpT(sl);
+std::ostream& ConeVolumeBounds::toStream(std::ostream& os) const {
+  os << std::setiosflags(std::ios::fixed);
+  os << std::setprecision(5);
+  os << "Acts::ConeVolumeBounds : (innerAlpha, innerOffsetZ, outerAlpha,";
+  os << "  outerOffsetZ, halflenghZ, averagePhi, halfPhiSector) = ";
+  os << get(eInnerAlpha) << ", " << get(eInnerOffsetZ) << ", ";
+  os << get(eOuterAlpha) << ", " << get(eOuterOffsetZ) << ", ";
+  os << get(eHalfLengthZ) << ", " << get(eAveragePhi) << std::endl;
+  return os;
 }
 
-Acts::Volume::BoundingBox Acts::ConeVolumeBounds::boundingBox(
-    const Acts::Transform3* trf, const Vector3& envelope,
-    const Volume* entity) const {
+Volume::BoundingBox ConeVolumeBounds::boundingBox(const Transform3* trf,
+                                                  const Vector3& envelope,
+                                                  const Volume* entity) const {
   Vector3 vmin(-outerRmax(), -outerRmax(), -0.5 * get(eHalfLengthZ));
   Vector3 vmax(outerRmax(), outerRmax(), 0.5 * get(eHalfLengthZ));
   Volume::BoundingBox box(entity, vmin - envelope, vmax + envelope);
   return trf == nullptr ? box : box.transformed(*trf);
 }
+
+double ConeVolumeBounds::innerRmin() const {
+  return m_innerRmin;
+}
+
+double ConeVolumeBounds::innerRmax() const {
+  return m_innerRmax;
+}
+
+double ConeVolumeBounds::innerTanAlpha() const {
+  return m_innerTanAlpha;
+}
+
+double ConeVolumeBounds::outerRmin() const {
+  return m_outerRmin;
+}
+
+double ConeVolumeBounds::outerRmax() const {
+  return m_outerRmax;
+}
+
+double ConeVolumeBounds::outerTanAlpha() const {
+  return m_outerTanAlpha;
+}
+
+}  // namespace Acts

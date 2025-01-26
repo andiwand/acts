@@ -1,21 +1,18 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/GenericDetector/BuildGenericDetector.hpp"
 
 #include <cmath>
-
-namespace ActsExamples {
-
-namespace Generic {
+#include <numbers>
 
 /// helper method for cylinder
-std::vector<Acts::Vector3> modulePositionsCylinder(
+std::vector<Acts::Vector3> ActsExamples::Generic::modulePositionsCylinder(
     double radius, double zStagger, double moduleHalfLength, double lOverlap,
     const std::pair<int, int>& binningSchema) {
   int nPhiBins = binningSchema.first;
@@ -24,17 +21,18 @@ std::vector<Acts::Vector3> modulePositionsCylinder(
   std::vector<Acts::Vector3> mPositions;
   mPositions.reserve(nPhiBins * nZbins);
   // prep work
-  double phiStep = 2 * M_PI / (nPhiBins);
-  double minPhi = -M_PI + 0.5 * phiStep;
+  double phiStep = 2 * std::numbers::pi / nPhiBins;
+  double minPhi = -std::numbers::pi + 0.5 * phiStep;
   double zStart = -0.5 * (nZbins - 1) * (2 * moduleHalfLength - lOverlap);
   double zStep = 2 * std::abs(zStart) / (nZbins - 1);
   // loop over the bins
-  for (std::size_t zBin = 0; zBin < std::size_t(nZbins); ++zBin) {
+  for (std::size_t zBin = 0; zBin < static_cast<std::size_t>(nZbins); ++zBin) {
     // prepare z and r
     double moduleZ = zStart + zBin * zStep;
     double moduleR =
         (zBin % 2) != 0u ? radius - 0.5 * zStagger : radius + 0.5 * zStagger;
-    for (std::size_t phiBin = 0; phiBin < std::size_t(nPhiBins); ++phiBin) {
+    for (std::size_t phiBin = 0; phiBin < static_cast<std::size_t>(nPhiBins);
+         ++phiBin) {
       // calculate the current phi value
       double modulePhi = minPhi + phiBin * phiStep;
       mPositions.push_back(Acts::Vector3(moduleR * cos(modulePhi),
@@ -45,7 +43,8 @@ std::vector<Acts::Vector3> modulePositionsCylinder(
 }
 
 /// helper method for disc
-std::vector<std::vector<Acts::Vector3>> modulePositionsDisc(
+std::vector<std::vector<Acts::Vector3>>
+ActsExamples::Generic::modulePositionsDisc(
     double z, double ringStagger, std::vector<double> phiStagger,
     std::vector<double> phiSubStagger, double innerRadius, double outerRadius,
     const std::vector<std::size_t>& discBinning,
@@ -95,18 +94,18 @@ std::vector<std::vector<Acts::Vector3>> modulePositionsDisc(
 }
 
 /// Helper method for positioning
-std::vector<Acts::Vector3> modulePositionsRing(double z, double radius,
-                                               double phiStagger,
-                                               double phiSubStagger,
-                                               int nPhiBins) {
+std::vector<Acts::Vector3> ActsExamples::Generic::modulePositionsRing(
+    double z, double radius, double phiStagger, double phiSubStagger,
+    int nPhiBins) {
   // create and fill the positions
   std::vector<Acts::Vector3> rPositions;
   rPositions.reserve(nPhiBins);
   // prep work
-  double phiStep = 2 * M_PI / (nPhiBins);
-  double minPhi = -M_PI + 0.5 * phiStep;
+  double phiStep = 2 * std::numbers::pi / nPhiBins;
+  double minPhi = -std::numbers::pi + 0.5 * phiStep;
   // phi loop
-  for (std::size_t iphi = 0; iphi < std::size_t(nPhiBins); ++iphi) {
+  for (std::size_t iphi = 0; iphi < static_cast<std::size_t>(nPhiBins);
+       ++iphi) {
     // if we have a phi sub stagger presents
     double rzs = 0.;
     // phi stagger affects 0 vs 1, 2 vs 3 ... etc
@@ -129,7 +128,3 @@ std::vector<Acts::Vector3> modulePositionsRing(double z, double radius,
   }
   return rPositions;
 }
-
-}  // end of namespace Generic
-
-}  // end of namespace ActsExamples

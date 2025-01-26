@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/Json/ProtoDetectorJsonConverter.hpp"
 
 #include "Acts/Detector/ProtoDetector.hpp"
 #include "Acts/Geometry/Extent.hpp"
 #include "Acts/Plugins/Json/ExtentJsonConverter.hpp"
+#include "Acts/Plugins/Json/SurfaceJsonConverter.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/BinningData.hpp"
 
@@ -42,7 +43,7 @@ void Acts::to_json(nlohmann::json& j, const Acts::ProtoVolume& pv) {
     auto& its = pv.internal.value();
     nlohmann::json jinternal;
     if (its.layerType != Surface::SurfaceType::Other) {
-      jinternal["layerType"] = static_cast<int>(its.layerType);
+      jinternal["layerType"] = its.layerType;
     }
     if (!its.surfaceBinning.empty()) {
       writeBinning(jinternal, its.surfaceBinning, "surfaceBinning");

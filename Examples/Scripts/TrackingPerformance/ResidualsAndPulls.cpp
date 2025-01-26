@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <exception>
 #include <iostream>
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     variables_map vm;
     store(command_line_parser(argc, argv).options(description).run(), vm);
 
-    if (vm.count("help") != 0u) {
+    if (vm.contains("help")) {
       std::cout << description;
       return 1;
     }
@@ -70,19 +70,16 @@ int main(int argc, char** argv) {
         vm["filtered"].as<bool>(), vm["smoothed"].as<bool>(),
         vm["fit-predicted"].as<bool>(), vm["fit-filtered"].as<bool>(),
         vm["fit-smoothed"].as<bool>(), saveAs)) {
-      case -1: {
+      case -1:
         std::cout << "*** Input file could not be opened, check name/path."
                   << std::endl;
         return -1;
-      } break;
-      case -2: {
+      case -2:
         std::cout << "*** Input tree could not be found, check name."
                   << std::endl;
         return -2;
-      } break;
-      default: {
+      default:
         std::cout << "*** Successful run." << std::endl;
-      };
     }
 
     if (tApp != nullptr) {

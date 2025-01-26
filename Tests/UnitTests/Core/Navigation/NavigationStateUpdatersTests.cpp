@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023-2024 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -13,9 +13,9 @@
 #include "Acts/Navigation/NavigationState.hpp"
 #include "Acts/Navigation/NavigationStateFillers.hpp"
 #include "Acts/Navigation/NavigationStateUpdaters.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/IAxis.hpp"
-#include "Acts/Utilities/detail/AxisFwd.hpp"
 
 #include <algorithm>
 #include <array>
@@ -115,26 +115,30 @@ class TestAxis : public IAxis {
 
   bool isVariable() const final { return false; }
 
-  detail::AxisBoundaryType getBoundaryType() const final {
-    return detail::AxisBoundaryType::Closed;
+  AxisType getType() const final { return AxisType::Equidistant; }
+
+  AxisBoundaryType getBoundaryType() const final {
+    return AxisBoundaryType::Closed;
   }
 
-  std::vector<ActsScalar> getBinEdges() const final { return {-1, 1}; }
+  std::vector<double> getBinEdges() const final { return {-1, 1}; }
 
-  ActsScalar getMin() const final { return -1.; }
+  double getMin() const final { return -1.; }
 
-  ActsScalar getMax() const final { return 1.; }
+  double getMax() const final { return 1.; }
 
   std::size_t getNBins() const final { return 1; };
+
+  void toStream(std::ostream& os) const final { os << "TextAxis"; }
 };
 
 class MultiGrid1D {
  public:
   static constexpr std::size_t DIM = 1u;
-  using point_t = std::array<ActsScalar, DIM>;
+  using point_t = std::array<double, DIM>;
 
   const std::vector<std::size_t>& atPosition(
-      const std::array<ActsScalar, 1u>& /*position*/) const {
+      const std::array<double, 1u>& /*position*/) const {
     return e;
   }
 
@@ -148,10 +152,10 @@ class MultiGrid1D {
 class MultiGrid2D {
  public:
   static constexpr std::size_t DIM = 2u;
-  using point_t = std::array<ActsScalar, DIM>;
+  using point_t = std::array<double, DIM>;
 
   const std::vector<std::size_t>& atPosition(
-      const std::array<ActsScalar, 2u>& /*position*/) const {
+      const std::array<double, 2u>& /*position*/) const {
     return e;
   }
 
@@ -163,15 +167,17 @@ class MultiGrid2D {
 };
 }  // namespace Acts
 
-using SingleVolumeUpdater = Acts::Experimental::SingleObjectImpl<
-    Acts::Experimental::DetectorVolume,
+using SingleVolumeUpdater = Acts::Experimental::SingleObjectNavigation<
+    Acts::Experimental::IExternalNavigation, Acts::Experimental::DetectorVolume,
     Acts::Experimental::DetectorVolumeFiller>;
 
-using AllSurfacesProvider = Acts::Experimental::StaticUpdaterImpl<
+using AllSurfacesProvider = Acts::Experimental::StaticAccessNavigation<
+    Acts::Experimental::IInternalNavigation,
     Acts::Experimental::AllSurfacesExtractor,
     Acts::Experimental::SurfacesFiller>;
 
-using AllPortalsProvider = Acts::Experimental::StaticUpdaterImpl<
+using AllPortalsProvider = Acts::Experimental::StaticAccessNavigation<
+    Acts::Experimental::IInternalNavigation,
     Acts::Experimental::AllPortalsExtractor, Acts::Experimental::PortalsFiller>;
 
 auto surfaceA = Acts::Surface::makeShared<Acts::SurfaceStub>();
@@ -185,7 +191,7 @@ auto portalB = std::make_shared<Acts::Experimental::Portal>(pSurfaceB);
 
 BOOST_AUTO_TEST_SUITE(Experimental)
 
-BOOST_AUTO_TEST_CASE(SingleDetectorVolumeUpdater) {
+BOOST_AUTO_TEST_CASE(SingleExternalNavigationDelegate) {
   Acts::Experimental::NavigationState nState;
 
   // Create a single object and a single object updator
@@ -237,10 +243,9 @@ BOOST_AUTO_TEST_CASE(AllPortalsAllSurfaces) {
 
   AllPortalsProvider allPortals;
   AllSurfacesProvider allSurfaces;
-  auto allPortalsAllSurfaces =
-      Acts::Experimental::ChainedUpdaterImpl<AllPortalsProvider,
-                                             AllSurfacesProvider>(
-          std::tie(allPortals, allSurfaces));
+  auto allPortalsAllSurfaces = Acts::Experimental::ChainedNavigation<
+      Acts::Experimental::IInternalNavigation, AllPortalsProvider,
+      AllSurfacesProvider>(std::tie(allPortals, allSurfaces));
 
   allPortalsAllSurfaces.update(tContext, nState);
   BOOST_CHECK_EQUAL(nState.surfaceCandidates.size(), 5u);
@@ -258,15 +263,16 @@ BOOST_AUTO_TEST_CASE(AllPortalsGrid1DSurfaces) {
 
   AllPortalsProvider allPortals;
   Acts::MultiGrid1D grid;
-  using Grid1DSurfacesProvider = Acts::Experimental::IndexedUpdaterImpl<
-      decltype(grid), Acts::Experimental::IndexedSurfacesExtractor,
+  using Grid1DSurfacesProvider = Acts::Experimental::IndexedGridNavigation<
+      Acts::Experimental::IInternalNavigation, decltype(grid),
+      Acts::Experimental::IndexedSurfacesExtractor,
       Acts::Experimental::SurfacesFiller>;
-  auto grid1DSurfaces = Grid1DSurfacesProvider(std::move(grid), {Acts::binR});
+  auto grid1DSurfaces =
+      Grid1DSurfacesProvider(std::move(grid), {Acts::AxisDirection::AxisR});
 
-  auto allPortalsGrid1DSurfaces =
-      Acts::Experimental::ChainedUpdaterImpl<AllPortalsProvider,
-                                             Grid1DSurfacesProvider>(
-          std::tie(allPortals, grid1DSurfaces));
+  auto allPortalsGrid1DSurfaces = Acts::Experimental::ChainedNavigation<
+      Acts::Experimental::IInternalNavigation, AllPortalsProvider,
+      Grid1DSurfacesProvider>(std::tie(allPortals, grid1DSurfaces));
 
   allPortalsGrid1DSurfaces.update(tContext, nState);
   BOOST_CHECK_EQUAL(nState.surfaceCandidates.size(), 4u);
@@ -284,16 +290,17 @@ BOOST_AUTO_TEST_CASE(AllPortalsGrid2DSurfaces) {
 
   AllPortalsProvider allPortals;
   Acts::MultiGrid2D grid;
-  using Grid2DSurfacesProvider = Acts::Experimental::IndexedUpdaterImpl<
-      decltype(grid), Acts::Experimental::IndexedSurfacesExtractor,
+  using Grid2DSurfacesProvider = Acts::Experimental::IndexedGridNavigation<
+      Acts::Experimental::IInternalNavigation, decltype(grid),
+      Acts::Experimental::IndexedSurfacesExtractor,
       Acts::Experimental::SurfacesFiller>;
-  auto grid2DSurfaces =
-      Grid2DSurfacesProvider(std::move(grid), {Acts::binR, Acts::binZ});
+  auto grid2DSurfaces = Grid2DSurfacesProvider(
+      std::move(grid),
+      {Acts::AxisDirection::AxisR, Acts::AxisDirection::AxisZ});
 
-  auto allPortalsGrid2DSurfaces =
-      Acts::Experimental::ChainedUpdaterImpl<AllPortalsProvider,
-                                             Grid2DSurfacesProvider>(
-          std::tie(allPortals, grid2DSurfaces));
+  auto allPortalsGrid2DSurfaces = Acts::Experimental::ChainedNavigation<
+      Acts::Experimental::IInternalNavigation, AllPortalsProvider,
+      Grid2DSurfacesProvider>(std::tie(allPortals, grid2DSurfaces));
 
   allPortalsGrid2DSurfaces.update(tContext, nState);
   BOOST_CHECK_EQUAL(nState.surfaceCandidates.size(), 3u);

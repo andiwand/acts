@@ -1,38 +1,34 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// clang-format off
 #include <boost/test/unit_test.hpp>
-#include <boost/test/data/test_case.hpp>
-#include <boost/test/tools/output_test_stream.hpp>
+
+#include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Surfaces/AnnulusBounds.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
+#include "Acts/Surfaces/SurfaceBounds.hpp"
+#include "Acts/Utilities/VectorHelpers.hpp"
+
 #include <algorithm>
 #include <array>
 #include <stdexcept>
 #include <vector>
-// clang-format on
 
-#include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Surfaces/AnnulusBounds.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
-#include "Acts/Surfaces/SurfaceBounds.hpp"
-#include "Acts/Utilities/VectorHelpers.hpp"
+namespace Acts::Test {
 
-namespace Acts {
-
-namespace Test {
 BOOST_AUTO_TEST_SUITE(Surfaces)
 
-double minRadius = 7.2;
-double maxRadius = 12.0;
-double minPhi = 0.74195;
-double maxPhi = 1.33970;
+const double minRadius = 7.2;
+const double maxRadius = 12.0;
+const double minPhi = 0.74195;
+const double maxPhi = 1.33970;
 
-Vector2 offset(-2., 2.);
+const Vector2 offset(-2., 2.);
 
 // Unit tests for AnnulusBounds constructors
 BOOST_AUTO_TEST_CASE(AnnulusBoundsConstruction) {
@@ -64,13 +60,13 @@ BOOST_AUTO_TEST_CASE(AnnulusBoundsExcpetion) {
   // Exception for swapped radii
   BOOST_CHECK_THROW(AnnulusBounds(maxRadius, minRadius, minPhi, maxPhi, offset),
                     std::logic_error);
-  // Exception for out of range  min phi
+  // Exception for out of range min phi
   BOOST_CHECK_THROW(AnnulusBounds(minRadius, maxRadius, -4., maxPhi, offset),
                     std::logic_error);
-  // Exception for out of range  max phi
+  // Exception for out of range max phi
   BOOST_CHECK_THROW(AnnulusBounds(minRadius, maxRadius, minPhi, 4., offset),
                     std::logic_error);
-  // Exception for out of range  max phi
+  // Exception for out of range max phi
   BOOST_CHECK_THROW(AnnulusBounds(minRadius, maxRadius, maxPhi, minPhi, offset),
                     std::logic_error);
 }
@@ -80,7 +76,6 @@ BOOST_AUTO_TEST_CASE(AnnulusBoundsProperties) {
   /// Test construction with radii and default sector
   AnnulusBounds aBounds(minRadius, maxRadius, minPhi, maxPhi, offset);
 
-  //
   /// Test type() (redundant; already used in constructor confirmation)
   BOOST_CHECK_EQUAL(aBounds.type(), SurfaceBounds::eAnnulus);
 
@@ -101,11 +96,16 @@ BOOST_AUTO_TEST_CASE(AnnulusBoundsProperties) {
     return Vector2(r, phi);
   };
 
-  BOOST_CHECK(aBounds.inside(toStripFrame(inSurfaceXY), BoundaryCheck(true)));
-  BOOST_CHECK(!aBounds.inside(toStripFrame(outsideXY1), BoundaryCheck(true)));
-  BOOST_CHECK(!aBounds.inside(toStripFrame(outsideXY2), BoundaryCheck(true)));
-  BOOST_CHECK(!aBounds.inside(toStripFrame(outsideXY3), BoundaryCheck(true)));
-  BOOST_CHECK(!aBounds.inside(toStripFrame(outsideXY4), BoundaryCheck(true)));
+  BOOST_CHECK(
+      aBounds.inside(toStripFrame(inSurfaceXY), BoundaryTolerance::None()));
+  BOOST_CHECK(
+      !aBounds.inside(toStripFrame(outsideXY1), BoundaryTolerance::None()));
+  BOOST_CHECK(
+      !aBounds.inside(toStripFrame(outsideXY2), BoundaryTolerance::None()));
+  BOOST_CHECK(
+      !aBounds.inside(toStripFrame(outsideXY3), BoundaryTolerance::None()));
+  BOOST_CHECK(
+      !aBounds.inside(toStripFrame(outsideXY4), BoundaryTolerance::None()));
 
   // Check radial inside
   BOOST_CHECK(!aBounds.insideRadialBounds(0.5));
@@ -122,8 +122,156 @@ BOOST_AUTO_TEST_CASE(AnnulusBoundsProperties) {
   BOOST_CHECK_EQUAL(aBounds.get(AnnulusBounds::eMaxPhiRel), maxPhi);
 }
 
+/// Unit tests for AnnulusBounds vertices
+BOOST_AUTO_TEST_CASE(AnnulusBoundsVertices) {
+  /// Test construction with radii and default sector
+  AnnulusBounds aBounds(minRadius, maxRadius, minPhi, maxPhi, offset);
+
+  // Retrieve the corners
+  auto corners = aBounds.corners();
+  BOOST_CHECK_EQUAL(corners.size(), 4);
+
+  // Retrieve the vertices
+  auto vertices = aBounds.vertices(0u);
+  BOOST_CHECK_EQUAL(vertices.size(), 4);
+
+  // Now generate with more segments
+  unsigned int nQuarterSegments = 12;
+  vertices = aBounds.vertices(nQuarterSegments);
+  BOOST_CHECK_EQUAL(vertices.size(), 14u);
+}
+
+BOOST_AUTO_TEST_CASE(AnnulusBoundsNegativeTolerance) {
+  AnnulusBounds aBounds(minRadius, maxRadius, minPhi, maxPhi, offset);
+  double phiAverage = (minPhi + maxPhi) / 2;
+
+  auto check = [&](const BoundaryTolerance& tolerance, const Vector2& point) {
+    Vector2 pointAverage(point[0], phiAverage + point[1]);
+    return aBounds.inside(pointAverage, tolerance);
+  };
+
+  double midRadius = (minRadius + maxRadius) / 2;
+  double hlPhi = (maxPhi - minPhi) / 2;
+
+  {
+    auto tolerance = BoundaryTolerance::AbsoluteEuclidean(1);
+
+    // Test points near radial boundaries
+    BOOST_CHECK(!check(tolerance, {minRadius - 1.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius - 0.1, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 0.4, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 0.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 1.5, 0}));
+
+    BOOST_CHECK(check(tolerance, {maxRadius - 1.5, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius - 0.1, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius + 0.3, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius + 0.55, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius + 1.2, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.7, 0}));
+
+    // Check points near axial boundaries
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.5}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 1.1}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.5}));
+
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.5}));
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.5}));
+  }
+
+  {
+    auto tolerance = BoundaryTolerance::AbsoluteEuclidean(-1);
+
+    // Test points near radial boundaries
+    BOOST_CHECK(!check(tolerance, {minRadius - 1.5, 0}));
+    BOOST_CHECK(!check(tolerance, {minRadius - 0.1, 0}));
+    BOOST_CHECK(!check(tolerance, {minRadius + 0.4, 0}));
+    BOOST_CHECK(!check(tolerance, {minRadius + 0.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 1.5, 0}));
+
+    BOOST_CHECK(check(tolerance, {maxRadius - 1.5, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius - 0.1, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 0.3, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 0.55, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.2, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.7, 0}));
+
+    // Check points near axial boundaries
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.5}));
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.5}));
+
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.5}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 0.8}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.5}));
+  }
+
+  {
+    auto tolerance =
+        BoundaryTolerance::Chi2Bound(SquareMatrix2::Identity(), 0.1);
+
+    // Test points near radial boundaries
+    BOOST_CHECK(!check(tolerance, {minRadius - 1.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius - 0.1, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 0.4, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 0.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 1.5, 0}));
+
+    BOOST_CHECK(check(tolerance, {maxRadius - 1.5, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius - 0.1, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius + 0.3, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius + 0.55, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.2, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.7, 0}));
+
+    // Check points near axial boundaries
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.5}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 1.1}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.5}));
+
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.5}));
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.5}));
+  }
+
+  {
+    auto tolerance =
+        BoundaryTolerance::Chi2Bound(SquareMatrix2::Identity(), -0.1);
+
+    // Test points near radial boundaries
+    BOOST_CHECK(!check(tolerance, {minRadius - 1.5, 0}));
+    BOOST_CHECK(!check(tolerance, {minRadius - 0.1, 0}));
+    BOOST_CHECK(!check(tolerance, {minRadius + 0.4, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 0.5, 0}));
+    BOOST_CHECK(check(tolerance, {minRadius + 1.5, 0}));
+
+    BOOST_CHECK(check(tolerance, {maxRadius - 1.5, 0}));
+    BOOST_CHECK(check(tolerance, {maxRadius - 0.1, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 0.3, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 0.55, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.2, 0}));
+    BOOST_CHECK(!check(tolerance, {maxRadius + 1.7, 0}));
+
+    // Check points near axial boundaries
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.5}));
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, -hlPhi * 0.8}));
+    BOOST_CHECK(check(tolerance, {midRadius, -hlPhi * 0.5}));
+
+    BOOST_CHECK(check(tolerance, {midRadius, hlPhi * 0.5}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 0.8}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.1}));
+    BOOST_CHECK(!check(tolerance, {midRadius, hlPhi * 1.5}));
+  }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
-}  // namespace Test
-
-}  // namespace Acts
+}  // namespace Acts::Test

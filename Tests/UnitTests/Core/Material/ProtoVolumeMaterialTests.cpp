@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -14,15 +14,13 @@
 
 #include <utility>
 
-namespace Acts {
-
-namespace Test {
+namespace Acts::Test {
 
 /// Test the constructors
 BOOST_AUTO_TEST_CASE(ProtoVolumeMaterial_construction_test) {
-  BinUtility vmpBU(10, -10., 10., open, binX);
-  vmpBU += BinUtility(10, -10., 10., open, binY);
-  vmpBU += BinUtility(10, -10., 10., open, binZ);
+  BinUtility vmpBU(10, -10., 10., open, AxisDirection::AxisX);
+  vmpBU += BinUtility(10, -10., 10., open, AxisDirection::AxisY);
+  vmpBU += BinUtility(10, -10., 10., open, AxisDirection::AxisZ);
 
   // Constructor from arguments
   ProtoVolumeMaterial vmp(vmpBU);
@@ -32,5 +30,4 @@ BOOST_AUTO_TEST_CASE(ProtoVolumeMaterial_construction_test) {
   ProtoVolumeMaterial vmpCopyMoved(std::move(vmpCopy));
 }
 
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

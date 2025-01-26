@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -25,9 +25,7 @@ class TH1F;
 class TH2F;
 class TProfile;
 
-namespace ActsExamples {
-
-namespace PlotHelpers {
+namespace ActsExamples::PlotHelpers {
 /// @brief Nested binning struct for booking plots
 class Binning {
  public:
@@ -145,6 +143,4 @@ TProfile* bookProf(const char* profName, const char* profTitle,
 void fillProf(TProfile* profile, float xValue, float yValue,
               float weight = 1.0);
 
-}  // namespace PlotHelpers
-
-}  // namespace ActsExamples
+}  // namespace ActsExamples::PlotHelpers

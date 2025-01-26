@@ -1,15 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include <any>
 #include <string>
+#include <string_view>
 
 #include <podio/Frame.h>
 #include <podio/UserDataCollection.h>
@@ -17,7 +18,7 @@
 namespace Acts::podio_detail {
 
 struct ConstDynamicColumnBase {
-  ConstDynamicColumnBase(const std::string& name) : m_name{name} {}
+  explicit ConstDynamicColumnBase(std::string_view name) : m_name{name} {}
 
   virtual ~ConstDynamicColumnBase() = default;
 
@@ -31,7 +32,7 @@ struct ConstDynamicColumnBase {
 
 template <typename T>
 struct ConstDynamicColumn : public ConstDynamicColumnBase {
-  ConstDynamicColumn(const std::string& name,
+  ConstDynamicColumn(std::string_view name,
                      const podio::UserDataCollection<T>& collection)
       : ConstDynamicColumnBase(name), m_collection{collection} {}
 
@@ -44,7 +45,8 @@ struct ConstDynamicColumn : public ConstDynamicColumnBase {
 };
 
 struct DynamicColumnBase : public ConstDynamicColumnBase {
-  DynamicColumnBase(const std::string& name) : ConstDynamicColumnBase{name} {}
+  explicit DynamicColumnBase(std::string_view name)
+      : ConstDynamicColumnBase{name} {}
 
   virtual std::any get(std::size_t i) = 0;
   std::any get(std::size_t i) const override = 0;
@@ -66,7 +68,7 @@ struct DynamicColumnBase : public ConstDynamicColumnBase {
 
 template <typename T>
 struct DynamicColumn : public DynamicColumnBase {
-  DynamicColumn(const std::string& name,
+  DynamicColumn(std::string_view name,
                 podio::UserDataCollection<T> collection = {})
       : DynamicColumnBase(name), m_collection{std::move(collection)} {}
 

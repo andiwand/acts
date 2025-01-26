@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -25,8 +25,7 @@
 
 using namespace Acts::UnitLiterals;
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 /// @brief Simplified stepper state
 struct StepperState {
@@ -45,7 +44,7 @@ struct NaivgatorState {
 /// @brief Simplified propagator state
 struct State {
   struct {
-    Direction direction = Direction::Forward;
+    Direction direction = Direction::Forward();
   } options;
 
   StepperState stepping;
@@ -83,10 +82,10 @@ struct Navigator {
 BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   // Create a Tracking Volume
   auto htrans = Transform3(Translation3{-10., -10., 0.});
-  auto bound = std::make_shared<const CuboidVolumeBounds>(1_m, 1_m, 1_m);
+  auto bound = std::make_shared<CuboidVolumeBounds>(1_m, 1_m, 1_m);
   auto mat = makeSilicon();
   auto volMat = std::make_shared<const HomogeneousVolumeMaterial>(mat);
-  auto volume = TrackingVolume::create(htrans, bound, volMat);
+  auto volume = std::make_shared<TrackingVolume>(htrans, bound, volMat);
 
   // Create a propagator state
   State state;
@@ -99,7 +98,7 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   state.stepping.q = 9.;
   state.stepping.absCharge = std::abs(state.stepping.q);
   state.stepping.covTransport = true;
-  state.options.direction = Direction::Backward;
+  state.options.direction = Direction::Backward();
   state.navigation.currentVolume = volume.get();
 
   Stepper stepper;
@@ -136,5 +135,4 @@ BOOST_AUTO_TEST_CASE(volume_material_interaction_test) {
   BOOST_CHECK_EQUAL(volMatInt.pathCorrection, 0.);
 }
 
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

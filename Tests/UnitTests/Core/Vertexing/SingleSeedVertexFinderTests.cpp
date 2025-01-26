@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -44,7 +44,7 @@ double getRndDouble(std::mt19937& gen, double from, double to) {
 /// @param to upper threshold
 /// @return random number in [from,to)
 int getRndInt(std::mt19937& gen, int from, int to) {
-  return (int)(gen() / 4294967296. * (to - from) + from);
+  return static_cast<int>(gen() / 4294967296. * (to - from) + from);
 }
 
 /// @brief Calculates equation of the plane (alpha*x + beta*y + gamma*z + delta = 0), given the three points
@@ -294,10 +294,10 @@ BOOST_AUTO_TEST_CASE(single_seed_vertex_finder_full_planes_test) {
         double x1 =
             (D * dirY + sgn * dirX * std::sqrt(r * r * dirR2 - D * D)) / dirR2;
         double y1 =
-            (-D * dirX + std::fabs(dirY) * std::sqrt(r * r * dirR2 - D * D)) /
+            (-D * dirX + std::abs(dirY) * std::sqrt(r * r * dirR2 - D * D)) /
             dirR2;
         // how many units from the vertex to the intersection
-        double zDist = std::fabs((x1 - posX) / dirX);
+        double zDist = std::abs((x1 - posX) / dirX);
 
         // position of the new spacepoint
         posX = x1;
@@ -411,11 +411,11 @@ BOOST_AUTO_TEST_CASE(single_seed_vertex_finder_full_rays_test) {
         double x1 =
             (D * dirY + part * sgn * dirX * std::sqrt(r * r * dirR2 - D * D)) /
             dirR2;
-        double y1 = (-D * dirX + part * std::fabs(dirY) *
-                                     std::sqrt(r * r * dirR2 - D * D)) /
+        double y1 = (-D * dirX +
+                     part * std::abs(dirY) * std::sqrt(r * r * dirR2 - D * D)) /
                     dirR2;
         // how many units from the vertex to the intersection
-        double zDist = std::fabs((x1 - vtxX) / dirX);
+        double zDist = std::abs((x1 - vtxX) / dirX);
         // use the same amount of units for distance in Z
         inputSpacepoints.emplace_back(x1, y1, zDist * dirZ + vtxZ);
       }

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Detector/VolumeStructureBuilder.hpp"
 
@@ -18,6 +18,8 @@
 #include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/StringHelpers.hpp"
+
+#include <numbers>
 
 Acts::Experimental::VolumeStructureBuilder::VolumeStructureBuilder(
     const Acts::Experimental::VolumeStructureBuilder::Config& cfg,
@@ -48,7 +50,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
 
   // The transform from the extent
   auto eTransform = Transform3::Identity();
-  std::vector<ActsScalar> boundValues = m_cfg.boundValues;
+  std::vector<double> boundValues = m_cfg.boundValues;
 
   // This code dispatches into the dedicated volume types
   switch (m_cfg.boundsType) {
@@ -62,8 +64,8 @@ Acts::Experimental::VolumeStructureBuilder::construct(
             "object. It needs at least 5 parameters, while " +
             std::to_string(boundValues.size()) + " where given");
       }
-      auto bArray = to_array<ConeVolumeBounds::BoundValues::eSize, ActsScalar>(
-          boundValues);
+      auto bArray =
+          toArray<ConeVolumeBounds::BoundValues::eSize, double>(boundValues);
       volumeBounds = std::make_unique<ConeVolumeBounds>(bArray);
     } break;
     case VolumeBounds::BoundsType::eCuboid: {
@@ -72,14 +74,16 @@ Acts::Experimental::VolumeStructureBuilder::construct(
       if (boundValues.empty() && m_cfg.extent.has_value()) {
         ACTS_VERBOSE("Cuboid: estimate parameters from Extent.");
         const auto& vExtent = m_cfg.extent.value();
-        if (vExtent.constrains(binX) && vExtent.constrains(binY) &&
-            vExtent.constrains(binZ)) {
-          eTransform.pretranslate(Vector3(vExtent.medium(binX),
-                                          vExtent.medium(binY),
-                                          vExtent.medium(binZ)));
-          boundValues = {0.5 * vExtent.interval(binX),
-                         0.5 * vExtent.interval(binY),
-                         0.5 * vExtent.interval(binZ)};
+        if (vExtent.constrains(AxisDirection::AxisX) &&
+            vExtent.constrains(AxisDirection::AxisY) &&
+            vExtent.constrains(AxisDirection::AxisZ)) {
+          eTransform.pretranslate(
+              Vector3(vExtent.medium(AxisDirection::AxisX),
+                      vExtent.medium(AxisDirection::AxisY),
+                      vExtent.medium(AxisDirection::AxisZ)));
+          boundValues = {0.5 * vExtent.interval(AxisDirection::AxisX),
+                         0.5 * vExtent.interval(AxisDirection::AxisY),
+                         0.5 * vExtent.interval(AxisDirection::AxisZ)};
 
         } else {
           throw std::runtime_error(
@@ -93,7 +97,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
             std::to_string(boundValues.size()) + " where given");
       }
       auto bArray =
-          to_array<CuboidVolumeBounds::BoundValues::eSize>(boundValues);
+          toArray<CuboidVolumeBounds::BoundValues::eSize>(boundValues);
       volumeBounds = std::make_unique<CuboidVolumeBounds>(bArray);
     } break;
     case VolumeBounds::BoundsType::eCutoutCylinder: {
@@ -107,7 +111,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
             std::to_string(boundValues.size()) + " where given");
       }
       auto bArray =
-          to_array<CutoutCylinderVolumeBounds::BoundValues::eSize>(boundValues);
+          toArray<CutoutCylinderVolumeBounds::BoundValues::eSize>(boundValues);
       volumeBounds = std::make_unique<CutoutCylinderVolumeBounds>(bArray);
     } break;
     case VolumeBounds::BoundsType::eCylinder: {
@@ -116,13 +120,17 @@ Acts::Experimental::VolumeStructureBuilder::construct(
       if (boundValues.empty() && m_cfg.extent.has_value()) {
         ACTS_VERBOSE("Cylinder: estimate parameters from Extent.");
         const auto& vExtent = m_cfg.extent.value();
-        if (vExtent.constrains(binR) && vExtent.constrains(binZ)) {
-          eTransform.pretranslate(Vector3(0., 0., vExtent.medium(binZ)));
-          boundValues = {vExtent.min(binR), vExtent.max(binR),
-                         0.5 * vExtent.interval(binZ)};
-          if (vExtent.constrains(binPhi)) {
-            boundValues.push_back(0.5 * vExtent.interval(binPhi));
-            boundValues.push_back(vExtent.medium(binPhi));
+        if (vExtent.constrains(AxisDirection::AxisR) &&
+            vExtent.constrains(AxisDirection::AxisZ)) {
+          eTransform.pretranslate(
+              Vector3(0., 0., vExtent.medium(AxisDirection::AxisZ)));
+          boundValues = {vExtent.min(AxisDirection::AxisR),
+                         vExtent.max(AxisDirection::AxisR),
+                         0.5 * vExtent.interval(AxisDirection::AxisZ)};
+          if (vExtent.constrains(AxisDirection::AxisPhi)) {
+            boundValues.push_back(0.5 *
+                                  vExtent.interval(AxisDirection::AxisPhi));
+            boundValues.push_back(vExtent.medium(AxisDirection::AxisPhi));
           }
         } else {
           throw std::runtime_error(
@@ -138,7 +146,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
       }
       // Check if phi has been constraint, otherwise fill it with full coverage
       if (boundValues.size() == 3u) {
-        boundValues.push_back(M_PI);
+        boundValues.push_back(std::numbers::pi);
         boundValues.push_back(0.);
       }
       ACTS_VERBOSE(" - cylindrical shape with [iR, oR, hZ, sPhi, mPhi] = "
@@ -146,7 +154,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
                    << boundValues[2] << ", " << boundValues[3] << ", "
                    << boundValues[4]);
       auto bArray =
-          to_array<CylinderVolumeBounds::BoundValues::eSize>(boundValues);
+          toArray<CylinderVolumeBounds::BoundValues::eSize>(boundValues);
       volumeBounds = std::make_unique<CylinderVolumeBounds>(bArray);
     } break;
     case VolumeBounds::BoundsType::eGenericCuboid: {
@@ -160,7 +168,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
             std::to_string(boundValues.size()) + " where given");
       }
       auto bArray =
-          to_array<GenericCuboidVolumeBounds::BoundValues::eSize>(boundValues);
+          toArray<GenericCuboidVolumeBounds::BoundValues::eSize>(boundValues);
       volumeBounds = std::make_unique<GenericCuboidVolumeBounds>(bArray);
     } break;
     case VolumeBounds::BoundsType::eTrapezoid: {
@@ -174,7 +182,7 @@ Acts::Experimental::VolumeStructureBuilder::construct(
             std::to_string(boundValues.size()) + " where given");
       }
       auto bArray =
-          to_array<TrapezoidVolumeBounds::BoundValues::eSize>(boundValues);
+          toArray<TrapezoidVolumeBounds::BoundValues::eSize>(boundValues);
       volumeBounds = std::make_unique<TrapezoidVolumeBounds>(bArray);
     } break;
     default:

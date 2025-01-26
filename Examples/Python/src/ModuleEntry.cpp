@@ -1,31 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/ActsVersion.hpp"
-#include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Geometry/GeometryIdentifier.hpp"
-#include "Acts/MagneticField/MagneticFieldContext.hpp"
-#include "Acts/Plugins/FpeMonitoring/FpeMonitor.hpp"
 #include "Acts/Plugins/Python/Utilities.hpp"
-#include "Acts/Utilities/CalibrationContext.hpp"
-#include "Acts/Utilities/Logger.hpp"
 
-#include <array>
-#include <cstdint>
-#include <cstdlib>
-#include <limits>
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <string>
 #include <tuple>
 #include <unordered_map>
-#include <vector>
 
 #include <pybind11/detail/common.h>
 #include <pybind11/functional.h>
@@ -39,6 +24,8 @@ namespace py = pybind11;
 using namespace Acts::Python;
 
 namespace Acts::Python {
+void addContext(Context& ctx);
+void addAny(Context& ctx);
 void addUnits(Context& ctx);
 void addFramework(Context& ctx);
 void addLogging(Context& ctx);
@@ -48,8 +35,10 @@ void addBinning(Context& ctx);
 void addEventData(Context& ctx);
 
 void addPropagation(Context& ctx);
+void addNavigation(Context& ctx);
 
 void addGeometry(Context& ctx);
+void addGeometryBuildingGen1(Context& ctx);
 void addExperimentalGeometry(Context& ctx);
 
 void addMagneticField(Context& ctx);
@@ -65,19 +54,24 @@ void addTrackFitting(Context& ctx);
 void addTrackFinding(Context& ctx);
 void addVertexing(Context& ctx);
 void addAmbiguityResolution(Context& ctx);
+void addUtilities(Context& ctx);
 
 // Plugins
 void addDigitization(Context& ctx);
 void addPythia8(Context& ctx);
+void addGeoModel(Context& ctx);
+void addTGeo(Context& ctx);
 void addJson(Context& ctx);
+void addDetray(Context& ctx);
 void addHepMC3(Context& ctx);
 void addExaTrkXTrackFinding(Context& ctx);
-void addEDM4hep(Context& ctx);
 void addSvg(Context& ctx);
 void addObj(Context& ctx);
 void addOnnx(Context& ctx);
-void addOnnxMlpack(Context& ctx);
 void addOnnxNeuralCalibrator(Context& ctx);
+void addCovfie(Context& ctx);
+void addTraccc(Context& ctx);
+void addHashing(Context& ctx);
 
 }  // namespace Acts::Python
 
@@ -93,6 +87,19 @@ PYBIND11_MODULE(ActsPythonBindings, m) {
   m.attr("__version__") =
       std::tuple{Acts::VersionMajor, Acts::VersionMinor, Acts::VersionPatch};
 
+  {
+    auto mv = m.def_submodule("version");
+
+    mv.attr("major") = Acts::VersionMajor;
+    mv.attr("minor") = Acts::VersionMinor;
+    mv.attr("patch") = Acts::VersionPatch;
+
+    mv.attr("commit_hash") = Acts::CommitHash;
+    mv.attr("commit_hash_short") = Acts::CommitHashShort;
+  }
+
+  addContext(ctx);
+  addAny(ctx);
   addUnits(ctx);
   addFramework(ctx);
   addLogging(ctx);
@@ -100,14 +107,16 @@ PYBIND11_MODULE(ActsPythonBindings, m) {
   addAlgebra(ctx);
   addBinning(ctx);
   addEventData(ctx);
+  addOutput(ctx);
 
   addPropagation(ctx);
+  addNavigation(ctx);
+  addGeometryBuildingGen1(ctx);
   addGeometry(ctx);
   addExperimentalGeometry(ctx);
 
   addMagneticField(ctx);
   addMaterial(ctx);
-  addOutput(ctx);
   addDetector(ctx);
   addExampleAlgorithms(ctx);
   addInput(ctx);
@@ -117,16 +126,21 @@ PYBIND11_MODULE(ActsPythonBindings, m) {
   addTrackFinding(ctx);
   addVertexing(ctx);
   addAmbiguityResolution(ctx);
+  addUtilities(ctx);
 
   addDigitization(ctx);
   addPythia8(ctx);
   addJson(ctx);
+  addGeoModel(ctx);
+  addTGeo(ctx);
+  addDetray(ctx);
   addHepMC3(ctx);
   addExaTrkXTrackFinding(ctx);
-  addEDM4hep(ctx);
   addObj(ctx);
   addSvg(ctx);
   addOnnx(ctx);
-  addOnnxMlpack(ctx);
   addOnnxNeuralCalibrator(ctx);
+  addCovfie(ctx);
+  addTraccc(ctx);
+  addHashing(ctx);
 }

@@ -1,22 +1,22 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/EventData/MultiTrajectory.hpp"
 #include "Acts/EventData/SourceLink.hpp"
+#include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/EventData/detail/CorrectedTransformationFreeToBound.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/CalibrationContext.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-namespace Acts {
-namespace detail {
+namespace Acts::detail {
 
 /// This function encapsulates the Kalman update performed on a MultiTrajectory
 /// for a single source link.
@@ -27,7 +27,7 @@ namespace detail {
 /// @param stepper The stepper
 /// @param extensions The extension used for the update
 /// @param surface The current surface
-/// @param source_link The source-link used for the update
+/// @param sourceLink The source link used for the update
 /// @param fittedStates The Multitrajectory to that we add the state
 /// @param lastTrackIndex The parent index for the new state in the MT
 /// @param doCovTransport Whether to perform a covariance transport when
@@ -38,19 +38,18 @@ template <typename propagator_state_t, typename stepper_t,
 auto kalmanHandleMeasurement(
     const CalibrationContext &calibrationContext, propagator_state_t &state,
     const stepper_t &stepper, const extensions_t &extensions,
-    const Surface &surface, const SourceLink &source_link, traj_t &fittedStates,
+    const Surface &surface, const SourceLink &sourceLink, traj_t &fittedStates,
     const std::size_t lastTrackIndex, bool doCovTransport, const Logger &logger,
     const FreeToBoundCorrection &freeToBoundCorrection = FreeToBoundCorrection(
         false)) -> Result<typename traj_t::TrackStateProxy> {
   // Add a <mask> TrackState entry multi trajectory. This allocates storage for
   // all components, which we will set later.
-  TrackStatePropMask mask = TrackStatePropMask::All;
-  const std::size_t currentTrackIndex =
-      fittedStates.addTrackState(mask, lastTrackIndex);
-
-  // now get track state proxy back
+  TrackStatePropMask mask =
+      TrackStatePropMask::Predicted | TrackStatePropMask::Filtered |
+      TrackStatePropMask::Smoothed | TrackStatePropMask::Jacobian |
+      TrackStatePropMask::Calibrated;
   typename traj_t::TrackStateProxy trackStateProxy =
-      fittedStates.getTrackState(currentTrackIndex);
+      fittedStates.makeTrackState(mask, lastTrackIndex);
 
   // Set the trackStateProxy components with the state from the ongoing
   // propagation
@@ -64,22 +63,19 @@ auto kalmanHandleMeasurement(
                                          << " failed: " << res.error());
       return res.error();
     }
-    auto &[boundParams, jacobian, pathLength] = *res;
+    const auto &[boundParams, jacobian, pathLength] = *res;
 
     // Fill the track state
-    trackStateProxy.predicted() = std::move(boundParams.parameters());
-    if (boundParams.covariance().has_value()) {
-      trackStateProxy.predictedCovariance() =
-          std::move(*boundParams.covariance());
-    }
+    trackStateProxy.predicted() = boundParams.parameters();
+    trackStateProxy.predictedCovariance() = state.stepping.cov;
 
-    trackStateProxy.jacobian() = std::move(jacobian);
-    trackStateProxy.pathLength() = std::move(pathLength);
+    trackStateProxy.jacobian() = jacobian;
+    trackStateProxy.pathLength() = pathLength;
   }
 
   // We have predicted parameters, so calibrate the uncalibrated input
   // measurement
-  extensions.calibrator(state.geoContext, calibrationContext, source_link,
+  extensions.calibrator(state.geoContext, calibrationContext, sourceLink,
                         trackStateProxy);
 
   // Get and set the type flags
@@ -98,8 +94,8 @@ auto kalmanHandleMeasurement(
     // Else, just tag it as an outlier
     if (!extensions.outlierFinder(trackStateProxy)) {
       // Run Kalman update
-      auto updateRes = extensions.updater(state.geoContext, trackStateProxy,
-                                          state.options.direction, logger);
+      auto updateRes =
+          extensions.updater(state.geoContext, trackStateProxy, logger);
       if (!updateRes.ok()) {
         ACTS_ERROR("Update step failed: " << updateRes.error());
         return updateRes.error();
@@ -109,7 +105,7 @@ auto kalmanHandleMeasurement(
     } else {
       ACTS_VERBOSE(
           "Filtering step successful. But measurement is determined "
-          "to be an outlier. Stepping state is not updated.")
+          "to be an outlier. Stepping state is not updated.");
       // Set the outlier type flag
       typeFlags.set(TrackStateFlag::OutlierFlag);
       trackStateProxy.shareFrom(trackStateProxy, TrackStatePropMask::Predicted,
@@ -139,19 +135,16 @@ template <typename propagator_state_t, typename stepper_t, typename traj_t>
 auto kalmanHandleNoMeasurement(
     propagator_state_t &state, const stepper_t &stepper, const Surface &surface,
     traj_t &fittedStates, const std::size_t lastTrackIndex, bool doCovTransport,
-    const Logger &logger,
+    const Logger &logger, const bool precedingMeasurementExists,
     const FreeToBoundCorrection &freeToBoundCorrection = FreeToBoundCorrection(
         false)) -> Result<typename traj_t::TrackStateProxy> {
   // Add a <mask> TrackState entry multi trajectory. This allocates storage for
   // all components, which we will set later.
-  TrackStatePropMask mask =
-      ~(TrackStatePropMask::Calibrated | TrackStatePropMask::Filtered);
-  const std::size_t currentTrackIndex =
-      fittedStates.addTrackState(mask, lastTrackIndex);
-
-  // now get track state proxy back
+  TrackStatePropMask mask = TrackStatePropMask::Predicted |
+                            TrackStatePropMask::Smoothed |
+                            TrackStatePropMask::Jacobian;
   typename traj_t::TrackStateProxy trackStateProxy =
-      fittedStates.getTrackState(currentTrackIndex);
+      fittedStates.makeTrackState(mask, lastTrackIndex);
 
   // Set the trackStateProxy components with the state from the ongoing
   // propagation
@@ -163,17 +156,14 @@ auto kalmanHandleNoMeasurement(
     if (!res.ok()) {
       return res.error();
     }
-    auto &[boundParams, jacobian, pathLength] = *res;
+    const auto &[boundParams, jacobian, pathLength] = *res;
 
     // Fill the track state
-    trackStateProxy.predicted() = std::move(boundParams.parameters());
-    if (boundParams.covariance().has_value()) {
-      trackStateProxy.predictedCovariance() =
-          std::move(*boundParams.covariance());
-    }
+    trackStateProxy.predicted() = boundParams.parameters();
+    trackStateProxy.predictedCovariance() = state.stepping.cov;
 
-    trackStateProxy.jacobian() = std::move(jacobian);
-    trackStateProxy.pathLength() = std::move(pathLength);
+    trackStateProxy.jacobian() = jacobian;
+    trackStateProxy.pathLength() = pathLength;
 
     // Set the filtered parameter index to be the same with predicted
     // parameter
@@ -182,21 +172,28 @@ auto kalmanHandleNoMeasurement(
   }
 
   // Set the track state flags
+  const bool surfaceHasMaterial = surface.surfaceMaterial() != nullptr;
+  const bool surfaceIsSensitive =
+      surface.associatedDetectorElement() != nullptr;
   auto typeFlags = trackStateProxy.typeFlags();
   typeFlags.set(TrackStateFlag::ParameterFlag);
-  if (surface.surfaceMaterial() != nullptr) {
+
+  if (surfaceHasMaterial) {
     typeFlags.set(TrackStateFlag::MaterialFlag);
   }
-  if (surface.associatedDetectorElement() != nullptr) {
+
+  if (surfaceIsSensitive && precedingMeasurementExists) {
     ACTS_VERBOSE("Detected hole on " << surface.geometryId());
     // If the surface is sensitive, set the hole type flag
     typeFlags.set(TrackStateFlag::HoleFlag);
-  } else if (surface.surfaceMaterial() != nullptr) {
+  } else if (surfaceIsSensitive) {
+    ACTS_VERBOSE("Skip hole (no preceding measurements) on surface "
+                 << surface.geometryId());
+  } else if (surfaceHasMaterial) {
     ACTS_VERBOSE("Detected in-sensitive surface " << surface.geometryId());
   }
 
   return trackStateProxy;
 }
 
-}  // namespace detail
-}  // namespace Acts
+}  // namespace Acts::detail

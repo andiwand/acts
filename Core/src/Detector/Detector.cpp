@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Detector/Detector.hpp"
 
@@ -21,14 +21,14 @@
 
 Acts::Experimental::Detector::Detector(
     std::string name, std::vector<std::shared_ptr<DetectorVolume>> rootVolumes,
-    DetectorVolumeUpdater detectorVolumeUpdater)
+    ExternalNavigationDelegate detectorVolumeFinder)
     : m_name(std::move(name)),
       m_rootVolumes(std::move(rootVolumes)),
-      m_detectorVolumeUpdater(std::move(detectorVolumeUpdater)) {
+      m_volumeFinder(std::move(detectorVolumeFinder)) {
   if (m_rootVolumes.internal.empty()) {
     throw std::invalid_argument("Detector: no volume were given.");
   }
-  if (!m_detectorVolumeUpdater.connected()) {
+  if (!m_volumeFinder.connected()) {
     throw std::invalid_argument(
         "Detector: volume finder delegate is not connected.");
   }
@@ -53,6 +53,9 @@ Acts::Experimental::Detector::Detector(
 
   // Fill the surface map
   std::unordered_map<GeometryIdentifier, const Surface*> surfaceGeoIdMap;
+  // Map for the volume geometry id
+  std::unordered_map<GeometryIdentifier, const DetectorVolume*> volumeGeoIdMap;
+
   // Check for unique names and fill the volume name / index map
   for (auto [iv, v] : enumerate(m_volumes.internal)) {
     // Assign this detector
@@ -61,15 +64,47 @@ Acts::Experimental::Detector::Detector(
     v->closePortals();
     // Store the name
     const std::string vName = v->name();
-    if (m_volumeNameIndex.find(vName) != m_volumeNameIndex.end()) {
+    if (m_volumeNameIndex.contains(vName)) {
       throw std::invalid_argument("Detector: duplicate volume name " + vName +
                                   " detected.");
     }
     m_volumeNameIndex[vName] = iv;
 
+    // ---------------------------------------------------------------
+    // Check volume geometry id
+    auto vgeoID = v->geometryId();
+    // Check for undefined geometry id
+    if (vgeoID.value() == 0u) {
+      throw std::invalid_argument("Detector: volume '" + v->name() +
+                                  "' with undefined geometry id detected" +
+                                  ". Make sure a GeometryIdGenerator is used.");
+    }
+    if (volumeGeoIdMap.contains(vgeoID)) {
+      std::stringstream ss;
+      ss << vgeoID;
+      throw std::invalid_argument("Detector: duplicate volume geometry id '" +
+                                  ss.str() + "' detected" +
+                                  ". Make sure a GeometryIdGenerator is used.");
+    }
+    volumeGeoIdMap.emplace(vgeoID, v.get());
+    // ---------------------------------------------------------------
+
     for (const auto* s : v->surfaces()) {
       auto sgeoID = s->geometryId();
-      if (surfaceGeoIdMap.find(sgeoID) != surfaceGeoIdMap.end()) {
+
+      // ---------------------------------------------------------------
+      // Check for undefined geometry id
+      if (sgeoID.value() == 0u) {
+        std::stringstream ss;
+        ss << s->name();
+        throw std::invalid_argument(
+            "Detector: surface '" + ss.str() + "' with undefined geometry id " +
+            "detected in volume '" + v->name() +
+            "'. Make sure a GeometryIdGenerator is used.");
+      }
+      // ---------------------------------------------------------------
+
+      if (surfaceGeoIdMap.contains(sgeoID)) {
         std::stringstream ss;
         ss << sgeoID;
         throw std::invalid_argument(
@@ -93,10 +128,10 @@ Acts::Experimental::Detector::Detector(
 std::shared_ptr<Acts::Experimental::Detector>
 Acts::Experimental::Detector::makeShared(
     std::string name, std::vector<std::shared_ptr<DetectorVolume>> rootVolumes,
-    DetectorVolumeUpdater detectorVolumeUpdater) {
+    ExternalNavigationDelegate detectorVolumeFinder) {
   return std::shared_ptr<Detector>(
       new Detector(std::move(name), std::move(rootVolumes),
-                   std::move(detectorVolumeUpdater)));
+                   std::move(detectorVolumeFinder)));
 }
 
 std::vector<std::shared_ptr<Acts::Experimental::DetectorVolume>>&
@@ -120,13 +155,13 @@ Acts::Experimental::Detector::volumes() const {
 }
 
 void Acts::Experimental::Detector::updateDetectorVolumeFinder(
-    DetectorVolumeUpdater detectorVolumeUpdater) {
-  m_detectorVolumeUpdater = std::move(detectorVolumeUpdater);
+    ExternalNavigationDelegate detectorVolumeFinder) {
+  m_volumeFinder = std::move(detectorVolumeFinder);
 }
 
-const Acts::Experimental::DetectorVolumeUpdater&
+const Acts::Experimental::ExternalNavigationDelegate&
 Acts::Experimental::Detector::detectorVolumeFinder() const {
-  return m_detectorVolumeUpdater;
+  return m_volumeFinder;
 }
 
 const std::string& Acts::Experimental::Detector::name() const {
@@ -145,7 +180,7 @@ Acts::Experimental::Detector::getSharedPtr() const {
 
 void Acts::Experimental::Detector::updateDetectorVolume(
     const GeometryContext& gctx, NavigationState& nState) const {
-  m_detectorVolumeUpdater(gctx, nState);
+  m_volumeFinder(gctx, nState);
 }
 
 const Acts::Experimental::DetectorVolume*
@@ -154,7 +189,7 @@ Acts::Experimental::Detector::findDetectorVolume(
   NavigationState nState;
   nState.currentDetector = this;
   nState.position = position;
-  m_detectorVolumeUpdater(gctx, nState);
+  m_volumeFinder(gctx, nState);
   return nState.currentVolume;
 }
 
@@ -171,4 +206,9 @@ Acts::Experimental::Detector::findDetectorVolume(
 const Acts::GeometryHierarchyMap<const Acts::Surface*>&
 Acts::Experimental::Detector::sensitiveHierarchyMap() const {
   return m_sensitiveHierarchyMap;
+}
+
+const Acts::Surface* Acts::Experimental::Detector::findSurface(
+    GeometryIdentifier geoID) const {
+  return *m_sensitiveHierarchyMap.find(geoID);
 }

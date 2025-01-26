@@ -1,18 +1,19 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Propagator/MultiEigenStepperLoop.hpp"
+#include "Acts/Propagator/MultiStepperError.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
 namespace Acts {
 
-template <typename E, typename R, typename A>
-auto MultiEigenStepperLoop<E, R, A>::boundState(
+template <typename E, typename R>
+auto MultiEigenStepperLoop<E, R>::boundState(
     State& state, const Surface& surface, bool transportCov,
     const FreeToBoundCorrection& freeToBoundCorrection) const
     -> Result<BoundState> {
@@ -33,10 +34,10 @@ auto MultiEigenStepperLoop<E, R, A>::boundState(
     // onSurface.
     cmpState.pars.template segment<3>(eFreePos0) =
         surface
-            .intersect(state.geoContext,
+            .intersect(state.options.geoContext,
                        cmpState.pars.template segment<3>(eFreePos0),
                        cmpState.pars.template segment<3>(eFreeDir0),
-                       BoundaryCheck(false))
+                       BoundaryTolerance::Infinite())
             .closest()
             .position();
 
@@ -62,14 +63,12 @@ auto MultiEigenStepperLoop<E, R, A>::boundState(
                     Jacobian::Zero(), accumulatedPathLength};
 }
 
-template <typename E, typename R, typename A>
-auto MultiEigenStepperLoop<E, R, A>::curvilinearState(State& state,
-                                                      bool transportCov) const
-    -> CurvilinearState {
+template <typename E, typename R>
+auto MultiEigenStepperLoop<E, R>::curvilinearState(
+    State& state, bool transportCov) const -> CurvilinearState {
   assert(!state.components.empty());
 
-  std::vector<
-      std::tuple<double, Vector4, Vector3, ActsScalar, BoundSquareMatrix>>
+  std::vector<std::tuple<double, Vector4, Vector3, double, BoundSquareMatrix>>
       cmps;
   cmps.reserve(numberComponents(state));
   double accumulatedPathLength = 0.0;
@@ -79,8 +78,8 @@ auto MultiEigenStepperLoop<E, R, A>::curvilinearState(State& state,
         state.components[i].state, transportCov);
 
     cmps.emplace_back(state.components[i].weight,
-                      cp.fourPosition(state.geoContext), cp.direction(),
-                      (cp.charge() / cp.absoluteMomentum()),
+                      cp.fourPosition(state.options.geoContext), cp.direction(),
+                      cp.qOverP(),
                       cp.covariance().value_or(BoundSquareMatrix::Zero()));
     accumulatedPathLength += state.components[i].weight * pl;
   }
@@ -90,11 +89,11 @@ auto MultiEigenStepperLoop<E, R, A>::curvilinearState(State& state,
       Jacobian::Zero(), accumulatedPathLength};
 }
 
-template <typename E, typename R, typename A>
+template <typename E, typename R>
 template <typename propagator_state_t, typename navigator_t>
-Result<double> MultiEigenStepperLoop<E, R, A>::step(
+Result<double> MultiEigenStepperLoop<E, R>::step(
     propagator_state_t& state, const navigator_t& navigator) const {
-  using Status = Acts::Intersection3D::Status;
+  using Status = Acts::IntersectionStatus;
 
   State& stepping = state.stepping;
   auto& components = stepping.components;
@@ -113,18 +112,21 @@ Result<double> MultiEigenStepperLoop<E, R, A>::step(
         m_stepLimitAfterFirstComponentOnSurface) {
       for (auto& cmp : components) {
         if (cmp.status != Status::onSurface) {
-          cmp.status = Status::missed;
+          cmp.status = Status::unreachable;
         }
       }
+
+      ACTS_VERBOSE("Stepper performed "
+                   << m_stepLimitAfterFirstComponentOnSurface
+                   << " steps after the first component hit a surface.");
+      ACTS_VERBOSE(
+          "-> remove all components not on a surface, perform no step");
 
       removeMissedComponents(stepping);
       reweightComponents(stepping);
 
-      ACTS_VERBOSE("Stepper performed "
-                   << m_stepLimitAfterFirstComponentOnSurface
-                   << " after the first component hit a surface.");
-      ACTS_VERBOSE(
-          "-> remove all components not on a surface, perform no step");
+      ACTS_VERBOSE(components.size()
+                   << " components left after removing missed components");
 
       stepping.stepCounterAfterFirstComponentOnSurface.reset();
 
@@ -138,10 +140,9 @@ Result<double> MultiEigenStepperLoop<E, R, A>::step(
   // If at least one component is on a surface, we can remove all missed
   // components before the step. If not, we must keep them for the case that all
   // components miss and we need to retarget
-  const auto cmpsOnSurface =
-      std::count_if(components.cbegin(), components.cend(), [&](auto& cmp) {
-        return cmp.status == Intersection3D::Status::onSurface;
-      });
+  const auto cmpsOnSurface = std::count_if(
+      components.cbegin(), components.cend(),
+      [&](auto& cmp) { return cmp.status == IntersectionStatus::onSurface; });
 
   if (cmpsOnSurface > 0) {
     removeMissedComponents(stepping);
@@ -186,7 +187,7 @@ Result<double> MultiEigenStepperLoop<E, R, A>::step(
   };
 
   // Loop over components and remove errorous components
-  stepping.components.erase(
+  components.erase(
       std::remove_if(components.begin(), components.end(), errorInStep),
       components.end());
 
@@ -220,8 +221,13 @@ Result<double> MultiEigenStepperLoop<E, R, A>::step(
   }
 
   // Return error if there is no ok result
-  if (stepping.components.empty()) {
+  if (components.empty()) {
     return MultiStepperError::AllComponentsSteppingError;
+  }
+
+  // Invalidate the component status after each step
+  for (auto& cmp : components) {
+    cmp.status = Status::unreachable;
   }
 
   // Return the weighted accumulated path length of all successful steps

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
@@ -14,9 +14,8 @@
 #include "Acts/EventData/MultiTrajectory.hpp"
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/EventData/TrackProxyConcept.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
-#include "Acts/EventData/detail/TransformationBoundToFree.hpp"
-#include "Acts/EventData/detail/TransformationFreeToBound.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
@@ -27,13 +26,14 @@
 
 #include <Eigen/src/Core/util/Memory.h>
 #include <boost/graph/graph_traits.hpp>
+#include <edm4hep/MCParticle.h>
+#include <edm4hep/MutableSimTrackerHit.h>
+#include <edm4hep/MutableTrack.h>
+#include <edm4hep/SimTrackerHit.h>
 #include <edm4hep/Track.h>
 #include <edm4hep/TrackState.h>
 
-#include "edm4hep/MutableTrack.h"
-
-namespace Acts {
-namespace EDM4hepUtil {
+namespace Acts::EDM4hepUtil {
 
 static constexpr std::int32_t EDM4HEP_ACTS_POSITION_TYPE = 42;
 
@@ -63,14 +63,16 @@ BoundTrackParameters convertTrackParametersFromEdm4hep(
 
 }  // namespace detail
 
-template <typename track_container_t, typename track_state_container_t,
-          template <typename> class holder_t>
-void writeTrack(
-    const Acts::GeometryContext& gctx,
-    Acts::TrackProxy<track_container_t, track_state_container_t, holder_t, true>
-        track,
-    edm4hep::MutableTrack to, double Bz,
-    const Logger& logger = getDummyLogger()) {
+// Compatibility with EDM4hep < 0.99 and >= 0.99
+edm4hep::MCParticle getParticle(const edm4hep::SimTrackerHit& hit);
+
+void setParticle(edm4hep::MutableSimTrackerHit& hit,
+                 const edm4hep::MCParticle& particle);
+
+template <TrackProxyConcept track_proxy_t>
+void writeTrack(const Acts::GeometryContext& gctx, track_proxy_t track,
+                edm4hep::MutableTrack to, double Bz,
+                const Logger& logger = getDummyLogger()) {
   ACTS_VERBOSE("Converting track to EDM4hep");
   to.setChi2(track.chi2());
   to.setNdf(track.nDoF());
@@ -167,13 +169,9 @@ void writeTrack(
   }
 }
 
-template <typename track_container_t, typename track_state_container_t,
-          template <typename> class holder_t>
-void readTrack(const edm4hep::Track& from,
-               Acts::TrackProxy<track_container_t, track_state_container_t,
-                                holder_t, false>
-                   track,
-               double Bz, const Logger& logger = getDummyLogger()) {
+template <TrackProxyConcept track_proxy_t>
+void readTrack(const edm4hep::Track& from, track_proxy_t track, double Bz,
+               const Logger& logger = getDummyLogger()) {
   ACTS_VERBOSE("Reading track from EDM4hep");
   TrackStatePropMask mask = TrackStatePropMask::Smoothed;
 
@@ -182,7 +180,8 @@ void readTrack(const edm4hep::Track& from,
   auto unpack =
       [](const edm4hep::TrackState& trackState) -> detail::Parameters {
     detail::Parameters params;
-    params.covariance = ActsSquareMatrix<6>{};
+    params.covariance = BoundMatrix::Zero();
+    params.values = BoundVector::Zero();
     detail::unpackCovariance(trackState.covMatrix.data(),
                              params.covariance.value());
     params.values[0] = trackState.D0;
@@ -249,5 +248,4 @@ void readTrack(const edm4hep::Track& from,
   track.nMeasurements() = track.nTrackStates();
 }
 
-}  // namespace EDM4hepUtil
-}  // namespace Acts
+}  // namespace Acts::EDM4hepUtil

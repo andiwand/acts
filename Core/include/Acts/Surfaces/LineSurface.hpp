@@ -1,23 +1,22 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Alignment.hpp"
 #include "Acts/Definitions/Tolerance.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Geometry/Polyhedron.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
-#include "Acts/Surfaces/InfiniteBounds.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/LineBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Result.hpp"
 
 #include <memory>
@@ -80,9 +79,6 @@ class LineSurface : public Surface {
               const Transform3& shift);
 
  public:
-  ~LineSurface() override = default;
-  LineSurface() = delete;
-
   /// Assignment operator
   ///
   /// @param other is the source surface dor copying
@@ -95,11 +91,11 @@ class LineSurface : public Surface {
   /// for a certain binning type
   ///
   /// @param gctx The current geometry context object, e.g. alignment
-  /// @param bValue is the binning type to be used
+  /// @param aDir is the axis direction for the reference position request
   ///
   /// @return position that can beused for this binning
-  Vector3 binningPosition(const GeometryContext& gctx,
-                          BinningValue bValue) const final;
+  Vector3 referencePosition(const GeometryContext& gctx,
+                            AxisDirection aDir) const final;
 
   /// Return the measurement frame - this is needed for alignment, in particular
   ///
@@ -121,21 +117,25 @@ class LineSurface : public Surface {
   /// hence the calculation is done here.
   ///
   /// @param gctx The current geometry context object, e.g. alignment
-  /// @param boundParams is the bound parameters vector
+  /// @param position global 3D position
+  /// @param direction global 3D momentum direction
   ///
   /// @return Jacobian from local to global
-  BoundToFreeMatrix boundToFreeJacobian(
-      const GeometryContext& gctx, const BoundVector& boundParams) const final;
+  BoundToFreeMatrix boundToFreeJacobian(const GeometryContext& gctx,
+                                        const Vector3& position,
+                                        const Vector3& direction) const final;
 
   /// Calculate the derivative of path length at the geometry constraint or
   /// point-of-closest-approach w.r.t. free parameters
   ///
   /// @param gctx The current geometry context object, e.g. alignment
-  /// @param parameters is the free parameters
+  /// @param position global 3D position
+  /// @param direction global 3D momentum direction
   ///
   /// @return Derivative of path length w.r.t. free parameters
-  FreeToPathMatrix freeToPathDerivative(
-      const GeometryContext& gctx, const FreeVector& parameters) const final;
+  FreeToPathMatrix freeToPathDerivative(const GeometryContext& gctx,
+                                        const Vector3& position,
+                                        const Vector3& direction) const final;
 
   /// Local to global transformation
   ///
@@ -236,14 +236,15 @@ class LineSurface : public Surface {
   /// @param position The global position as a starting point
   /// @param direction The global direction at the starting point
   ///        @note expected to be normalized
-  /// @param bcheck The boundary check directive for the estimate
+  /// @param boundaryTolerance The boundary check directive for the estimate
   /// @param tolerance the tolerance used for the intersection
   /// @return is the intersection object
   SurfaceMultiIntersection intersect(
       const GeometryContext& gctx, const Vector3& position,
       const Vector3& direction,
-      const BoundaryCheck& bcheck = BoundaryCheck(false),
-      ActsScalar tolerance = s_onSurfaceTolerance) const final;
+      const BoundaryTolerance& boundaryTolerance =
+          BoundaryTolerance::Infinite(),
+      double tolerance = s_onSurfaceTolerance) const final;
 
   /// the pathCorrection for derived classes with thickness
   /// is by definition 1 for LineSurfaces
@@ -265,11 +266,13 @@ class LineSurface : public Surface {
   /// represented with extrinsic Euler angles)
   ///
   /// @param gctx The current geometry context object, e.g. alignment
-  /// @param parameters is the free parameters
+  /// @param position global 3D position
+  /// @param direction global 3D momentum direction
   ///
   /// @return Derivative of path length w.r.t. the alignment parameters
   AlignmentToPathMatrix alignmentToPathDerivative(
-      const GeometryContext& gctx, const FreeVector& parameters) const final;
+      const GeometryContext& gctx, const Vector3& position,
+      const Vector3& direction) const final;
 
   /// Calculate the derivative of bound track parameters local position w.r.t.
   /// position in local 3D Cartesian coordinates

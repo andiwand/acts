@@ -1,26 +1,27 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/HepMC3/HepMC3Writer.hpp"
 
 #include "ActsExamples/Utilities/Paths.hpp"
 
-ActsExamples::HepMC3AsciiWriter::HepMC3AsciiWriter(const Config& config,
-                                                   Acts::Logging::Level level)
-    : WriterT(config.inputEvents, "HepMC3EventWriter", level), m_cfg(config) {
+namespace ActsExamples {
+
+HepMC3AsciiWriter::HepMC3AsciiWriter(const Config& config,
+                                     Acts::Logging::Level level)
+    : WriterT(config.inputEvents, "HepMC3AsciiWriter", level), m_cfg(config) {
   if (m_cfg.outputStem.empty()) {
     throw std::invalid_argument("Missing output stem file name");
   }
 }
 
-ActsExamples::ProcessCode ActsExamples::HepMC3AsciiWriter::writeT(
-    const ActsExamples::AlgorithmContext& ctx,
-    const std::vector<HepMC3::GenEvent>& events) {
+ProcessCode HepMC3AsciiWriter::writeT(
+    const AlgorithmContext& ctx, const std::vector<HepMC3::GenEvent>& events) {
   auto path = perEventFilepath(m_cfg.outputDir, m_cfg.outputStem + ".hepmc3",
                                ctx.eventNumber);
 
@@ -30,10 +31,12 @@ ActsExamples::ProcessCode ActsExamples::HepMC3AsciiWriter::writeT(
   for (const auto& event : events) {
     writer.write_event(event);
     if (writer.failed()) {
-      return ActsExamples::ProcessCode::ABORT;
+      return ProcessCode::ABORT;
     }
   }
 
   writer.close();
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

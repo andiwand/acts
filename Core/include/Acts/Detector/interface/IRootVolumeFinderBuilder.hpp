@@ -1,22 +1,20 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Navigation/DetectorVolumeUpdaters.hpp"
+#include "Acts/Navigation/PortalNavigation.hpp"
 
 #include <memory>
 #include <vector>
 
-namespace Acts {
-
-namespace Experimental {
+namespace Acts::Experimental {
 
 class DetectorVolume;
 
@@ -32,11 +30,10 @@ class IRootVolumeFinderBuilder {
   /// @param rootVolumes the root volumes to be used for the search
   ///
   /// @return a shared detector object
-  virtual DetectorVolumeUpdater construct(
+  virtual ExternalNavigationDelegate construct(
       const GeometryContext& gctx,
       const std::vector<std::shared_ptr<DetectorVolume>>& rootVolumes)
       const = 0;
 };
 
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -21,9 +21,7 @@
 class G4ParticleGun;
 class G4Event;
 
-namespace ActsExamples {
-
-namespace Geant4::HepMC3 {
+namespace ActsExamples::Geant4::HepMC3 {
 
 /// The PrimaryGeneratorAction is the implementation of the Geant4
 /// class G4VUserPrimaryGeneratorAction. It generates a random direction
@@ -53,6 +51,5 @@ class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
   /// The Geant4 particle table
   G4ParticleTable* m_particleTable;
 };
-}  // namespace Geant4::HepMC3
 
-}  // namespace ActsExamples
+}  // namespace ActsExamples::Geant4::HepMC3

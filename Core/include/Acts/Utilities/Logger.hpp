@@ -1,17 +1,15 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 // STL include(s)
-#include <cassert>
 #include <ctime>
-#include <exception>
-#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -22,6 +20,8 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+
+/// @defgroup Logging Logging
 
 // clang-format off
 /// @brief macro to use a local Acts::Logger object
@@ -64,11 +64,14 @@
 
 // Debug level agnostic implementation of the ACTS_XYZ logging macros
 #define ACTS_LOG(level, x)                                                     \
-  if (logger().doPrint(level)) {                                               \
-    std::ostringstream os;                                                     \
-    os << x;                                                                   \
-    logger().log(level, os.str());                                             \
-  }
+  do {                                                                         \
+    if (logger().doPrint(level)) {                                             \
+      std::ostringstream os;                                                   \
+      os << x;                                                                 \
+      logger().log(level, os.str());                                           \
+    }                                                                          \
+  }                                                                            \
+  while(0)
 
 /// @brief macro for verbose debug output
 /// @ingroup Logging
@@ -233,6 +236,22 @@ class ThresholdFailure : public std::runtime_error {
   using std::runtime_error::runtime_error;
 };
 
+/// Helper class that changes the failure threshold for the duration of its
+/// lifetime.
+class ScopedFailureThreshold {
+ public:
+  explicit ScopedFailureThreshold(Level level) { setFailureThreshold(level); }
+  ScopedFailureThreshold(const ScopedFailureThreshold&) = delete;
+  ScopedFailureThreshold& operator=(const ScopedFailureThreshold&) = delete;
+  ScopedFailureThreshold(ScopedFailureThreshold&&) = delete;
+  ScopedFailureThreshold& operator=(ScopedFailureThreshold&&) = delete;
+
+  ~ScopedFailureThreshold() noexcept;
+
+ private:
+  Level m_previousLevel{getFailureThreshold()};
+};
+
 /// @brief abstract base class for printing debug output
 ///
 /// Implementations of this interface need to define how and where to @a print
@@ -302,7 +321,7 @@ class DefaultFilterPolicy final : public OutputFilterPolicy {
           "the ACTS_LOG_FAILURE_THRESHOLD=" +
           std::string{levelName(getFailureThreshold())} +
           " configuration. See "
-          "https://acts.readthedocs.io/en/latest/core/"
+          "https://acts.readthedocs.io/en/latest/core/misc/"
           "logging.html#logging-thresholds");
     }
   }
@@ -461,7 +480,9 @@ class TimedOutputDecorator final : public OutputDecorator {
     char buffer[20];
     time_t t{};
     std::time(&t);
-    std::strftime(buffer, sizeof(buffer), m_format.c_str(), localtime(&t));
+    struct tm tbuf {};
+    std::strftime(buffer, sizeof(buffer), m_format.c_str(),
+                  localtime_r(&t, &tbuf));
     return buffer;
   }
 
@@ -572,7 +593,7 @@ class DefaultPrintPolicy final : public OutputPrintPolicy {
           "ACTS_LOG_FAILURE_THRESHOLD=" +
           std::string{levelName(getFailureThreshold())} +
           " configuration, bailing out. See "
-          "https://acts.readthedocs.io/en/latest/core/"
+          "https://acts.readthedocs.io/en/latest/core/misc/"
           "logging.html#logging-thresholds");
     }
   }
@@ -590,11 +611,9 @@ class DefaultPrintPolicy final : public OutputPrintPolicy {
   };
 
   /// Make a copy of this print policy with a new name
-  /// @param name the new name
   /// @return the copy
   std::unique_ptr<OutputPrintPolicy> clone(
-      const std::string& name) const override {
-    (void)name;
+      const std::string& /*name*/) const override {
     return std::make_unique<DefaultPrintPolicy>(m_out);
   };
 

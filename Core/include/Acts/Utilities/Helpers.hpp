@@ -1,21 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <optional>
-#include <string>
+#include <type_traits>
 #include <vector>
 
 #define ACTS_CHECK_BIT(value, mask) ((value & mask) == mask)
@@ -70,22 +70,24 @@ std::vector<const T*> unpack_shared_const_vector(
   return rawPtrs;
 }
 
-/// This can be abandoned with C++20 to use the std::to_array method
+/// @brief Converts a vector to a fixed-size array with truncating or padding.
 ///
-/// @note only the first kDIM elements will obviously be filled, if the
-/// vector tends to be longer, it is truncated
+/// This function copies elements from the input vector into a fixed-size array.
+/// If the vector contains more than `kDIM` elements, the array is truncated to
+/// fit. If the vector contains fewer elements than `kDIM`, the remaining array
+/// elements are value-initialized (default-initialized, i.e., filled with zero
+/// or default values).
 ///
-/// @param vecvals the vector of bound values to be converted
-/// @return an array with the filled values
-template <std::size_t kDIM, typename value_type>
-std::array<value_type, kDIM> to_array(const std::vector<value_type>& vecvals) {
-  std::array<value_type, kDIM> rarray = {};
-  for (const auto [iv, v] : enumerate(vecvals)) {
-    if (iv < kDIM) {
-      rarray[iv] = v;
-    }
-  }
-  return rarray;
+/// @tparam kDIM The size of the resulting array.
+/// @tparam value_t The type of elements in the vector and the array.
+/// @param vecvals The input vector to be converted to an array.
+///
+/// @return An array containing the first `kDIM` elements of the vector.
+template <std::size_t kDIM, typename value_t>
+std::array<value_t, kDIM> toArray(const std::vector<value_t>& vecvals) {
+  std::array<value_t, kDIM> arr = {};
+  std::copy_n(vecvals.begin(), std::min(vecvals.size(), kDIM), arr.begin());
+  return arr;
 }
 
 /// @brief Dispatch a call based on a runtime value on a function taking the
@@ -163,21 +165,7 @@ T clampValue(U value) {
                     static_cast<U>(std::numeric_limits<T>::max()));
 }
 
-/// Return min/max from a (optionally) sorted series, obsolete with C++20
-/// (ranges)
-///
-/// @tparam T a numeric series
-///
-/// @param tseries is the number series
-///
-/// @return [ min, max ] in an array of length 2
-template <typename T>
-std::array<typename T::value_type, 2u> min_max(const T& tseries) {
-  return {*std::min_element(tseries.begin(), tseries.end()),
-          *std::max_element(tseries.begin(), tseries.end())};
-}
-
-/// Return range and medium of a sorted numeric series
+/// Return range and medium of an unsorted numeric series
 ///
 /// @tparam T a numeric series
 ///
@@ -185,11 +173,95 @@ std::array<typename T::value_type, 2u> min_max(const T& tseries) {
 ///
 /// @return [ range, medium ] in an tuple
 template <typename T>
-std::tuple<typename T::value_type, ActsScalar> range_medium(const T& tseries) {
-  auto [min, max] = min_max(tseries);
-  typename T::value_type range = (max - min);
-  ActsScalar medium = static_cast<ActsScalar>((max + min) * 0.5);
-  return std::tie(range, medium);
+std::tuple<typename T::value_type, double> range_medium(const T& tseries) {
+  auto [minIt, maxIt] = std::ranges::minmax_element(tseries);
+  typename T::value_type range = (*maxIt - *minIt);
+  double medium = static_cast<double>((*maxIt + *minIt) * 0.5);
+  return {range, medium};
 }
+
+template <typename enum_t>
+constexpr std::underlying_type_t<enum_t> toUnderlying(enum_t value) {
+  return static_cast<std::underlying_type_t<enum_t>>(value);
+}
+
+/// This can be replaced with C++23 to use the std::ranges::contains method
+///
+/// This function searches through the given range for a specified value
+/// and returns `true` if the value is found, or `false` otherwise.
+///
+/// @tparam R The type of the range (e.g., vector, list, array).
+/// @tparam T The type of the value to search for within the range.
+///
+/// @param range The range to search within. This can be any range-compatible container.
+/// @param value The value to search for in the range.
+///
+/// @return `true` if the value is found within the range, `false` otherwise.
+template <typename R, typename T>
+bool rangeContainsValue(const R& range, const T& value) {
+  return std::ranges::find(range, value) != std::ranges::end(range);
+}
+
+/// Helper struct that can turn a set of lambdas into a single entity with
+/// overloaded call operator. This can be useful for example in a std::visit
+/// call.
+/// ```cpp
+/// std::visit(overloaded{
+///  [](const int& i) { std::cout << "int: " << i << std::endl; },
+///  [](const std::string& s) { std::cout << "string: " << s << std::endl; },
+/// }, variant);
+/// ```
+template <class... Ts>
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
+
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
+namespace detail {
+
+/// Computes the minimum, maximum, and bin count for a given vector of values.
+///
+/// This function processes a vector of doubles to compute:
+/// - The minimum value (@c xMin)
+/// - The maximum value (@c xMax), adjusted to include an additional bin
+/// - The bin count (@c xBinCount) based on the number of unique values
+///
+/// The computation is performed as follows:
+/// 1. Sorts the input vector using @c std::ranges::sort to prepare for uniqueness.
+/// 2. Determines the number of unique values using @c std::unique and calculates the bin count.
+/// 3. Calculates the minimum and maximum using @c std::ranges::minmax.
+/// 4. Adjusts the maximum to include an additional bin by adding the bin step
+/// size.
+///
+/// @param xPos A reference to a vector of doubles.
+/// @return A tuple containing:
+///         - The minimum value (double)
+///         - The adjusted maximum value (double)
+///         - The bin count (std::size_t)
+///
+/// @note The vector xPos will be modified during the call.
+inline auto getMinMaxAndBinCount(std::vector<double>& xPos) {
+  // sort the values for unique()
+  std::ranges::sort(xPos);
+
+  // get the number of bins over unique values
+  auto it = std::unique(xPos.begin(), xPos.end());
+  const std::size_t xBinCount = std::distance(xPos.begin(), it);
+
+  // get the minimum and maximum
+  auto [xMin, xMax] = std::ranges::minmax(xPos);
+
+  // calculate maxima (add one last bin, because bin value always corresponds to
+  // left boundary)
+  const double stepX = (xMax - xMin) / static_cast<double>(xBinCount - 1);
+  xMax += stepX;
+
+  // Return all values as a tuple
+  return std::make_tuple(xMin, xMax, xBinCount);
+}
+
+}  // namespace detail
 
 }  // namespace Acts

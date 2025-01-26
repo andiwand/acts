@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -29,8 +29,7 @@
 
 using namespace Acts::UnitLiterals;
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 // Create a test context
 GeometryContext tgContext = GeometryContext();
@@ -83,7 +82,6 @@ BOOST_AUTO_TEST_CASE(SimpleGeometryTest) {
   bpvConfig.layerBuilder = beamPipeBuilder;
   bpvConfig.layerEnvelopeR = {1_mm, 1_mm};
   bpvConfig.buildToRadiusZero = true;
-  bpvConfig.volumeSignature = 0;
   auto beamPipeVolumeBuilder = std::make_shared<const CylinderVolumeBuilder>(
       bpvConfig, getDefaultLogger("BeamPipeVolumeBuilder", volumeLLevel));
 
@@ -102,7 +100,6 @@ BOOST_AUTO_TEST_CASE(SimpleGeometryTest) {
   cvbConfig.layerBuilder = layerBuilder;
   cvbConfig.layerEnvelopeR = {1_mm, 1_mm};
   cvbConfig.buildToRadiusZero = false;
-  cvbConfig.volumeSignature = 0;
   auto centralVolumeBuilder = std::make_shared<const CylinderVolumeBuilder>(
       cvbConfig, getDefaultLogger("CentralVolumeBuilder", volumeLLevel));
 
@@ -123,5 +120,4 @@ BOOST_AUTO_TEST_CASE(SimpleGeometryTest) {
 
   BOOST_CHECK(tGeometry != nullptr);
 }
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

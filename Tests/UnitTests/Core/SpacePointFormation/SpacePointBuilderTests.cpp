@@ -1,20 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/EventData/GenericCurvilinearTrackParameters.hpp"
-#include "Acts/EventData/Measurement.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/EventData/detail/TestSourceLink.hpp"
@@ -26,7 +23,6 @@
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
-#include "Acts/Propagator/StraightLineStepper.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilder.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderConfig.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderOptions.hpp"
@@ -35,10 +31,8 @@
 #include "Acts/Tests/CommonHelpers/MeasurementsCreator.hpp"
 #include "Acts/Tests/CommonHelpers/TestSpacePoint.hpp"
 
-#include <algorithm>
 #include <iostream>
 #include <iterator>
-#include <map>
 #include <memory>
 #include <optional>
 #include <random>
@@ -46,17 +40,15 @@
 #include <vector>
 
 namespace bdata = boost::unit_test::data;
+using namespace Acts::UnitLiterals;
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
-using namespace UnitLiterals;
-
-using StraightPropagator = Propagator<StraightLineStepper, Navigator>;
 using TestSourceLink = detail::Test::TestSourceLink;
 using ConstantFieldStepper = EigenStepper<>;
 using ConstantFieldPropagator = Propagator<ConstantFieldStepper, Navigator>;
-// Construct initial track parameters.
+
+/// Construct initial track parameters.
 CurvilinearTrackParameters makeParameters(double phi, double theta, double p,
                                           double q) {
   // create covariance matrix from reasonable standard deviations
@@ -96,7 +88,7 @@ std::pair<Vector3, Vector3> stripEnds(
   auto gPos1 = surface->localToGlobal(gctx, lpos1, globalFakeMom);
   auto gPos2 = surface->localToGlobal(gctx, lpos2, globalFakeMom);
 
-  return std::make_pair(gPos1, gPos2);
+  return {gPos1, gPos2};
 }
 
 // Create a test context
@@ -178,10 +170,11 @@ BOOST_DATA_TEST_CASE(SpacePointBuilder_basic, bdata::xrange(1), index) {
 
   Vector3 vertex = Vector3(-3_m, 0., 0.);
 
-  auto spConstructor = [](const Vector3& pos, const Vector2& cov,
+  auto spConstructor = [](const Vector3& pos, const std::optional<double>& t,
+                          const Vector2& cov, const std::optional<double>& covT,
                           boost::container::static_vector<SourceLink, 2> slinks)
       -> TestSpacePoint {
-    return TestSpacePoint(pos, cov[0], cov[1], std::move(slinks));
+    return TestSpacePoint(pos, t, cov[0], cov[1], covT, std::move(slinks));
   };
 
   auto spBuilderConfig = SpacePointBuilderConfig();
@@ -319,5 +312,4 @@ BOOST_DATA_TEST_CASE(SpacePointBuilder_basic, bdata::xrange(1), index) {
   BOOST_CHECK_EQUAL(spacePoints.size(), 6);
 }
 
-}  // end of namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

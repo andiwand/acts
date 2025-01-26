@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -70,9 +70,9 @@ class DD4hepDetectorSurfaceFactory {
     /// Optionally provide an Extent object to measure the passive
     std::optional<Extent> pExtent = std::nullopt;
     /// Optionally provide an Extent constraints to measure the layers
-    std::vector<BinningValue> extentContraints = {};
-    /// The approximination for extent measuring
-    std::size_t nExtentSegments = 1u;
+    std::vector<AxisDirection> extentConstraints = {};
+    /// The approximination of a circle quarter for extent measuring
+    std::size_t nExtentQSegments = 1u;
   };
 
   /// Nested options struct to steer the conversion
@@ -82,17 +82,15 @@ class DD4hepDetectorSurfaceFactory {
     /// Convert passive surfaces
     bool convertPassive = true;
     /// Convert material directly
-    bool convertMaterial = true;
-    /// Convert proxy material - overrides convertMaterial if present
-    bool convertProxyMaterial = true;
+    bool convertMaterial = false;
     /// New reference material thickness for surfaces
-    ActsScalar surfaceMaterialThickness = 1_mm;
+    double surfaceMaterialThickness = 1_mm;
   };
 
   /// The DD4hep detector element factory
   ///
   /// @param mlogger a screen output logger
-  DD4hepDetectorSurfaceFactory(
+  explicit DD4hepDetectorSurfaceFactory(
       std::unique_ptr<const Logger> mlogger = getDefaultLogger(
           "DD4hepDetectorSurfaceFactory", Acts::Logging::INFO));
 
@@ -110,7 +108,7 @@ class DD4hepDetectorSurfaceFactory {
 
  private:
   /// @brief  auto-calculate the unit length conversion
-  static constexpr ActsScalar unitLength =
+  static constexpr double unitLength =
       Acts::UnitConstants::mm / dd4hep::millimeter;
 
   /// Logging instance
@@ -161,6 +159,8 @@ class DD4hepDetectorSurfaceFactory {
 
   /// Attach surface material if present
   ///
+  /// @param gctx the geometry context
+  /// @param prefix the acts prefix for the variant parameter string
   /// @param dd4hepElement the detector element
   /// @param surface the surface to attach the material to
   /// @param thickness the thickness of the condensed component
@@ -170,8 +170,10 @@ class DD4hepDetectorSurfaceFactory {
   /// extent of the sensitive surface and register it
   ///
   /// @note void function that also checks the options if the attachment should be applied
-  void attachSurfaceMaterial(const dd4hep::DetElement& dd4hepElement,
-                             Acts::Surface& surface, ActsScalar thickness,
+  void attachSurfaceMaterial(const GeometryContext& gctx,
+                             const std::string& prefix,
+                             const dd4hep::DetElement& dd4hepElement,
+                             Acts::Surface& surface, double thickness,
                              const Options& options) const;
 };
 

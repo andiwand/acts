@@ -1,15 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 
+#include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/MultiTrajectory.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
+#include "Acts/EventData/Types.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 
 #include <iomanip>
@@ -22,9 +24,8 @@
 
 namespace Acts {
 
-auto VectorMultiTrajectory::addTrackState_impl(TrackStatePropMask mask,
-                                               IndexType iprevious)
-    -> IndexType {
+auto VectorMultiTrajectory::addTrackState_impl(
+    TrackStatePropMask mask, IndexType iprevious) -> IndexType {
   using PropMask = TrackStatePropMask;
 
   m_index.emplace_back();
@@ -66,16 +67,16 @@ auto VectorMultiTrajectory::addTrackState_impl(TrackStatePropMask mask,
   }
 
   m_sourceLinks.emplace_back(std::nullopt);
-  p.iuncalibrated = m_sourceLinks.size() - 1;
+  p.iUncalibrated = m_sourceLinks.size() - 1;
 
   m_measOffset.push_back(kInvalid);
   m_measCovOffset.push_back(kInvalid);
 
   if (ACTS_CHECK_BIT(mask, PropMask::Calibrated)) {
     m_sourceLinks.emplace_back(std::nullopt);
-    p.icalibratedsourcelink = m_sourceLinks.size() - 1;
+    p.iCalibratedSourceLink = m_sourceLinks.size() - 1;
 
-    m_projectors.emplace_back();
+    m_projectors.push_back(0);
     p.iprojector = m_projectors.size() - 1;
   }
 
@@ -85,6 +86,56 @@ auto VectorMultiTrajectory::addTrackState_impl(TrackStatePropMask mask,
   }
 
   return index;
+}
+
+void VectorMultiTrajectory::addTrackStateComponents_impl(
+    IndexType istate, TrackStatePropMask mask) {
+  using PropMask = TrackStatePropMask;
+
+  IndexData& p = m_index[istate];
+  PropMask currentMask = p.allocMask;
+
+  assert(m_params.size() == m_cov.size());
+
+  if (ACTS_CHECK_BIT(mask, PropMask::Predicted) &&
+      !ACTS_CHECK_BIT(currentMask, PropMask::Predicted)) {
+    m_params.emplace_back();
+    m_cov.emplace_back();
+    p.ipredicted = m_params.size() - 1;
+  }
+
+  if (ACTS_CHECK_BIT(mask, PropMask::Filtered) &&
+      !ACTS_CHECK_BIT(currentMask, PropMask::Filtered)) {
+    m_params.emplace_back();
+    m_cov.emplace_back();
+    p.ifiltered = m_params.size() - 1;
+  }
+
+  if (ACTS_CHECK_BIT(mask, PropMask::Smoothed) &&
+      !ACTS_CHECK_BIT(currentMask, PropMask::Smoothed)) {
+    m_params.emplace_back();
+    m_cov.emplace_back();
+    p.ismoothed = m_params.size() - 1;
+  }
+
+  assert(m_params.size() == m_cov.size());
+
+  if (ACTS_CHECK_BIT(mask, PropMask::Jacobian) &&
+      !ACTS_CHECK_BIT(currentMask, PropMask::Jacobian)) {
+    m_jac.emplace_back();
+    p.ijacobian = m_jac.size() - 1;
+  }
+
+  if (ACTS_CHECK_BIT(mask, PropMask::Calibrated) &&
+      !ACTS_CHECK_BIT(currentMask, PropMask::Calibrated)) {
+    m_sourceLinks.emplace_back(std::nullopt);
+    p.iCalibratedSourceLink = m_sourceLinks.size() - 1;
+
+    m_projectors.push_back(0);
+    p.iprojector = m_projectors.size() - 1;
+  }
+
+  p.allocMask |= mask;
 }
 
 void VectorMultiTrajectory::shareFrom_impl(IndexType iself, IndexType iother,
@@ -161,6 +212,7 @@ void VectorMultiTrajectory::unset_impl(TrackStatePropMask target,
     case PM::Calibrated:
       m_measOffset[istate] = kInvalid;
       m_measCovOffset[istate] = kInvalid;
+      m_index[istate].measdim = kInvalid;
       break;
     default:
       throw std::domain_error{"Unable to unset this component"};
@@ -202,7 +254,7 @@ void detail_vmt::VectorMultiTrajectoryBase::Statistics::toStream(
       os << std::fixed << std::setw(8) << std::setprecision(2) << v / n
          << suffix;
     } else {
-      os << std::fixed << std::setw(8) << double(v) / n << suffix;
+      os << std::fixed << std::setw(8) << static_cast<double>(v) / n << suffix;
     }
     os << std::endl;
   };

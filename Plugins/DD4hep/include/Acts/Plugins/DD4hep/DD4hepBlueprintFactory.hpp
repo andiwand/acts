@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -28,8 +28,7 @@
 #include <DD4hep/DD4hepUnits.h>
 #include <DD4hep/DetElement.h>
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 
 class DD4hepBlueprintFactory {
  public:
@@ -37,6 +36,9 @@ class DD4hepBlueprintFactory {
   struct Config {
     std::shared_ptr<Experimental::DD4hepLayerStructure> layerStructure =
         nullptr;
+
+    /// The maximum number of portals to be checked for protal material
+    unsigned int maxPortals = 8u;
   };
 
   /// @brief Nested cache object for the detector store
@@ -66,7 +68,7 @@ class DD4hepBlueprintFactory {
 
  private:
   /// @brief auto-calculate the unit length conversion
-  static constexpr ActsScalar unitLength =
+  static constexpr double unitLength =
       Acts::UnitConstants::mm / dd4hep::millimeter;
 
   /// Configuration struct
@@ -98,8 +100,8 @@ class DD4hepBlueprintFactory {
   /// @param extOpt the optional extent as output from the internal parsing
   ///
   /// @return a tuple of the bounds type, values and binning, auxiliary data
-  std::tuple<Transform3, VolumeBounds::BoundsType, std::vector<ActsScalar>,
-             std::vector<BinningValue>, std::string>
+  std::tuple<Transform3, VolumeBounds::BoundsType, std::vector<double>,
+             std::vector<AxisDirection>, std::string>
   extractExternals([[maybe_unused]] const GeometryContext& gctx,
                    const dd4hep::DetElement& dd4hepElement,
                    const std::string& baseName,
@@ -130,5 +132,4 @@ class DD4hepBlueprintFactory {
                    const std::string& baseName) const;
 };
 
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -15,8 +15,12 @@
 #include <HepMC3/GenParticle.h>
 #include <HepMC3/GenVertex.h>
 
-namespace ActsExamples {
-namespace HepMC3Particle {
+namespace ActsExamples::HepMC3Particle {
+
+/// @brief Returns the barcode translated into Acts
+/// @param particle HepMC3::GenParticle particle
+/// @return corresponding Acts barcode
+SimBarcode barcode(const HepMC3::ConstGenParticlePtr& particle);
 
 /// @brief Returns the particle translated into Acts
 /// @param particle HepMC3::GenParticle particle
@@ -88,5 +92,4 @@ void energy(const std::shared_ptr<HepMC3::GenParticle>& particle,
 void mass(const std::shared_ptr<HepMC3::GenParticle>& particle,
           const double mass);
 
-}  // namespace HepMC3Particle
-}  // namespace ActsExamples
+}  // namespace ActsExamples::HepMC3Particle

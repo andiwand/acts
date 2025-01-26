@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Detector/CylindricalContainerBuilder.hpp"
 
@@ -23,11 +23,9 @@
 #include <stdexcept>
 #include <utility>
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 class DetectorVolume;
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental
 
 namespace {
 
@@ -46,25 +44,25 @@ namespace {
 template <typename object_collection>
 Acts::Experimental::DetectorComponent::PortalContainer connect(
     const Acts::GeometryContext& gctx, object_collection& objects,
-    const std::vector<Acts::BinningValue>& binning,
+    const std::vector<Acts::AxisDirection>& binning,
     Acts::Logging::Level logLevel) {
   // Return container object
   Acts::Experimental::DetectorComponent::PortalContainer portalContainer;
   if (binning.size() == 1u) {
-    Acts::BinningValue bv = binning.front();
+    Acts::AxisDirection bv = binning.front();
     // 1-dimensional binning options
     switch (bv) {
-      case Acts::binR: {
+      case Acts::AxisDirection::AxisR: {
         portalContainer =
             Acts::Experimental::detail::CylindricalDetectorHelper::connectInR(
                 gctx, objects, {}, logLevel);
       } break;
-      case Acts::binZ: {
+      case Acts::AxisDirection::AxisZ: {
         portalContainer =
             Acts::Experimental::detail::CylindricalDetectorHelper::connectInZ(
                 gctx, objects, {}, logLevel);
       } break;
-      case Acts::binPhi: {
+      case Acts::AxisDirection::AxisPhi: {
         portalContainer =
             Acts::Experimental::detail::CylindricalDetectorHelper::connectInPhi(
                 gctx, objects, {}, logLevel);
@@ -73,7 +71,8 @@ Acts::Experimental::DetectorComponent::PortalContainer connect(
         break;
     }
   } else if (binning ==
-                 std::vector<Acts::BinningValue>{Acts::binZ, Acts::binR} &&
+                 std::vector<Acts::AxisDirection>{Acts::AxisDirection::AxisZ,
+                                                  Acts::AxisDirection::AxisR} &&
              objects.size() == 2u) {
     portalContainer =
         Acts::Experimental::detail::CylindricalDetectorHelper::wrapInZR(
@@ -96,7 +95,8 @@ Acts::Experimental::CylindricalContainerBuilder::CylindricalContainerBuilder(
   if (m_cfg.binning.size() == 1u) {
     // 1-dimensional case
     auto b = m_cfg.binning.front();
-    if (b != Acts::binR && b != Acts::binZ && b != Acts::binPhi) {
+    if (b != Acts::AxisDirection::AxisR && b != Acts::AxisDirection::AxisZ &&
+        b != Acts::AxisDirection::AxisPhi) {
       throw std::invalid_argument(
           "CylindricalContainerBuilder: 1D binning only supported in z, r, or "
           "phi");
@@ -104,7 +104,8 @@ Acts::Experimental::CylindricalContainerBuilder::CylindricalContainerBuilder(
   } else if (m_cfg.binning.size() == 2u) {
     // 2-dimensional case, this is for wrapping
     if (m_cfg.binning !=
-        std::vector<Acts::BinningValue>{Acts::binZ, Acts::binR}) {
+        std::vector<Acts::AxisDirection>{Acts::AxisDirection::AxisZ,
+                                         Acts::AxisDirection::AxisR}) {
       throw std::invalid_argument(
           "CylindricalContainerBuilder: 2D binning only supports wrapping in "
           "z-r.");
@@ -145,6 +146,8 @@ Acts::Experimental::CylindricalContainerBuilder::CylindricalContainerBuilder(
       dvCfg.name = child->name;
       dvCfg.externalsBuilder = vsBuilder;
       dvCfg.internalsBuilder = child->internalsBuilder;
+      dvCfg.geoIdGenerator = child->geoIdGenerator;
+      dvCfg.portalMaterialBinning = child->portalMaterialBinning;
       dvCfg.auxiliary = "*** acts auto-generated volume builder ***";
       // Add the builder
       m_cfg.builders.push_back(std::make_shared<DetectorVolumeBuilder>(
@@ -156,10 +159,42 @@ Acts::Experimental::CylindricalContainerBuilder::CylindricalContainerBuilder(
     }
   }
 
+  if (m_cfg.builders.empty()) {
+    throw std::invalid_argument(
+        "CylindricalContainerBuilder: no sub builders provided.");
+  }
   m_cfg.binning = bpNode.binning;
+  // Check if binning value is correctly chosen
+  if (m_cfg.binning.size() == 1u) {
+    // 1-dimensional case
+    auto b = m_cfg.binning.front();
+    if (b != Acts::AxisDirection::AxisR && b != Acts::AxisDirection::AxisZ &&
+        b != Acts::AxisDirection::AxisPhi) {
+      throw std::invalid_argument(
+          "CylindricalContainerBuilder: 1D binning only supported in z, r, or "
+          "phi");
+    }
+  } else if (m_cfg.binning.size() == 2u) {
+    // 2-dimensional case, this is for wrapping
+    if (m_cfg.binning !=
+        std::vector<Acts::AxisDirection>{Acts::AxisDirection::AxisZ,
+                                         Acts::AxisDirection::AxisR}) {
+      throw std::invalid_argument(
+          "CylindricalContainerBuilder: 2D binning only supports wrapping in "
+          "z-r.");
+    } else if (m_cfg.builders.size() != 2u) {
+      // Wrapping needs exactly one inner (volume or container) and one outer
+      // volume
+      throw std::invalid_argument(
+          "CylindricalContainerBuilder: 2D wrapping in z-r requires exactly "
+          "two builders.");
+    }
+  }
+
   m_cfg.auxiliary = "*** acts auto-generated from proxy ***";
   m_cfg.geoIdGenerator = bpNode.geoIdGenerator;
   m_cfg.rootVolumeFinderBuilder = bpNode.rootVolumeFinderBuilder;
+  m_cfg.portalMaterialBinning = bpNode.portalMaterialBinning;
 }
 
 Acts::Experimental::DetectorComponent
@@ -205,17 +240,6 @@ Acts::Experimental::CylindricalContainerBuilder::construct(
   }
   ACTS_VERBOSE("Number of root volumes: " << rootVolumes.size());
 
-  // Check if a root volume finder is provided
-  if (m_cfg.rootVolumeFinderBuilder) {
-    // Return the container
-    return Acts::Experimental::DetectorComponent{
-        {},
-        portalContainer,
-        RootDetectorVolumes{
-            rootVolumes,
-            m_cfg.rootVolumeFinderBuilder->construct(gctx, rootVolumes)}};
-  }
-
   // Geometry Id generation
   if (m_cfg.geoIdGenerator != nullptr) {
     ACTS_DEBUG("Assigning geometry ids to the detector");
@@ -235,8 +259,8 @@ Acts::Experimental::CylindricalContainerBuilder::construct(
 
   // Assign the proto material
   // Material assignment from configuration
-  for (auto [ip, bDescription] : m_cfg.portalMaterialBinning) {
-    if (portalContainer.find(ip) != portalContainer.end()) {
+  for (const auto& [ip, bDescription] : m_cfg.portalMaterialBinning) {
+    if (portalContainer.contains(ip)) {
       auto bd = detail::ProtoMaterialHelper::attachProtoMaterial(
           gctx, portalContainer[ip]->surface(), bDescription);
       ACTS_VERBOSE("-> Assigning proto material to portal " << ip << " with "
@@ -244,7 +268,18 @@ Acts::Experimental::CylindricalContainerBuilder::construct(
     }
   }
 
+  // Check if a root volume finder is provided
+  if (m_cfg.rootVolumeFinderBuilder) {
+    // Return the container
+    return Acts::Experimental::DetectorComponent{
+        volumes, portalContainer,
+        RootDetectorVolumes{
+            rootVolumes,
+            m_cfg.rootVolumeFinderBuilder->construct(gctx, rootVolumes)}};
+  }
+
   // Return the container
   return Acts::Experimental::DetectorComponent{
-      {}, portalContainer, RootDetectorVolumes{rootVolumes, tryRootVolumes()}};
+      volumes, portalContainer,
+      RootDetectorVolumes{rootVolumes, tryRootVolumes()}};
 }

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/DD4hep/DD4hepLayerStructure.hpp"
 
@@ -26,7 +26,7 @@ Acts::Experimental::DD4hepLayerStructure::builder(
     DD4hepDetectorElement::Store& dd4hepStore, const GeometryContext& gctx,
     const dd4hep::DetElement& dd4hepElement, const Options& options) const {
   // Check for misconfiguration with double naming
-  if (dd4hepStore.find(options.name) != dd4hepStore.end()) {
+  if (dd4hepStore.contains(options.name)) {
     std::string reMessage = "DD4hepLayerStructure: structure with name '";
     reMessage += options.name;
     reMessage += "' already registered in DetectorElementStore";
@@ -37,8 +37,8 @@ Acts::Experimental::DD4hepLayerStructure::builder(
   DD4hepDetectorSurfaceFactory::Cache fCache;
   fCache.sExtent = options.extent;
   fCache.pExtent = options.extent;
-  fCache.extentContraints = options.extentContraints;
-  fCache.nExtentSegments = options.nSegments;
+  fCache.extentConstraints = options.extentConstraints;
+  fCache.nExtentQSegments = options.quarterSegments;
   m_surfaceFactory->construct(fCache, gctx, dd4hepElement,
                               options.conversionOptions);
 
@@ -68,13 +68,13 @@ Acts::Experimental::DD4hepLayerStructure::builder(
     // Check if the binning
     ACTS_VERBOSE("Checking if surface binning ranges can be patched.");
     for (auto& b : fCache.binnings) {
-      if (extent.constrains(b.binValue)) {
-        ACTS_VERBOSE("Binning '" << binningValueNames()[b.binValue]
+      if (extent.constrains(b.axisDir)) {
+        ACTS_VERBOSE("Binning '" << axisDirectionName(b.axisDir)
                                  << "' is patched.");
         ACTS_VERBOSE(" <- from : [" << b.edges.front() << ", " << b.edges.back()
                                     << "]");
-        b.edges.front() = extent.min(b.binValue);
-        b.edges.back() = extent.max(b.binValue);
+        b.edges.front() = extent.min(b.axisDir);
+        b.edges.back() = extent.max(b.axisDir);
         ACTS_VERBOSE(" -> to   : [" << b.edges.front() << ", " << b.edges.back()
                                     << "]");
       }
@@ -93,14 +93,14 @@ Acts::Experimental::DD4hepLayerStructure::builder(
   cElements.reserve(fCache.sensitiveSurfaces.size());
 
   // Fill them in to the surface provider struct and detector store
-  for (auto [de, ds] : fCache.sensitiveSurfaces) {
+  for (const auto& [de, ds] : fCache.sensitiveSurfaces) {
     lSurfaces.push_back(ds);
     cElements.push_back(de);
   }
   dd4hepStore[options.name] = cElements;
 
   // Passive surfaces to be added
-  for (auto [ps, toAll] : fCache.passiveSurfaces) {
+  for (const auto& [ps, toAll] : fCache.passiveSurfaces) {
     // Passive surface is not declared to be added to all navigation bins
     if (!toAll) {
       lSurfaces.push_back(ps);

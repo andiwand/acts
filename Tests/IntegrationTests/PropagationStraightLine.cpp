@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -99,10 +99,10 @@ BOOST_DATA_TEST_CASE(ToStrawAlongZ,
 
 // check covariance transport using the ridders propagator for comparison
 
-BOOST_DATA_TEST_CASE(
-    CovarianceCurvilinear,
-    ds::phi* ds::theta* ds::absMomentum* ds::chargeNonZero* ds::pathLength, phi,
-    theta, p, q, s) {
+BOOST_DATA_TEST_CASE(CovarianceCurvilinear,
+                     ds::phi* ds::thetaWithoutBeam* ds::absMomentum*
+                         ds::chargeNonZero* ds::pathLength,
+                     phi, theta, p, q, s) {
   runForwardComparisonTest(
       propagator, riddersPropagator, geoCtx, magCtx,
       makeParametersCurvilinearWithCovariance(phi, theta, p, q), s, epsPos,
@@ -129,10 +129,10 @@ BOOST_DATA_TEST_CASE(CovarianceToDisc,
       DiscSurfaceBuilder(), epsPos, epsDir, epsMom, epsCov);
 }
 
-BOOST_DATA_TEST_CASE(
-    CovarianceToPlane,
-    ds::phi* ds::theta* ds::absMomentum* ds::chargeNonZero* ds::pathLength, phi,
-    theta, p, q, s) {
+BOOST_DATA_TEST_CASE(CovarianceToPlane,
+                     ds::phi* ds::thetaWithoutBeam* ds::absMomentum*
+                         ds::chargeNonZero* ds::pathLength,
+                     phi, theta, p, q, s) {
   runToSurfaceComparisonTest(
       propagator, riddersPropagator, geoCtx, magCtx,
       makeParametersCurvilinearWithCovariance(phi, theta, p, q), s,

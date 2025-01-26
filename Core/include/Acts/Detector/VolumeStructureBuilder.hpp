@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -19,8 +19,7 @@
 #include <optional>
 #include <string>
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 
 /// This class provides the external detector volume structure, configured
 /// either from:
@@ -43,7 +42,7 @@ class VolumeStructureBuilder : public IExternalStructureBuilder {
     /// The starting transform
     Transform3 transform = Transform3::Identity();
     /// The values (if already defined)
-    std::vector<ActsScalar> boundValues = {};
+    std::vector<double> boundValues = {};
     /// The optional extent to feed into the values
     std::optional<Extent> extent = std::nullopt;
     /// Some auxiliary information
@@ -77,5 +76,4 @@ class VolumeStructureBuilder : public IExternalStructureBuilder {
   std::unique_ptr<const Logger> m_logger;
 };
 
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental

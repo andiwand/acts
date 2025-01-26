@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -16,7 +16,7 @@
 #include "Acts/Geometry/CylinderVolumeBounds.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Navigation/DetectorVolumeFinders.hpp"
-#include "Acts/Navigation/SurfaceCandidatesUpdaters.hpp"
+#include "Acts/Navigation/InternalNavigation.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Tests/CommonHelpers/DetectorElementStub.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
@@ -43,7 +43,7 @@ std::vector<std::shared_ptr<DetectorVolume>> createVolumes(
       portalGenerator, tContext, "Gap0Volume", Transform3::Identity(),
       std::move(gap0VoumeBounds), {}, {}, tryNoVolumes(), tryAllPortals());
 
-  std::vector<ActsScalar> layer0Radii = {100, 102, 104, 106, 108, 110};
+  std::vector<double> layer0Radii = {100, 102, 104, 106, 108, 110};
   auto layer0VolumeBounds =
       std::make_unique<CylinderVolumeBounds>(80, 130, 200);
   std::vector<std::shared_ptr<Surface>> layer0Surfaces = {};
@@ -92,7 +92,7 @@ struct GeoIdIncrementer : public IGeometryIdGenerator {
   ///
   /// @param cache is the cache object for e.g. object counting
   /// @param dVolume the detector volume to assign the geometry id to
-  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*unused*/,
+  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*cache*/,
                         DetectorVolume& dVolume) const final {
     auto vgid = dVolume.geometryId();
     vgid.setVolume(vgid.volume() + 1);
@@ -103,7 +103,7 @@ struct GeoIdIncrementer : public IGeometryIdGenerator {
   ///
   /// @param cache is the cache object for e.g. object counting
   /// @param portal the portal to assign the geometry id to
-  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*unused*/,
+  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*cache*/,
                         Portal& portal) const final {
     auto pgid = portal.surface().geometryId();
     pgid.setBoundary(pgid.boundary() + 1);
@@ -114,7 +114,7 @@ struct GeoIdIncrementer : public IGeometryIdGenerator {
   ///
   /// @param cache is the cache object for e.g. object counting
   /// @param surface the surface to assign the geometry id to
-  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*unused*/,
+  void assignGeometryId(IGeometryIdGenerator::GeoIdCache& /*cache*/,
                         Surface& surface) const final {
     auto sgid = surface.geometryId();
     if (sgid.sensitive() != 0u) {

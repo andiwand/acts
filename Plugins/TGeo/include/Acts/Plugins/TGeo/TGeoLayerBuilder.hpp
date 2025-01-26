@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -15,7 +15,6 @@
 #include "Acts/Geometry/LayerCreator.hpp"
 #include "Acts/Geometry/ProtoLayerHelper.hpp"
 #include "Acts/Geometry/SurfaceBinningMatcher.hpp"
-#include "Acts/Plugins/Identification/Identifier.hpp"
 #include "Acts/Plugins/TGeo/ITGeoIdentifierProvider.hpp"
 #include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Logger.hpp"
@@ -59,9 +58,9 @@ class TGeoLayerBuilder : public ILayerBuilder {
   ///  Helper config structs for volume parsing
   struct LayerConfig {
    public:
-    using RangeConfig = std::pair<BinningValue, std::pair<double, double>>;
+    using RangeConfig = std::pair<AxisDirection, std::pair<double, double>>;
 
-    using SplitConfig = std::pair<BinningValue, double>;
+    using SplitConfig = std::pair<AxisDirection, double>;
 
     /// Identify the search volume by name
     std::string volumeName = "";
@@ -91,13 +90,14 @@ class TGeoLayerBuilder : public ILayerBuilder {
   };
 
   using ElementFactory = std::function<std::shared_ptr<TGeoDetectorElement>(
-      const Identifier&, const TGeoNode&, const TGeoMatrix& tGeoMatrix,
-      const std::string& axes, double scalor,
+      const TGeoDetectorElement::Identifier&, const TGeoNode&,
+      const TGeoMatrix& tGeoMatrix, const std::string& axes, double scalor,
       std::shared_ptr<const Acts::ISurfaceMaterial> material)>;
 
   static std::shared_ptr<TGeoDetectorElement> defaultElementFactory(
-      const Identifier& identifier, const TGeoNode& tGeoNode,
-      const TGeoMatrix& tGeoMatrix, const std::string& axes, double scalor,
+      const TGeoDetectorElement::Identifier& identifier,
+      const TGeoNode& tGeoNode, const TGeoMatrix& tGeoMatrix,
+      const std::string& axes, double scalor,
       std::shared_ptr<const Acts::ISurfaceMaterial> material);
 
   /// @struct Config

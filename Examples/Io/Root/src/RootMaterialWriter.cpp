@@ -1,13 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/Root/RootMaterialWriter.hpp"
 
+#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/ApproachDescriptor.hpp"
 #include "Acts/Geometry/BoundarySurfaceT.hpp"
 #include "Acts/Geometry/Layer.hpp"
@@ -24,6 +25,7 @@
 #include "Acts/Utilities/BinUtility.hpp"
 #include "Acts/Utilities/BinnedArray.hpp"
 #include "Acts/Utilities/BinningData.hpp"
+#include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include <Acts/Geometry/GeometryIdentifier.hpp>
 #include <Acts/Material/BinnedSurfaceMaterial.hpp>
@@ -128,9 +130,9 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
       std::size_t b = 1;
       for (auto bData : binningData) {
         // Fill: nbins, value, option, min, max
-        n->SetBinContent(b, int(binningData[b - 1].bins()));
-        v->SetBinContent(b, int(binningData[b - 1].binvalue));
-        o->SetBinContent(b, int(binningData[b - 1].option));
+        n->SetBinContent(b, static_cast<int>(binningData[b - 1].bins()));
+        v->SetBinContent(b, static_cast<int>(binningData[b - 1].binvalue));
+        o->SetBinContent(b, static_cast<int>(binningData[b - 1].option));
         min->SetBinContent(b, binningData[b - 1].min);
         max->SetBinContent(b, binningData[b - 1].max);
         ++b;
@@ -156,11 +158,10 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
                          -0.5, bins0 - 0.5, bins1, -0.5, bins1 - 0.5);
 
     // loop over the material and fill
-    for (std::size_t b0 = 0; b0 < bins0; ++b0) {
-      for (std::size_t b1 = 0; b1 < bins1; ++b1) {
-        // get the material for the bin
-        auto& mat = sMaterial->materialSlab(b0, b1);
-        if (mat) {
+    if (bsm != nullptr) {
+      const auto& materialMatrix = bsm->fullMaterial();
+      for (auto [b1, materialVector] : Acts::enumerate(materialMatrix)) {
+        for (auto [b0, mat] : Acts::enumerate(materialVector)) {
           t->SetBinContent(b0 + 1, b1 + 1, mat.thickness());
           x0->SetBinContent(b0 + 1, b1 + 1, mat.material().X0());
           l0->SetBinContent(b0 + 1, b1 + 1, mat.material().L0());
@@ -169,6 +170,15 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
           rho->SetBinContent(b0 + 1, b1 + 1, mat.material().massDensity());
         }
       }
+    } else if (bins1 == 1 && bins0 == 1) {
+      // homogeneous surface
+      auto mat = sMaterial->materialSlab(Acts::Vector3{0, 0, 0});
+      t->SetBinContent(1, 1, mat.thickness());
+      x0->SetBinContent(1, 1, mat.material().X0());
+      l0->SetBinContent(1, 1, mat.material().L0());
+      A->SetBinContent(1, 1, mat.material().Ar());
+      Z->SetBinContent(1, 1, mat.material().Z());
+      rho->SetBinContent(1, 1, mat.material().massDensity());
     }
     t->Write();
     x0->Write();
@@ -182,6 +192,10 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
   for (auto& [key, value] : volumeMaps) {
     // Get the Volume material
     const Acts::IVolumeMaterial* vMaterial = value.get();
+    if (vMaterial == nullptr) {
+      ACTS_WARNING("No material for volume " << key << " skipping");
+      continue;
+    }
 
     // get the geometry ID
     Acts::GeometryIdentifier geoID = key;
@@ -245,9 +259,9 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
       std::size_t b = 1;
       for (auto bData : binningData) {
         // Fill: nbins, value, option, min, max
-        n->SetBinContent(b, int(binningData[b - 1].bins()));
-        v->SetBinContent(b, int(binningData[b - 1].binvalue));
-        o->SetBinContent(b, int(binningData[b - 1].option));
+        n->SetBinContent(b, static_cast<int>(binningData[b - 1].bins()));
+        v->SetBinContent(b, static_cast<int>(binningData[b - 1].binvalue));
+        o->SetBinContent(b, static_cast<int>(binningData[b - 1].option));
         min->SetBinContent(b, binningData[b - 1].min);
         max->SetBinContent(b, binningData[b - 1].max);
         ++b;
@@ -283,7 +297,7 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
         Acts::MaterialGrid3D grid = bvMaterial3D->getMapper().getGrid();
         for (std::size_t point = 0; point < points; point++) {
           auto mat = Acts::Material(grid.at(point));
-          if (mat) {
+          if (mat.isValid()) {
             x0->SetBinContent(point + 1, mat.X0());
             l0->SetBinContent(point + 1, mat.L0());
             A->SetBinContent(point + 1, mat.Ar());
@@ -297,7 +311,7 @@ void ActsExamples::RootMaterialWriter::writeMaterial(
         Acts::MaterialGrid2D grid = bvMaterial2D->getMapper().getGrid();
         for (std::size_t point = 0; point < points; point++) {
           auto mat = Acts::Material(grid.at(point));
-          if (mat) {
+          if (mat.isValid()) {
             x0->SetBinContent(point + 1, mat.X0());
             l0->SetBinContent(point + 1, mat.L0());
             A->SetBinContent(point + 1, mat.Ar());
@@ -337,12 +351,14 @@ void ActsExamples::RootMaterialWriter::collectMaterial(
     const Acts::TrackingVolume& tVolume,
     Acts::DetectorMaterialMaps& detMatMap) {
   // If the volume has volume material, write that
-  if (tVolume.volumeMaterialSharedPtr() != nullptr && m_cfg.processVolumes) {
-    detMatMap.second[tVolume.geometryId()] = tVolume.volumeMaterialSharedPtr();
+  if (tVolume.volumeMaterialPtr() != nullptr && m_cfg.processVolumes) {
+    detMatMap.second[tVolume.geometryId()] = tVolume.volumeMaterialPtr();
   }
 
   // If confined layers exist, loop over them and collect the layer material
   if (tVolume.confinedLayers() != nullptr) {
+    ACTS_VERBOSE("Collecting material for " << tVolume.volumeName()
+                                            << " layers");
     for (auto& lay : tVolume.confinedLayers()->arrayObjects()) {
       collectMaterial(*lay, detMatMap);
     }

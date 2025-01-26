@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -21,8 +21,7 @@
 #include <memory>
 #include <utility>
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 BOOST_AUTO_TEST_CASE(VolumeTest) {
   using namespace Acts::UnitLiterals;
@@ -32,7 +31,7 @@ BOOST_AUTO_TEST_CASE(VolumeTest) {
   Vector3 translation{1_mm, 2_mm, 3_mm};
 
   // Build a translation
-  ActsMatrix<3, 3> rotation = RotationMatrix3::Identity();
+  SquareMatrix3 rotation = RotationMatrix3::Identity();
   double rotationAngle = 60_degree;
   Vector3 xPos(cos(rotationAngle), 0., sin(rotationAngle));
   Vector3 yPos(0., 1., 0.);
@@ -48,7 +47,7 @@ BOOST_AUTO_TEST_CASE(VolumeTest) {
   CuboidVolumeBounds bounds(4_mm, 5_mm, 6_mm);
 
   // Build and test the volume
-  Volume volume(transform, std::make_shared<const CuboidVolumeBounds>(bounds));
+  Volume volume(transform, std::make_shared<CuboidVolumeBounds>(bounds));
   BOOST_CHECK_EQUAL(volume.transform().matrix(), transform.matrix());
   CHECK_CLOSE_ABS(volume.itransform().matrix(), transform.inverse().matrix(),
                   eps);
@@ -73,8 +72,29 @@ BOOST_AUTO_TEST_CASE(VolumeTest) {
 
   // Binning test
   GeometryContext gctx;
-  BOOST_CHECK_EQUAL(volume.binningPosition(gctx, binX), volume.center());
+  BOOST_CHECK_EQUAL(volume.referencePosition(gctx, AxisDirection::AxisX),
+                    volume.center());
 }
 
-}  // namespace Test
-}  // namespace Acts
+BOOST_AUTO_TEST_CASE(VolumeUpdateTest) {
+  using namespace Acts::UnitLiterals;
+  auto volBounds = std::make_shared<CuboidVolumeBounds>(4_mm, 5_mm, 6_mm);
+  auto volBounds2 = std::make_shared<CuboidVolumeBounds>(4_mm, 5_mm, 8_mm);
+
+  Transform3 trf = Transform3::Identity();
+
+  Volume volume(trf, volBounds);
+
+  // Only update the bounds, keep the transform the same
+  volume.update(volBounds2, std::nullopt);
+  BOOST_CHECK_EQUAL(&volume.volumeBounds(), volBounds2.get());
+  BOOST_CHECK_EQUAL(volume.transform().matrix(), trf.matrix());
+
+  // Update the bounds and the transform
+  Transform3 trf2{Translation3{1_mm, 2_mm, 3_mm}};
+  volume.update(volBounds, trf2);
+  BOOST_CHECK_EQUAL(&volume.volumeBounds(), volBounds.get());
+  BOOST_CHECK_EQUAL(volume.transform().matrix(), trf2.matrix());
+}
+
+}  // namespace Acts::Test

@@ -1,29 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Geometry/GeometryIdentifier.hpp"
-#include "Acts/Plugins/Identification/IdentifiedDetectorElement.hpp"
-#include "Acts/Plugins/Identification/Identifier.hpp"
-#include "Acts/Surfaces/Surface.hpp"
 #include "ActsExamples/GenericDetector/GenericDetectorElement.hpp"
 
-#include <iostream>
-#include <memory>
 #include <mutex>
 #include <unordered_map>
 
 namespace ActsExamples {
-
-namespace Contextual {
 
 /// @class InternallyAlignedDetectorElement extends GenericDetectorElement
 ///
@@ -37,8 +29,7 @@ namespace Contextual {
 /// store and then in a contextual call the actual detector element
 /// position is taken internal multi component store - the latter
 /// has to be filled though from an external source
-class InternallyAlignedDetectorElement
-    : public Generic::GenericDetectorElement {
+class InternallyAlignedDetectorElement : public GenericDetectorElement {
  public:
   struct ContextType {
     /// The current interval of validity
@@ -47,7 +38,7 @@ class InternallyAlignedDetectorElement
   };
 
   // Inherit constructor
-  using Generic::GenericDetectorElement::GenericDetectorElement;
+  using GenericDetectorElement::GenericDetectorElement;
 
   /// Return local to global transform associated with this identifier
   ///
@@ -121,5 +112,4 @@ inline void InternallyAlignedDetectorElement::clearAlignedTransform(
   }
 }
 
-}  // namespace Contextual
-}  // end of namespace ActsExamples
+}  // namespace ActsExamples

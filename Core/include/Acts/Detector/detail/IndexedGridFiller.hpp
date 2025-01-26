@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023-2024 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -13,10 +13,11 @@
 #include "Acts/Detector/detail/ReferenceGenerators.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/Polyhedron.hpp"
-#include "Acts/Navigation/SurfaceCandidatesUpdaters.hpp"
+#include "Acts/Navigation/InternalNavigation.hpp"
 #include "Acts/Utilities/Delegate.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/GridAccessHelpers.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/IAxis.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
@@ -26,9 +27,7 @@
 #include <string>
 #include <vector>
 
-namespace Acts {
-namespace Experimental {
-namespace detail {
+namespace Acts::Experimental::detail {
 
 /// @brief Helper method to generate completely populated bin sequences
 /// that respect the boundary type of the axis
@@ -43,7 +42,7 @@ namespace detail {
 /// @return a vector of bins to be filled
 std::vector<std::size_t> binSequence(std::array<std::size_t, 2u> minMaxBins,
                                      std::size_t expand, std::size_t nBins,
-                                     Acts::detail::AxisBoundaryType type);
+                                     Acts::AxisBoundaryType type);
 
 /// @brief Helper method to fill local bins given a set of query points
 /// bin in between the extra points are filled, and a possible expansion
@@ -75,7 +74,7 @@ std::set<typename grid_type::index_t> localIndices(
   }
 
   /// These are the axis bounds type parameters - for correct bin sequences
-  std::array<Acts::detail::AxisBoundaryType, grid_type::DIM> axisTypes{};
+  std::array<Acts::AxisBoundaryType, grid_type::DIM> axisTypes{};
   std::array<std::size_t, grid_type::DIM> axisBins{};
   // Fill the axis types
   for (auto [ia, a] : enumerate(grid.axes())) {
@@ -195,7 +194,7 @@ struct IndexedGridFiller {
     // Loop over the surfaces to be filled
     for (auto [io, o] : enumerate(iObjects)) {
       // Exclude indices that should be handled differently
-      if (std::find(aToAll.begin(), aToAll.end(), io) != aToAll.end()) {
+      if (rangeContainsValue(aToAll, io)) {
         continue;
       }
       // Get the reference positions
@@ -218,7 +217,7 @@ struct IndexedGridFiller {
       // Now fill the surface indices
       for (const auto& li : lIndices) {
         auto& bContent = iGrid.grid.atLocalBins(li);
-        if (std::find(bContent.begin(), bContent.end(), io) == bContent.end()) {
+        if (!rangeContainsValue(bContent, io)) {
           bContent.push_back(io);
         }
       }
@@ -240,7 +239,7 @@ struct IndexedGridFiller {
     for (std::size_t gi = 0; gi < iGrid.grid.size(true); ++gi) {
       auto& bContent = iGrid.grid.at(gi);
       for (const auto& io : idcs) {
-        if (std::find(bContent.begin(), bContent.end(), io) == bContent.end()) {
+        if (!rangeContainsValue(bContent, io)) {
           bContent.push_back(io);
         }
       }
@@ -253,6 +252,4 @@ struct IndexedGridFiller {
   const Logger& logger() const { return (*oLogger); }
 };
 
-}  // namespace detail
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental::detail

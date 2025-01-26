@@ -30,7 +30,7 @@ pos4[eTime] = 12.3;
 BoundVector pars;
 pars[eBoundLoc0] = 1.2;
 ...
-pars[eBoundPhi] = M_PI;
+pars[eBoundPhi] = std::numbers::pi;
 ...
 ```
 
@@ -160,7 +160,7 @@ static constexpr double kMagic = 1.23;
 ```
 
 Variables defined in the `Acts::UnitConstants` namespace are exempted for usability reasons and use regular variable naming instead.
- 
+
 ### N.6: Enum values use eCamelCase
 
 Enum values use CamelCase with a `e` prefix. They are not really constants but symbolic values, e.g. they can never have an address, and warant a separate convention.

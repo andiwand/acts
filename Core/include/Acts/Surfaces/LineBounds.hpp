@@ -1,20 +1,19 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 
 #include <array>
 #include <iosfwd>
-#include <stdexcept>
 #include <vector>
 
 namespace Acts {
@@ -25,8 +24,6 @@ namespace Acts {
 class LineBounds : public SurfaceBounds {
  public:
   enum BoundValues : int { eR = 0, eHalfLengthZ = 1, eSize = 2 };
-
-  LineBounds() = delete;
 
   /// Constructor
   ///
@@ -44,9 +41,7 @@ class LineBounds : public SurfaceBounds {
     checkConsistency();
   }
 
-  ~LineBounds() override = default;
-
-  BoundsType type() const final;
+  BoundsType type() const final { return SurfaceBounds::eLine; }
 
   /// Return the bound values as dynamically sized vector
   ///
@@ -58,11 +53,11 @@ class LineBounds : public SurfaceBounds {
   /// the bounds  Inside can be called without/with tolerances.
   ///
   /// @param lposition Local position (assumed to be in right surface frame)
-  /// @param bcheck boundary check directive
+  /// @param boundaryTolerance boundary check directive
   ///
   /// @return boolean indicator for the success of this operation
   bool inside(const Vector2& lposition,
-              const BoundaryCheck& bcheck) const final;
+              const BoundaryTolerance& boundaryTolerance) const final;
 
   /// Output Method for std::ostream
   ///
@@ -80,20 +75,5 @@ class LineBounds : public SurfaceBounds {
   /// if consistency is not given
   void checkConsistency() noexcept(false);
 };
-
-inline std::vector<double> LineBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-inline void LineBounds::checkConsistency() noexcept(false) {
-  if (get(eR) < 0.) {
-    throw std::invalid_argument("LineBounds: zero radius.");
-  }
-  if (get(eHalfLengthZ) <= 0.) {
-    throw std::invalid_argument("LineBounds: zero/negative length.");
-  }
-}
 
 }  // namespace Acts

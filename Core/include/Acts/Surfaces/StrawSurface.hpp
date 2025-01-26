@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -14,9 +14,7 @@
 #include "Acts/Surfaces/LineSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceConcept.hpp"
-#include "Acts/Utilities/Concepts.hpp"
 
-#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -76,40 +74,30 @@ class StrawSurface : public LineSurface {
                const Transform3& shift);
 
  public:
-  ~StrawSurface() override = default;
-  StrawSurface() = delete;
-
   /// Assignment operator
   ///
   /// @param other is the source surface for copying
   StrawSurface& operator=(const StrawSurface& other);
 
   /// Return the surface type
-  SurfaceType type() const final;
+  SurfaceType type() const final { return Surface::Straw; }
 
   /// Return properly formatted class name for screen output */
-  std::string name() const final;
+  std::string name() const final { return "Acts::StrawSurface"; }
 
   /// Return a Polyhedron for the surfaces
   ///
   /// @param gctx The current geometry context object, e.g. alignment
-  /// @param lseg Number of segments along curved lines, it represents
-  /// the full 2*M_PI coverange, if lseg is set to 1 only the extrema
-  /// are given @note if lseg is set to 1 then only the straw is created
+  /// @param quarterSegments is the number of segments used to describe curved
+  /// segments in a quarter of the phi range. If it is 1, then only the extrema
+  /// points in phi are inserted next to the segment corners.
   ///
   /// @return A list of vertices and a face/facett description of it
   Polyhedron polyhedronRepresentation(const GeometryContext& gctx,
-                                      std::size_t lseg) const final;
+                                      unsigned int quarterSegments) const final;
 };
 
-inline Surface::SurfaceType StrawSurface::type() const {
-  return Surface::Straw;
-}
-
-inline std::string Acts::StrawSurface::name() const {
-  return "Acts::StrawSurface";
-}
-
-ACTS_STATIC_CHECK_CONCEPT(SurfaceConcept, StrawSurface);
+static_assert(SurfaceConcept<StrawSurface>,
+              "StrawSurface does not fulfill SurfaceConcept");
 
 }  // namespace Acts

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -26,7 +26,6 @@ class IVolumeMaterial;
 using LayerPtr = std::shared_ptr<const Layer>;
 using TrackingVolumePtr = std::shared_ptr<const TrackingVolume>;
 using MutableTrackingVolumePtr = std::shared_ptr<TrackingVolume>;
-using VolumeBoundsPtr = std::shared_ptr<const VolumeBounds>;
 
 using LayerVector = std::vector<LayerPtr>;
 using TrackingVolumeVector = std::vector<TrackingVolumePtr>;
@@ -64,7 +63,8 @@ class ITrackingVolumeHelper {
   virtual MutableTrackingVolumePtr createTrackingVolume(
       const GeometryContext& gctx, const LayerVector& layers,
       std::shared_ptr<const IVolumeMaterial> volumeMaterial,
-      VolumeBoundsPtr volumeBounds, MutableTrackingVolumeVector mtvVector = {},
+      std::shared_ptr<VolumeBounds> volumeBounds,
+      MutableTrackingVolumeVector mtvVector = {},
       const Transform3& transform = Transform3::Identity(),
       const std::string& volumeName = "UndefinedVolume",
       BinningType btype = arbitrary) const = 0;

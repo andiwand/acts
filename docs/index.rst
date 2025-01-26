@@ -38,10 +38,13 @@ Key features:
    versioning
    formats/formats
    codeguide
+   misc/misc
    authors
    license
 
    white_papers/index.rst
+
+   glossary
 
 TODOs
 =====

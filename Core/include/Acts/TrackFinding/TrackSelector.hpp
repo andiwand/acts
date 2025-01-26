@@ -1,18 +1,26 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
+#include "Acts/EventData/TrackProxyConcept.hpp"
+#include "Acts/EventData/TrackStateType.hpp"
+#include "Acts/Geometry/GeometryHierarchyMap.hpp"
+#include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "Acts/Utilities/AngleHelpers.hpp"
 
 #include <cmath>
 #include <functional>
 #include <limits>
 #include <ostream>
 #include <vector>
+
+#include <boost/container/small_vector.hpp>
 
 namespace Acts {
 
@@ -23,6 +31,26 @@ class TrackSelector {
   static constexpr double inf = std::numeric_limits<double>::infinity();
 
  public:
+  struct MeasurementCounter {
+    // Combination of a geometry hierarchy map and a minimum hit count
+    using CounterElement =
+        std::pair<GeometryHierarchyMap<unsigned int>, unsigned int>;
+
+    boost::container::small_vector<CounterElement, 4> counters;
+
+    template <TrackProxyConcept track_proxy_t>
+    bool isValidTrack(const track_proxy_t& track) const;
+
+    void addCounter(const std::vector<GeometryIdentifier>& identifiers,
+                    unsigned int threshold) {
+      std::vector<GeometryHierarchyMap<unsigned int>::InputElement> elements;
+      for (const auto& id : identifiers) {
+        elements.emplace_back(id, 0);
+      }
+      counters.emplace_back(std::move(elements), threshold);
+    }
+  };
+
   /// Configuration of a set of cuts for a single eta bin
   /// Default construction yields a set of cuts that accepts everything.
   struct Config {
@@ -48,8 +76,16 @@ class TrackSelector {
     std::size_t minMeasurements = 0;
     std::size_t maxHoles = std::numeric_limits<std::size_t>::max();
     std::size_t maxOutliers = std::numeric_limits<std::size_t>::max();
+    std::size_t maxHolesAndOutliers = std::numeric_limits<std::size_t>::max();
     std::size_t maxSharedHits = std::numeric_limits<std::size_t>::max();
     double maxChi2 = inf;
+
+    /// Whether a reference surface is required for the track
+    /// If false, the parameter cuts are not evaluated
+    bool requireReferenceSurface = true;
+
+    // Defaults to: no cut
+    MeasurementCounter measurementCounter;
 
     // Helper factory functions to produce a populated config object more
     // conveniently
@@ -110,7 +146,7 @@ class TrackSelector {
     std::vector<Config> cutSets = {};
 
     /// Eta bin edges for varying cuts by eta
-    std::vector<double> absEtaEdges = {};
+    std::vector<double> absEtaEdges = {0, inf};
 
     /// Get the number of eta bins
     /// @return Number of eta bins
@@ -118,7 +154,7 @@ class TrackSelector {
 
     /// Construct an empty (accepts everything) configuration.
     /// Results in a single cut set and one abs eta bin from 0 to infinity.
-    EtaBinnedConfig() : cutSets{{}}, absEtaEdges{{0, inf}} {};
+    EtaBinnedConfig() : cutSets{{}} {};
 
     /// Constructor to create a config object that is not upper-bounded.
     /// This is useful to use the "fluent" API to populate the configuration.
@@ -131,12 +167,12 @@ class TrackSelector {
     /// @param absEtaEdgesIn is the vector of eta bin edges
     EtaBinnedConfig(std::vector<double> absEtaEdgesIn)
         : absEtaEdges{std::move(absEtaEdgesIn)} {
-      cutSets.resize(absEtaEdges.size() - 1);
+      cutSets.resize(nEtaBins());
     }
 
     /// Auto-converting constructor from a single cut configuration.
     /// Results in a single absolute eta bin from 0 to infinity.
-    EtaBinnedConfig(Config cutSet) : cutSets{cutSet}, absEtaEdges{{0, inf}} {}
+    EtaBinnedConfig(Config cutSet) : cutSets{std::move(cutSet)} {}
 
     /// Add a new eta bin with the given upper bound.
     /// @param etaMax Upper bound of the new eta bin
@@ -157,10 +193,21 @@ class TrackSelector {
     friend std::ostream& operator<<(std::ostream& os,
                                     const EtaBinnedConfig& cfg);
 
-    /// Get the index of the eta bin for a given eta
+    /// Check if the configuration has a bin for a given eta
+    /// @param eta Eta value
+    /// @return True if the configuration has a bin for the given eta
+    bool hasCuts(double eta) const;
+
+    /// Get the index of the eta bin for a given eta.
+    /// throws an exception if Eta is outside the abs eta bin edges.
     /// @param eta Eta value
     /// @return Index of the eta bin
     std::size_t binIndex(double eta) const;
+
+    /// Get the index of the eta bin for a given eta
+    /// @param eta Eta value
+    /// @return Index of the eta bin, or >= nEtaBins() if Eta is outside the abs eta bin edges.
+    std::size_t binIndexNoCheck(double eta) const;
 
     /// Get the cuts for a given eta
     /// @param eta Eta value
@@ -190,7 +237,7 @@ class TrackSelector {
   /// @tparam track_proxy_t is the type of the track proxy
   /// @param track is the track proxy
   /// @return true if the track is valid
-  template <typename track_proxy_t>
+  template <TrackProxyConcept track_proxy_t>
   bool isValidTrack(const track_proxy_t& track) const;
 
   /// Get readonly access to the config parameters
@@ -199,8 +246,7 @@ class TrackSelector {
 
  private:
   EtaBinnedConfig m_cfg;
-  bool m_isUnbinned;
-  bool m_noEtaCuts;
+  bool m_isUnbinned = false;
 };
 
 inline TrackSelector::Config& TrackSelector::Config::loc0(double min,
@@ -262,23 +308,32 @@ inline TrackSelector::Config& TrackSelector::Config::pt(double min,
 
 inline std::ostream& operator<<(std::ostream& os,
                                 const TrackSelector::Config& cuts) {
-  auto print = [&](const char* name, const auto& min, const auto& max) {
+  // for printing cuts set up with `within`
+  auto printMinMax = [&](const char* name, const auto& min, const auto& max) {
     os << " - " << min << " <= " << name << " < " << max << "\n";
   };
+  // for printing cuts set up with `checkMin`
+  auto printMin = [&](const char* name, const auto& min) {
+    os << " - " << min << " <= " << name << "\n";
+  };
+  // for printing cuts set up with `checkMax`
+  auto printMax = [&](const char* name, const auto& max) {
+    os << " - " << name << " <= " << max << "\n";
+  };
 
-  print("loc0", cuts.loc0Min, cuts.loc0Max);
-  print("loc1", cuts.loc1Min, cuts.loc1Max);
-  print("time", cuts.timeMin, cuts.timeMax);
-  print("phi", cuts.phiMin, cuts.phiMax);
-  print("eta", cuts.etaMin, cuts.etaMax);
-  print("absEta", cuts.absEtaMin, cuts.absEtaMax);
-  print("pt", cuts.ptMin, cuts.ptMax);
-  print("nHoles", 0, cuts.maxHoles);
-  print("nOutliers", 0, cuts.maxOutliers);
-  print("nSharedHits", 0, cuts.maxSharedHits);
-  print("chi2", 0.0, cuts.maxChi2);
-  os << " - " << cuts.minMeasurements << " <= nMeasurements\n";
-
+  printMinMax("loc0", cuts.loc0Min, cuts.loc0Max);
+  printMinMax("loc1", cuts.loc1Min, cuts.loc1Max);
+  printMinMax("time", cuts.timeMin, cuts.timeMax);
+  printMinMax("phi", cuts.phiMin, cuts.phiMax);
+  printMinMax("eta", cuts.etaMin, cuts.etaMax);
+  printMinMax("absEta", cuts.absEtaMin, cuts.absEtaMax);
+  printMinMax("pt", cuts.ptMin, cuts.ptMax);
+  printMax("nHoles", cuts.maxHoles);
+  printMax("nOutliers", cuts.maxOutliers);
+  printMax("nHoles + nOutliers", cuts.maxHolesAndOutliers);
+  printMax("nSharedHits", cuts.maxSharedHits);
+  printMax("chi2", cuts.maxChi2);
+  printMin("nMeasurements", cuts.minMeasurements);
   return os;
 }
 
@@ -306,15 +361,27 @@ inline TrackSelector::EtaBinnedConfig& TrackSelector::EtaBinnedConfig::addCuts(
   return addCuts(inf, callback);
 }
 
+inline bool TrackSelector::EtaBinnedConfig::hasCuts(double eta) const {
+  return std::abs(eta) < absEtaEdges.back();
+}
+
 inline std::size_t TrackSelector::EtaBinnedConfig::binIndex(double eta) const {
-  if (std::abs(eta) >= absEtaEdges.back()) {
+  std::size_t index = binIndexNoCheck(eta);
+  if (!(index < nEtaBins())) {
     throw std::invalid_argument{"Eta is outside the abs eta bin edges"};
   }
+  return index;
+}
 
+inline std::size_t TrackSelector::EtaBinnedConfig::binIndexNoCheck(
+    double eta) const {
   auto binIt =
       std::upper_bound(absEtaEdges.begin(), absEtaEdges.end(), std::abs(eta));
-  std::size_t index = std::distance(absEtaEdges.begin(), binIt) - 1;
-  return index;
+  std::size_t index = std::distance(absEtaEdges.begin(), binIt);
+  if (index == 0) {
+    index = absEtaEdges.size() + 1;  // positive value to check for underflow
+  }
+  return index - 1;
 }
 
 inline const TrackSelector::Config& TrackSelector::EtaBinnedConfig::getCuts(
@@ -341,13 +408,13 @@ void TrackSelector::selectTracks(const input_tracks_t& inputTracks,
     if (!isValidTrack(track)) {
       continue;
     }
-    auto destProxy = outputTracks.getTrack(outputTracks.addTrack());
+    auto destProxy = outputTracks.makeTrack();
     destProxy.copyFrom(track, false);
     destProxy.tipIndex() = track.tipIndex();
   }
 }
 
-template <typename track_proxy_t>
+template <TrackProxyConcept track_proxy_t>
 bool TrackSelector::isValidTrack(const track_proxy_t& track) const {
   auto checkMin = [](auto x, auto min) { return min <= x; };
   auto checkMax = [](auto x, auto max) { return x <= max; };
@@ -364,7 +431,7 @@ bool TrackSelector::isValidTrack(const track_proxy_t& track) const {
 
   auto absEta = [&]() {
     if (_absEta == kUnset) {
-      _eta = -std::log(std::tan(theta / 2));
+      _eta = AngleHelpers::etaFromTheta(theta);
       _absEta = std::abs(_eta);
     }
     return _absEta;
@@ -372,8 +439,9 @@ bool TrackSelector::isValidTrack(const track_proxy_t& track) const {
 
   const Config* cutsPtr{nullptr};
   if (!m_isUnbinned) {
-    if (absEta() < m_cfg.absEtaEdges.front() ||
-        _absEta >= m_cfg.absEtaEdges.back()) {
+    // return false if |eta| is outside its range, or nan.
+    if (!(absEta() >= m_cfg.absEtaEdges.front() &&
+          _absEta < m_cfg.absEtaEdges.back())) {
       return false;
     }
     cutsPtr = &m_cfg.getCuts(_eta);
@@ -383,19 +451,33 @@ bool TrackSelector::isValidTrack(const track_proxy_t& track) const {
 
   const Config& cuts = *cutsPtr;
 
-  return track.hasReferenceSurface() &&
-         within(track.transverseMomentum(), cuts.ptMin, cuts.ptMax) &&
-         (m_noEtaCuts || (within(absEta(), cuts.absEtaMin, cuts.absEtaMax) &&
-                          within(_eta, cuts.etaMin, cuts.etaMax))) &&
-         within(track.phi(), cuts.phiMin, cuts.phiMax) &&
-         within(track.loc0(), cuts.loc0Min, cuts.loc0Max) &&
-         within(track.loc1(), cuts.loc1Min, cuts.loc1Max) &&
-         within(track.time(), cuts.timeMin, cuts.timeMax) &&
-         checkMin(track.nMeasurements(), cuts.minMeasurements) &&
-         checkMax(track.nHoles(), cuts.maxHoles) &&
-         checkMax(track.nOutliers(), cuts.maxOutliers) &&
-         checkMax(track.nSharedHits(), cuts.maxSharedHits) &&
-         checkMax(track.chi2(), cuts.maxChi2);
+  auto parameterCuts = [&]() {
+    return within(track.transverseMomentum(), cuts.ptMin, cuts.ptMax) &&
+           (!m_isUnbinned ||
+            (within(absEta(), cuts.absEtaMin, cuts.absEtaMax) &&
+             within(_eta, cuts.etaMin, cuts.etaMax))) &&
+           within(track.phi(), cuts.phiMin, cuts.phiMax) &&
+           within(track.loc0(), cuts.loc0Min, cuts.loc0Max) &&
+           within(track.loc1(), cuts.loc1Min, cuts.loc1Max) &&
+           within(track.time(), cuts.timeMin, cuts.timeMax);
+  };
+
+  auto trackCuts = [&]() {
+    return checkMin(track.nMeasurements(), cuts.minMeasurements) &&
+           checkMax(track.nHoles(), cuts.maxHoles) &&
+           checkMax(track.nOutliers(), cuts.maxOutliers) &&
+           checkMax(track.nHoles() + track.nOutliers(),
+                    cuts.maxHolesAndOutliers) &&
+           checkMax(track.nSharedHits(), cuts.maxSharedHits) &&
+           checkMax(track.chi2(), cuts.maxChi2) &&
+           cuts.measurementCounter.isValidTrack(track);
+  };
+
+  if (cuts.requireReferenceSurface) {
+    return track.hasReferenceSurface() && parameterCuts() && trackCuts();
+  } else {
+    return trackCuts();
+  }
 }
 
 inline TrackSelector::TrackSelector(
@@ -406,26 +488,19 @@ inline TrackSelector::TrackSelector(
         "TrackSelector cut / eta bin configuration is inconsistent"};
   }
 
-  m_isUnbinned = false;
   if (m_cfg.nEtaBins() == 1) {
     static const std::vector<double> infVec = {0, inf};
-    bool limitEta = m_cfg.absEtaEdges != infVec;
-    m_isUnbinned = !limitEta;  // single bin, no eta edges given
-
-    const Config& cuts = m_cfg.cutSets[0];
-
-    if (limitEta && (cuts.etaMin != -inf || cuts.etaMax != inf ||
-                     cuts.absEtaMin != 0.0 || cuts.absEtaMax != inf)) {
-      throw std::invalid_argument{
-          "Explicit eta cuts are only valid for single eta bin"};
-    }
+    m_isUnbinned =
+        m_cfg.absEtaEdges == infVec;  // single bin, no eta edges given
   }
 
-  m_noEtaCuts = m_isUnbinned;
-  for (const auto& cuts : m_cfg.cutSets) {
-    if (cuts.etaMin != -inf || cuts.etaMax != inf || cuts.absEtaMin != 0.0 ||
-        cuts.absEtaMax != inf) {
-      m_noEtaCuts = false;
+  if (!m_isUnbinned) {
+    for (const auto& cuts : m_cfg.cutSets) {
+      if (cuts.etaMin != -inf || cuts.etaMax != inf || cuts.absEtaMin != 0.0 ||
+          cuts.absEtaMax != inf) {
+        throw std::invalid_argument{
+            "Explicit eta cuts are only valid for single eta bin"};
+      }
     }
   }
 }
@@ -433,4 +508,43 @@ inline TrackSelector::TrackSelector(
 inline TrackSelector::TrackSelector(const Config& config)
     : TrackSelector{EtaBinnedConfig{config}} {}
 
+template <TrackProxyConcept track_proxy_t>
+bool TrackSelector::MeasurementCounter::isValidTrack(
+    const track_proxy_t& track) const {
+  // No hit cuts, accept everything
+  if (counters.empty()) {
+    return true;
+  }
+
+  boost::container::small_vector<unsigned int, 4> counterValues;
+  counterValues.resize(counters.size(), 0);
+
+  for (const auto& ts : track.trackStatesReversed()) {
+    if (!ts.typeFlags().test(Acts::TrackStateFlag::MeasurementFlag)) {
+      continue;
+    }
+
+    const auto geoId = ts.referenceSurface().geometryId();
+
+    for (std::size_t i = 0; i < counters.size(); i++) {
+      const auto& [counterMap, threshold] = counters[i];
+      const auto it = counterMap.find(geoId);
+      if (it == counterMap.end()) {
+        continue;
+      }
+
+      counterValues[i]++;
+    }
+  }
+
+  for (std::size_t i = 0; i < counters.size(); i++) {
+    const auto& [counterMap, threshold] = counters[i];
+    const unsigned int value = counterValues[i];
+    if (value < threshold) {
+      return false;
+    }
+  }
+
+  return true;
+}
 }  // namespace Acts

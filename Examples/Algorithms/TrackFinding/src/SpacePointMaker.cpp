@@ -1,15 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020-2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderConfig.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderOptions.hpp"
@@ -19,7 +18,6 @@
 #include "ActsExamples/EventData/SimSpacePoint.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Utilities/GroupBy.hpp"
-#include "ActsExamples/Utilities/Range.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -27,14 +25,10 @@
 #include <ostream>
 #include <stdexcept>
 #include <utility>
-#include <variant>
 
 ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
                                                Acts::Logging::Level lvl)
     : IAlgorithm("SpacePointMaker", lvl), m_cfg(std::move(cfg)) {
-  if (m_cfg.inputSourceLinks.empty()) {
-    throw std::invalid_argument("Missing source link input collection");
-  }
   if (m_cfg.inputMeasurements.empty()) {
     throw std::invalid_argument("Missing measurement input collection");
   }
@@ -48,7 +42,6 @@ ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
     throw std::invalid_argument("Missing space point maker geometry selection");
   }
 
-  m_inputSourceLinks.initialize(m_cfg.inputSourceLinks);
   m_inputMeasurements.initialize(m_cfg.inputMeasurements);
   m_outputSpacePoints.initialize(m_cfg.outputSpacePoints);
 
@@ -80,10 +73,11 @@ ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
     // within the same volume hierarchy only consider layers
     return (ref.layer() == cmp.layer());
   };
+  // sort geometry selection so the unique filtering works
+  std::ranges::sort(m_cfg.geometrySelection,
+                    std::less<Acts::GeometryIdentifier>{});
   auto geoSelBeg = m_cfg.geometrySelection.begin();
   auto geoSelEnd = m_cfg.geometrySelection.end();
-  // sort geometry selection so the unique filtering works
-  std::sort(geoSelBeg, geoSelEnd);
   auto geoSelLastUnique = std::unique(geoSelBeg, geoSelEnd, isDuplicate);
   if (geoSelLastUnique != geoSelEnd) {
     ACTS_WARNING("Removed " << std::distance(geoSelLastUnique, geoSelEnd)
@@ -104,10 +98,11 @@ ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
           &m_slSurfaceAccessor.value());
 
   auto spConstructor =
-      [](const Acts::Vector3& pos, const Acts::Vector2& cov,
+      [](const Acts::Vector3& pos, std::optional<double> t,
+         const Acts::Vector2& cov, std::optional<double> varT,
          boost::container::static_vector<Acts::SourceLink, 2> slinks)
       -> SimSpacePoint {
-    return SimSpacePoint(pos, cov[0], cov[1], std::move(slinks));
+    return SimSpacePoint(pos, t, cov[0], cov[1], varT, std::move(slinks));
   };
 
   m_spacePointBuilder = Acts::SpacePointBuilder<SimSpacePoint>(
@@ -117,7 +112,6 @@ ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
 
 ActsExamples::ProcessCode ActsExamples::SpacePointMaker::execute(
     const AlgorithmContext& ctx) const {
-  const auto& sourceLinks = m_inputSourceLinks(ctx);
   const auto& measurements = m_inputMeasurements(ctx);
 
   // TODO Support strip measurements
@@ -125,29 +119,23 @@ ActsExamples::ProcessCode ActsExamples::SpacePointMaker::execute(
 
   spOpt.paramCovAccessor = [&measurements](Acts::SourceLink slink) {
     const auto islink = slink.get<IndexSourceLink>();
-    const auto& meas = measurements[islink.index()];
+    const ConstVariableBoundMeasurementProxy meas =
+        measurements.getMeasurement(islink.index());
 
-    return std::visit(
-        [](const auto& measurement) {
-          auto expander = measurement.expander();
-          Acts::BoundVector par = expander * measurement.parameters();
-          Acts::BoundSquareMatrix cov =
-              expander * measurement.covariance() * expander.transpose();
-          return std::make_pair(par, cov);
-        },
-        meas);
+    return std::make_pair(meas.fullParameters(), meas.fullCovariance());
   };
 
   SimSpacePointContainer spacePoints;
   for (Acts::GeometryIdentifier geoId : m_cfg.geometrySelection) {
     // select volume/layer depending on what is set in the geometry id
-    auto range = selectLowestNonZeroGeometryObject(sourceLinks, geoId);
+    auto range =
+        selectLowestNonZeroGeometryObject(measurements.orderedIndices(), geoId);
     // groupByModule only works with geometry containers, not with an
     // arbitrary range. do the equivalent grouping manually
     auto groupedByModule = makeGroupBy(range, detail::GeometryIdGetter());
 
-    for (auto [moduleGeoId, moduleSourceLinks] : groupedByModule) {
-      for (auto& sourceLink : moduleSourceLinks) {
+    for (const auto& [moduleGeoId, moduleSourceLinks] : groupedByModule) {
+      for (const auto& sourceLink : moduleSourceLinks) {
         m_spacePointBuilder.buildSpacePoint(
             ctx.geoContext, {Acts::SourceLink{sourceLink}}, spOpt,
             std::back_inserter(spacePoints));

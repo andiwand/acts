@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -112,7 +112,7 @@ class ConeVolumeBounds : public VolumeBounds {
   /// It will throw an exception if the orientation prescription is not adequate
   ///
   /// @return a vector of surfaces bounding this volume
-  OrientedSurfaces orientedSurfaces(
+  std::vector<OrientedSurface> orientedSurfaces(
       const Transform3& transform = Transform3::Identity()) const final;
 
   /// Construct bounding box for this shape
@@ -148,8 +148,8 @@ class ConeVolumeBounds : public VolumeBounds {
 
   /// Output Method for std::ostream
   ///
-  /// @param sl is ostream operator to be dumped into
-  std::ostream& toStream(std::ostream& sl) const final;
+  /// @param os is ostream operator to be dumped into
+  std::ostream& toStream(std::ostream& os) const final;
 
  private:
   /// Check the input values for consistency,
@@ -158,12 +158,6 @@ class ConeVolumeBounds : public VolumeBounds {
 
   /// Create the surface bounds
   void buildSurfaceBounds();
-
-  /// Templated dump methods
-  /// @tparam stream_t The type of the stream for dumping
-  /// @param dt The stream object
-  template <class stream_t>
-  stream_t& dumpT(stream_t& dt) const;
 
   /// The bound values
   std::array<double, eSize> m_values;
@@ -183,47 +177,5 @@ class ConeVolumeBounds : public VolumeBounds {
   double m_outerRmax = 0.;
   double m_outerTanAlpha = 0.;
 };
-
-inline double ConeVolumeBounds::innerRmin() const {
-  return m_innerRmin;
-}
-
-inline double ConeVolumeBounds::innerRmax() const {
-  return m_innerRmax;
-}
-
-inline double ConeVolumeBounds::innerTanAlpha() const {
-  return m_innerTanAlpha;
-}
-
-inline double ConeVolumeBounds::outerRmin() const {
-  return m_outerRmin;
-}
-
-inline double ConeVolumeBounds::outerRmax() const {
-  return m_outerRmax;
-}
-
-inline double ConeVolumeBounds::outerTanAlpha() const {
-  return m_outerTanAlpha;
-}
-
-inline std::vector<double> ConeVolumeBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-template <class stream_t>
-stream_t& ConeVolumeBounds::dumpT(stream_t& dt) const {
-  dt << std::setiosflags(std::ios::fixed);
-  dt << std::setprecision(5);
-  dt << "Acts::ConeVolumeBounds : (innerAlpha, innerOffsetZ, outerAlpha,";
-  dt << "  outerOffsetZ, halflenghZ, averagePhi, halfPhiSector) = ";
-  dt << get(eInnerAlpha) << ", " << get(eInnerOffsetZ) << ", ";
-  dt << get(eOuterAlpha) << ", " << get(eOuterOffsetZ) << ", ";
-  dt << get(eHalfLengthZ) << ", " << get(eAveragePhi) << std::endl;
-  return dt;
-}
 
 }  // namespace Acts

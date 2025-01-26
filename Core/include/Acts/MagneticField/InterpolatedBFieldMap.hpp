@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -12,7 +12,6 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldError.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
-#include "Acts/Utilities/Grid.hpp"
 #include "Acts/Utilities/Interpolation.hpp"
 #include "Acts/Utilities/Result.hpp"
 
@@ -146,9 +145,7 @@ class InterpolatedBFieldMap : public InterpolatedMagneticField {
 
   struct Cache {
     /// @brief Constructor with magnetic field context
-    ///
-    /// @param mctx the magnetic field context
-    Cache(const MagneticFieldContext& mctx) { (void)mctx; }
+    Cache(const MagneticFieldContext& /*mctx*/) {}
 
     std::optional<FieldCell> fieldCell;
     bool initialized = false;
@@ -270,7 +267,7 @@ class InterpolatedBFieldMap : public InterpolatedMagneticField {
   /// @copydoc MagneticFieldProvider::makeCache(const MagneticFieldContext&) const
   MagneticFieldProvider::Cache makeCache(
       const MagneticFieldContext& mctx) const final {
-    return MagneticFieldProvider::Cache::make<Cache>(mctx);
+    return MagneticFieldProvider::Cache{std::in_place_type<Cache>, mctx};
   }
 
   /// @brief retrieve field at given position
@@ -299,7 +296,7 @@ class InterpolatedBFieldMap : public InterpolatedMagneticField {
   /// @copydoc MagneticFieldProvider::getField(const Vector3&,MagneticFieldProvider::Cache&) const
   Result<Vector3> getField(const Vector3& position,
                            MagneticFieldProvider::Cache& cache) const final {
-    Cache& lcache = cache.get<Cache>();
+    Cache& lcache = cache.as<Cache>();
     const auto gridPosition = m_cfg.transformPos(position);
     if (!lcache.fieldCell || !(*lcache.fieldCell).isInside(gridPosition)) {
       auto res = getFieldCell(position);
@@ -309,18 +306,6 @@ class InterpolatedBFieldMap : public InterpolatedMagneticField {
       lcache.fieldCell = *res;
     }
     return Result<Vector3>::success((*lcache.fieldCell).getField(gridPosition));
-  }
-
-  /// @copydoc MagneticFieldProvider::getFieldGradient(const Vector3&,ActsMatrix<3,3>&,MagneticFieldProvider::Cache&) const
-  ///
-  /// @note currently the derivative is not calculated
-  /// @note Cache is not used currently
-  /// @todo return derivative
-  Result<Vector3> getFieldGradient(
-      const Vector3& position, ActsMatrix<3, 3>& derivative,
-      MagneticFieldProvider::Cache& cache) const final {
-    (void)derivative;
-    return getField(position, cache);
   }
 
  private:

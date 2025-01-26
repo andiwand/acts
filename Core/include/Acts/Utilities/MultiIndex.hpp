@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -70,7 +70,7 @@ class MultiIndex {
   MultiIndex(const MultiIndex&) = default;
   MultiIndex(MultiIndex&) = default;
   MultiIndex& operator=(const MultiIndex&) = default;
-  MultiIndex& operator=(MultiIndex&&) = default;
+  MultiIndex& operator=(MultiIndex&&) noexcept = default;
   /// Allow setting the MultiIndex from an already encoded value.
   constexpr MultiIndex& operator=(Value encoded) {
     m_value = encoded;
@@ -108,7 +108,7 @@ class MultiIndex {
   constexpr MultiIndex makeLastDescendant(std::size_t lvl) const {
     assert((lvl < NumLevels) && "Index level outside allowed range");
     // mask everything below the selected level
-    Value maskLower = (Value(1u) << shift(lvl)) - 1u;
+    Value maskLower = (Value{1u} << shift(lvl)) - 1u;
     // replace the masked lower levels w/ ones
     return (m_value & ~maskLower) | maskLower;
   }
@@ -131,7 +131,7 @@ class MultiIndex {
     return s;
   }
   static constexpr Value mask(std::size_t lvl) {
-    return (Value(1u) << s_bits[lvl]) - 1u;
+    return (Value{1u} << s_bits[lvl]) - 1u;
   }
 
   Value m_value;
@@ -139,9 +139,11 @@ class MultiIndex {
   friend constexpr bool operator<(MultiIndex lhs, MultiIndex rhs) {
     return lhs.m_value < rhs.m_value;
   }
+
   friend constexpr bool operator==(MultiIndex lhs, MultiIndex rhs) {
     return lhs.m_value == rhs.m_value;
   }
+
   friend inline std::ostream& operator<<(std::ostream& os, MultiIndex idx) {
     // one level is always defined
     os << idx.level(0u);

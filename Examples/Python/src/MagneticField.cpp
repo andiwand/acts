@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/MagneticField/MagneticField.hpp"
 
@@ -12,6 +12,7 @@
 #include "Acts/MagneticField/BFieldMapUtils.hpp"
 #include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
+#include "Acts/MagneticField/MultiRangeBField.hpp"
 #include "Acts/MagneticField/NullBField.hpp"
 #include "Acts/MagneticField/SolenoidBField.hpp"
 #include "Acts/Plugins/Python/Utilities.hpp"
@@ -25,7 +26,6 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 
 #include <pybind11/pybind11.h>
@@ -36,12 +36,30 @@ using namespace pybind11::literals;
 
 namespace Acts::Python {
 
+/// @brief Get the value of a field, throwing an exception if the result is
+/// invalid.
+Acts::Vector3 getField(Acts::MagneticFieldProvider& self,
+                       const Acts::Vector3& position,
+                       Acts::MagneticFieldProvider::Cache& cache) {
+  if (Result<Vector3> res = self.getField(position, cache); !res.ok()) {
+    std::stringstream ss;
+
+    ss << "Field lookup failure with error: \"" << res.error() << "\"";
+
+    throw std::runtime_error{ss.str()};
+  } else {
+    return *res;
+  }
+}
+
 void addMagneticField(Context& ctx) {
   auto [m, mex, prop] = ctx.get("main", "examples", "propagation");
 
   py::class_<Acts::MagneticFieldProvider,
              std::shared_ptr<Acts::MagneticFieldProvider>>(
-      m, "MagneticFieldProvider");
+      m, "MagneticFieldProvider")
+      .def("getField", &getField)
+      .def("makeCache", &Acts::MagneticFieldProvider::makeCache);
 
   py::class_<Acts::InterpolatedMagneticField,
              std::shared_ptr<Acts::InterpolatedMagneticField>>(
@@ -67,6 +85,11 @@ void addMagneticField(Context& ctx) {
   py::class_<Acts::NullBField, Acts::MagneticFieldProvider,
              std::shared_ptr<Acts::NullBField>>(m, "NullBField")
       .def(py::init<>());
+
+  py::class_<Acts::MultiRangeBField, Acts::MagneticFieldProvider,
+             std::shared_ptr<Acts::MultiRangeBField>>(m, "MultiRangeBField")
+      .def(py::init<
+           std::vector<std::pair<Acts::RangeXD<3, double>, Acts::Vector3>>>());
 
   {
     using Config = Acts::SolenoidBField::Config;

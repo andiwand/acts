@@ -1,10 +1,10 @@
-# This file is part of the Acts project.
+# This file is part of the ACTS project.
 #
-# Copyright (C) 2021-2022 CERN for the benefit of the Acts project
+# Copyright (C) 2016 CERN for the benefit of the ACTS project
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 # This script sets up the ACTS Python bindings in the environment in a somewhat
 # robust way.
@@ -25,15 +25,17 @@ export PYTHONPATH=$python_dir:$PYTHONPATH
 
 # Make ODD available if possible
 # This seems to be only reliable on Linux for now, not on MacOS
-odd_dir=$python_dir/../thirdparty/OpenDataDetector/factory
-if [ -d "$odd_dir" ]; then
+odd_src_dir=@CMAKE_CURRENT_SOURCE_DIR@/../../thirdparty/OpenDataDetector
+export ODD_PATH=$odd_src_dir
+odd_bin_dir=$python_dir/../thirdparty/OpenDataDetector/factory
+if [ -d "$odd_bin_dir" ]; then
     if [[ "$(uname -s)" == "Linux" ]]; then
         echo "INFO:    Found OpenDataDetector and set it up"
-        export LD_LIBRARY_PATH=$odd_dir:$LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH=$odd_bin_dir:$LD_LIBRARY_PATH
     fi
     if [[ "$(uname -s)" == "Darwin" ]]; then
         echo "INFO:    Found OpenDataDetector and set it up"
-        export DYLD_LIBRARY_PATH=$odd_dir:$DYLD_LIBRARY_PATH
+        export DYLD_LIBRARY_PATH=$odd_bin_dir:$DYLD_LIBRARY_PATH
     fi
 fi
 

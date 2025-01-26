@@ -1,17 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/EDM4hep/EDM4hepParticleWriter.hpp"
 
-#include "Acts/Definitions/Units.hpp"
-#include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/Io/EDM4hep/EDM4hepUtil.hpp"
-#include "ActsExamples/Utilities/Paths.hpp"
 
 #include <stdexcept>
 
@@ -52,6 +49,7 @@ ProcessCode EDM4hepParticleWriter::writeT(
 
   frame.put(std::move(mcParticleCollection), m_cfg.outputParticles);
 
+  std::lock_guard guard(m_writeMutex);
   m_writer.writeFrame(frame, "events");
 
   return ProcessCode::SUCCESS;

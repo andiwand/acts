@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsFatras/Utilities/LandauDistribution.hpp"
 
@@ -190,7 +190,7 @@ double ActsFatras::LandauDistribution::quantile(double z) {
 
   double ranlan = 0, u = 0, v = 0;
   u = 1000 * z;
-  int i = int(u);
+  int i = static_cast<int>(u);
   u -= i;
   if (i >= 70 && i < 800) {
     ranlan = f[i - 1] + u * (f[i] - f[i - 1]);

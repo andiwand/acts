@@ -1,27 +1,23 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/Csv/CsvTrackingGeometryWriter.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/Digitization/CartesianSegmentation.hpp"
-#include "Acts/Digitization/DigitizationModule.hpp"
-#include "Acts/Digitization/Segmentation.hpp"
-#include "Acts/Geometry/AbstractVolume.hpp"
 #include "Acts/Geometry/BoundarySurfaceT.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Geometry/Layer.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Geometry/TrackingVolume.hpp"
+#include "Acts/Geometry/Volume.hpp"
 #include "Acts/Geometry/VolumeBounds.hpp"
-#include "Acts/Plugins/Identification/IdentifiedDetectorElement.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceArray.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
@@ -29,6 +25,7 @@
 #include "Acts/Utilities/IAxis.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 
 #include <array>
@@ -36,8 +33,6 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-
-#include <dfe/dfe_io_dsv.hpp>
 
 #include "CsvOutputData.hpp"
 
@@ -64,9 +59,9 @@ std::string CsvTrackingGeometryWriter::name() const {
 
 namespace {
 
-using SurfaceWriter = dfe::NamedTupleCsvWriter<SurfaceData>;
-using SurfaceGridWriter = dfe::NamedTupleCsvWriter<SurfaceGridData>;
-using LayerVolumeWriter = dfe::NamedTupleCsvWriter<LayerVolumeData>;
+using SurfaceWriter = ActsExamples::NamedTupleCsvWriter<SurfaceData>;
+using SurfaceGridWriter = ActsExamples::NamedTupleCsvWriter<SurfaceGridData>;
+using LayerVolumeWriter = ActsExamples::NamedTupleCsvWriter<LayerVolumeData>;
 using BoundarySurface = Acts::BoundarySurfaceT<Acts::TrackingVolume>;
 
 /// Write a single surface.
@@ -116,23 +111,6 @@ void fillSurfaceData(SurfaceData& data, const Acts::Surface& surface,
   if (surface.associatedDetectorElement() != nullptr) {
     data.module_t = surface.associatedDetectorElement()->thickness() /
                     Acts::UnitConstants::mm;
-
-    const auto* detElement =
-        dynamic_cast<const Acts::IdentifiedDetectorElement*>(
-            surface.associatedDetectorElement());
-
-    if (detElement != nullptr && detElement->digitizationModule()) {
-      auto dModule = detElement->digitizationModule();
-      // dynamic_cast to CartesianSegmentation
-      const auto* cSegmentation =
-          dynamic_cast<const Acts::CartesianSegmentation*>(
-              &(dModule->segmentation()));
-      if (cSegmentation != nullptr) {
-        auto pitch = cSegmentation->pitch();
-        data.pitch_u = pitch.first / Acts::UnitConstants::mm;
-        data.pitch_v = pitch.second / Acts::UnitConstants::mm;
-      }
-    }
   }
 }
 
@@ -150,12 +128,12 @@ void writeSurface(SurfaceWriter& sfWriter, const Acts::Surface& surface,
 /// @param transform the layer transform
 /// @param representingBoundValues [in,out] the bound values
 /// @param last is the last layer
-void writeCylinderLayerVolume(
-    LayerVolumeWriter& lvWriter, const Acts::Layer& lv,
-    const Acts::Transform3& transform,
-    std::vector<Acts::ActsScalar>& representingBoundValues,
-    std::vector<Acts::ActsScalar>& volumeBoundValues,
-    std::vector<Acts::ActsScalar>& lastBoundValues, bool last) {
+void writeCylinderLayerVolume(LayerVolumeWriter& lvWriter,
+                              const Acts::Layer& lv,
+                              const Acts::Transform3& transform,
+                              std::vector<double>& representingBoundValues,
+                              std::vector<double>& volumeBoundValues,
+                              std::vector<double>& lastBoundValues, bool last) {
   // The layer volume to be written
   LayerVolumeData lvDims;
   lvDims.geometry_id = lv.geometryId().value();
@@ -251,9 +229,8 @@ void writeVolume(SurfaceWriter& sfWriter, SurfaceGridWriter& sfGridWriter,
     const auto& vTransform = volume.transform();
 
     // Get the values of the volume boundaries
-    std::vector<Acts::ActsScalar> volumeBoundValues =
-        volume.volumeBounds().values();
-    std::vector<Acts::ActsScalar> lastBoundValues;
+    std::vector<double> volumeBoundValues = volume.volumeBounds().values();
+    std::vector<double> lastBoundValues;
 
     if (volume.volumeBounds().type() == Acts::VolumeBounds::eCylinder) {
       auto vTranslation = vTransform.translation();
@@ -307,7 +284,7 @@ void writeVolume(SurfaceWriter& sfWriter, SurfaceGridWriter& sfGridWriter,
         // Write the layer volume, exclude single layer volumes (written above)
         if (rVolume != nullptr && writeLayerVolume && layers.size() > 3) {
           // Get the values of the representing volume
-          std::vector<Acts::ActsScalar> representingBoundValues =
+          std::vector<double> representingBoundValues =
               rVolume->volumeBounds().values();
           if (rVolume->volumeBounds().type() == Acts::VolumeBounds::eCylinder) {
             bool last = (layerIdx + 2 ==
@@ -335,13 +312,13 @@ void writeVolume(SurfaceWriter& sfWriter, SurfaceGridWriter& sfGridWriter,
             if (!binning.empty() && binning.size() == 2 && axes.size() == 2) {
               auto loc0Values = axes[0]->getBinEdges();
               sfGrid.nbins_loc0 = loc0Values.size() - 1;
-              sfGrid.type_loc0 = int(binning[0]);
+              sfGrid.type_loc0 = static_cast<int>(binning[0]);
               sfGrid.min_loc0 = loc0Values[0];
               sfGrid.max_loc0 = loc0Values[loc0Values.size() - 1];
 
               auto loc1Values = axes[1]->getBinEdges();
               sfGrid.nbins_loc1 = loc1Values.size() - 1;
-              sfGrid.type_loc1 = int(binning[1]);
+              sfGrid.type_loc1 = static_cast<int>(binning[1]);
               sfGrid.min_loc1 = loc1Values[0];
               sfGrid.max_loc1 = loc1Values[loc1Values.size() - 1];
             }

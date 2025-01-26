@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/Root/RootSimHitReader.hpp"
 
@@ -22,13 +22,14 @@
 #include <TChain.h>
 #include <TMathBase.h>
 
-ActsExamples::RootSimHitReader::RootSimHitReader(
-    const ActsExamples::RootSimHitReader::Config& config,
-    Acts::Logging::Level level)
-    : ActsExamples::IReader(),
+namespace ActsExamples {
+
+RootSimHitReader::RootSimHitReader(const RootSimHitReader::Config& config,
+                                   Acts::Logging::Level level)
+    : IReader(),
       m_cfg(config),
       m_logger(Acts::getDefaultLogger(name(), level)) {
-  m_inputChain = new TChain(m_cfg.treeName.c_str());
+  m_inputChain = std::make_unique<TChain>(m_cfg.treeName.c_str());
 
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing input filename");
@@ -37,7 +38,7 @@ ActsExamples::RootSimHitReader::RootSimHitReader(
     throw std::invalid_argument("Missing tree name");
   }
 
-  m_outputSimHits.initialize(m_cfg.simHitCollection);
+  m_outputSimHits.initialize(m_cfg.outputSimHits);
 
   // Set the branches
   int f = 0;
@@ -71,6 +72,9 @@ ActsExamples::RootSimHitReader::RootSimHitReader(
   m_inputChain->SetBranchStatus("event_id", true);
 
   auto nEntries = static_cast<std::size_t>(m_inputChain->GetEntriesFast());
+  if (nEntries == 0) {
+    throw std::runtime_error("Did not find any entries in input file");
+  }
 
   // Add the first entry
   m_inputChain->GetEntry(0);
@@ -90,10 +94,8 @@ ActsExamples::RootSimHitReader::RootSimHitReader(
   std::get<2>(m_eventMap.back()) = nEntries;
 
   // Sort by event id
-  std::sort(m_eventMap.begin(), m_eventMap.end(),
-            [](const auto& a, const auto& b) {
-              return std::get<0>(a) < std::get<0>(b);
-            });
+  std::ranges::sort(m_eventMap, {},
+                    [](const auto& m) { return std::get<0>(m); });
 
   // Re-Enable all branches
   m_inputChain->SetBranchStatus("*", true);
@@ -101,16 +103,16 @@ ActsExamples::RootSimHitReader::RootSimHitReader(
                              << availableEvents().second);
 }
 
-std::pair<std::size_t, std::size_t>
-ActsExamples::RootSimHitReader::availableEvents() const {
+RootSimHitReader::~RootSimHitReader() = default;
+
+std::pair<std::size_t, std::size_t> RootSimHitReader::availableEvents() const {
   return {std::get<0>(m_eventMap.front()), std::get<0>(m_eventMap.back()) + 1};
 }
 
-ActsExamples::ProcessCode ActsExamples::RootSimHitReader::read(
-    const ActsExamples::AlgorithmContext& context) {
-  auto it = std::find_if(
-      m_eventMap.begin(), m_eventMap.end(),
-      [&](const auto& a) { return std::get<0>(a) == context.eventNumber; });
+ProcessCode RootSimHitReader::read(const AlgorithmContext& context) {
+  auto it = std::ranges::find_if(m_eventMap, [&](const auto& a) {
+    return std::get<0>(a) == context.eventNumber;
+  });
 
   if (it == m_eventMap.end()) {
     // explicitly warn if it happens for the first or last event as that might
@@ -125,7 +127,7 @@ ActsExamples::ProcessCode ActsExamples::RootSimHitReader::read(
     m_outputSimHits(context, {});
 
     // Return success flag
-    return ActsExamples::ProcessCode::SUCCESS;
+    return ProcessCode::SUCCESS;
   }
 
   // lock the mutex
@@ -152,7 +154,7 @@ ActsExamples::ProcessCode ActsExamples::RootSimHitReader::read(
         m_floatColumns.at("tx") * Acts::UnitConstants::mm,
         m_floatColumns.at("ty") * Acts::UnitConstants::mm,
         m_floatColumns.at("tz") * Acts::UnitConstants::mm,
-        m_floatColumns.at("tt") * Acts::UnitConstants::ns,
+        m_floatColumns.at("tt") * Acts::UnitConstants::mm,
     };
 
     const Acts::Vector4 before4 = {
@@ -174,8 +176,13 @@ ActsExamples::ProcessCode ActsExamples::RootSimHitReader::read(
     hits.insert(hit);
   }
 
+  ACTS_DEBUG("Read " << hits.size() << " hits for event "
+                     << context.eventNumber);
+
   m_outputSimHits(context, std::move(hits));
 
   // Return success flag
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

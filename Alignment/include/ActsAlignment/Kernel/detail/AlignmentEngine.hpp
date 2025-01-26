@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020-2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -19,8 +19,7 @@
 
 #include <unordered_map>
 
-namespace ActsAlignment {
-namespace detail {
+namespace ActsAlignment::detail {
 
 using namespace Acts;
 ///
@@ -209,7 +208,9 @@ TrackAlignmentState trackAlignmentState(
                                            measdim) = measCovariance;
 
     // (b) Get and fill the bound parameters to measurement projection matrix
-    const ActsDynamicMatrix H = state.effectiveProjector();
+    const ActsDynamicMatrix H =
+        state.projectorSubspaceHelper().fullProjector().topLeftCorner(
+            measdim, eBoundSize);
     alignState.projectionMatrix.block(iMeasurement, iParams, measdim,
                                       eBoundSize) = H;
     // (c) Get and fill the residual
@@ -225,6 +226,8 @@ TrackAlignmentState trackAlignmentState(
       // The free parameters transformed from the smoothed parameters
       const FreeVector freeParams =
           Acts::MultiTrajectoryHelpers::freeSmoothed(gctx, state);
+      // The position
+      const Vector3 position = freeParams.segment<3>(eFreePos0);
       // The direction
       const Vector3 direction = freeParams.segment<3>(eFreeDir0);
       // The derivative of free parameters w.r.t. path length. @note Here, we
@@ -234,8 +237,8 @@ TrackAlignmentState trackAlignmentState(
       FreeVector pathDerivative = FreeVector::Zero();
       pathDerivative.head<3>() = direction;
       // Get the derivative of bound parameters w.r.t. alignment parameters
-      AlignmentToBoundMatrix alignToBound =
-          surface->alignmentToBoundDerivative(gctx, freeParams, pathDerivative);
+      AlignmentToBoundMatrix alignToBound = surface->alignmentToBoundDerivative(
+          gctx, position, direction, pathDerivative);
       // Set the degree of freedom per surface.
       // @Todo: don't allocate memory for fixed degree of freedom and consider surface/layer/volume wise align mask (instead of using global mask as now)
       resetAlignmentDerivative(alignToBound, alignMask);
@@ -297,5 +300,4 @@ TrackAlignmentState trackAlignmentState(
   return alignState;
 }
 
-}  // namespace detail
-}  // namespace ActsAlignment
+}  // namespace ActsAlignment::detail

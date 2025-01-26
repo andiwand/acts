@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 ///////////////////////////////////////////////////////////////////
 // SPForSeed.hpp Acts project
 ///////////////////////////////////////////////////////////////////
 
 #pragma once
+
 #include <cmath>
 
 // COLLECTION OF MAGIC NUMBERS IN HERE:
@@ -28,8 +29,7 @@
 //    if(de->isBarrel()) {m_covz = 8.*f22; m_covr = .1;}
 //    else               {m_covr = 8.*f22; m_covz = .1;}
 
-namespace Acts {
-namespace Legacy {
+namespace Acts::Legacy {
 
 template <typename SpacePoint>
 class SPForSeed {
@@ -247,5 +247,4 @@ inline void SPForSeed<SpacePoint>::setQuality(float q) {
   }
 }
 
-}  // namespace Legacy
-}  // namespace Acts
+}  // namespace Acts::Legacy

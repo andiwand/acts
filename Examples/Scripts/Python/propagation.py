@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-import os
 
+import os
 import acts
 import acts.examples
-
 from acts.examples import GenericDetector, AlignedDetector
-from common import getOpenDataDetectorDirectory
+from acts.examples.odd import getOpenDataDetectorDirectory
+from acts.examples.simulation import (
+    addParticleGun,
+    EtaConfig,
+    ParticleConfig,
+    MomentumConfig,
+)
 
 u = acts.UnitConstants
 
@@ -18,40 +23,43 @@ def runPropagation(trackingGeometry, field, outputDir, s=None, decorators=[]):
 
     rnd = acts.examples.RandomNumbers(seed=42)
 
+    addParticleGun(
+        s,
+        ParticleConfig(num=1000, pdg=acts.PdgParticle.eMuon, randomizeCharge=True),
+        EtaConfig(-4.0, 4.0),
+        MomentumConfig(1 * u.GeV, 100 * u.GeV, transverse=True),
+        rnd=rnd,
+    )
+
+    trkParamExtractor = acts.examples.ParticleTrackParamExtractor(
+        level=acts.logging.WARNING,
+        inputParticles="particles_generated",
+        outputTrackParameters="params_particles_generated",
+    )
+    s.addAlgorithm(trkParamExtractor)
+
     nav = acts.Navigator(trackingGeometry=trackingGeometry)
 
     stepper = acts.EigenStepper(field)
     # stepper = acts.AtlasStepper(field)
     # stepper = acts.StraightLineStepper()
 
-    print("We're running with:", type(stepper).__name__)
-    prop = acts.examples.ConcretePropagator(acts.Propagator(stepper, nav))
+    propagator = acts.examples.ConcretePropagator(acts.Propagator(stepper, nav))
 
-    alg = acts.examples.PropagationAlgorithm(
-        propagatorImpl=prop,
+    propagationAlgorithm = acts.examples.PropagationAlgorithm(
+        propagatorImpl=propagator,
         level=acts.logging.INFO,
-        randomNumberSvc=rnd,
-        ntests=1000,
         sterileLogger=True,
-        propagationStepCollection="propagation-steps",
+        inputTrackParameters="params_particles_generated",
+        outputSummaryCollection="propagation_summary",
     )
-
-    s.addAlgorithm(alg)
-
-    # Output
-    s.addWriter(
-        acts.examples.ObjPropagationStepsWriter(
-            level=acts.logging.INFO,
-            collection="propagation-steps",
-            outputDir=outputDir + "/obj",
-        )
-    )
+    s.addAlgorithm(propagationAlgorithm)
 
     s.addWriter(
-        acts.examples.RootPropagationStepsWriter(
+        acts.examples.RootPropagationSummaryWriter(
             level=acts.logging.INFO,
-            collection="propagation-steps",
-            filePath=outputDir + "/propagation_steps.root",
+            inputSummaryCollection="propagation_summary",
+            filePath=outputDir + "/propagation_summary.root",
         )
     )
 
@@ -64,14 +72,10 @@ if "__main__" == __name__:
     # matDeco = acts.IMaterialDecorator.fromFile("material.root")
 
     ## Generic detector: Default
-    (
-        detector,
-        trackingGeometry,
-        contextDecorators,
-    ) = GenericDetector.create(mdecorator=matDeco)
+    detector = GenericDetector(mdecorator=matDeco)
 
     ## Alternative: Aligned detector in a couple of modes
-    # detector, trackingGeometry, contextDecorators = AlignedDetector.create(
+    # detector = AlignedDetector(
     #     decoratorLogLevel=acts.logging.INFO,
     #     # These parameters need to be tuned so that GC doesn't break
     #     # with multiple threads
@@ -86,8 +90,10 @@ if "__main__" == __name__:
     ## Alternative: DD4hep detector
     # dd4hepCfg = acts.examples.DD4hepDetector.Config()
     # dd4hepCfg.xmlFileNames = [str(getOpenDataDetectorDirectory()/"xml/OpenDataDetector.xml")]
-    # detector = acts.examples.DD4hepDetector()
-    # trackingGeometry, contextDecorators = detector.finalize(dd4hepCfg, None)
+    # detector = acts.examples.DD4hepDetector(dd4hepCfg)
+
+    trackingGeometry = detector.trackingGeometry()
+    contextDecorators = detector.contextDecorators()
 
     ## Magnetic field setup: Default: constant 2T longitudinal field
     field = acts.ConstantBField(acts.Vector3(0, 0, 2 * acts.UnitConstants.T))
@@ -109,6 +115,11 @@ if "__main__" == __name__:
     #     field=solenoid
     # )
 
+    os.makedirs(os.getcwd() + "/propagation", exist_ok=True)
+
     runPropagation(
-        trackingGeometry, field, os.getcwd(), decorators=contextDecorators
+        trackingGeometry,
+        field,
+        os.getcwd() + "/propagation",
+        decorators=contextDecorators,
     ).run()

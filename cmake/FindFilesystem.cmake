@@ -98,7 +98,6 @@ Using `find_package(Filesystem)` with no component arguments:
 
 #]=======================================================================]
 
-
 if(TARGET std::filesystem)
     # This module has already been processed. Don't do it again.
     return()
@@ -128,6 +127,10 @@ cmake_push_check_state()
 set(CMAKE_REQUIRED_QUIET ${Filesystem_FIND_QUIETLY})
 
 # All of our tests required C++17 or later
+if(DEFINED CMAKE_CXX_STANDARD)
+    set(_prior_cmake_cxx_standard ${CMAKE_CXX_STANDARD})
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 
 # Normalize and check the component list we were given
@@ -140,7 +143,10 @@ endif()
 set(extra_components ${want_components})
 list(REMOVE_ITEM extra_components Final Experimental)
 foreach(component IN LISTS extra_components)
-    message(WARNING "Extraneous find_package component for Filesystem: ${component}")
+    message(
+        WARNING
+        "Extraneous find_package component for Filesystem: ${component}"
+    )
 endforeach()
 
 # Detect which of Experimental and Final we should look for
@@ -166,7 +172,10 @@ else()
 endif()
 
 if(find_experimental)
-    check_include_file_cxx("experimental/filesystem" _CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER)
+    check_include_file_cxx(
+        "experimental/filesystem"
+        _CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER
+    )
     mark_as_advanced(_CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER)
 else()
     set(_CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER FALSE)
@@ -186,16 +195,34 @@ else()
     set(_have_fs FALSE)
 endif()
 
-set(CXX_FILESYSTEM_HAVE_FS ${_have_fs} CACHE BOOL "TRUE if we have the C++ filesystem headers")
-set(CXX_FILESYSTEM_HEADER ${_fs_header} CACHE STRING "The header that should be included to obtain the filesystem APIs")
-set(CXX_FILESYSTEM_NAMESPACE ${_fs_namespace} CACHE STRING "The C++ namespace that contains the filesystem APIs")
-set(CXX_FILESYSTEM_IS_EXPERIMENTAL ${_is_experimental} CACHE BOOL "TRUE if the C++ filesystem library is the experimental version")
+set(CXX_FILESYSTEM_HAVE_FS
+    ${_have_fs}
+    CACHE BOOL
+    "TRUE if we have the C++ filesystem headers"
+)
+set(CXX_FILESYSTEM_HEADER
+    ${_fs_header}
+    CACHE STRING
+    "The header that should be included to obtain the filesystem APIs"
+)
+set(CXX_FILESYSTEM_NAMESPACE
+    ${_fs_namespace}
+    CACHE STRING
+    "The C++ namespace that contains the filesystem APIs"
+)
+set(CXX_FILESYSTEM_IS_EXPERIMENTAL
+    ${_is_experimental}
+    CACHE BOOL
+    "TRUE if the C++ filesystem library is the experimental version"
+)
 
 set(_found FALSE)
 
 if(CXX_FILESYSTEM_HAVE_FS)
     # We have some filesystem library available. Do link checks
-    string(CONFIGURE [[
+    string(
+        CONFIGURE
+        [[
         #include <cstdlib>
         #include <@CXX_FILESYSTEM_HEADER@>
 
@@ -204,7 +231,10 @@ if(CXX_FILESYSTEM_HAVE_FS)
             printf("%s", cwd.c_str());
             return EXIT_SUCCESS;
         }
-    ]] code @ONLY)
+    ]]
+        code
+        @ONLY
+    )
 
     # Check a simple filesystem program without any linker flags
     _cmcm_check_cxx_source("${code}" CXX_FILESYSTEM_NO_LINK_NEEDED)
@@ -227,22 +257,45 @@ if(CXX_FILESYSTEM_HAVE_FS)
 
     if(can_link)
         add_library(std::filesystem INTERFACE IMPORTED)
-        set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_COMPILE_FEATURES cxx_std_17)
+        set_property(
+            TARGET std::filesystem
+            APPEND
+            PROPERTY INTERFACE_COMPILE_FEATURES cxx_std_17
+        )
         set(_found TRUE)
 
         if(CXX_FILESYSTEM_NO_LINK_NEEDED)
             # Nothing to add...
         elseif(CXX_FILESYSTEM_STDCPPFS_NEEDED)
-            set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_LINK_LIBRARIES -lstdc++fs)
+            set_property(
+                TARGET std::filesystem
+                APPEND
+                PROPERTY INTERFACE_LINK_LIBRARIES -lstdc++fs
+            )
         elseif(CXX_FILESYSTEM_CPPFS_NEEDED)
-            set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_LINK_LIBRARIES -lc++fs)
+            set_property(
+                TARGET std::filesystem
+                APPEND
+                PROPERTY INTERFACE_LINK_LIBRARIES -lc++fs
+            )
         endif()
     endif()
 endif()
 
 cmake_pop_check_state()
 
-set(Filesystem_FOUND ${_found} CACHE BOOL "TRUE if we can run a program using std::filesystem" FORCE)
+set(Filesystem_FOUND
+    ${_found}
+    CACHE BOOL
+    "TRUE if we can run a program using std::filesystem"
+    FORCE
+)
+
+if(DEFINED _prior_cmake_cxx_standard)
+    set(CMAKE_CXX_STANDARD ${_prior_cmake_cxx_standard})
+else()
+    unset(CMAKE_CXX_STANDARD)
+endif()
 
 if(Filesystem_FIND_REQUIRED AND NOT Filesystem_FOUND)
     message(FATAL_ERROR "Cannot run simple program using std::filesystem")

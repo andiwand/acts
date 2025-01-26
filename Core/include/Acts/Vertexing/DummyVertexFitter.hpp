@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -22,11 +22,9 @@ class DummyTrackLinearizer;
 /// @brief Dummy vertex fitter class, only to be used
 /// for ensuring interfaces where a vertex fitter type is
 /// required but no fitter is actually needed
-template <typename input_track_t = BoundTrackParameters,
-          typename linearizer_t = DummyTrackLinearizer>
+template <typename linearizer_t = DummyTrackLinearizer>
 class DummyVertexFitter {
  public:
-  using InputTrack_t = input_track_t;
   using Linearizer_t = linearizer_t;
   using Propagator_t = void;
 
@@ -34,9 +32,8 @@ class DummyVertexFitter {
   DummyVertexFitter() = delete;
 
   /// @brief Dummy fit method
-  Result<Vertex<input_track_t>> fit(
-      const std::vector<input_track_t>&, const linearizer_t&,
-      const VertexingOptions<input_track_t>&) const;
+  Result<Vertex> fit(const std::vector<InputTrack>&, const linearizer_t&,
+                     const VertexingOptions&) const;
 };
 
 }  // namespace Acts

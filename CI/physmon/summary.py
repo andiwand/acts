@@ -3,7 +3,6 @@
 
 import argparse
 import re
-import functools
 import os
 import csv
 
@@ -24,12 +23,12 @@ summary = []
 
 with open(args.results) as f:
     reader = csv.reader(f)
-    for title, slug, ec in reader:
+    for title, html_path, ec in reader:
         summary.append(
             {
                 "title": title,
                 "total": ec == "0",
-                "path": f"{slug}.html",
+                "path": html_path,
             }
         )
 

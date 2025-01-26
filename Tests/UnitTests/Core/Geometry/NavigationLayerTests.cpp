@@ -1,12 +1,11 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
@@ -22,13 +21,13 @@
 
 #include "../Surfaces/SurfaceStub.hpp"
 
-namespace Acts {
-namespace Test {
-
+namespace Acts::Test {
 // Create a test context
 GeometryContext tgContext = GeometryContext();
+}  // namespace Acts::Test
 
-namespace Layers {
+namespace Acts::Test::Layers {
+
 BOOST_AUTO_TEST_SUITE(Layers)
 
 /// Unit test for creating compliant/non-compliant NavigationLayer object
@@ -52,26 +51,25 @@ BOOST_AUTO_TEST_CASE(NavigationLayerProperties) {
   auto rawSurfacePtr = pSurface.get();
   auto pNavigationLayer =
       NavigationLayer::create(std::move(pSurface), thickness);
-  BinningValue b{BinningValue::binZ};
+  AxisDirection b{AxisDirection::AxisZ};
   Vector3 origin{0., 0., 0.};
-  // binningPosition(), needs a better test
-  BOOST_CHECK_EQUAL(pNavigationLayer->binningPosition(tgContext, b), origin);
+  // referencePosition(), needs a better test
+  BOOST_CHECK_EQUAL(pNavigationLayer->referencePosition(tgContext, b), origin);
   // surfaceRepresentation() [looks dangerous]
   BOOST_CHECK_EQUAL(rawSurfacePtr,
                     &(pNavigationLayer->surfaceRepresentation()));
   // isOnLayer()
   BOOST_CHECK(pNavigationLayer->isOnLayer(tgContext, origin,
-                                          Acts::BoundaryCheck(true)));
+                                          BoundaryTolerance::None()));
   // isOnLayer()
   Vector3 crazyPosition{1000., 10000., std::nan("")};
   // layer stub has hard-coded globalToLocal return value
   BOOST_CHECK(pNavigationLayer->isOnLayer(tgContext, crazyPosition,
-                                          BoundaryCheck(true)));
+                                          BoundaryTolerance::None()));
   // resolve()
   BOOST_CHECK(!pNavigationLayer->resolve(true, true, true));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-}  // namespace Layers
-}  // namespace Test
-}  // namespace Acts
+
+}  // namespace Acts::Test::Layers

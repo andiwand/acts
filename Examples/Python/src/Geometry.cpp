@@ -1,12 +1,13 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Detector/CuboidalContainerBuilder.hpp"
 #include "Acts/Detector/CylindricalContainerBuilder.hpp"
 #include "Acts/Detector/Detector.hpp"
 #include "Acts/Detector/DetectorBuilder.hpp"
@@ -24,23 +25,34 @@
 #include "Acts/Detector/interface/IInternalStructureBuilder.hpp"
 #include "Acts/Detector/interface/IRootVolumeFinderBuilder.hpp"
 #include "Acts/Geometry/CylinderVolumeBounds.hpp"
+#include "Acts/Geometry/CylinderVolumeStack.hpp"
 #include "Acts/Geometry/Extent.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "Acts/Geometry/ProtoLayer.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Geometry/Volume.hpp"
+#include "Acts/Geometry/VolumeAttachmentStrategy.hpp"
 #include "Acts/Geometry/VolumeBounds.hpp"
+#include "Acts/Geometry/VolumeResizeStrategy.hpp"
+#include "Acts/Material/ISurfaceMaterial.hpp"
 #include "Acts/Plugins/Python/Utilities.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceArray.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/RangeXD.hpp"
+#include "Acts/Visualization/ViewConfig.hpp"
 #include "ActsExamples/Geometry/VolumeAssociationTest.hpp"
 
 #include <array>
 #include <memory>
+#include <numbers>
+#include <unordered_map>
 #include <vector>
 
+#include <boost/algorithm/string/join.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -58,12 +70,35 @@ struct GeometryIdentifierHookBinding : public Acts::GeometryIdentifierHook {
         .cast<Acts::GeometryIdentifier>();
   }
 };
+
+struct MaterialSurfaceSelector {
+  std::vector<const Acts::Surface*> surfaces = {};
+
+  /// @param surface is the test surface
+  void operator()(const Acts::Surface* surface) {
+    if (surface->surfaceMaterial() != nullptr &&
+        !rangeContainsValue(surfaces, surface)) {
+      surfaces.push_back(surface);
+    }
+  }
+};
+
+struct IdentifierSurfacesCollector {
+  std::unordered_map<Acts::GeometryIdentifier, const Acts::Surface*> surfaces;
+  /// @param surface is the test surface
+  void operator()(const Acts::Surface* surface) {
+    surfaces[surface->geometryId()] = surface;
+  }
+};
+
 }  // namespace
 
 namespace Acts::Python {
+
+void addBlueprint(Context& ctx);
+
 void addGeometry(Context& ctx) {
   auto m = ctx.get("main");
-
   {
     py::class_<Acts::GeometryIdentifier>(m, "GeometryIdentifier")
         .def(py::init<>())
@@ -80,18 +115,23 @@ void addGeometry(Context& ctx) {
         .def("approach", &Acts::GeometryIdentifier::approach)
         .def("sensitive", &Acts::GeometryIdentifier::sensitive)
         .def("extra", &Acts::GeometryIdentifier::extra)
-        .def("value", &Acts::GeometryIdentifier::value);
+        .def("value", &Acts::GeometryIdentifier::value)
+        .def("__str__", [](const Acts::GeometryIdentifier& self) {
+          std::stringstream ss;
+          ss << self;
+          return ss.str();
+        });
   }
 
   {
     py::class_<Acts::Surface, std::shared_ptr<Acts::Surface>>(m, "Surface")
+        // Can't bind directly because GeometryObject is virtual base of Surface
         .def("geometryId",
-             [](Acts::Surface& self) { return self.geometryId(); })
-        .def("center",
-             [](Acts::Surface& self) {
-               return self.center(Acts::GeometryContext{});
-             })
-        .def("type", [](Acts::Surface& self) { return self.type(); });
+             [](const Surface& self) { return self.geometryId(); })
+        .def("center", &Surface::center)
+        .def("type", &Surface::type)
+        .def("visualize", &Surface::visualize)
+        .def("surfaceMaterial", &Acts::Surface::surfaceMaterialSharedPtr);
   }
 
   {
@@ -121,31 +161,71 @@ void addGeometry(Context& ctx) {
   {
     py::class_<Acts::TrackingGeometry, std::shared_ptr<Acts::TrackingGeometry>>(
         m, "TrackingGeometry")
+        .def(py::init([](const MutableTrackingVolumePtr& volPtr,
+                         std::shared_ptr<const IMaterialDecorator> matDec,
+                         const GeometryIdentifierHook& hook,
+                         Acts::Logging::Level level) {
+          auto logger = Acts::getDefaultLogger("TrackingGeometry", level);
+          auto trkGeo = std::make_shared<Acts::TrackingGeometry>(
+              volPtr, matDec.get(), hook, *logger);
+          return trkGeo;
+        }))
         .def("visitSurfaces",
              [](Acts::TrackingGeometry& self, py::function& func) {
                self.visitSurfaces(func);
              })
+        .def("geoIdSurfaceMap", &Acts::TrackingGeometry::geoIdSurfaceMap)
+        .def("extractMaterialSurfaces",
+             [](Acts::TrackingGeometry& self) {
+               MaterialSurfaceSelector selector;
+               self.visitSurfaces(selector, false);
+               return selector.surfaces;
+             })
         .def_property_readonly(
-            "worldVolume",
-            &Acts::TrackingGeometry::highestTrackingVolumeShared);
+            "highestTrackingVolume",
+            &Acts::TrackingGeometry::highestTrackingVolumePtr)
+        .def("visualize", &Acts::TrackingGeometry::visualize, py::arg("helper"),
+             py::arg("gctx"), py::arg("viewConfig") = s_viewVolume,
+             py::arg("portalViewConfig") = s_viewPortal,
+             py::arg("sensitiveViewConfig") = s_viewSensitive);
   }
 
   {
-    py::class_<Acts::Volume, std::shared_ptr<Acts::Volume>>(m, "Volume")
-        .def_static(
-            "makeCylinderVolume",
-            [](double r, double halfZ) {
-              auto bounds =
-                  std::make_shared<Acts::CylinderVolumeBounds>(0, r, halfZ);
-              return std::make_shared<Acts::Volume>(Transform3::Identity(),
-                                                    bounds);
-            },
-            "r"_a, "halfZ"_a);
+    py::class_<Acts::VolumeBounds, std::shared_ptr<Acts::VolumeBounds>>(
+        m, "VolumeBounds")
+        .def("type", &Acts::VolumeBounds::type)
+        .def("__str__", [](const Acts::VolumeBounds& self) {
+          std::stringstream ss;
+          ss << self;
+          return ss.str();
+        });
+
+    auto cvb =
+        py::class_<Acts::CylinderVolumeBounds,
+                   std::shared_ptr<Acts::CylinderVolumeBounds>,
+                   Acts::VolumeBounds>(m, "CylinderVolumeBounds")
+            .def(py::init<double, double, double, double, double, double,
+                          double>(),
+                 "rmin"_a, "rmax"_a, "halfz"_a, "halfphi"_a = std::numbers::pi,
+                 "avgphi"_a = 0., "bevelMinZ"_a = 0., "bevelMaxZ"_a = 0.);
+
+    py::enum_<CylinderVolumeBounds::Face>(cvb, "Face")
+        .value("PositiveDisc", CylinderVolumeBounds::Face::PositiveDisc)
+        .value("NegativeDisc", CylinderVolumeBounds::Face::NegativeDisc)
+        .value("OuterCylinder", CylinderVolumeBounds::Face::OuterCylinder)
+        .value("InnerCylinder", CylinderVolumeBounds::Face::InnerCylinder)
+        .value("NegativePhiPlane", CylinderVolumeBounds::Face::NegativePhiPlane)
+        .value("PositivePhiPlane",
+               CylinderVolumeBounds::Face::PositivePhiPlane);
   }
 
   {
+    py::class_<Acts::Volume, std::shared_ptr<Acts::Volume>>(m, "Volume");
+
     py::class_<Acts::TrackingVolume, Acts::Volume,
-               std::shared_ptr<Acts::TrackingVolume>>(m, "TrackingVolume");
+               std::shared_ptr<Acts::TrackingVolume>>(m, "TrackingVolume")
+        .def(py::init<const Transform3&, std::shared_ptr<Acts::VolumeBounds>,
+                      std::string>());
   }
 
   {
@@ -159,23 +239,72 @@ void addGeometry(Context& ctx) {
         }));
   }
 
+  py::class_<ExtentEnvelope>(m, "ExtentEnvelope")
+      .def(py::init<>())
+      .def(py::init<const Envelope&>())
+      .def(py::init([](Envelope x, Envelope y, Envelope z, Envelope r,
+                       Envelope phi, Envelope rPhi, Envelope theta,
+                       Envelope eta, Envelope mag) {
+             return ExtentEnvelope({.x = x,
+                                    .y = y,
+                                    .z = z,
+                                    .r = r,
+                                    .phi = phi,
+                                    .rPhi = rPhi,
+                                    .theta = theta,
+                                    .eta = eta,
+                                    .mag = mag});
+           }),
+           py::arg("x") = zeroEnvelope, py::arg("y") = zeroEnvelope,
+           py::arg("z") = zeroEnvelope, py::arg("r") = zeroEnvelope,
+           py::arg("phi") = zeroEnvelope, py::arg("rPhi") = zeroEnvelope,
+           py::arg("theta") = zeroEnvelope, py::arg("eta") = zeroEnvelope,
+           py::arg("mag") = zeroEnvelope)
+      .def_static("Zero", &ExtentEnvelope::Zero)
+      .def("__getitem__", [](ExtentEnvelope& self,
+                             AxisDirection bValue) { return self[bValue]; })
+      .def("__setitem__", [](ExtentEnvelope& self, AxisDirection bValue,
+                             const Envelope& value) { self[bValue] = value; })
+      .def("__str__", [](const ExtentEnvelope& self) {
+        std::array<std::string, numAxisDirections()> values;
+
+        std::stringstream ss;
+        for (AxisDirection val : allAxisDirections()) {
+          ss << val << "=(" << self[val][0] << ", " << self[val][1] << ")";
+          values.at(toUnderlying(val)) = ss.str();
+          ss.str("");
+        }
+
+        ss.str("");
+        ss << "ExtentEnvelope(";
+        ss << boost::algorithm::join(values, ", ");
+        ss << ")";
+        return ss.str();
+      });
+
+  py::class_<Extent>(m, "Extent")
+      .def(py::init<const ExtentEnvelope&>(),
+           py::arg("envelope") = ExtentEnvelope::Zero())
+      .def("range",
+           [](const Acts::Extent& self,
+              Acts::AxisDirection bval) -> std::array<double, 2> {
+             return {self.min(bval), self.max(bval)};
+           })
+      .def("__str__", &Extent::toString);
+
   {
-    py::class_<Acts::Extent>(m, "Extent")
-        .def(py::init(
-            [](const std::vector<std::tuple<Acts::BinningValue,
-                                            std::array<Acts::ActsScalar, 2u>>>&
-                   franges) {
-              Acts::Extent extent;
-              for (const auto& [bval, frange] : franges) {
-                extent.set(bval, frange[0], frange[1]);
-              }
-              return extent;
-            }))
-        .def("range", [](const Acts::Extent& self, Acts::BinningValue bval) {
-          return std::array<Acts::ActsScalar, 2u>{self.min(bval),
-                                                  self.max(bval)};
-        });
+    py::enum_<VolumeAttachmentStrategy>(m, "VolumeAttachmentStrategy")
+        .value("Gap", VolumeAttachmentStrategy::Gap)
+        .value("First", VolumeAttachmentStrategy::First)
+        .value("Second", VolumeAttachmentStrategy::Second)
+        .value("Midpoint", VolumeAttachmentStrategy::Midpoint);
+
+    py::enum_<VolumeResizeStrategy>(m, "VolumeResizeStrategy")
+        .value("Gap", VolumeResizeStrategy::Gap)
+        .value("Expand", VolumeResizeStrategy::Expand);
   }
+
+  addBlueprint(ctx);
 }
 
 void addExperimentalGeometry(Context& ctx) {
@@ -183,12 +312,48 @@ void addExperimentalGeometry(Context& ctx) {
 
   using namespace Acts::Experimental;
 
-  // Detector definition
-  py::class_<Detector, std::shared_ptr<Detector>>(m, "Detector");
-
   // Detector volume definition
   py::class_<DetectorVolume, std::shared_ptr<DetectorVolume>>(m,
-                                                              "DetectorVolume");
+                                                              "DetectorVolume")
+      .def("surfaces", &DetectorVolume::surfaces)
+      .def("surfacePtrs", &DetectorVolume::surfacePtrs);
+
+  // Detector definition
+  py::class_<Detector, std::shared_ptr<Detector>>(m, "Detector")
+      .def("volumes", &Detector::volumes)
+      .def("volumePtrs", &Detector::volumePtrs)
+      .def("numberVolumes",
+           [](const Detector& self) { return self.volumes().size(); })
+      .def("extractMaterialSurfaces",
+           [](const Detector& self) {
+             MaterialSurfaceSelector selector;
+             self.visitSurfaces(selector);
+             return selector.surfaces;
+           })
+      .def("geoIdSurfaceMap",
+           [](const Detector& self) {
+             IdentifierSurfacesCollector collector;
+             self.visitSurfaces(collector);
+             return collector.surfaces;
+           })
+      .def("cylindricalVolumeRepresentation",
+           [](const Detector& self, const Acts::GeometryContext& gctx) {
+             // Loop over the volumes and gather the extent
+             Extent extent;
+             for (const auto& volume : self.volumes()) {
+               extent.extend(volume->extent(gctx));
+             }
+             auto bounds = std::make_shared<Acts::CylinderVolumeBounds>(
+                 0., extent.max(Acts::AxisDirection::AxisR),
+                 extent.max(Acts::AxisDirection::AxisZ));
+
+             return std::make_shared<Acts::Volume>(Transform3::Identity(),
+                                                   std::move(bounds));
+           });
+
+  // Portal definition
+  py::class_<Experimental::Portal, std::shared_ptr<Experimental::Portal>>(
+      m, "Portal");
 
   {
     // The surface hierarchy map
@@ -207,7 +372,7 @@ void addExperimentalGeometry(Context& ctx) {
       for (const auto& surface : smap) {
         auto gid = surface->geometryId();
         // Exclusion criteria
-        if (sensitiveOnly and gid.sensitive() == 0) {
+        if (sensitiveOnly && gid.sensitive() == 0) {
           continue;
         };
         surfaceVolumeLayerMap[gid.volume()][gid.layer()].push_back(surface);
@@ -220,11 +385,15 @@ void addExperimentalGeometry(Context& ctx) {
   {
     // Be able to construct a proto binning
     py::class_<ProtoBinning>(m, "ProtoBinning")
-        .def(py::init<Acts::BinningValue, Acts::detail::AxisBoundaryType,
-                      const std::vector<Acts::ActsScalar>&, std::size_t>())
-        .def(py::init<Acts::BinningValue, Acts::detail::AxisBoundaryType,
-                      Acts::ActsScalar, Acts::ActsScalar, std::size_t,
-                      std::size_t>());
+        .def(py::init<Acts::AxisDirection, Acts::AxisBoundaryType,
+                      const std::vector<double>&, std::size_t>(),
+             "bValue"_a, "bType"_a, "e"_a, "exp"_a = 0u)
+        .def(py::init<Acts::AxisDirection, Acts::AxisBoundaryType, double,
+                      double, std::size_t, std::size_t>(),
+             "bValue"_a, "bType"_a, "minE"_a, "maxE"_a, "nbins"_a, "exp"_a = 0u)
+        .def(py::init<Acts::AxisDirection, Acts::AxisBoundaryType, std::size_t,
+                      std::size_t>(),
+             "bValue"_a, "bType"_a, "nbins"_a, "exp"_a = 0u);
   }
 
   {
@@ -253,7 +422,7 @@ void addExperimentalGeometry(Context& ctx) {
     ACTS_PYTHON_MEMBER(surfacesProvider);
     ACTS_PYTHON_MEMBER(supports);
     ACTS_PYTHON_MEMBER(binnings);
-    ACTS_PYTHON_MEMBER(nSegments);
+    ACTS_PYTHON_MEMBER(quarterSegments);
     ACTS_PYTHON_MEMBER(auxiliary);
     ACTS_PYTHON_STRUCT_END();
 
@@ -270,36 +439,76 @@ void addExperimentalGeometry(Context& ctx) {
   }
 
   {
-    using Range2D = Acts::RangeXD<2u, Acts::ActsScalar>;
-    using KdtSurfaces2D = Acts::Experimental::KdtSurfaces<2u, 100u>;
-    using KdtSurfacesProvider2D =
+    using RangeXDDim1 = Acts::RangeXD<1u, double>;
+    using KdtSurfacesDim1Bin100 = Acts::Experimental::KdtSurfaces<1u, 100u>;
+    using KdtSurfacesProviderDim1Bin100 =
+        Acts::Experimental::KdtSurfacesProvider<1u, 100u>;
+
+    py::class_<RangeXDDim1>(m, "RangeXDDim1")
+        .def(py::init([](const std::array<double, 2u>& irange) {
+          RangeXDDim1 range;
+          range[0].shrink(irange[0], irange[1]);
+          return range;
+        }));
+
+    py::class_<KdtSurfacesDim1Bin100, std::shared_ptr<KdtSurfacesDim1Bin100>>(
+        m, "KdtSurfacesDim1Bin100")
+        .def(py::init<const GeometryContext&,
+                      const std::vector<std::shared_ptr<Acts::Surface>>&,
+                      const std::array<Acts::AxisDirection, 1u>&>())
+        .def("surfaces", py::overload_cast<const RangeXDDim1&>(
+                             &KdtSurfacesDim1Bin100::surfaces, py::const_));
+
+    py::class_<KdtSurfacesProviderDim1Bin100,
+               Acts::Experimental::ISurfacesProvider,
+               std::shared_ptr<KdtSurfacesProviderDim1Bin100>>(
+        m, "KdtSurfacesProviderDim1Bin100")
+        .def(py::init<std::shared_ptr<KdtSurfacesDim1Bin100>, const Extent&>());
+  }
+
+  {
+    using RangeXDDim2 = Acts::RangeXD<2u, double>;
+    using KdtSurfacesDim2Bin100 = Acts::Experimental::KdtSurfaces<2u, 100u>;
+    using KdtSurfacesProviderDim2Bin100 =
         Acts::Experimental::KdtSurfacesProvider<2u, 100u>;
 
-    py::class_<Range2D>(m, "Range2D")
-        .def(py::init([](const std::array<Acts::ActsScalar, 2u>& range0,
-                         const std::array<Acts::ActsScalar, 2u>& range1) {
-          Range2D range;
+    py::class_<RangeXDDim2>(m, "RangeXDDim2")
+        .def(py::init([](const std::array<double, 2u>& range0,
+                         const std::array<double, 2u>& range1) {
+          RangeXDDim2 range;
           range[0].shrink(range0[0], range0[1]);
           range[1].shrink(range1[0], range1[1]);
           return range;
         }));
 
-    py::class_<KdtSurfaces2D, std::shared_ptr<KdtSurfaces2D>>(m,
-                                                              "KdtSurfaces2D")
+    py::class_<KdtSurfacesDim2Bin100, std::shared_ptr<KdtSurfacesDim2Bin100>>(
+        m, "KdtSurfacesDim2Bin100")
         .def(py::init<const GeometryContext&,
                       const std::vector<std::shared_ptr<Acts::Surface>>&,
-                      const std::array<Acts::BinningValue, 2u>&>())
-        .def("surfaces", [](KdtSurfaces2D& self, const Range2D& range) {
-          return self.surfaces(range);
-        });
+                      const std::array<Acts::AxisDirection, 2u>&>())
+        .def("surfaces", py::overload_cast<const RangeXDDim2&>(
+                             &KdtSurfacesDim2Bin100::surfaces, py::const_));
 
-    py::class_<KdtSurfacesProvider2D, Acts::Experimental::ISurfacesProvider,
-               std::shared_ptr<KdtSurfacesProvider2D>>(m,
-                                                       "KdtSurfacesProvider2D")
-        .def(py::init(
-            [](std::shared_ptr<KdtSurfaces2D> kdt, const Extent& extent) {
-              return std::make_shared<KdtSurfacesProvider2D>(kdt, extent);
-            }));
+    py::class_<KdtSurfacesProviderDim2Bin100,
+               Acts::Experimental::ISurfacesProvider,
+               std::shared_ptr<KdtSurfacesProviderDim2Bin100>>(
+        m, "KdtSurfacesProviderDim2Bin100")
+        .def(py::init<std::shared_ptr<KdtSurfacesDim2Bin100>, const Extent&>());
+  }
+
+  {
+    using RangeXDDim3 = Acts::RangeXD<3u, double>;
+
+    py::class_<RangeXDDim3>(m, "RangeXDDim3")
+        .def(py::init([](const std::array<double, 2u>& range0,
+                         const std::array<double, 2u>& range1,
+                         const std::array<double, 2u>& range2) {
+          RangeXDDim3 range;
+          range[0].shrink(range0[0], range0[1]);
+          range[1].shrink(range1[0], range1[1]);
+          range[2].shrink(range2[0], range2[1]);
+          return range;
+        }));
   }
 
   {
@@ -408,7 +617,7 @@ void addExperimentalGeometry(Context& ctx) {
                    std::shared_ptr<
                        Acts::Experimental::IndexedRootVolumeFinderBuilder>>(
             m, "IndexedRootVolumeFinderBuilder")
-            .def(py::init<std::vector<Acts::BinningValue>>());
+            .def(py::init<std::vector<Acts::AxisDirection>>());
   }
 
   {
@@ -441,6 +650,35 @@ void addExperimentalGeometry(Context& ctx) {
   }
 
   {
+    // Cuboidal container builder
+    auto ccBuilder =
+        py::class_<CuboidalContainerBuilder,
+                   Acts::Experimental::IDetectorComponentBuilder,
+                   std::shared_ptr<CuboidalContainerBuilder>>(
+            m, "CuboidalContainerBuilder")
+            .def(py::init([](const CuboidalContainerBuilder::Config& config,
+                             const std::string& name,
+                             Acts::Logging::Level level) {
+              return std::make_shared<CuboidalContainerBuilder>(
+                  config, getDefaultLogger(name, level));
+            }))
+            .def("construct", &CuboidalContainerBuilder::construct);
+
+    auto ccConfig =
+        py::class_<CuboidalContainerBuilder::Config>(ccBuilder, "Config")
+            .def(py::init<>());
+
+    ACTS_PYTHON_STRUCT_BEGIN(ccConfig, CuboidalContainerBuilder::Config);
+    ACTS_PYTHON_MEMBER(builders);
+    ACTS_PYTHON_MEMBER(binning);
+    ACTS_PYTHON_MEMBER(rootVolumeFinderBuilder);
+    ACTS_PYTHON_MEMBER(geoIdGenerator);
+    ACTS_PYTHON_MEMBER(geoIdReverseGen);
+    ACTS_PYTHON_MEMBER(auxiliary);
+    ACTS_PYTHON_STRUCT_END();
+  }
+
+  {
     // Detector builder
     auto dBuilder =
         py::class_<DetectorBuilder, std::shared_ptr<DetectorBuilder>>(
@@ -460,6 +698,7 @@ void addExperimentalGeometry(Context& ctx) {
     ACTS_PYTHON_MEMBER(name);
     ACTS_PYTHON_MEMBER(builder);
     ACTS_PYTHON_MEMBER(geoIdGenerator);
+    ACTS_PYTHON_MEMBER(materialDecorator);
     ACTS_PYTHON_MEMBER(auxiliary);
     ACTS_PYTHON_STRUCT_END();
   }
@@ -467,6 +706,15 @@ void addExperimentalGeometry(Context& ctx) {
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::VolumeAssociationTest, mex,
                                 "VolumeAssociationTest", name, ntests,
                                 randomNumbers, randomRange, detector);
+
+  py::class_<ProtoLayer>(m, "ProtoLayer")
+      .def(py::init<const GeometryContext&,
+                    const std::vector<std::shared_ptr<Surface>>&,
+                    const Transform3&>(),
+           "gctx"_a, "surfaces"_a, "transform"_a = Transform3::Identity())
+      .def("min", &ProtoLayer::min, "bval"_a, "addenv"_a = true)
+      .def("max", &ProtoLayer::max, "bval"_a, "addenv"_a = true)
+      .def_property_readonly("surfaces", &ProtoLayer::surfaces);
 }
 
 }  // namespace Acts::Python

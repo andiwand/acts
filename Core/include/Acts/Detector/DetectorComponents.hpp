@@ -1,17 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Detector/PortalGenerators.hpp"
-#include "Acts/Navigation/DetectorVolumeUpdaters.hpp"
-#include "Acts/Navigation/SurfaceCandidatesUpdaters.hpp"
+#include "Acts/Navigation/InternalNavigation.hpp"
+#include "Acts/Navigation/PortalNavigation.hpp"
 
 #include <map>
 #include <memory>
@@ -39,7 +39,7 @@ struct RootDetectorVolumes {
   /// The list of root volumes
   std::vector<std::shared_ptr<DetectorVolume>> volumes = {};
   /// The Root volumes finder
-  DetectorVolumeUpdater volumeFinder;
+  ExternalNavigationDelegate volumeFinder;
 };
 
 /// @brief The currently built detector components
@@ -82,9 +82,9 @@ struct InternalStructure {
   /// Contained volumes of this volume, handled by the volumeUpdater
   std::vector<std::shared_ptr<DetectorVolume>> volumes = {};
   /// Navigation delegate for surfaces
-  SurfaceCandidatesUpdater surfacesUpdater;
+  InternalNavigationDelegate surfacesUpdater;
   // Navigation delegate for volumes
-  DetectorVolumeUpdater volumeUpdater;
+  ExternalNavigationDelegate volumeUpdater;
 };
 
 }  // namespace Experimental

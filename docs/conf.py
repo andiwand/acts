@@ -2,12 +2,13 @@
 
 import os
 import sys
-import re
 import subprocess
 from pathlib import Path
 import shutil
 import datetime
-from typing import List, Tuple
+import urllib.request
+import urllib.error
+import json
 
 # check if we are running on readthedocs.org
 on_readthedocs = os.environ.get("READTHEDOCS", None) == "True"
@@ -33,6 +34,7 @@ extensions = [
     "breathe",
     "myst_parser",
     "sphinx.ext.mathjax",
+    "sphinx.ext.graphviz",
     "sphinx.ext.todo",
     "warnings_filter",
 ]
@@ -60,14 +62,22 @@ myst_heading_anchors = 3
 myst_dmath_allow_labels = True
 
 linkcheck_retries = 5
-linkcheck_ignore = [
-    r"https://doi.org/.*",
-    r"https://cernvm.cern.ch/.*",
-    r"http://eigen.tuxfamily.org.*",
-    r"https://pythia.org.*",
-    r"https://lcginfo.cern.ch/.*",
-    r"https://.*\.?intel.com/.*",
-]
+linkcheck_ignore = []
+
+# Linkcheck ignore patterns are loaded from this URL, so we can
+# update without adding pull requests.
+linkcheck_ignore_url = (
+    "https://raw.githubusercontent.com/acts-project/linkcheck-ignore/main/data.json"
+)
+try:
+    response = urllib.request.urlopen(linkcheck_ignore_url)
+    linkcheck_ignore = json.loads(response.read().decode("utf-8"))
+except urllib.error.HTTPError:
+    print("Error getting linkcheck ignore data, using default")
+
+print("Link check ignore patterns")
+print(linkcheck_ignore)
+
 
 # -- Options for HTML output --------------------------------------------------
 
@@ -111,8 +121,6 @@ nitpicky = True
 nitpick_ignore = [
     ("cpp:identifier", "Acts"),
     ("cpp:identifier", "detail"),
-    ("cpp:identifier", "SIZE_MAX"),
-    ("cpp:identifier", "M_PI"),
     ("cpp:identifier", "eSize"),
     ("cpp:identifier", "eBoundSize"),
     ("cpp:identifier", "eFreeSize"),
@@ -135,7 +143,6 @@ nitpick_ignore_regex = [
 # -- Automatic API documentation ---------------------------------------------
 
 env = os.environ.copy()
-env["DOXYGEN_WARN_AS_ERROR"] = "NO"
 
 if on_readthedocs or tags.has("run_doxygen"):
     # if we are running on RTD Doxygen must be run as part of the build
@@ -167,9 +174,10 @@ if tags.has("lazy_autodoc") or on_readthedocs:
     extensions += ["lazy_autodoc"]
 
 
-import white_papers
+if on_readthedocs or tags.has("white_papers"):
+    import white_papers
 
-white_papers.render()
+    white_papers.render()
 
 # -- Markdown bridge setup hook (must come last, not sure why) ----------------
 

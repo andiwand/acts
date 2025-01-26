@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -19,19 +19,15 @@
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-#include <cmath>
-#include <functional>
 #include <tuple>
-#include <variant>
 
-namespace Acts {
+namespace Acts::detail {
 
 /// @brief These functions perform the transport of a covariance matrix using
 /// given Jacobians. The required data is provided by the stepper object
 /// with some additional data. Since this is a purely algebraic problem the
 /// calculations are identical for @c StraightLineStepper and @c EigenStepper.
 /// As a consequence the methods can be located in a separate file.
-namespace detail {
 
 /// Create and return the bound state at the current position
 ///
@@ -39,14 +35,14 @@ namespace detail {
 ///        needs to be guaranteed by the propagator
 ///
 /// @param [in] geoContext The geometry context
-/// @param [in, out] covarianceMatrix The covariance matrix of the state
+/// @param [in, out] boundCovariance The covariance matrix of the state
 /// @param [in, out] fullTransportJacobian Full jacobian since the last reset
 /// @param [in, out] freeTransportJacobian Global jacobian since the last reset
 /// @param [in, out] freeToPathDerivatives Path length derivatives of the free,
 ///        nominal parameters
 /// @param [in, out] boundToFreeJacobian Projection jacobian of the last bound
 ///        parametrisation to free parameters
-/// @param [in, out] parameters Free, nominal parametrisation
+/// @param [in, out] freeParameters Free, nominal parametrisation
 /// @param [in] particleHypothesis Particle hypothesis
 /// @param [in] covTransport Decision whether the covariance transport should be
 ///        performed
@@ -61,29 +57,30 @@ namespace detail {
 ///   - and the path length (from start - for ordering)
 ///
 Result<std::tuple<BoundTrackParameters, BoundMatrix, double>> boundState(
-    const GeometryContext& geoContext, BoundSquareMatrix& covarianceMatrix,
-    BoundMatrix& fullTransportJacobian, FreeMatrix& freeTransportJacobian,
-    FreeVector& freeToPathDerivatives, BoundToFreeMatrix& boundToFreeJacobian,
-    std::optional<FreeMatrix>& additionalFreeCovariance, FreeVector& parameters,
-    const ParticleHypothesis& particleHypothesis, bool covTransport,
-    double accumulatedPath, const Surface& surface,
+    const GeometryContext& geoContext, const Surface& surface,
+    BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
+    FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
+    BoundToFreeMatrix& boundToFreeJacobian,
+    std::optional<FreeMatrix>& additionalFreeCovariance,
+    FreeVector& freeParameters, const ParticleHypothesis& particleHypothesis,
+    bool covTransport, double accumulatedPath,
     const FreeToBoundCorrection& freeToBoundCorrection);
 
 /// Create and return a curvilinear state at the current position
 ///
 /// @brief This creates a curvilinear state.
 ///
-/// @param [in, out] covarianceMatrix The covariance matrix of the state
+/// @param [in, out] boundCovariance The covariance matrix of the state
 /// @param [in, out] fullTransportJacobian Full jacobian since the last reset
 /// @param [in, out] freeTransportJacobian Global jacobian since the last reset
 /// @param [in, out] freeToPathDerivatives Path length derivatives of the free,
 ///        nominal parameters
 /// @param [in, out] boundToFreeJacobian Projection jacobian of the last bound
 ///        parametrisation to free parameters
-/// @param [in] parameters Free, nominal parametrisation
+/// @param [in] freeParameters Free, nominal parametrisation
 /// @param [in] particleHypothesis Particle hypothesis
 /// @param [in] covTransport Decision whether the covariance transport should be
-///             performed
+///        performed
 /// @param [in] accumulatedPath Propagated distance
 ///
 /// @return A curvilinear state:
@@ -92,17 +89,19 @@ Result<std::tuple<BoundTrackParameters, BoundMatrix, double>> boundState(
 ///   - and the path length (from start - for ordering)
 ///
 std::tuple<CurvilinearTrackParameters, BoundMatrix, double> curvilinearState(
-    BoundSquareMatrix& covarianceMatrix, BoundMatrix& fullTransportJacobian,
-    FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
+    BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
+    FreeMatrix& transportJacobian, FreeVector& freeToPathDerivatives,
     BoundToFreeMatrix& boundToFreeJacobian,
     std::optional<FreeMatrix>& additionalFreeCovariance,
-    const FreeVector& parameters, const ParticleHypothesis& particleHypothesis,
-    bool covTransport, double accumulatedPath);
+    const FreeVector& freeParameters,
+    const ParticleHypothesis& particleHypothesis, bool covTransport,
+    double accumulatedPath);
 
 /// @brief Method for on-demand covariance transport of a bound/curvilinear to
 ///        another bound representation.
 ///
 /// @param [in] geoContext The geometry context
+/// @param [in] surface is the surface to which the covariance is forwarded to
 /// @param [in, out] boundCovariance The covariance matrix of the state
 /// @param [in, out] fullTransportJacobian Full jacobian since the last reset
 /// @param [in, out] freeTransportJacobian Global jacobian since the last reset
@@ -110,19 +109,18 @@ std::tuple<CurvilinearTrackParameters, BoundMatrix, double> curvilinearState(
 /// @param [in, out] boundToFreeJacobian Projection jacobian of the last bound
 ///        parametrisation to free parameters
 /// @param [in, out] freeParameters Free, nominal parametrisation
-/// @param [in] surface is the surface to which the covariance is
-///        forwarded to
-/// @param [in] freeToBoundCorrection Correction for non-linearity effect
-///        during transform from free to bound
+/// @param [in] freeToBoundCorrection Correction for non-linearity effect during
+///        transform from free to bound
 ///
 /// @note No check is done if the position is actually on the surface
 ///
 void transportCovarianceToBound(
-    const GeometryContext& geoContext, BoundSquareMatrix& boundCovariance,
-    BoundMatrix& fullTransportJacobian, FreeMatrix& freeTransportJacobian,
-    FreeVector& freeToPathDerivatives, BoundToFreeMatrix& boundToFreeJacobian,
+    const GeometryContext& geoContext, const Surface& surface,
+    BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
+    FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
+    BoundToFreeMatrix& boundToFreeJacobian,
     std::optional<FreeMatrix>& additionalFreeCovariance,
-    FreeVector& freeParameters, const Surface& surface,
+    FreeVector& freeParameters,
     const FreeToBoundCorrection& freeToBoundCorrection);
 
 /// @brief Method for on-demand covariance transport of a bound/curvilinear
@@ -133,7 +131,7 @@ void transportCovarianceToBound(
 /// @param [in, out] freeTransportJacobian Global jacobian since the last reset
 /// @param [in, out] freeToPathDerivatives Path length derivatives
 /// @param [in, out] boundToFreeJacobian Projection jacobian of the last bound
-///         parametrisation to free parameters
+///        parametrisation to free parameters
 /// @param [in] direction Normalised direction vector
 ///
 void transportCovarianceToCurvilinear(
@@ -156,5 +154,4 @@ Result<BoundTrackParameters> boundToBoundConversion(
     const GeometryContext& gctx, const BoundTrackParameters& boundParameters,
     const Surface& targetSurface, const Vector3& bField = Vector3::Zero());
 
-}  // namespace detail
-}  // namespace Acts
+}  // namespace Acts::detail

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Geometry/GenericCuboidVolumeBounds.hpp"
 
@@ -63,9 +63,10 @@ bool Acts::GenericCuboidVolumeBounds::inside(const Acts::Vector3& gpos,
   return true;
 }
 
-Acts::OrientedSurfaces Acts::GenericCuboidVolumeBounds::orientedSurfaces(
+std::vector<Acts::OrientedSurface>
+Acts::GenericCuboidVolumeBounds::orientedSurfaces(
     const Transform3& transform) const {
-  OrientedSurfaces oSurfaces;
+  std::vector<OrientedSurface> oSurfaces;
 
   // approximate cog of the volume
   Vector3 cog(0, 0, 0);
@@ -115,7 +116,7 @@ Acts::OrientedSurfaces Acts::GenericCuboidVolumeBounds::orientedSurfaces(
     auto srfTrf = transform * vol2srf.inverse();
     auto srf = Surface::makeShared<PlaneSurface>(srfTrf, polyBounds);
 
-    oSurfaces.push_back(OrientedSurface(std::move(srf), dir));
+    oSurfaces.push_back(OrientedSurface{std::move(srf), dir});
   };
 
   make_surface(m_vertices[0], m_vertices[1], m_vertices[2], m_vertices[3]);

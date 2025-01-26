@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -129,11 +129,12 @@ struct LoopComponentProxy
   Result<typename SingleStepper::BoundState> boundState(
       const Surface& surface, bool transportCov,
       const FreeToBoundCorrection& freeToBoundCorrection) {
-    return detail::boundState(
-        all_state.geoContext, cov(), jacobian(), jacTransport(), derivative(),
-        jacToGlobal(), additionalFreeCovariance(), pars(),
-        all_state.particleHypothesis, all_state.covTransport && transportCov,
-        cmp.state.pathAccumulated, surface, freeToBoundCorrection);
+    return detail::boundState(all_state.options.geoContext, surface, cov(),
+                              jacobian(), jacTransport(), derivative(),
+                              jacToGlobal(), additionalFreeCovariance(), pars(),
+                              all_state.particleHypothesis,
+                              all_state.covTransport && transportCov,
+                              cmp.state.pathAccumulated, freeToBoundCorrection);
   }
 
   void update(const FreeVector& freeParams, const BoundVector& boundParams,

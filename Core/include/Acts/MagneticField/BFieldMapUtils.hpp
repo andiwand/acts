@@ -1,17 +1,18 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/MagneticField/InterpolatedBFieldMap.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Grid.hpp"
-#include "Acts/Utilities/detail/AxisFwd.hpp"
 
 #include <array>
 #include <cstddef>
@@ -69,13 +70,13 @@ class SolenoidBField;
 ///       {-1,0,1} and the BFieldValues will be set to {3,2,3}.
 /// @return A field map instance for use in interpolation.
 Acts::InterpolatedBFieldMap<
-    Acts::Grid<Acts::Vector2, Acts::detail::EquidistantAxis,
-               Acts::detail::EquidistantAxis>>
+    Acts::Grid<Acts::Vector2, Acts::Axis<Acts::AxisType::Equidistant>,
+               Acts::Axis<Acts::AxisType::Equidistant>>>
 fieldMapRZ(const std::function<std::size_t(std::array<std::size_t, 2> binsRZ,
                                            std::array<std::size_t, 2> nBinsRZ)>&
                localToGlobalBin,
            std::vector<double> rPos, std::vector<double> zPos,
-           std::vector<Acts::Vector2> bField,
+           const std::vector<Acts::Vector2>& bField,
            double lengthUnit = UnitConstants::mm,
            double BFieldUnit = UnitConstants::T, bool firstQuadrant = false);
 
@@ -129,14 +130,15 @@ fieldMapRZ(const std::function<std::size_t(std::array<std::size_t, 2> binsRZ,
 ///       be set to {3,2,3}.
 /// @return A field map instance for use in interpolation.
 Acts::InterpolatedBFieldMap<
-    Acts::Grid<Acts::Vector3, Acts::detail::EquidistantAxis,
-               Acts::detail::EquidistantAxis, Acts::detail::EquidistantAxis>>
+    Acts::Grid<Acts::Vector3, Acts::Axis<Acts::AxisType::Equidistant>,
+               Acts::Axis<Acts::AxisType::Equidistant>,
+               Acts::Axis<Acts::AxisType::Equidistant>>>
 fieldMapXYZ(
     const std::function<std::size_t(std::array<std::size_t, 3> binsXYZ,
                                     std::array<std::size_t, 3> nBinsXYZ)>&
         localToGlobalBin,
     std::vector<double> xPos, std::vector<double> yPos,
-    std::vector<double> zPos, std::vector<Acts::Vector3> bField,
+    std::vector<double> zPos, const std::vector<Acts::Vector3>& bField,
     double lengthUnit = UnitConstants::mm, double BFieldUnit = UnitConstants::T,
     bool firstOctant = false);
 
@@ -144,17 +146,18 @@ fieldMapXYZ(
 /// creates a field mapper by sampling grid points from the analytical
 /// solenoid field.
 ///
-/// @param rlim pair of r bounds
-/// @param zlim pair of z bounds
-/// @param nbins pair of bin counts
+/// @param rLim pair of r bounds
+/// @param zLim pair of z bounds
+/// @param nBins pair of bin counts
 /// @param field the solenoid field instance
 ///
 /// @return A field map instance for use in interpolation.
 Acts::InterpolatedBFieldMap<
-    Acts::Grid<Acts::Vector2, Acts::detail::EquidistantAxis,
-               Acts::detail::EquidistantAxis>>
-solenoidFieldMap(std::pair<double, double> rlim, std::pair<double, double> zlim,
-                 std::pair<std::size_t, std::size_t> nbins,
+    Acts::Grid<Acts::Vector2, Acts::Axis<Acts::AxisType::Equidistant>,
+               Acts::Axis<Acts::AxisType::Equidistant>>>
+solenoidFieldMap(const std::pair<double, double>& rLim,
+                 const std::pair<double, double>& zLim,
+                 const std::pair<std::size_t, std::size_t>& nBins,
                  const SolenoidBField& field);
 
 }  // namespace Acts

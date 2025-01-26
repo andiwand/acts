@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/Csv/CsvMeasurementReader.hpp"
 
@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 
 #include <algorithm>
@@ -28,8 +29,6 @@
 #include <list>
 #include <stdexcept>
 #include <vector>
-
-#include <dfe/dfe_io_dsv.hpp>
 
 #include "CsvOutputData.hpp"
 
@@ -46,7 +45,6 @@ ActsExamples::CsvMeasurementReader::CsvMeasurementReader(
 
   m_outputMeasurements.initialize(m_cfg.outputMeasurements);
   m_outputMeasurementSimHitsMap.initialize(m_cfg.outputMeasurementSimHitsMap);
-  m_outputSourceLinks.initialize(m_cfg.outputSourceLinks);
   m_outputClusters.maybeInitialize(m_cfg.outputClusters);
   m_outputMeasurementParticlesMap.maybeInitialize(
       m_cfg.outputMeasurementParticlesMap);
@@ -87,11 +85,11 @@ struct CompareHitId {
     return left.hit_id < right.hit_id;
   }
   template <typename T>
-  constexpr bool operator()(uint64_t left_id, const T& right) const {
+  constexpr bool operator()(std::uint64_t left_id, const T& right) const {
     return left_id < right.hit_id;
   }
   template <typename T>
-  constexpr bool operator()(const T& left, uint64_t right_id) const {
+  constexpr bool operator()(const T& left, std::uint64_t right_id) const {
     return left.hit_id < right_id;
   }
 };
@@ -108,7 +106,7 @@ inline std::vector<Data> readEverything(
     const std::string& inputDir, const std::string& filename,
     const std::vector<std::string>& optionalColumns, std::size_t event) {
   std::string path = ActsExamples::perEventFilepath(inputDir, filename, event);
-  dfe::NamedTupleCsvReader<Data> reader(path, optionalColumns);
+  ActsExamples::NamedTupleCsvReader<Data> reader(path, optionalColumns);
 
   std::vector<Data> everything;
   Data one;
@@ -125,7 +123,7 @@ std::vector<ActsExamples::MeasurementData> readMeasurementsByGeometryId(
   auto measurements = readEverything<ActsExamples::MeasurementData>(
       inputDir, "measurements.csv", {"geometry_id", "t"}, event);
   // sort same way they will be sorted in the output container
-  std::sort(measurements.begin(), measurements.end(), CompareGeometryId{});
+  std::ranges::sort(measurements, CompareGeometryId{});
   return measurements;
 }
 
@@ -194,15 +192,14 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementReader::read(
       readMeasurementsByGeometryId(m_cfg.inputDir, ctx.eventNumber);
 
   // Prepare containers for the hit data using the framework event data types
-  GeometryIdMultimap<Measurement> orderedMeasurements;
+  MeasurementContainer tmpMeasurements;
+  GeometryIdMultimap<ConstVariableBoundMeasurementProxy> orderedMeasurements;
   IndexMultimap<Index> measurementSimHitsMap;
-  IndexSourceLinkContainer sourceLinks;
-  // need list here for stable addresses
-  std::list<IndexSourceLink> sourceLinkStorage;
+
+  tmpMeasurements.reserve(measurementData.size());
   orderedMeasurements.reserve(measurementData.size());
   // Safe long as we have single particle to sim hit association
   measurementSimHitsMap.reserve(measurementData.size());
-  sourceLinks.reserve(measurementData.size());
 
   auto measurementSimHitLinkData =
       readEverything<ActsExamples::MeasurementSimHitLink>(
@@ -250,27 +247,23 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementReader::read(
 
     // The measurement container is unordered and the index under which
     // the measurement will be stored is known before adding it.
-    const Index index = orderedMeasurements.size();
-    IndexSourceLink& sourceLink = sourceLinkStorage.emplace_back(geoId, index);
-    auto measurement = createMeasurement(dParameters, sourceLink);
+    auto measurement = createMeasurement(tmpMeasurements, geoId, dParameters);
 
     // Due to the previous sorting of the raw hit data by geometry id, new
     // measurements should always end up at the end of the container. previous
     // elements were not touched; cluster indices remain stable and can
     // be used to identify the m.
-    auto inserted = orderedMeasurements.emplace_hint(
-        orderedMeasurements.end(), geoId, std::move(measurement));
+    auto inserted = orderedMeasurements.emplace_hint(orderedMeasurements.end(),
+                                                     geoId, measurement);
     if (std::next(inserted) != orderedMeasurements.end()) {
       ACTS_FATAL("Something went horribly wrong with the hit sorting");
       return ProcessCode::ABORT;
     }
-
-    sourceLinks.insert(sourceLinks.end(), std::cref(sourceLink));
   }
 
   MeasurementContainer measurements;
   for (auto& [_, meas] : orderedMeasurements) {
-    measurements.emplace_back(std::move(meas));
+    measurements.emplaceMeasurement(meas.size(), meas.geometryId(), meas);
   }
 
   // Generate measurement-particles-map
@@ -291,7 +284,6 @@ ActsExamples::ProcessCode ActsExamples::CsvMeasurementReader::read(
   // Write the data to the EventStore
   m_outputMeasurements(ctx, std::move(measurements));
   m_outputMeasurementSimHitsMap(ctx, std::move(measurementSimHitsMap));
-  m_outputSourceLinks(ctx, std::move(sourceLinks));
 
   /////////////////////////
   // Cluster information //

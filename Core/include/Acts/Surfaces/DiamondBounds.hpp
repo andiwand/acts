@@ -1,25 +1,22 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <iosfwd>
-#include <stdexcept>
 #include <vector>
 
 namespace Acts {
@@ -38,8 +35,6 @@ class DiamondBounds : public PlanarBounds {
     eHalfLengthYpos = 4,
     eSize = 5
   };
-
-  DiamondBounds() = delete;
 
   /// Constructor for convex hexagon symmetric about the y axis
   ///
@@ -71,9 +66,7 @@ class DiamondBounds : public PlanarBounds {
             Vector2{*std::max_element(values.begin(), values.begin() + 2),
                     values[eHalfLengthYpos]}) {}
 
-  ~DiamondBounds() override = default;
-
-  BoundsType type() const final;
+  BoundsType type() const final { return SurfaceBounds::eDiamond; }
 
   /// Return the bound values as dynamically sized vector
   ///
@@ -85,20 +78,18 @@ class DiamondBounds : public PlanarBounds {
   /// the bounds  Inside can be called without/with tolerances.
   ///
   /// @param lposition Local position (assumed to be in right surface frame)
-  /// @param bcheck boundary check directive
+  /// @param boundaryTolerance boundary check directive
   /// @return boolean indicator for the success of this operation
   bool inside(const Vector2& lposition,
-              const BoundaryCheck& bcheck) const final;
+              const BoundaryTolerance& boundaryTolerance) const final;
 
-  /// Return the vertices
+  /// Return the vertices that describe this shape
   ///
-  /// @param lseg the number of segments used to approximate
-  /// and eventually curved line
-  ///
-  /// @note the number of segments is ignored for this representation
+  /// @param ignoredSegments is an ignored parameter only used for
+  /// curved bound segments
   ///
   /// @return vector for vertices in 2D
-  std::vector<Vector2> vertices(unsigned int lseg = 1) const final;
+  std::vector<Vector2> vertices(unsigned int ignoredSegments = 0u) const final;
 
   // Bounding box representation
   const RectangleBounds& boundingBox() const final;
@@ -120,22 +111,5 @@ class DiamondBounds : public PlanarBounds {
   /// if consistency is not given
   void checkConsistency() noexcept(false);
 };
-
-inline std::vector<double> DiamondBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-inline void DiamondBounds::checkConsistency() noexcept(false) {
-  if (std::any_of(m_values.begin(), m_values.end(),
-                  [](auto v) { return v <= 0.; })) {
-    throw std::invalid_argument("DiamondBounds: negative half length.");
-  }
-  if (get(eHalfLengthXnegY) > get(eHalfLengthXzeroY) ||
-      get(eHalfLengthXposY) > get(eHalfLengthXzeroY)) {
-    throw std::invalid_argument("DiamondBounds: not a diamond shape.");
-  }
-}
 
 }  // namespace Acts

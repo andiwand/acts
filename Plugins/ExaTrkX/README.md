@@ -8,7 +8,7 @@ To build the plugin, enable the appropriate CMake options:
 
 ```bash
 cmake -B <build> -S <source> \
-  -D ACTS_BUILD_EXATRKX_PLUGIN=ON \
+  -D ACTS_BUILD_PLUGIN_EXATRKX=ON \
   -D ACTS_EXATRKX_ENABLE_TORCH=ON/OFF \
   -D ACTS_EXATRKX_ENABLE_ONNX=ON/OFF \
   -D ACTS_BUILD_EXAMPLES_EXATRKX=ON \
@@ -23,7 +23,6 @@ This plugin is known to build without errors with (as of September 2022)
 - [libtorch](https://pytorch.org/) v1.10.2 for CUDA version 10.2 and cxx-11-abi ([download](https://download.pytorch.org/libtorch/cu102/libtorch-cxx11-abi-shared-with-deps-1.10.2%2Bcu102.zip))
 
 *For the ONNX backend:*
-- [cugraph](https://github.com/rapidsai/cugraph) v22.02.00
 - [ONNX](https://github.com/microsoft/onnxruntime) v1.10.0 with CUDA support enabled
 
 *For the Torch backend*

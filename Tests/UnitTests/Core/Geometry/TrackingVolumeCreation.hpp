@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -54,8 +54,8 @@ TrackingVolumePtr constructCylinderVolume(
   std::vector<const Surface*> surfaces_only_raw = {
       {sfn.get(), sfc.get(), sfp.get()}};
 
-  detail::Axis<detail::AxisType::Equidistant, detail::AxisBoundaryType::Bound>
-      axis(bUmin, bUmax, surfaces_only.size());
+  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axis(
+      bUmin, bUmax, surfaces_only.size());
   auto g2l = [](const Vector3& glob) {
     return std::array<double, 1>({{glob.z()}});
   };
@@ -76,12 +76,12 @@ TrackingVolumePtr constructCylinderVolume(
       std::make_unique<const BinnedArrayXD<LayerPtr>>(layer0);
 
   ///  create the volume
-  auto volumeBounds = std::make_shared<const CylinderVolumeBounds>(
+  auto volumeBounds = std::make_shared<CylinderVolumeBounds>(
       innerVolumeR, outerVolumeR, bUmax + volumeEnvelope);
 
-  TrackingVolumePtr volume =
-      TrackingVolume::create(Transform3::Identity(), volumeBounds, nullptr,
-                             std::move(layerArray), nullptr, {}, name);
+  TrackingVolumePtr volume = std::make_shared<TrackingVolume>(
+      Transform3::Identity(), volumeBounds, nullptr, std::move(layerArray),
+      nullptr, MutableTrackingVolumeVector{}, name);
   ///  return the volume
   return volume;
 }
@@ -95,20 +95,22 @@ MutableTrackingVolumePtr constructContainerVolume(const GeometryContext& gctx,
                                                   const std::string& name) {
   ///  create the volume array
   using VAP = std::pair<TrackingVolumePtr, Vector3>;
-  std::vector<VAP> volumes = {{iVolume, iVolume->binningPosition(gctx, binR)},
-                              {oVolume, oVolume->binningPosition(gctx, binR)}};
+  std::vector<VAP> volumes = {
+      {iVolume, iVolume->referencePosition(gctx, AxisDirection::AxisR)},
+      {oVolume, oVolume->referencePosition(gctx, AxisDirection::AxisR)}};
   ///  the bounds for the container
-  auto hVolumeBounds = std::make_shared<const CylinderVolumeBounds>(
-      0., hVolumeR, hVolumeHalflength);
+  auto hVolumeBounds =
+      std::make_shared<CylinderVolumeBounds>(0., hVolumeR, hVolumeHalflength);
   ///  create the BinUtility & the BinnedArray
-  auto vUtility = std::make_unique<const BinUtility>(volumes.size(), 0.,
-                                                     hVolumeR, open, binR);
+  auto vUtility = std::make_unique<const BinUtility>(
+      volumes.size(), 0., hVolumeR, open, AxisDirection::AxisR);
   std::shared_ptr<const TrackingVolumeArray> vArray =
       std::make_shared<const BinnedArrayXD<TrackingVolumePtr>>(
           volumes, std::move(vUtility));
   ///  create the container volume
-  auto hVolume = TrackingVolume::create(Transform3::Identity(), hVolumeBounds,
-                                        vArray, name);
+  auto hVolume = std::make_shared<TrackingVolume>(
+      Transform3::Identity(), hVolumeBounds, nullptr, nullptr, vArray,
+      MutableTrackingVolumeVector{}, name);
   // return the container
   return hVolume;
 }

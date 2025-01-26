@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Utilities/Helpers.hpp"
 
@@ -18,9 +18,7 @@
 #include <TH2.h>
 #include <TProfile.h>
 
-namespace ActsExamples {
-
-namespace PlotHelpers {
+namespace ActsExamples::PlotHelpers {
 TH1F* bookHisto(const char* histName, const char* histTitle,
                 const Binning& varBinning) {
   TH1F* hist =
@@ -108,6 +106,4 @@ void fillProf(TProfile* profile, float xValue, float yValue, float weight) {
   profile->Fill(xValue, yValue, weight);
 }
 
-}  // namespace PlotHelpers
-
-}  // namespace ActsExamples
+}  // namespace ActsExamples::PlotHelpers

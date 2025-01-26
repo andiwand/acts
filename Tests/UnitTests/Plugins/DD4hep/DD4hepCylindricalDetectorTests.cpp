@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -45,7 +45,7 @@ const char* beampipe_head_xml =
         <detector id="0" name="BeamPipe" type="BarrelDetector">
             <type_flags type="DetType_TRACKER + DetType_BEAMPIPE"/>
             <layers>
-                <layer id="0"  name="BeamPipeLayer">                 
+                <layer id="0"  name="BeamPipeLayer">
 )"""";
 
 const char* nec_head_xml =
@@ -79,7 +79,7 @@ const char* plugin_xml =
       <argument value="acts_world_binning: str = r"/>
       <argument value="acts_world_geo_id: str = incremental"/>
       <argument value="acts_world_root_volume_finder: str = indexed"/>
-    </plugin>	
+    </plugin>
     <plugin name="DD4hep_ParametersPlugin">
       <argument value="BeamPipe"/>
       <argument value="acts_volume: bool = true"/>
@@ -90,7 +90,7 @@ const char* plugin_xml =
       <argument value="acts_volume_bvalues_2: double = 1000*mm"/>
       <argument value="acts_volume_internals: bool = true"/>
       <argument value="acts_volume_internals_type: str = layer"/>
-    </plugin>	
+    </plugin>
     <plugin name="DD4hep_ParametersPlugin">
       <argument value="Pixel"/>
       <argument value="acts_container: bool = true"/>
@@ -100,7 +100,7 @@ const char* plugin_xml =
       <argument value="acts_container_bvalues_1: double = 150*mm"/>
       <argument value="acts_container_bvalues_2: double = 1000*mm"/>
       <argument value="acts_container_binning: str = z"/>
-    </plugin>	
+    </plugin>
     <plugin name="DD4hep_ParametersPlugin">
       <argument value="PixelNegativeEndcap"/>
       <argument value="acts_container: bool = true"/>
@@ -111,7 +111,7 @@ const char* plugin_xml =
       <argument value="acts_container_bvalues_2: double = 200*mm"/>
       <argument value="acts_container_binning: str = z"/>
       <argument value="acts_container_z: double = -800*mm"/>
-    </plugin>	
+    </plugin>
     <plugin name="DD4hep_ParametersPlugin">
       <argument value="PixelBarrel"/>
       <argument value="acts_container: bool = true"/>
@@ -121,7 +121,7 @@ const char* plugin_xml =
       <argument value="acts_container_bvalues_1: double = 150*mm"/>
       <argument value="acts_container_bvalues_2: double = 600*mm"/>
       <argument value="acts_container_binning: str = r"/>
-    </plugin>	
+    </plugin>
     <plugin name="DD4hep_ParametersPlugin">
       <argument value="PixelPositiveEndcap"/>
       <argument value="acts_container: bool = true"/>
@@ -132,7 +132,7 @@ const char* plugin_xml =
       <argument value="acts_container_bvalues_2: double = 200*mm"/>
       <argument value="acts_container_binning: str = z"/>
       <argument value="acts_container_z: double = 800*mm"/>
-    </plugin>	
+    </plugin>
   </plugins>
   )""";
 
@@ -146,7 +146,7 @@ Acts::Test::CylindricalTrackingGeometry::DetectorStore generateXML() {
   Acts::Test::CylindricalTrackingGeometry::DetectorStore dStore;
 
   // Nec surfaces
-  Acts::ActsScalar necZ = -800.;
+  double necZ = -800.;
   auto necR0Surfaces = cGeometry.surfacesRing(dStore, 6.4, 12.4, 18., 0.125, 0.,
                                               42., necZ, 2., 22u);
 
@@ -157,13 +157,13 @@ Acts::Test::CylindricalTrackingGeometry::DetectorStore generateXML() {
                                                                 necR1Surfaces};
 
   // Barrel surfaces
-  std::vector<std::array<Acts::ActsScalar, 2u>> innerOuter = {
+  std::vector<std::array<double, 2u>> innerOuter = {
       {25., 35.}, {65., 75.}, {110., 120.}};
   auto b0Surfaces = cGeometry.surfacesCylinder(dStore, 8.4, 36., 0.15, 0.14,
-                                               32., 3., 2., {16, 14});
+                                               31., 3., 2., {16, 14});
 
   auto b1Surfaces = cGeometry.surfacesCylinder(dStore, 8.4, 36., 0.15, 0.14,
-                                               72., 3., 2., {32, 14});
+                                               71., 3., 2., {32, 14});
 
   auto b2Surfaces = cGeometry.surfacesCylinder(dStore, 8.4, 36., 0.15, 0.14,
                                                116., 3., 2., {52, 14});
@@ -172,7 +172,7 @@ Acts::Test::CylindricalTrackingGeometry::DetectorStore generateXML() {
       b0Surfaces, b1Surfaces, b2Surfaces};
 
   // Nec surfaces
-  Acts::ActsScalar pecZ = 800.;
+  double pecZ = 800.;
   auto pecR0Surfaces = cGeometry.surfacesRing(dStore, 6.4, 12.4, 18., 0.125, 0.,
                                               42., pecZ, 2., 22u);
 
@@ -192,7 +192,7 @@ Acts::Test::CylindricalTrackingGeometry::DetectorStore generateXML() {
   cxml << beampipe_head_xml << '\n';
   cxml << indent_12_xml << "<acts_passive_surface>" << '\n';
   cxml << indent_12_xml
-       << "<tubs rmin=\"25*mm\" rmax=\"25.8*mm\" dz=\"1800*mm\" "
+       << "<tubs rmin=\"19*mm\" rmax=\"20*mm\" dz=\"800*mm\" "
           "material=\"Air\"/>"
        << '\n';
   cxml << indent_12_xml << "</acts_passive_surface>" << '\n';
@@ -409,7 +409,7 @@ BOOST_AUTO_TEST_CASE(DD4hepCylidricalDetectorStructure) {
   BOOST_CHECK_EQUAL(detectorStore.size(), 6u);
 
   int elements = 0;
-  for (auto [key, value] : detectorStore) {
+  for (const auto& [key, value] : detectorStore) {
     elements += value.size();
   }
 

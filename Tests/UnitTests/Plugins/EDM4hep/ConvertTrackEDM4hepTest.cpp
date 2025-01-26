@@ -1,21 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include <boost/test/data/test_case.hpp>
-#include <boost/test/tools/old/interface.hpp>
 #include <boost/test/unit_test.hpp>
-#include <boost/test/unit_test_suite.hpp>
 
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/Charge.hpp"
 #include "Acts/EventData/GenericBoundTrackParameters.hpp"
 #include "Acts/EventData/MultiTrajectory.hpp"
-#include "Acts/EventData/TrackHelpers.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/EventData/VectorTrackContainer.hpp"
@@ -23,15 +19,18 @@
 #include "Acts/Plugins/EDM4hep/EDM4hepUtil.hpp"
 #include "Acts/Propagator/detail/CovarianceEngine.hpp"
 #include "Acts/Propagator/detail/JacobianEngine.hpp"
+#include "Acts/Surfaces/CurvilinearSurface.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "Acts/Utilities/TrackHelpers.hpp"
 #include "Acts/Utilities/Zip.hpp"
 
 #include <algorithm>
 #include <iostream>
+#include <numbers>
 #include <random>
 
 #include <edm4hep/TrackCollection.h>
@@ -42,14 +41,14 @@ BOOST_AUTO_TEST_SUITE(EDM4hepParameterConversion)
 
 BOOST_AUTO_TEST_CASE(JacobianRoundtrip) {
   BoundVector par;
-  par << 1_mm, 5_mm, 0.1, M_PI_2 * 0.9, -1 / 1_GeV, 5_ns;
+  par << 1_mm, 5_mm, 0.1, std::numbers::pi / 2. * 0.9, -1 / 1_GeV, 5_ns;
 
   BoundMatrix cov;
   cov.setIdentity();
 
   double Bz = 2_T;
 
-  double tanLambda = std::tan(M_PI_2 - par[Acts::eBoundTheta]);
+  double tanLambda = std::tan(std::numbers::pi / 2. - par[Acts::eBoundTheta]);
   double omega =
       par[Acts::eBoundQOverP] / std::sin(par[Acts::eBoundTheta]) * Bz;
 
@@ -69,7 +68,7 @@ BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithPerigee) {
   auto refSurface = Surface::makeShared<PerigeeSurface>(Vector3{50, 30, 20});
 
   BoundVector par;
-  par << 1_mm, 5_mm, 0, M_PI_2, -1 / 1_GeV,
+  par << 1_mm, 5_mm, 0, std::numbers::pi / 2., -1 / 1_GeV,
       5_ns;  // -> perpendicular to perigee and pointing right, should be PCA
 
   BoundMatrix cov;
@@ -109,11 +108,13 @@ BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithPerigee) {
 }
 
 BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithOutPerigee) {
-  auto planeSurface = Surface::makeShared<PlaneSurface>(
-      Vector3{50, 30, 20}, Vector3{1, 1, 0.3}.normalized());
+  auto planeSurface =
+      CurvilinearSurface(Vector3{50, 30, 20}, Vector3{1, 1, 0.3}.normalized())
+          .planeSurface();
 
   BoundVector par;
-  par << 1_mm, 5_mm, M_PI / 4., M_PI_2 * 0.9, -1 / 1_GeV, 5_ns;
+  par << 1_mm, 5_mm, std::numbers::pi / 4., std::numbers::pi / 2. * 0.9,
+      -1 / 1_GeV, 5_ns;
 
   BoundMatrix cov;
   cov.setIdentity();
@@ -177,7 +178,7 @@ BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithPerigeeNoCov) {
   auto refSurface = Surface::makeShared<PerigeeSurface>(Vector3{50, 30, 20});
 
   BoundVector par;
-  par << 1_mm, 5_mm, 0, M_PI_2, -1 / 1_GeV,
+  par << 1_mm, 5_mm, 0, std::numbers::pi / 2., -1 / 1_GeV,
       5_ns;  // -> perpendicular to perigee and pointing right, should be PCA
 
   BoundTrackParameters boundPar{refSurface, par, std::nullopt,
@@ -207,11 +208,13 @@ BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithPerigeeNoCov) {
 }
 
 BOOST_AUTO_TEST_CASE(ConvertTrackParametersToEdm4hepWithOutPerigeeNoCov) {
-  auto refSurface = Surface::makeShared<PlaneSurface>(
-      Vector3{50, 30, 20}, Vector3{1, 1, 0.3}.normalized());
+  auto refSurface =
+      CurvilinearSurface(Vector3{50, 30, 20}, Vector3{1, 1, 0.3}.normalized())
+          .planeSurface();
 
   BoundVector par;
-  par << 1_mm, 5_mm, M_PI / 4., M_PI_2, -1 / 1_GeV, 5_ns;
+  par << 1_mm, 5_mm, std::numbers::pi / 4., std::numbers::pi / 2., -1 / 1_GeV,
+      5_ns;
 
   BoundTrackParameters boundPar{refSurface, par, std::nullopt,
                                 ParticleHypothesis::pion()};
@@ -266,7 +269,6 @@ BOOST_AUTO_TEST_CASE(RoundTripTests) {
   auto trackStateContainer = std::make_shared<Acts::VectorMultiTrajectory>();
   TrackContainer tracks(trackContainer, trackStateContainer);
 
-  using mutable_proxy_t = decltype(tracks)::TrackProxy;
   using const_proxy_t = decltype(tracks)::ConstTrackProxy;
 
   std::mt19937 rng{42};
@@ -275,7 +277,8 @@ BOOST_AUTO_TEST_CASE(RoundTripTests) {
   std::uniform_real_distribution<double> r(0, 1);
   std::uniform_int_distribution<std::uint32_t> nTracks(2, 20);
   std::uniform_int_distribution<std::uint32_t> nTs(1, 20);
-  std::uniform_real_distribution<double> phiDist(-M_PI, M_PI);
+  std::uniform_real_distribution<double> phiDist(-std::numbers::pi,
+                                                 std::numbers::pi);
   std::uniform_real_distribution<double> etaDist(-4, 4);
   std::uniform_real_distribution<double> ptDist(1_MeV, 10_GeV);
   std::uniform_real_distribution<double> qDist(0., 1.);
@@ -302,7 +305,7 @@ BOOST_AUTO_TEST_CASE(RoundTripTests) {
 
   std::uint32_t numT = nTracks(rng);
   for (std::uint32_t t = 0; t < numT; t++) {
-    auto track = tracks.getTrack(tracks.addTrack());
+    auto track = tracks.makeTrack();
     {
       auto [par, cov] = genParams();
       track.parameters() = par;
@@ -371,8 +374,7 @@ BOOST_AUTO_TEST_CASE(RoundTripTests) {
                             std::make_shared<Acts::VectorMultiTrajectory>());
 
   for (const auto edm4hepTrack : edm4hepTracksConst) {
-    EDM4hepUtil::readTrack(
-        edm4hepTrack, readTracks.getTrack(readTracks.addTrack()), Bz, *logger);
+    EDM4hepUtil::readTrack(edm4hepTrack, readTracks.makeTrack(), Bz, *logger);
   }
 
   BOOST_CHECK_EQUAL(tracks.size(), readTracks.size());

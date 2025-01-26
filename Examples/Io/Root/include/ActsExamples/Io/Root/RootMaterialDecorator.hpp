@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -34,6 +34,7 @@ using SurfaceMaterialMap =
     std::map<GeometryIdentifier, std::shared_ptr<const ISurfaceMaterial>>;
 using VolumeMaterialMap =
     std::map<GeometryIdentifier, std::shared_ptr<const IVolumeMaterial>>;
+using DetectorMaterialMaps = std::pair<SurfaceMaterialMap, VolumeMaterialMap>;
 }  // namespace Acts
 
 namespace ActsExamples {
@@ -63,7 +64,7 @@ class RootMaterialDecorator : public Acts::IMaterialDecorator {
     std::string sentag = "_sen";
     /// The bin number tag
     std::string ntag = "n";
-    /// The value tag -> binning values: binZ, binR, binPhi, etc.
+    /// The value tag -> binning values: AxisZ, AxisR, AxisPhi, etc.
     std::string vtag = "v";
     /// The option tag -> binning options: open, closed
     std::string otag = "o";
@@ -123,6 +124,11 @@ class RootMaterialDecorator : public Acts::IMaterialDecorator {
     if (vMaterial != m_volumeMaterialMap.end()) {
       volume.assignVolumeMaterial(vMaterial->second);
     }
+  }
+
+  /// Return the maps
+  const Acts::DetectorMaterialMaps materialMaps() const {
+    return {m_surfaceMaterialMap, m_volumeMaterialMap};
   }
 
   /// Get readonly access to the config parameters

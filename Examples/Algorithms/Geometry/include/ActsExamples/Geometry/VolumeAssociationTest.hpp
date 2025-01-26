@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -12,11 +12,9 @@
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 class Detector;
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental
 
 namespace ActsExamples {
 
@@ -35,7 +33,7 @@ class VolumeAssociationTest final : public IAlgorithm {
     /// The random number service
     std::shared_ptr<const RandomNumbers> randomNumbers = nullptr;
     /// The random number range
-    std::vector<Acts::ActsScalar> randomRange = {};
+    std::vector<double> randomRange = {};
     /// The detector
     std::shared_ptr<const Acts::Experimental::Detector> detector = nullptr;
   };

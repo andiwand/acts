@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -13,9 +13,7 @@
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
 
-#include <cstddef>
 #include <iosfwd>
-#include <vector>
 
 namespace Acts {
 
@@ -83,10 +81,10 @@ class BinnedSurfaceMaterial : public ISurfaceMaterial {
   /// Destructor
   ~BinnedSurfaceMaterial() override = default;
 
-  /// Scale operator
+  /// Scale operation
   ///
-  /// @param scale is the scale factor for the full material
-  BinnedSurfaceMaterial& operator*=(double scale) final;
+  /// @param factor is the scale factor for the full material
+  BinnedSurfaceMaterial& scale(double factor) final;
 
   /// Return the BinUtility
   const BinUtility& binUtility() const;
@@ -99,10 +97,6 @@ class BinnedSurfaceMaterial : public ISurfaceMaterial {
 
   /// @copydoc ISurfaceMaterial::materialSlab(const Vector3&) const
   const MaterialSlab& materialSlab(const Vector3& gp) const final;
-
-  /// @copydoc ISurfaceMaterial::materialSlab(std::size_t, std::size_t) const
-  const MaterialSlab& materialSlab(std::size_t bin0,
-                                   std::size_t bin1) const final;
 
   /// Output Method for std::ostream, to be overloaded by child classes
   std::ostream& toStream(std::ostream& sl) const final;
@@ -123,8 +117,4 @@ inline const MaterialSlabMatrix& BinnedSurfaceMaterial::fullMaterial() const {
   return m_fullMaterial;
 }
 
-inline const MaterialSlab& BinnedSurfaceMaterial::materialSlab(
-    std::size_t bin0, std::size_t bin1) const {
-  return m_fullMaterial[bin1][bin0];
-}
 }  // namespace Acts

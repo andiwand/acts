@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import acts
 import acts.examples
@@ -20,7 +21,6 @@ def runDigitization(
     s: Optional[acts.examples.Sequencer] = None,
     doMerge: Optional[bool] = None,
 ) -> acts.examples.Sequencer:
-
     from acts.examples.simulation import (
         addParticleGun,
         EtaConfig,
@@ -48,11 +48,14 @@ def runDigitization(
         # Read input from input collection (e.g. Pythia8 output)
         evGen = acts.examples.RootParticleReader(
             level=s.config.logLevel,
-            particleCollection="particles_input",
             filePath=str(particlesInput),
-            orderedEvents=False,
+            outputParticles="particles_generated",
         )
         s.addReader(evGen)
+
+        s.addWhiteboardAlias(
+            "particles_generated_selected", evGen.config.outputParticles
+        )
 
     outputDir = Path(outputDir)
     addFatras(
@@ -77,7 +80,8 @@ def runDigitization(
 
 
 if "__main__" == __name__:
-    detector, trackingGeometry, _ = acts.examples.GenericDetector.create()
+    detector = acts.examples.GenericDetector()
+    trackingGeometry = detector.trackingGeometry()
 
     digiConfigFile = (
         Path(__file__).resolve().parent.parent.parent.parent

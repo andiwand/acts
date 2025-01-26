@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/Json/VolumeBoundsJsonConverter.hpp"
 
@@ -34,27 +34,20 @@ std::unique_ptr<Acts::VolumeBounds> Acts::VolumeBoundsJsonConverter::fromJson(
   const auto type = jVolumeBounds["type"].get<VolumeBounds::BoundsType>();
 
   switch (type) {
-    case VolumeBounds::BoundsType::eCone: {
+    case VolumeBounds::BoundsType::eCone:
       return fromJson<ConeVolumeBounds>(jVolumeBounds);
-    } break;
-    case VolumeBounds::BoundsType::eCuboid: {
+    case VolumeBounds::BoundsType::eCuboid:
       return fromJson<CuboidVolumeBounds>(jVolumeBounds);
-    } break;
-    case VolumeBounds::BoundsType::eCutoutCylinder: {
+    case VolumeBounds::BoundsType::eCutoutCylinder:
       return fromJson<CutoutCylinderVolumeBounds>(jVolumeBounds);
-    } break;
-    case VolumeBounds::BoundsType::eCylinder: {
+    case VolumeBounds::BoundsType::eCylinder:
       return fromJson<CylinderVolumeBounds>(jVolumeBounds);
-    } break;
-    case VolumeBounds::BoundsType::eTrapezoid: {
+    case VolumeBounds::BoundsType::eTrapezoid:
       return fromJson<TrapezoidVolumeBounds>(jVolumeBounds);
-    } break;
-    case VolumeBounds::BoundsType::eGenericCuboid: {
+    case VolumeBounds::BoundsType::eGenericCuboid:
       return fromJson<GenericCuboidVolumeBounds>(jVolumeBounds);
-    } break;
-    default: {
+    default:
       throw std::invalid_argument("Unknown volume bounds type!");
-    }
   }
   return nullptr;
 }  // namespace Acts

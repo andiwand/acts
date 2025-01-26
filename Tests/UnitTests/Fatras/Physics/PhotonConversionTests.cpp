@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -30,25 +30,24 @@ using Generator = std::ranlux48;
 
 BOOST_AUTO_TEST_SUITE(FatrasPhotonConversion)
 
-BOOST_DATA_TEST_CASE(NoPhoton, Dataset::parametersPhotonConversion, phi, lambda,
+BOOST_DATA_TEST_CASE(NoPhoton, Dataset::parametersPhotonConversion, phi, theta,
                      seed) {
-  using Scalar = ActsFatras::PhotonConversion::Scalar;
   using namespace Acts::UnitLiterals;
 
   Generator gen(seed);
 
   /// Produce not a photon
   ActsFatras::Particle particle =
-      Dataset::makeParticle(Acts::PdgParticle::eElectron, phi, lambda, 1_GeV);
+      Dataset::makeParticle(Acts::PdgParticle::eElectron, phi, theta, 1_GeV);
   ActsFatras::Particle particleInit = particle;
 
   ActsFatras::PhotonConversion pc;
 
   // No limits should be set
-  std::pair<Scalar, Scalar> limits;
+  std::pair<double, double> limits;
   limits = pc.generatePathLimits(gen, particle);
-  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<Scalar>::infinity());
-  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<Scalar>::infinity());
+  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<double>::infinity());
+  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<double>::infinity());
 
   // No particles should be generated
   std::vector<ActsFatras::Particle> generated;
@@ -64,23 +63,22 @@ BOOST_DATA_TEST_CASE(NoPhoton, Dataset::parametersPhotonConversion, phi, lambda,
 }
 
 BOOST_DATA_TEST_CASE(DeadPhoton, Dataset::parametersPhotonConversion, phi,
-                     lambda, seed) {
-  using Scalar = ActsFatras::PhotonConversion::Scalar;
+                     theta, seed) {
   using namespace Acts::UnitLiterals;
 
   Generator gen(seed);
 
   /// Produce a dead photon
   ActsFatras::Particle particle =
-      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, lambda, 0);
+      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, theta, 0);
   ActsFatras::Particle particleInit = particle;
 
   ActsFatras::PhotonConversion pc;
 
   // No limits should be set - momentum too low
-  std::pair<Scalar, Scalar> limits = pc.generatePathLimits(gen, particle);
-  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<Scalar>::infinity());
-  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<Scalar>::infinity());
+  std::pair<double, double> limits = pc.generatePathLimits(gen, particle);
+  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<double>::infinity());
+  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<double>::infinity());
 
   // No particles should be generated - momentum too low
   std::vector<ActsFatras::Particle> generated;
@@ -96,23 +94,22 @@ BOOST_DATA_TEST_CASE(DeadPhoton, Dataset::parametersPhotonConversion, phi,
 }
 
 BOOST_DATA_TEST_CASE(LowMomentumPhoton, Dataset::parametersPhotonConversion,
-                     phi, lambda, seed) {
-  using Scalar = ActsFatras::PhotonConversion::Scalar;
+                     phi, theta, seed) {
   using namespace Acts::UnitLiterals;
 
   Generator gen(seed);
 
   /// Produce a low momentum photon
   ActsFatras::Particle particle =
-      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, lambda, 1_keV);
+      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, theta, 1_keV);
   ActsFatras::Particle particleInit = particle;
 
   ActsFatras::PhotonConversion pc;
 
   // No limits should be set - momentum too low
-  std::pair<Scalar, Scalar> limits = pc.generatePathLimits(gen, particle);
-  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<Scalar>::infinity());
-  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<Scalar>::infinity());
+  std::pair<double, double> limits = pc.generatePathLimits(gen, particle);
+  BOOST_CHECK_EQUAL(limits.first, std::numeric_limits<double>::infinity());
+  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<double>::infinity());
 
   // No particles should be generated - momentum too low
   std::vector<ActsFatras::Particle> generated;
@@ -128,23 +125,22 @@ BOOST_DATA_TEST_CASE(LowMomentumPhoton, Dataset::parametersPhotonConversion,
 }
 
 BOOST_DATA_TEST_CASE(HighMomentumPhoton, Dataset::parametersPhotonConversion,
-                     phi, lambda, seed) {
-  using Scalar = ActsFatras::PhotonConversion::Scalar;
+                     phi, theta, seed) {
   using namespace Acts::UnitLiterals;
 
   Generator gen(seed);
 
   /// Produce a high momentum photon
   ActsFatras::Particle particle =
-      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, lambda, 1_GeV);
+      Dataset::makeParticle(Acts::PdgParticle::eGamma, phi, theta, 1_GeV);
   ActsFatras::Particle particleInit = particle;
 
   ActsFatras::PhotonConversion pc;
 
   // No limits should be set - momentum too low
-  std::pair<Scalar, Scalar> limits = pc.generatePathLimits(gen, particle);
-  BOOST_CHECK_NE(limits.first, std::numeric_limits<Scalar>::infinity());
-  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<Scalar>::infinity());
+  std::pair<double, double> limits = pc.generatePathLimits(gen, particle);
+  BOOST_CHECK_NE(limits.first, std::numeric_limits<double>::infinity());
+  BOOST_CHECK_EQUAL(limits.second, std::numeric_limits<double>::infinity());
 
   // No particles should be generated - momentum too low
   std::vector<ActsFatras::Particle> generated;

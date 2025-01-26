@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
@@ -14,20 +14,21 @@
 #include "Acts/MagneticField/InterpolatedBFieldMap.hpp"
 #include "Acts/MagneticField/SolenoidBField.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
+#include "Acts/Utilities/Axis.hpp"
 #include "Acts/Utilities/Grid.hpp"
-#include "Acts/Utilities/detail/Axis.hpp"
 
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <numbers>
 #include <random>
+#include <type_traits>
 
 using namespace Acts::UnitLiterals;
 
 namespace bdata = boost::unit_test::data;
 
-namespace Acts {
-namespace IntegrationTest {
+namespace Acts::IntegrationTest {
 
 const double L = 5.8_m;
 const double R = (2.56 + 2.46) * 0.5 * 0.5_m;
@@ -53,9 +54,8 @@ auto makeFieldMap(const SolenoidBField& field) {
   auto map =
       solenoidFieldMap({rMin, rMax}, {zMin, zMax}, {nBinsR, nBinsZ}, field);
   // I know this is the correct grid type
-  using Grid_t = Acts::Grid<Acts::Vector2, Acts::detail::EquidistantAxis,
-                            Acts::detail::EquidistantAxis>;
-  const Grid_t& grid = map.getGrid();
+  const auto& grid = map.getGrid();
+  using Grid_t = std::decay_t<decltype(grid)>;
   using index_t = Grid_t::index_t;
   using point_t = Grid_t::point_t;
 
@@ -101,13 +101,12 @@ BOOST_DATA_TEST_CASE(
                        bdata::distribution =
                            std::uniform_real_distribution<double>(0,
                                                                   R * 1.5))) ^
-        bdata::random((bdata::engine = std::mt19937(), bdata::seed = 3,
-                       bdata::distribution =
-                           std::uniform_real_distribution<double>(-M_PI,
-                                                                  M_PI))) ^
+        bdata::random(
+            (bdata::engine = std::mt19937(), bdata::seed = 3,
+             bdata::distribution = std::uniform_real_distribution<double>(
+                 -std::numbers::pi, std::numbers::pi))) ^
         bdata::xrange(ntests),
     z, r, phi, index) {
-  (void)index;
   if (index % 1000 == 0) {
     std::cout << index << std::endl;
   }
@@ -129,5 +128,4 @@ BOOST_DATA_TEST_CASE(
   ofstr << Bm.x() << ";" << Bm.y() << ";" << Bm.z() << std::endl;
 }
 
-}  // namespace IntegrationTest
-}  // namespace Acts
+}  // namespace Acts::IntegrationTest

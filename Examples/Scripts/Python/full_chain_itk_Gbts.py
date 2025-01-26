@@ -6,20 +6,17 @@ from acts.examples.simulation import (
     EtaConfig,
     ParticleConfig,
     addPythia8,
-    addFatras,
     ParticleSelectorConfig,
+    addGenParticleSelection,
+    addFatras,
     addDigitization,
+    addDigiParticleSelection,
 )
 from acts.examples.reconstruction import (
     addSeeding,
     SeedingAlgorithm,
-    TruthSeedRanges,
     addCKFTracks,
     TrackSelectorConfig,
-    addAmbiguityResolution,
-    AmbiguityResolutionConfig,
-    addVertexFitting,
-    VertexFinder,
 )
 
 ttbar_pu200 = False
@@ -55,20 +52,21 @@ else:
         outputDirRoot=outputDir,
     )
 
+    addGenParticleSelection(
+        s,
+        ParticleSelectorConfig(
+            rho=(0.0 * u.mm, 28.0 * u.mm),
+            absZ=(0.0 * u.mm, 1.0 * u.m),
+            eta=(-4.0, 4.0),
+            pt=(150 * u.MeV, None),
+        ),
+    )
+
 addFatras(
     s,
     trackingGeometry,
     field,
     rnd=rnd,
-    preSelectParticles=ParticleSelectorConfig(
-        rho=(0.0 * u.mm, 28.0 * u.mm),
-        absZ=(0.0 * u.mm, 1.0 * u.m),
-        eta=(-4.0, 4.0),
-        pt=(150 * u.MeV, None),
-        removeNeutral=True,
-    )
-    if ttbar_pu200
-    else ParticleSelectorConfig(),
     outputDirRoot=outputDir,
 )
 
@@ -82,20 +80,27 @@ addDigitization(
     rnd=rnd,
 )
 
+addDigiParticleSelection(
+    s,
+    ParticleSelectorConfig(
+        pt=(1.0 * u.GeV, None),
+        eta=(-4.0, 4.0),
+        measurements=(9, None),
+        removeNeutral=True,
+    ),
+)
+
 addSeeding(
     s,
     trackingGeometry,
     field,
-    TruthSeedRanges(pt=(1.0 * u.GeV, None), eta=(-4.0, 4.0), nHits=(9, None))
-    if ttbar_pu200
-    else TruthSeedRanges(),
     seedingAlgorithm=SeedingAlgorithm.Gbts,
     *acts.examples.itk.itkSeedingAlgConfig(
         acts.examples.itk.InputSpacePointsType.PixelSpacePoints
     ),
     geoSelectionConfigFile=geo_dir / "itk-hgtd/geoSelection-ITk.json",
     layerMappingConfigFile=geo_dir / "itk-hgtd/ACTS_FTF_mapinput.csv",
-    connector_inputConfigFile=geo_dir / "itk-hgtd/binTables_ITK_RUN4.txt",
+    ConnectorInputConfigFile=geo_dir / "itk-hgtd/binTables_ITK_RUN4.txt",
     outputDirRoot=outputDir,
 )
 

@@ -1,17 +1,18 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Plugins/Json/ActsJson.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
 #include "Acts/Utilities/BinningData.hpp"
-#include "Acts/Utilities/Range1D.hpp"
+#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/RangeXD.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -20,8 +21,6 @@
 
 namespace Acts {
 class BinningData;
-template <typename Type>
-class Range1D;
 
 void to_json(nlohmann::json& j, const BinningData& bd);
 
@@ -43,14 +42,15 @@ void from_json(const nlohmann::json& j, Range1D<Type>& r) {
   r.setMax(static_cast<Type>(j["max"]));
 }
 
-NLOHMANN_JSON_SERIALIZE_ENUM(BinningValue, {{BinningValue::binX, "binX"},
-                                            {BinningValue::binY, "binY"},
-                                            {BinningValue::binZ, "binZ"},
-                                            {BinningValue::binR, "binR"},
-                                            {BinningValue::binPhi, "binPhi"},
-                                            {BinningValue::binRPhi, "binRPhi"},
-                                            {BinningValue::binH, "binH"},
-                                            {BinningValue::binEta, "binEta"},
-                                            {BinningValue::binMag, "binMag"}})
+NLOHMANN_JSON_SERIALIZE_ENUM(AxisDirection,
+                             {{AxisDirection::AxisX, "AxisX"},
+                              {AxisDirection::AxisY, "AxisY"},
+                              {AxisDirection::AxisZ, "AxisZ"},
+                              {AxisDirection::AxisR, "AxisR"},
+                              {AxisDirection::AxisPhi, "AxisPhi"},
+                              {AxisDirection::AxisRPhi, "AxisRPhi"},
+                              {AxisDirection::AxisTheta, "AxisTheta"},
+                              {AxisDirection::AxisEta, "AxisEta"},
+                              {AxisDirection::AxisMag, "AxisMag"}})
 
 }  // namespace Acts

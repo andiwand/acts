@@ -1,15 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Tolerance.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
 #include <algorithm>
@@ -24,7 +23,6 @@ namespace Acts {
 
 /// Status enum
 enum class IntersectionStatus : int {
-  missed = 0,
   unreachable = 0,
   reachable = 1,
   onSurface = 2
@@ -47,8 +45,6 @@ class Intersection {
  public:
   /// Position type
   using Position = ActsVector<DIM>;
-  /// Status enum
-  using Status = IntersectionStatus;
 
   /// Constructor with arguments
   ///
@@ -56,26 +52,30 @@ class Intersection {
   /// @param pathLength is the path length to the intersection
   /// @param status is an enum indicating the status of the intersection
   constexpr Intersection(const Position& position, double pathLength,
-                         Status status)
+                         IntersectionStatus status)
       : m_position(position), m_pathLength(pathLength), m_status(status) {}
 
   /// Returns whether the intersection was successful or not
-  constexpr explicit operator bool() const {
-    return m_status != Status::missed;
+  constexpr bool isValid() const {
+    return m_status != IntersectionStatus::unreachable;
   }
 
+  /// Returns the position of the interseciton
   constexpr const Position& position() const { return m_position; }
 
-  constexpr ActsScalar pathLength() const { return m_pathLength; }
+  /// Returns the path length to the interseciton
+  constexpr double pathLength() const { return m_pathLength; }
 
-  constexpr Status status() const { return m_status; }
+  /// Returns the intersection status enum
+  constexpr IntersectionStatus status() const { return m_status; }
 
+  /// Static factory to creae an invalid instesection
   constexpr static Intersection invalid() { return Intersection(); }
 
-  /// Comparison function for forward order i.e. intersection closest to -inf
-  /// will be first.
-  constexpr static bool forwardOrder(const Intersection& aIntersection,
-                                     const Intersection& bIntersection) {
+  /// Comparison function for path length order i.e. intersection closest to
+  /// -inf will be first.
+  constexpr static bool pathLengthOrder(const Intersection& aIntersection,
+                                        const Intersection& bIntersection) {
     auto a = aIntersection.pathLength();
     auto b = bIntersection.pathLength();
     return a < b;
@@ -85,12 +85,12 @@ class Intersection {
   /// be first.
   constexpr static bool closestOrder(const Intersection& aIntersection,
                                      const Intersection& bIntersection) {
-    if ((aIntersection.status() == Status::unreachable) &&
-        (bIntersection.status() != Status::unreachable)) {
+    if ((aIntersection.status() == IntersectionStatus::unreachable) &&
+        (bIntersection.status() != IntersectionStatus::unreachable)) {
       return false;
     }
-    if ((aIntersection.status() != Status::unreachable) &&
-        (bIntersection.status() == Status::unreachable)) {
+    if ((aIntersection.status() != IntersectionStatus::unreachable) &&
+        (bIntersection.status() == IntersectionStatus::unreachable)) {
       return true;
     }
     // both are reachable or onSurface now
@@ -99,13 +99,23 @@ class Intersection {
     return std::abs(a) < std::abs(b);
   }
 
+  /// Comparison function for closest forward order i.e. intersection closest to
+  /// 0 with positive path length will be first.
+  constexpr static bool closestForwardOrder(const Intersection& aIntersection,
+                                            const Intersection& bIntersection) {
+    auto a = aIntersection.pathLength();
+    auto b = bIntersection.pathLength();
+    return std::signbit(a) == std::signbit(b) ? std::abs(a) < std::abs(b)
+                                              : a > b;
+  }
+
  private:
   /// Position of the intersection
   Position m_position = Position::Zero();
   /// Signed path length to the intersection (if valid)
-  ActsScalar m_pathLength = std::numeric_limits<double>::infinity();
+  double m_pathLength = std::numeric_limits<double>::infinity();
   /// The Status of the intersection
-  Status m_status = Status::unreachable;
+  IntersectionStatus m_status = IntersectionStatus::unreachable;
 
   constexpr Intersection() = default;
 };
@@ -131,42 +141,54 @@ class ObjectIntersection {
       : m_intersection(intersection), m_object(object), m_index(index) {}
 
   /// Returns whether the intersection was successful or not
-  constexpr explicit operator bool() const {
-    return m_intersection.operator bool();
-  }
+  constexpr bool isValid() const { return m_intersection.isValid(); }
 
+  /// Returns the intersection
   constexpr const Intersection3D& intersection() const {
     return m_intersection;
   }
 
+  /// Returns the position of the interseciton
   constexpr const Intersection3D::Position& position() const {
     return m_intersection.position();
   }
 
-  constexpr ActsScalar pathLength() const {
-    return m_intersection.pathLength();
-  }
+  /// Returns the path length to the interseciton
+  constexpr double pathLength() const { return m_intersection.pathLength(); }
 
-  constexpr Intersection3D::Status status() const {
+  /// Returns the status of the interseciton
+  constexpr IntersectionStatus status() const {
     return m_intersection.status();
   }
 
+  /// Returns the object that has been intersected
   constexpr const object_t* object() const { return m_object; }
 
   constexpr std::uint8_t index() const { return m_index; }
 
-  constexpr static ObjectIntersection invalid() { return ObjectIntersection(); }
+  constexpr static ObjectIntersection invalid(
+      const object_t* object = nullptr) {
+    return ObjectIntersection(Intersection3D::invalid(), object);
+  }
 
-  constexpr static bool forwardOrder(const ObjectIntersection& aIntersection,
-                                     const ObjectIntersection& bIntersection) {
-    return Intersection3D::forwardOrder(aIntersection.intersection(),
-                                        bIntersection.intersection());
+  constexpr static bool pathLengthOrder(
+      const ObjectIntersection& aIntersection,
+      const ObjectIntersection& bIntersection) {
+    return Intersection3D::pathLengthOrder(aIntersection.intersection(),
+                                           bIntersection.intersection());
   }
 
   constexpr static bool closestOrder(const ObjectIntersection& aIntersection,
                                      const ObjectIntersection& bIntersection) {
     return Intersection3D::closestOrder(aIntersection.intersection(),
                                         bIntersection.intersection());
+  }
+
+  constexpr static bool closestForwardOrder(
+      const ObjectIntersection& aIntersection,
+      const ObjectIntersection& bIntersection) {
+    return Intersection3D::closestForwardOrder(aIntersection.intersection(),
+                                               bIntersection.intersection());
   }
 
  private:
@@ -199,6 +221,10 @@ class ObjectMultiIntersection {
     return {m_intersections[index], m_object, index};
   }
 
+  constexpr const MultiIntersection3D& intersections() const {
+    return m_intersections;
+  }
+
   constexpr std::size_t size() const { return m_intersections.size(); }
 
   constexpr const object_t* object() const { return m_object; }
@@ -218,6 +244,13 @@ class ObjectMultiIntersection {
                              ObjectIntersection<object_t>::closestOrder);
   }
 
+  constexpr ObjectIntersection<object_t> closestForward() const {
+    auto splitIntersections = split();
+    return *std::min_element(splitIntersections.begin(),
+                             splitIntersections.end(),
+                             ObjectIntersection<object_t>::closestForwardOrder);
+  }
+
  private:
   /// The intersections
   MultiIntersection3D m_intersections;
@@ -227,50 +260,16 @@ class ObjectMultiIntersection {
 
 namespace detail {
 
-/// This function checks if an intersection is valid for the specified
-/// path-limit and overstep-limit
+/// This function checks if an intersection path length is valid for the
+/// specified near-limit and far-limit
 ///
-/// @tparam intersection_t Type of the intersection object
-///
-/// @param intersection The intersection to check
-/// @param nearLimit The minimum distance for an intersection to be considered
-/// @param farLimit The maximum distance for an intersection to be considered
+/// @param pathLength The path length of the intersection
+/// @param nearLimit The minimum path length for an intersection to be considered
+/// @param farLimit The maximum path length for an intersection to be considered
 /// @param logger A optionally supplied logger which prints out a lot of infos
 ///               at VERBOSE level
-template <typename intersection_t>
-bool checkIntersection(const intersection_t& intersection, double nearLimit,
-                       double farLimit,
-                       const Logger& logger = getDummyLogger()) {
-  const double distance = intersection.pathLength();
-  // TODO why?
-  const double tolerance = s_onSurfaceTolerance;
-
-  ACTS_VERBOSE(" -> near limit, far limit, distance: "
-               << nearLimit << ", " << farLimit << ", " << distance);
-
-  const bool coCriterion = distance > nearLimit;
-  const bool cpCriterion = std::abs(distance) < std::abs(farLimit) + tolerance;
-
-  const bool accept = coCriterion && cpCriterion;
-
-  if (accept) {
-    ACTS_VERBOSE("Intersection is WITHIN limit");
-  } else {
-    ACTS_VERBOSE("Intersection is OUTSIDE limit because: ");
-    if (!coCriterion) {
-      ACTS_VERBOSE("- intersection path length "
-                   << distance << " <= near limit " << nearLimit);
-    }
-    if (!cpCriterion) {
-      ACTS_VERBOSE("- intersection path length "
-                   << std::abs(distance) << " is over the far limit "
-                   << (std::abs(farLimit) + tolerance)
-                   << " (including tolerance of " << tolerance << ")");
-    }
-  }
-
-  return accept;
-}
+bool checkPathLength(double pathLength, double nearLimit, double farLimit,
+                     const Logger& logger = getDummyLogger());
 
 }  // namespace detail
 

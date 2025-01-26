@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022-2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -13,7 +13,7 @@
 #include "Acts/Detector/ProtoBinning.hpp"
 #include "Acts/Detector/interface/IDetectorComponentBuilder.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
 #include <map>
@@ -21,8 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace Acts {
-namespace Experimental {
+namespace Acts::Experimental {
 
 class IRootVolumeFinderBuilder;
 class IGeometryIdGenerator;
@@ -40,17 +39,17 @@ class IGeometryIdGenerator;
 /// @note the builder expects a fully consistent set of sub volume builders
 /// that will be executed in a chain
 ///
-/// @note allowed BinningValue(s) for the cylindrical container builder are
-/// {binZ}, {binR}, {binPhi}, {binZ, binR}, whereas the last option indicates
-/// a wrapping setup.
+/// @note allowed AxisDirection(s) for the cylindrical container builder are
+/// {AxisZ}, {AxisR}, {AxisPhi}, {AxisZ, AxisR}, whereas the last option
+/// indicates a wrapping setup.
 class CylindricalContainerBuilder : public IDetectorComponentBuilder {
  public:
   /// Nested configuration object
   struct Config {
     /// The configured volume builders
     std::vector<std::shared_ptr<const IDetectorComponentBuilder>> builders = {};
-    /// Binning prescription of attachment
-    std::vector<BinningValue> binning = {};
+    /// The axis direction for the binning
+    std::vector<AxisDirection> binning = {};
     /// The root volume finder
     std::shared_ptr<const IRootVolumeFinderBuilder> rootVolumeFinderBuilder =
         nullptr;
@@ -109,5 +108,4 @@ class CylindricalContainerBuilder : public IDetectorComponentBuilder {
   std::unique_ptr<const Logger> m_logger;
 };
 
-}  // namespace Experimental
-}  // namespace Acts
+}  // namespace Acts::Experimental

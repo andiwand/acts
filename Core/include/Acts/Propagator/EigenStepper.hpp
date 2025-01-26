@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -12,24 +12,21 @@
 #include "Acts/Utilities/detail/ReferenceWrapperAnyCompat.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Tolerance.hpp"
-#include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/EventData/detail/CorrectedTransformationFreeToBound.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
-#include "Acts/Propagator/DefaultExtension.hpp"
-#include "Acts/Propagator/DenseEnvironmentExtension.hpp"
-#include "Acts/Propagator/EigenStepperError.hpp"
-#include "Acts/Propagator/StepperExtensionList.hpp"
-#include "Acts/Propagator/detail/Auctioneer.hpp"
+#include "Acts/Propagator/EigenStepperDefaultExtension.hpp"
+#include "Acts/Propagator/PropagatorTraits.hpp"
+#include "Acts/Propagator/StepperOptions.hpp"
+#include "Acts/Propagator/StepperStatistics.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
+#include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 #include "Acts/Utilities/Result.hpp"
 
-#include <cmath>
-#include <functional>
 #include <limits>
+#include <type_traits>
 
 namespace Acts {
 
@@ -45,8 +42,7 @@ namespace Acts {
 /// with s being the arc length of the track, q the charge of the particle,
 /// p the momentum magnitude and B the magnetic field
 ///
-template <typename extensionlist_t = StepperExtensionList<DefaultExtension>,
-          typename auctioneer_t = detail::VoidAuctioneer>
+template <typename extension_t = EigenStepperDefaultExtension>
 class EigenStepper {
  public:
   /// Jacobian, Covariance and State definitions
@@ -56,44 +52,34 @@ class EigenStepper {
   using CurvilinearState =
       std::tuple<CurvilinearTrackParameters, Jacobian, double>;
 
+  struct Config {
+    std::shared_ptr<const MagneticFieldProvider> bField;
+  };
+
+  struct Options : public StepperPlainOptions {
+    Options(const GeometryContext& gctx, const MagneticFieldContext& mctx)
+        : StepperPlainOptions(gctx, mctx) {}
+
+    void setPlainOptions(const StepperPlainOptions& options) {
+      static_cast<StepperPlainOptions&>(*this) = options;
+    }
+  };
+
   /// @brief State for track parameter propagation
   ///
   /// It contains the stepping information and is provided thread local
   /// by the propagator
   struct State {
-    State() = delete;
-
     /// Constructor from the initial bound track parameters
     ///
-    /// @param [in] gctx is the context object for the geometry
+    /// @param [in] optionsIn is the options object for the stepper
     /// @param [in] fieldCacheIn is the cache object for the magnetic field
-    /// @param [in] par The track parameters at start
-    /// @param [in] ssize is the maximum step size
     ///
     /// @note the covariance matrix is copied when needed
-    explicit State(const GeometryContext& gctx,
-                   MagneticFieldProvider::Cache fieldCacheIn,
-                   const BoundTrackParameters& par,
-                   double ssize = std::numeric_limits<double>::max())
-        : particleHypothesis(par.particleHypothesis()),
-          stepSize(ssize),
-          fieldCache(std::move(fieldCacheIn)),
-          geoContext(gctx) {
-      pars.template segment<3>(eFreePos0) = par.position(gctx);
-      pars.template segment<3>(eFreeDir0) = par.direction();
-      pars[eFreeTime] = par.time();
-      pars[eFreeQOverP] = par.parameters()[eBoundQOverP];
+    State(const Options& optionsIn, MagneticFieldProvider::Cache fieldCacheIn)
+        : options(optionsIn), fieldCache(std::move(fieldCacheIn)) {}
 
-      // Init the jacobian matrix if needed
-      if (par.covariance()) {
-        // Get the reference surface for navigation
-        const auto& surface = par.referenceSurface();
-        // set the covariance transport flag to true and copy
-        covTransport = true;
-        cov = BoundSquareMatrix(*par.covariance());
-        jacToGlobal = surface.boundToFreeJacobian(gctx, par.parameters());
-      }
-    }
+    Options options;
 
     /// Internal free vector parameters
     FreeVector pars = FreeVector::Zero();
@@ -122,6 +108,12 @@ class EigenStepper {
     /// Accummulated path length state
     double pathAccumulated = 0.;
 
+    /// Total number of performed steps
+    std::size_t nSteps = 0;
+
+    /// Totoal number of attempted steps
+    std::size_t nStepTrials = 0;
+
     /// Adaptive step size of the runge-kutta integration
     ConstrainedStep stepSize;
 
@@ -133,14 +125,8 @@ class EigenStepper {
     /// See step() code for details.
     MagneticFieldProvider::Cache fieldCache;
 
-    /// The geometry context
-    std::reference_wrapper<const GeometryContext> geoContext;
-
-    /// List of algorithmic extensions
-    extensionlist_t extension;
-
-    /// Auctioneer for choosing the extension
-    auctioneer_t auctioneer;
+    /// Algorithmic extension
+    extension_t extension;
 
     /// @brief Storage of magnetic field and the sub steps during a RKN4 step
     struct {
@@ -151,16 +137,22 @@ class EigenStepper {
       /// k_i elements of the momenta
       std::array<double, 4> kQoP{};
     } stepData;
+
+    /// Statistics of the stepper
+    StepperStatistics statistics;
   };
 
   /// Constructor requires knowledge of the detector's magnetic field
-  EigenStepper(std::shared_ptr<const MagneticFieldProvider> bField,
-               double overstepLimit = 100 * UnitConstants::um);
+  /// @param bField The magnetic field provider
+  explicit EigenStepper(std::shared_ptr<const MagneticFieldProvider> bField);
 
-  State makeState(std::reference_wrapper<const GeometryContext> gctx,
-                  std::reference_wrapper<const MagneticFieldContext> mctx,
-                  const BoundTrackParameters& par,
-                  double ssize = std::numeric_limits<double>::max()) const;
+  /// @brief Constructor with configuration
+  ///
+  /// @param [in] config The configuration of the stepper
+  explicit EigenStepper(const Config& config) : m_bField(config.bField) {}
+
+  State makeState(const Options& options,
+                  const BoundTrackParameters& par) const;
 
   /// @brief Resets the state
   ///
@@ -246,16 +238,18 @@ class EigenStepper {
   /// @param [in] surface The surface provided
   /// @param [in] index The surface intersection index
   /// @param [in] navDir The navigation direction
-  /// @param [in] bcheck The boundary check for this status update
+  /// @param [in] boundaryTolerance The boundary check for this status update
   /// @param [in] surfaceTolerance Surface tolerance used for intersection
+  /// @param [in] stype The step size type to be set
   /// @param [in] logger A @c Logger instance
-  Intersection3D::Status updateSurfaceStatus(
+  IntersectionStatus updateSurfaceStatus(
       State& state, const Surface& surface, std::uint8_t index,
-      Direction navDir, const BoundaryCheck& bcheck,
-      ActsScalar surfaceTolerance = s_onSurfaceTolerance,
+      Direction navDir, const BoundaryTolerance& boundaryTolerance,
+      double surfaceTolerance, ConstrainedStep::Type stype,
       const Logger& logger = getDummyLogger()) const {
     return detail::updateSingleSurfaceStatus<EigenStepper>(
-        *this, state, surface, index, navDir, bcheck, surfaceTolerance, logger);
+        *this, state, surface, index, navDir, boundaryTolerance,
+        surfaceTolerance, stype, logger);
   }
 
   /// Update step size
@@ -267,11 +261,14 @@ class EigenStepper {
   ///
   /// @param state [in,out] The stepping state (thread-local cache)
   /// @param oIntersection [in] The ObjectIntersection to layer, boundary, etc
-  /// @param release [in] boolean to trigger step size release
+  /// @param direction [in] The propagation direction
+  /// @param stype [in] The step size type to be set
   template <typename object_intersection_t>
   void updateStepSize(State& state, const object_intersection_t& oIntersection,
-                      Direction /*direction*/, bool release = true) const {
-    detail::updateSingleStepSize<EigenStepper>(state, oIntersection, release);
+                      Direction direction, ConstrainedStep::Type stype) const {
+    (void)direction;
+    double stepSize = oIntersection.pathLength();
+    updateStepSize(state, stepSize, stype);
   }
 
   /// Update step size - explicitly with a double
@@ -279,11 +276,10 @@ class EigenStepper {
   /// @param state [in,out] The stepping state (thread-local cache)
   /// @param stepSize [in] The step size value
   /// @param stype [in] The step size type to be set
-  /// @param release [in] Do we release the step size?
   void updateStepSize(State& state, double stepSize,
-                      ConstrainedStep::Type stype, bool release = true) const {
+                      ConstrainedStep::Type stype) const {
     state.previousStepSize = state.stepSize.value();
-    state.stepSize.update(stepSize, stype, release);
+    state.stepSize.update(stepSize, stype);
   }
 
   /// Get the step size
@@ -309,15 +305,6 @@ class EigenStepper {
     return state.stepSize.toString();
   }
 
-  /// Overstep limit
-  ///
-  /// @param state The stepping state (thread-local cache)
-  double overstepLimit(const State& state) const {
-    (void)state;
-    // A dynamic overstep limit could sit here
-    return -m_overstepLimit;
-  }
-
   /// Create and return the bound state at the current position
   ///
   /// @brief This transports (if necessary) the covariance
@@ -338,6 +325,18 @@ class EigenStepper {
       State& state, const Surface& surface, bool transportCov = true,
       const FreeToBoundCorrection& freeToBoundCorrection =
           FreeToBoundCorrection(false)) const;
+
+  /// @brief If necessary fill additional members needed for curvilinearState
+  ///
+  /// Compute path length derivatives in case they have not been computed
+  /// yet, which is the case if no step has been executed yet.
+  ///
+  /// @param [in, out] prop_state State that will be presented as @c BoundState
+  /// @param [in] navigator the navigator of the propagation
+  /// @return true if nothing is missing after this call, false otherwise.
+  template <typename propagator_state_t, typename navigator_t>
+  bool prepareCurvilinearState(propagator_state_t& prop_state,
+                               const navigator_t& navigator) const;
 
   /// Create and return a curvilinear state at the current position
   ///
@@ -418,10 +417,12 @@ class EigenStepper {
  protected:
   /// Magnetic field inside of the detector
   std::shared_ptr<const MagneticFieldProvider> m_bField;
-
-  /// Overstep limit
-  double m_overstepLimit;
 };
+
+template <typename navigator_t>
+struct SupportsBoundParameters<EigenStepper<>, navigator_t>
+    : public std::true_type {};
+
 }  // namespace Acts
 
 #include "Acts/Propagator/EigenStepper.ipp"

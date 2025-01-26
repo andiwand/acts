@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -21,6 +21,8 @@ struct ParameterSmearingConfig {
   Acts::BoundIndices index = Acts::eBoundSize;
   /// The smearing function for this parameter.
   ActsFatras::SingleParameterSmearFunction<RandomEngine> smearFunction;
+  /// A flag to return only positive smeared values
+  bool forcePositiveValues = false;
 };
 
 // The configured indices must be unique, i.e. each one can only appear once

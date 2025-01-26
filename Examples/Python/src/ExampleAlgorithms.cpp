@@ -1,17 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Plugins/Python/Utilities.hpp"
 #include "Acts/TrackFinding/TrackSelector.hpp"
 #include "ActsExamples/Fatras/FatrasSimulation.hpp"
 #include "ActsExamples/Io/Json/JsonGeometryList.hpp"
-#include "ActsExamples/Printers/HitsPrinter.hpp"
 #include "ActsExamples/Printers/ParticlesPrinter.hpp"
 #include "ActsExamples/Printers/TrackParametersPrinter.hpp"
 #include "ActsExamples/Utilities/Range.hpp"
@@ -36,19 +35,13 @@ void addExampleAlgorithms(Context& ctx) {
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::FatrasSimulation, mex, "FatrasSimulation", inputParticles,
-      outputParticlesInitial, outputParticlesFinal, outputSimHits,
-      imputParametrisationNuclearInteraction, randomNumbers, trackingGeometry,
+      outputParticles, outputSimHits, randomNumbers, trackingGeometry,
       magneticField, pMin, emScattering, emEnergyLossIonisation,
       emEnergyLossRadiation, emPhotonConversion, generateHitsOnSensitive,
       generateHitsOnMaterial, generateHitsOnPassive, averageHitsPerParticle);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::ParticlesPrinter, mex,
                                 "ParticlesPrinter", inputParticles);
-
-  ACTS_PYTHON_DECLARE_ALGORITHM(
-      ActsExamples::HitsPrinter, mex, "HitsPrinter", inputClusters,
-      inputMeasurementParticlesMap, inputHitIds, selectIndexStart,
-      selectIndexLength, selectVolume, selectLayer, selectModule);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::TrackParametersPrinter, mex,
                                 "TrackParametersPrinter", inputTrackParameters);
@@ -81,6 +74,14 @@ void addExampleAlgorithms(Context& ctx) {
                     .def(py::init<const EtaBinnedConfig&>(), py::arg("config"));
 
     {
+      auto mc = py::class_<Acts::TrackSelector::MeasurementCounter>(
+                    tool, "MeasurementCounter")
+                    .def(py::init<>())
+                    .def("addCounter",
+                         &Acts::TrackSelector::MeasurementCounter::addCounter);
+    }
+
+    {
       auto c = py::class_<Config>(tool, "Config").def(py::init<>());
 
       patchKwargsConstructor(c);
@@ -101,6 +102,13 @@ void addExampleAlgorithms(Context& ctx) {
       ACTS_PYTHON_MEMBER(ptMin);
       ACTS_PYTHON_MEMBER(ptMax);
       ACTS_PYTHON_MEMBER(minMeasurements);
+      ACTS_PYTHON_MEMBER(maxHoles);
+      ACTS_PYTHON_MEMBER(maxOutliers);
+      ACTS_PYTHON_MEMBER(maxHolesAndOutliers);
+      ACTS_PYTHON_MEMBER(maxSharedHits);
+      ACTS_PYTHON_MEMBER(maxChi2);
+      ACTS_PYTHON_MEMBER(measurementCounter);
+      ACTS_PYTHON_MEMBER(requireReferenceSurface);
       ACTS_PYTHON_STRUCT_END();
 
       pythonRangeProperty(c, "loc0", &Config::loc0Min, &Config::loc0Max);
@@ -116,6 +124,8 @@ void addExampleAlgorithms(Context& ctx) {
       auto c = py::class_<EtaBinnedConfig>(tool, "EtaBinnedConfig")
                    .def(py::init<>())
                    .def(py::init<const Config&>());
+
+      patchKwargsConstructor(c);
 
       c.def_property_readonly("nEtaBins", &EtaBinnedConfig::nEtaBins);
 

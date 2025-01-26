@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Geant4/ParticleKillAction.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/Geometry/Volume.hpp"
+#include "ActsFatras/EventData/Barcode.hpp"
+#include "ActsFatras/EventData/ParticleOutcome.hpp"
 
 #include <ostream>
 #include <utility>
@@ -22,11 +23,13 @@
 #include <G4UnitsTable.hh>
 #include <G4VPhysicalVolume.hh>
 
-ActsExamples::ParticleKillAction::ParticleKillAction(
+namespace ActsExamples::Geant4 {
+
+ParticleKillAction::ParticleKillAction(
     const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
     : G4UserSteppingAction(), m_cfg(cfg), m_logger(std::move(logger)) {}
 
-void ActsExamples::ParticleKillAction::UserSteppingAction(const G4Step* step) {
+void ParticleKillAction::UserSteppingAction(const G4Step* step) {
   constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
   constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
 
@@ -49,4 +52,27 @@ void ActsExamples::ParticleKillAction::UserSteppingAction(const G4Step* step) {
                << isSecondary);
     track->SetTrackStatus(G4TrackStatus::fStopAndKill);
   }
+
+  // store the outcome of the particle
+  auto trackIt = eventStore().trackIdMapping.find(track->GetTrackID());
+  // check if we have a particle assigned to track
+  if (trackIt != eventStore().trackIdMapping.end()) {
+    // set the outcome of the particle
+    const ActsFatras::Barcode particleId = trackIt->second;
+    if (outOfVolume) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledVolumeExit;
+    } else if (outOfTime) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledTime;
+    } else if (invalidSecondary) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledSecondaryParticle;
+    } else if (track->GetTrackStatus() == fStopAndKill) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledInteraction;
+    }
+  }
 }
+
+}  // namespace ActsExamples::Geant4

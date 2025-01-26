@@ -18,13 +18,13 @@ sys.path += [
 
 import helpers
 import helpers.hash_root
-from common import getOpenDataDetectorDirectory
-from acts.examples.odd import getOpenDataDetector
 
 import pytest
 
 import acts
 import acts.examples
+from acts.examples.odd import getOpenDataDetector
+from acts.examples.simulation import addParticleGun, EtaConfig, ParticleConfig
 
 try:
     import ROOT
@@ -88,7 +88,7 @@ def root_file_exp_hashes():
 
 
 @pytest.fixture(name="assert_root_hash")
-def assert_root_hash(request, root_file_exp_hashes, record_property):
+def assert_root_hash(request, root_file_exp_hashes):
     if not helpers.doHashChecks:
 
         def fn(*args, **kwargs):
@@ -202,28 +202,44 @@ def basic_prop_seq(rng):
         if s is None:
             s = acts.examples.Sequencer(events=10, numThreads=1)
 
+        addParticleGun(
+            s,
+            ParticleConfig(num=10, pdg=acts.PdgParticle.eMuon, randomizeCharge=True),
+            EtaConfig(-4.0, 4.0),
+            rnd=rng,
+        )
+
+        trkParamExtractor = acts.examples.ParticleTrackParamExtractor(
+            level=acts.logging.WARNING,
+            inputParticles="particles_generated",
+            outputTrackParameters="params_particles_generated",
+        )
+        s.addAlgorithm(trkParamExtractor)
+
         nav = acts.Navigator(trackingGeometry=geo)
         stepper = acts.StraightLineStepper()
 
         prop = acts.examples.ConcretePropagator(acts.Propagator(stepper, nav))
+
         alg = acts.examples.PropagationAlgorithm(
+            level=acts.logging.WARNING,
             propagatorImpl=prop,
-            level=acts.logging.INFO,
-            randomNumberSvc=rng,
-            ntests=10,
             sterileLogger=False,
-            propagationStepCollection="propagation-steps",
+            inputTrackParameters="params_particles_generated",
+            outputSummaryCollection="propagation_summary",
         )
         s.addAlgorithm(alg)
+
         return s, alg
 
     return _basic_prop_seq_factory
 
 
 @pytest.fixture
-def trk_geo(request):
-    detector, geo, contextDecorators = acts.examples.GenericDetector.create()
-    yield geo
+def trk_geo():
+    detector = acts.examples.GenericDetector()
+    trackingGeometry = detector.trackingGeometry()
+    yield trackingGeometry
 
 
 DetectorConfig = namedtuple(
@@ -244,7 +260,9 @@ def detector_config(request):
     srcdir = Path(__file__).resolve().parent.parent.parent.parent
 
     if request.param == "generic":
-        detector, trackingGeometry, decorators = acts.examples.GenericDetector.create()
+        detector = acts.examples.GenericDetector()
+        trackingGeometry = detector.trackingGeometry()
+        decorators = detector.contextDecorators()
         return DetectorConfig(
             detector,
             trackingGeometry,
@@ -267,9 +285,9 @@ def detector_config(request):
             srcdir / "thirdparty/OpenDataDetector/data/odd-material-maps.root",
             level=acts.logging.INFO,
         )
-        detector, trackingGeometry, decorators = getOpenDataDetector(
-            getOpenDataDetectorDirectory(), matDeco
-        )
+        detector = getOpenDataDetector(matDeco)
+        trackingGeometry = detector.trackingGeometry()
+        decorators = detector.contextDecorators()
         return DetectorConfig(
             detector,
             trackingGeometry,
@@ -283,7 +301,6 @@ def detector_config(request):
             ),
             name=request.param,
         )
-
     else:
         raise ValueError(f"Invalid detector {detector}")
 
@@ -308,7 +325,8 @@ def ptcl_gun(rng):
                     ),
                 )
             ],
-            outputParticles="particles_input",
+            outputParticles="particles_generated",
+            outputVertices="vertices_input",
             randomNumbers=rng,
         )
 
@@ -328,8 +346,7 @@ def fatras(ptcl_gun, trk_geo, rng):
         simAlg = acts.examples.FatrasSimulation(
             level=acts.logging.INFO,
             inputParticles=evGen.config.outputParticles,
-            outputParticlesInitial="particles_initial",
-            outputParticlesFinal="particles_final",
+            outputParticles="particles_simulated",
             outputSimHits="simhits",
             randomNumbers=rng,
             trackingGeometry=trk_geo,
@@ -344,14 +361,14 @@ def fatras(ptcl_gun, trk_geo, rng):
         s.addAlgorithm(simAlg)
 
         # Digitization
-        digiCfg = acts.examples.DigitizationConfig(
-            acts.examples.readDigiConfigFromJson(
+        digiCfg = acts.examples.DigitizationAlgorithm.Config(
+            digitizationConfigs=acts.examples.readDigiConfigFromJson(
                 str(
                     Path(__file__).parent.parent.parent.parent
                     / "Examples/Algorithms/Digitization/share/default-smearing-config-generic.json"
                 )
             ),
-            trackingGeometry=trk_geo,
+            surfaceByIdentifier=trk_geo.geoIdSurfaceMap(),
             randomNumbers=rng,
             inputSimHits=simAlg.config.outputSimHits,
         )
@@ -367,18 +384,12 @@ def fatras(ptcl_gun, trk_geo, rng):
 def _do_material_recording(d: Path):
     from material_recording import runMaterialRecording
 
-    detector, trackingGeometry, decorators = getOpenDataDetector(
-        getOpenDataDetectorDirectory()
-    )
-
-    detectorConstructionFactory = (
-        acts.examples.geant4.dd4hep.DDG4DetectorConstructionFactory(detector)
-    )
-
     s = acts.examples.Sequencer(events=2, numThreads=1)
 
-    runMaterialRecording(detectorConstructionFactory, str(d), tracksPerEvent=100, s=s)
-    s.run()
+    with getOpenDataDetector() as detector:
+        runMaterialRecording(detector, str(d), tracksPerEvent=100, s=s)
+
+        s.run()
 
 
 @pytest.fixture(scope="session")
@@ -390,7 +401,9 @@ def material_recording_session():
         pytest.skip("DD4hep recording requested, but DD4hep is not set up")
 
     with tempfile.TemporaryDirectory() as d:
-        p = multiprocessing.Process(target=_do_material_recording, args=(d,))
+        # explicitly ask for "spawn" as CI failures were observed with "fork"
+        spawn_context = multiprocessing.get_context("spawn")
+        p = spawn_context.Process(target=_do_material_recording, args=(d,))
         p.start()
         p.join()
         if p.exitcode != 0:

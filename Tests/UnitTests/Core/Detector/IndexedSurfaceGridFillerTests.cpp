@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -12,25 +12,25 @@
 #include "Acts/Detector/detail/IndexedGridFiller.hpp"
 #include "Acts/Detector/detail/ReferenceGenerators.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
+#include "Acts/Navigation/InternalNavigation.hpp"
 #include "Acts/Navigation/NavigationStateUpdaters.hpp"
-#include "Acts/Navigation/SurfaceCandidatesUpdaters.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Utilities/Axis.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/Grid.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "Acts/Utilities/TypeTraits.hpp"
-#include "Acts/Utilities/detail/Axis.hpp"
-#include "Acts/Utilities/detail/AxisFwd.hpp"
 
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <numbers>
 #include <ostream>
 #include <set>
 #include <utility>
@@ -120,14 +120,14 @@ BOOST_AUTO_TEST_CASE(IndexGridXYOneSurfaceCenter) {
   ACTS_INFO("Testing one surface with center generator, should lead to 1 bin.");
 
   // x-y Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisX(-5., 5., 5);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisY(-5., 5., 5);
-  Grid<std::vector<unsigned int>, decltype(axisX), decltype(axisY)> gridXY(
-      {axisX, axisY});
+  Axis axisX(AxisBound, -5., 5., 5);
+  Axis axisY(AxisBound, -5., 5., 5);
+  Grid gridXY(Type<std::vector<unsigned int>>, std::move(axisX),
+              std::move(axisY));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridXY)> indexedGridXY(std::move(gridXY),
-                                                      {binX, binY});
+  IndexedSurfacesNavigation<decltype(gridXY)> indexedGridXY(
+      std::move(gridXY), {AxisDirection::AxisX, AxisDirection::AxisY});
 
   // Create a single surface in the center
   auto rBounds = std::make_shared<RectangleBounds>(4., 4.);
@@ -156,14 +156,14 @@ BOOST_AUTO_TEST_CASE(IndexGridXYOneSurfaceBinValue) {
       "Testing one surface with bin value generator, should lead to 1 bin.");
 
   // x-y Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisX(-5., 5., 5);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisY(-5., 5., 5);
-  Grid<std::vector<unsigned int>, decltype(axisX), decltype(axisY)> gridXY(
-      {axisX, axisY});
+  Axis axisX(AxisBound, -5., 5., 5);
+  Axis axisY(AxisBound, -5., 5., 5);
+  Grid gridXY(Type<std::vector<unsigned int>>, std::move(axisX),
+              std::move(axisY));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridXY)> indexedGridXY(std::move(gridXY),
-                                                      {binX, binY});
+  IndexedSurfacesNavigation<decltype(gridXY)> indexedGridXY(
+      std::move(gridXY), {AxisDirection::AxisX, AxisDirection::AxisY});
 
   // Create a single surface in the center
   auto rBounds = std::make_shared<RectangleBounds>(4., 4.);
@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE(IndexGridXYOneSurfaceBinValue) {
   IndexedGridFiller filler{{}};
   filler.oLogger = getDefaultLogger("IndexGridFiller", Logging::VERBOSE);
 
-  BinningValueReferenceGenerator<binX> generator;
+  AxisDirectionReferenceGenerator<AxisDirection::AxisX> generator;
   std::vector<std::shared_ptr<Surface>> surfaces = {pSurface};
 
   // Fill the surface
@@ -193,14 +193,14 @@ BOOST_AUTO_TEST_CASE(IndexGridXYOneSurfacePolyhedron) {
       "lead to 5 unique bins, 25 total bins filled");
 
   // x-y Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisX(-5., 5., 5);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisY(-5., 5., 5);
-  Grid<std::vector<unsigned int>, decltype(axisX), decltype(axisY)> gridXY(
-      {axisX, axisY});
+  Axis axisX(AxisBound, -5., 5., 5);
+  Axis axisY(AxisBound, -5., 5., 5);
+  Grid gridXY(Type<std::vector<unsigned int>>, std::move(axisX),
+              std::move(axisY));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridXY)> indexedGridXY(std::move(gridXY),
-                                                      {binX, binY});
+  IndexedSurfacesNavigation<decltype(gridXY)> indexedGridXY(
+      std::move(gridXY), {AxisDirection::AxisX, AxisDirection::AxisY});
 
   // Create a single surface in the center
   auto rBounds = std::make_shared<RectangleBounds>(4., 4.);
@@ -230,14 +230,14 @@ BOOST_AUTO_TEST_CASE(IndexGridXYOneSurfacePolyhedronBinExpansion) {
       "lead to 5 unique bins, 49 total bins filled");
 
   // x-y Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisX(-9., 9., 9);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisY(-9., 9., 9);
-  Grid<std::vector<unsigned int>, decltype(axisX), decltype(axisY)> gridXY(
-      {axisX, axisY});
+  Axis axisX(AxisBound, -9., 9., 9);
+  Axis axisY(AxisBound, -9., 9., 9);
+  Grid gridXY(Type<std::vector<unsigned int>>, std::move(axisX),
+              std::move(axisY));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridXY)> indexedGridXY(std::move(gridXY),
-                                                      {binX, binY});
+  IndexedSurfacesNavigation<decltype(gridXY)> indexedGridXY(
+      std::move(gridXY), {AxisDirection::AxisX, AxisDirection::AxisY});
 
   // Create a single surface in the center
   auto rBounds = std::make_shared<RectangleBounds>(4., 4.);
@@ -267,17 +267,17 @@ BOOST_AUTO_TEST_CASE(IndexGridZPhiYOneSurfacePolyhedronBinExpansion) {
       "lead to 5 unique bins, 6 total bins filled");
 
   // z-phi Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisZ(-9., 9., 9);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Closed> axisPhi(-M_PI, M_PI,
-                                                                36);
-  Grid<std::vector<unsigned int>, decltype(axisZ), decltype(axisPhi)> gridZPhi(
-      {axisZ, axisPhi});
+  Axis axisZ(AxisBound, -9., 9., 9);
+  Axis axisPhi(AxisClosed, -std::numbers::pi, std::numbers::pi, 36);
+  Grid gridZPhi(Type<std::vector<unsigned int>>, std::move(axisZ),
+                std::move(axisPhi));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridZPhi)> indexedGridZPhi(std::move(gridZPhi),
-                                                          {binZ, binPhi});
+  IndexedSurfacesNavigation<decltype(gridZPhi)> indexedGridZPhi(
+      std::move(gridZPhi), {AxisDirection::AxisZ, AxisDirection::AxisPhi});
 
-  auto cBounds = std::make_shared<CylinderBounds>(10, 2., M_PI / 30, 0.);
+  auto cBounds =
+      std::make_shared<CylinderBounds>(10, 2., std::numbers::pi / 30, 0.);
   auto cSurface = Surface::makeShared<CylinderSurface>(Transform3::Identity(),
                                                        std::move(cBounds));
 
@@ -300,21 +300,24 @@ BOOST_AUTO_TEST_CASE(IndexGridZPhiYOneSurfacePolyhedronBinExpansion) {
 BOOST_AUTO_TEST_CASE(IndexGridZPhiYOneSurfaceMPIPolyhedronBinExpansion) {
   ACTS_LOCAL_LOGGER(getDefaultLogger("*** Test 4", logLevel));
   ACTS_INFO("Testing Phi-Z grid.");
-  ACTS_INFO("Testing one surface at M_PI jump, with polyhedron generator");
+  ACTS_INFO(
+      "Testing one surface at std::numbers::pi jump, with polyhedron "
+      "generator");
 
   // z-phi Axes & Grid
-  Axis<AxisType::Equidistant, AxisBoundaryType::Bound> axisZ(-9., 9., 9);
-  Axis<AxisType::Equidistant, AxisBoundaryType::Closed> axisPhi(-M_PI, M_PI,
-                                                                36);
-  Grid<std::vector<unsigned int>, decltype(axisZ), decltype(axisPhi)> gridZPhi(
-      {axisZ, axisPhi});
+  Axis axisZ(AxisBound, -9., 9., 9);
+  Axis axisPhi(AxisClosed, -std::numbers::pi, std::numbers::pi, 36);
+  Grid gridZPhi(Type<std::vector<unsigned int>>, std::move(axisZ),
+                std::move(axisPhi));
 
   // Indexed Surface grid
-  IndexedSurfacesImpl<decltype(gridZPhi)> indexedGridZPhi(std::move(gridZPhi),
-                                                          {binZ, binPhi});
+  IndexedSurfacesNavigation<decltype(gridZPhi)> indexedGridZPhi(
+      std::move(gridZPhi), {AxisDirection::AxisZ, AxisDirection::AxisPhi});
 
-  auto cBounds = std::make_shared<CylinderBounds>(10, 2., M_PI / 10, 0.);
-  auto tf = AngleAxis3(M_PI, Vector3::UnitZ()) * Transform3::Identity();
+  auto cBounds =
+      std::make_shared<CylinderBounds>(10, 2., std::numbers::pi / 10, 0.);
+  auto tf =
+      AngleAxis3(std::numbers::pi, Vector3::UnitZ()) * Transform3::Identity();
   auto cSurface = Surface::makeShared<CylinderSurface>(tf, std::move(cBounds));
 
   // The Filler instance and a center based generator

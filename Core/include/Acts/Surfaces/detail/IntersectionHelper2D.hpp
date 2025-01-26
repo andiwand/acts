@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -13,8 +13,7 @@
 
 #include <array>
 
-namespace Acts {
-namespace detail {
+namespace Acts::detail {
 
 struct IntersectionHelper2D {
   /// Intersect two segments
@@ -38,8 +37,7 @@ struct IntersectionHelper2D {
   /// @param dir The Direction of intersection line
   ///
   /// @return the intersection points
-  static std::array<Intersection2D, 2> intersectEllipse(ActsScalar Rx,
-                                                        ActsScalar Ry,
+  static std::array<Intersection2D, 2> intersectEllipse(double Rx, double Ry,
                                                         const Vector2& origin,
                                                         const Vector2& dir);
 
@@ -51,7 +49,7 @@ struct IntersectionHelper2D {
   ///
   /// @return the intersection points
   static inline std::array<Intersection2D, 2> intersectCircle(
-      ActsScalar R, const Vector2& origin, const Vector2& dir) {
+      double R, const Vector2& origin, const Vector2& dir) {
     return intersectEllipse(R, R, origin, dir);
   }
 
@@ -66,12 +64,11 @@ struct IntersectionHelper2D {
   /// @param dir The Direction of intersection line
   ///
   /// @return the intersection points
-  static Intersection2D intersectCircleSegment(ActsScalar R, ActsScalar phiMin,
-                                               ActsScalar phiMax,
+  static Intersection2D intersectCircleSegment(double R, double phiMin,
+                                               double phiMax,
                                                const Vector2& origin,
                                                const Vector2& dir);
 
 };  // struct IntersectionHelper2D
 
-}  // namespace detail
-}  // namespace Acts
+}  // namespace Acts::detail

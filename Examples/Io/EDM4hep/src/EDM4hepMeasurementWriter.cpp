@@ -1,21 +1,24 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/EDM4hep/EDM4hepMeasurementWriter.hpp"
 
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/EventData/Measurement.hpp"
+#include "Acts/Plugins/EDM4hep/TrackerHitCompatibility.hpp"
 #include "ActsExamples/EventData/Cluster.hpp"
+#include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/Io/EDM4hep/EDM4hepUtil.hpp"
 
 #include <stdexcept>
 
+#include <edm4hep/TrackerHitPlane.h>
+#include <edm4hep/TrackerHitPlaneCollection.h>
 #include <podio/Frame.h>
 
 namespace ActsExamples {
@@ -44,7 +47,7 @@ ActsExamples::ProcessCode EDM4hepMeasurementWriter::writeT(
   podio::Frame frame;
 
   edm4hep::TrackerHitPlaneCollection hitsPlane;
-  edm4hep::TrackerHitCollection hits;
+  edm4hep::TrackerHit3DCollection hits;
 
   if (!m_cfg.inputClusters.empty()) {
     ACTS_VERBOSE("Fetch clusters for writing: " << m_cfg.inputClusters);
@@ -55,7 +58,8 @@ ActsExamples::ProcessCode EDM4hepMeasurementWriter::writeT(
                           << " measurements in this event.");
 
   for (Index hitIdx = 0u; hitIdx < measurements.size(); ++hitIdx) {
-    const auto& from = measurements[hitIdx];
+    ConstVariableBoundMeasurementProxy from =
+        measurements.getMeasurement(hitIdx);
     const Cluster* fromCluster = clusters.empty() ? nullptr : &clusters[hitIdx];
 
     auto to = hitsPlane.create();
@@ -67,6 +71,7 @@ ActsExamples::ProcessCode EDM4hepMeasurementWriter::writeT(
   frame.put(std::move(hitsPlane), "ActsTrackerHitsPlane");
   frame.put(std::move(hits), "ActsTrackerHitsRaw");
 
+  std::lock_guard guard(m_writeMutex);
   m_writer.writeFrame(frame, "events");
 
   return ActsExamples::ProcessCode::SUCCESS;

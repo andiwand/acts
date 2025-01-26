@@ -1,12 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
-/// @file Logger_tests.cpp
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -20,10 +18,9 @@
 #include <utility>
 #include <vector>
 
-namespace Acts {
-namespace Test {
-
 using namespace Acts::Logging;
+
+namespace Acts::Test {
 
 /// @cond
 namespace detail {
@@ -146,5 +143,4 @@ BOOST_AUTO_TEST_CASE(DEBUG_test) {
 BOOST_AUTO_TEST_CASE(VERBOSE_test) {
   debug_level_test("verbose_log.txt", VERBOSE);
 }
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

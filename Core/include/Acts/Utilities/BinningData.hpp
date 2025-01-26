@@ -1,15 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/ThrowAssert.hpp"
 #include "Acts/Utilities/VectorHelpers.hpp"
 
@@ -40,13 +42,13 @@ namespace Acts {
 ///
 class BinningData {
  public:
-  BinningType type{};       ///< binning type: equidistant, arbitrary
-  BinningOption option{};   ///< binning option: open, closed
-  BinningValue binvalue{};  ///< binning value: binX, binY, binZ, binR ...
-  float min{};              ///< minimum value
-  float max{};              ///< maximum value
-  float step{};             ///< binning step
-  bool zdim{};              ///< zero dimensional binning : direct access
+  BinningType type{};        ///< binning type: equidistant, arbitrary
+  BinningOption option{};    ///< binning option: open, closed
+  AxisDirection binvalue{};  ///< axis direction: AxisX, AxisY, AxisZ, ...
+  float min{};               ///< minimum value
+  float max{};               ///< maximum value
+  float step{};              ///< binning step
+  bool zdim{};               ///< zero dimensional binning : direct access
 
   /// sub structure: describe some sub binning
   std::unique_ptr<const BinningData> subBinningData;
@@ -55,10 +57,10 @@ class BinningData {
 
   /// Constructor for 0D binning
   ///
-  /// @param bValue is the binning value: binX, binY, etc.
+  /// @param bValue is the axis direction AxisX, AxisY, etc.
   /// @param bMin is the minimum value
   /// @param bMax is the maximum value
-  BinningData(BinningValue bValue, float bMin, float bMax)
+  BinningData(AxisDirection bValue, float bMin, float bMax)
       : type(equidistant),
         option(open),
         binvalue(bValue),
@@ -78,13 +80,13 @@ class BinningData {
   /// multiplicative or additive
   ///
   /// @param bOption is the binning option : open, closed
-  /// @param bValue is the binning value: binX, binY, etc.
+  /// @param bValue is the axis direction: Axis, AxisY, etc.
   /// @param bBins is number of equidistant bins
   /// @param bMin is the minimum value
   /// @param bMax is the maximum value
   /// @param sBinData is (optional) sub structure
   /// @param sBinAdditive is the prescription for the sub structure
-  BinningData(BinningOption bOption, BinningValue bValue, std::size_t bBins,
+  BinningData(BinningOption bOption, AxisDirection bValue, std::size_t bBins,
               float bMin, float bMax,
               std::unique_ptr<const BinningData> sBinData = nullptr,
               bool sBinAdditive = false)
@@ -115,10 +117,10 @@ class BinningData {
   /// Constructor for non-equidistant binning
   ///
   /// @param bOption is the binning option : open / closed
-  /// @param bValue is the binning value : binX, binY, etc.
+  /// @param bValue is the axis direction : AxisX, AxisY, etc.
   /// @param bBoundaries are the bin boundaries
   /// @param sBinData is (optional) sub structure
-  BinningData(BinningOption bOption, BinningValue bValue,
+  BinningData(BinningOption bOption, AxisDirection bValue,
               const std::vector<float>& bBoundaries,
               std::unique_ptr<const BinningData> sBinData = nullptr)
       : type(arbitrary),
@@ -240,13 +242,13 @@ class BinningData {
   /// @return float value according to the binning setup
   float value(const Vector2& lposition) const {
     // ordered after occurrence
-    if (binvalue == binR || binvalue == binRPhi || binvalue == binX ||
-        binvalue == binH) {
+    if (binvalue == AxisDirection::AxisR ||
+        binvalue == AxisDirection::AxisRPhi ||
+        binvalue == AxisDirection::AxisX ||
+        binvalue == AxisDirection::AxisTheta) {
       return lposition[0];
     }
-    if (binvalue == binPhi) {
-      return lposition[1];
-    }
+
     return lposition[1];
   }
 
@@ -260,17 +262,18 @@ class BinningData {
     using VectorHelpers::perp;
     using VectorHelpers::phi;
     // ordered after occurrence
-    if (binvalue == binR || binvalue == binH) {
+    if (binvalue == AxisDirection::AxisR ||
+        binvalue == AxisDirection::AxisTheta) {
       return (perp(position));
     }
-    if (binvalue == binRPhi) {
+    if (binvalue == AxisDirection::AxisRPhi) {
       return (perp(position) * phi(position));
     }
-    if (binvalue == binEta) {
+    if (binvalue == AxisDirection::AxisEta) {
       return (eta(position));
     }
-    if (binvalue < 3) {
-      return (position[binvalue]);
+    if (toUnderlying(binvalue) < 3) {
+      return static_cast<float>(position[toUnderlying(binvalue)]);
     }
     // phi gauging
     return phi(position);
@@ -482,7 +485,7 @@ class BinningData {
         }
       }
       // sort the total boundary vector
-      std::sort(m_totalBoundaries.begin(), m_totalBoundaries.end());
+      std::ranges::sort(m_totalBoundaries);
     }
   }
 
@@ -504,9 +507,10 @@ class BinningData {
     }
     // if outside boundary : return boundary for open, opposite bin for closed
     bin = bin < 0 ? ((bData.option == open) ? 0 : (bData.m_bins - 1)) : bin;
-    return std::size_t((bin <= int(bData.m_bins - 1))
-                           ? bin
-                           : ((bData.option == open) ? (bData.m_bins - 1) : 0));
+    return static_cast<std::size_t>(
+        (bin <= static_cast<int>(bData.m_bins - 1))
+            ? bin
+            : ((bData.option == open) ? (bData.m_bins - 1) : 0));
   }
 
   // Search in arbitrary boundary
@@ -531,12 +535,15 @@ class BinningData {
   /// String screen output method
   /// @param indent the current indentation
   /// @return a string containing the screen information
-  std::string toString(const std::string& indent) const {
+  std::string toString(const std::string& indent = "") const {
     std::stringstream sl;
-    sl << indent << "BinngingData object:" << '\n';
-    sl << indent << "  - type       : " << std::size_t(type) << '\n';
-    sl << indent << "  - option     : " << std::size_t(option) << '\n';
-    sl << indent << "  - value      : " << std::size_t(binvalue) << '\n';
+    sl << indent << "BinningData object:" << '\n';
+    sl << indent << "  - type       : " << static_cast<std::size_t>(type)
+       << '\n';
+    sl << indent << "  - option     : " << static_cast<std::size_t>(option)
+       << '\n';
+    sl << indent << "  - value      : " << static_cast<std::size_t>(binvalue)
+       << '\n';
     sl << indent << "  - bins       : " << bins() << '\n';
     sl << indent << "  - min/max    : " << min << " / " << max << '\n';
     if (type == equidistant) {

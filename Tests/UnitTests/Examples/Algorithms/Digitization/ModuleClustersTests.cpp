@@ -1,13 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
+#include "Acts/Utilities/BinUtility.hpp"
 #include "Acts/Utilities/BinningData.hpp"
 #include "ActsExamples/Digitization/ModuleClusters.hpp"
 #include "ActsFatras/Digitization/Segmentizer.hpp"
@@ -23,8 +24,8 @@ DigitizedParameters makeDigitizationParameters(const Vector2 &position,
                                                const BinUtility &binUtility) {
   auto [binX, binY, _] =
       binUtility.binTriple((Vector3() << position, 0).finished());
-  Segmentizer::Bin2D bin = {(Segmentizer::Bin2D::value_type)binX,
-                            (Segmentizer::Bin2D::value_type)binY};
+  Segmentizer::Bin2D bin = {static_cast<Segmentizer::Bin2D::value_type>(binX),
+                            static_cast<Segmentizer::Bin2D::value_type>(binY)};
   Segmentizer::Segment2D segment = {position, position};
   double activation = 1;
   Cluster::Cell cell = {bin, segment, activation};
@@ -46,10 +47,10 @@ DigitizedParameters makeDigitizationParameters(const Vector2 &position,
 auto testDigitizedParametersWithTwoClusters(bool merge, const Vector2 &firstHit,
                                             const Vector2 &secondHit) {
   BinUtility binUtility;
-  binUtility +=
-      BinningData(BinningOption::open, BinningValue::binX, 20, -10.0f, 10.0f);
-  binUtility +=
-      BinningData(BinningOption::open, BinningValue::binY, 20, -10.0f, 10.0f);
+  binUtility += BinUtility(BinningData(
+      BinningOption::open, AxisDirection::AxisX, 20, -10.0f, 10.0f));
+  binUtility += BinUtility(BinningData(
+      BinningOption::open, AxisDirection::AxisY, 20, -10.0f, 10.0f));
   std::vector<Acts::BoundIndices> boundIndices = {eBoundLoc0, eBoundLoc1};
   double nsigma = 1;
   bool commonCorner = true;

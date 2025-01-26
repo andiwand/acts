@@ -1,14 +1,13 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Geometry/KDTreeTrackingGeometryBuilder.hpp"
 
-#include "Acts/Geometry/AbstractVolume.hpp"
 #include "Acts/Geometry/CylinderLayer.hpp"
 #include "Acts/Geometry/DiscLayer.hpp"
 #include "Acts/Geometry/Extent.hpp"
@@ -19,6 +18,7 @@
 #include "Acts/Geometry/ProtoLayer.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Geometry/TrackingVolume.hpp"
+#include "Acts/Geometry/Volume.hpp"
 #include "Acts/Geometry/VolumeBounds.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/RadialBounds.hpp"
@@ -26,7 +26,6 @@
 #include "Acts/Surfaces/SurfaceArray.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 #include "Acts/Utilities/BinningType.hpp"
-#include "Acts/Utilities/Range1D.hpp"
 #include "Acts/Utilities/RangeXD.hpp"
 
 #include <cstddef>
@@ -46,14 +45,16 @@ std::unique_ptr<const Acts::TrackingGeometry>
 Acts::KDTreeTrackingGeometryBuilder::trackingGeometry(
     const GeometryContext& gctx) const {
   using MeasuredSurface =
-      std::pair<std::array<ActsScalar, 2u>, std::shared_ptr<Surface>>;
+      std::pair<std::array<double, 2u>, std::shared_ptr<Surface>>;
   // Prepare all the surfaces
   std::vector<MeasuredSurface> surfacesMeasured;
   surfacesMeasured.reserve(m_cfg.surfaces.size());
   for (auto& s : m_cfg.surfaces) {
     auto ext = s->polyhedronRepresentation(gctx, 1u).extent();
     surfacesMeasured.push_back(MeasuredSurface{
-        std::array<ActsScalar, 2u>{ext.medium(binZ), ext.medium(binR)}, s});
+        std::array<double, 2u>{ext.medium(AxisDirection::AxisZ),
+                               ext.medium(AxisDirection::AxisR)},
+        s});
   }
 
   // Create the KDTree
@@ -83,8 +84,8 @@ Acts::KDTreeTrackingGeometryBuilder::translateVolume(
   std::vector<std::shared_ptr<const TrackingVolume>> translatedVolumes = {};
 
   // Volume extent
-  auto rangeR = ptVolume.extent.range(Acts::binR);
-  auto rangeZ = ptVolume.extent.range(Acts::binZ);
+  auto rangeR = ptVolume.extent.range(Acts::AxisDirection::AxisR);
+  auto rangeZ = ptVolume.extent.range(Acts::AxisDirection::AxisZ);
 
   // Simple gap volume
   if (!ptVolume.container.has_value()) {
@@ -156,9 +157,9 @@ Acts::KDTreeTrackingGeometryBuilder::translateLayer(
   auto& its = plVolume.internal.value();
 
   // Try to pull from the kd tree
-  RangeXD<2u, ActsScalar> zrRange;
-  zrRange[0u] = plVolume.extent.range(Acts::binZ);
-  zrRange[1u] = plVolume.extent.range(Acts::binR);
+  RangeXD<2u, double> zrRange;
+  zrRange[0u] = plVolume.extent.range(Acts::AxisDirection::AxisZ);
+  zrRange[1u] = plVolume.extent.range(Acts::AxisDirection::AxisR);
 
   auto layerSurfaces = kdt.rangeSearchWithKey(zrRange);
   ACTS_VERBOSE(indent + ">> looking z/r range = " << zrRange.toString());

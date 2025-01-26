@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -15,8 +15,7 @@
 #include <HepMC3/GenParticle.h>
 #include <HepMC3/GenVertex.h>
 
-namespace ActsExamples {
-namespace HepMC3Vertex {
+namespace ActsExamples::HepMC3Vertex {
 
 /// @brief Returns a vertex translated into Acts
 /// @param vertex vertex in HepMC data type
@@ -92,5 +91,4 @@ void position(const std::shared_ptr<HepMC3::GenVertex>& vertex,
 /// @param time new time of the vertex
 void time(const std::shared_ptr<HepMC3::GenVertex>& vertex, double time);
 
-}  // namespace HepMC3Vertex
-}  // namespace ActsExamples
+}  // namespace ActsExamples::HepMC3Vertex

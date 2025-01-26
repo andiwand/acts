@@ -1,12 +1,11 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
@@ -19,10 +18,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace bdata = boost::unit_test::data;
-
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
 BOOST_AUTO_TEST_CASE(materialmap_creation) {
   // Create grid values
@@ -125,5 +121,4 @@ BOOST_AUTO_TEST_CASE(materialmap_creation) {
   CHECK_CLOSE_ABS(value1_xyz.parameters(), mat1_xyz.parameters(), 1e-9);
   CHECK_CLOSE_ABS(value2_xyz.parameters(), mat2_xyz.parameters(), 1e-9);
 }
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test

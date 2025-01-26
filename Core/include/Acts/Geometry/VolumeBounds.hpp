@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -12,11 +12,12 @@
 #include "Acts/Definitions/Direction.hpp"
 #include "Acts/Geometry/Volume.hpp"
 #include "Acts/Surfaces/RegularSurface.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <numbers>
 #include <utility>
 #include <vector>
 
@@ -26,19 +27,21 @@ class Surface;
 class VolumeBounds;
 class Direction;
 
-using VolumeBoundsPtr = std::shared_ptr<const VolumeBounds>;
-
-using OrientedSurface = std::pair<std::shared_ptr<RegularSurface>, Direction>;
-using OrientedSurfaces = std::vector<OrientedSurface>;
+struct OrientedSurface {
+  std::shared_ptr<RegularSurface> surface;
+  Direction direction = Direction::AlongNormal();
+};
 
 // Planar definitions to help construct the boundary surfaces
 static const Transform3 s_planeXY = Transform3::Identity();
-static const Transform3 s_planeYZ = AngleAxis3(0.5 * M_PI, Vector3::UnitY()) *
-                                    AngleAxis3(0.5 * M_PI, Vector3::UnitZ()) *
-                                    Transform3::Identity();
-static const Transform3 s_planeZX = AngleAxis3(-0.5 * M_PI, Vector3::UnitX()) *
-                                    AngleAxis3(-0.5 * M_PI, Vector3::UnitZ()) *
-                                    Transform3::Identity();
+static const Transform3 s_planeYZ =
+    AngleAxis3(std::numbers::pi / 2., Vector3::UnitY()) *
+    AngleAxis3(std::numbers::pi / 2., Vector3::UnitZ()) *
+    Transform3::Identity();
+static const Transform3 s_planeZX =
+    AngleAxis3(-std::numbers::pi / 2., Vector3::UnitX()) *
+    AngleAxis3(-std::numbers::pi / 2., Vector3::UnitZ()) *
+    Transform3::Identity();
 
 /// @class VolumeBounds
 ///
@@ -57,15 +60,18 @@ class VolumeBounds {
   // @enum BoundsType
   /// This is nested to the VolumeBounds, as also SurfaceBounds will have
   /// Bounds Type.
-  enum BoundsType : int {
-    eCone = 0,
-    eCuboid = 1,
-    eCutoutCylinder = 2,
-    eCylinder = 3,
-    eGenericCuboid = 4,
-    eTrapezoid = 5,
-    eOther = 6
+  enum class BoundsType {
+    eCone,
+    eCuboid,
+    eCutoutCylinder,
+    eCylinder,
+    eGenericCuboid,
+    eTrapezoid,
+    eOther,
+
   };
+
+  using enum BoundsType;
 
   /// Static member to get the name of the BoundsType
   static const std::vector<std::string> s_boundsTypeNames;
@@ -103,7 +109,7 @@ class VolumeBounds {
   /// It will throw an exception if the orientation prescription is not adequate
   ///
   /// @return a vector of surfaces bounding this volume
-  virtual OrientedSurfaces orientedSurfaces(
+  virtual std::vector<OrientedSurface> orientedSurfaces(
       const Transform3& transform = Transform3::Identity()) const = 0;
 
   /// Construct bounding box for this shape
@@ -115,19 +121,32 @@ class VolumeBounds {
       const Transform3* trf = nullptr, const Vector3& envelope = {0, 0, 0},
       const Volume* entity = nullptr) const = 0;
 
+  /// Get the canonical axis direction
+  /// that fully describe the shape's extent
+  ///
+  /// @return vector of canonical axis directions
+  ///
+  /// @note This is the default implementation that
+  /// returns the bounding box binning. Individual shapes
+  /// should override this method
+  virtual std::vector<AxisDirection> canonicalAxes() const {
+    using enum AxisDirection;
+    return {AxisX, AxisY, AxisZ};
+  };
+
   /// Binning offset - overloaded for some R-binning types
   ///
-  /// @param bValue is the binning schema used
+  /// @param aDir is the binning schema used
   ///
   /// @return vector 3D to be used for the binning
-  virtual Vector3 binningOffset(BinningValue bValue) const;
+  virtual Vector3 referenceOffset(AxisDirection aDir) const;
 
   /// Binning borders in double
   ///
-  /// @param bValue is the binning schema used
+  /// @param aDir is the binning schema used
   ///
   /// @return float offset to be used for the binning
-  virtual double binningBorder(BinningValue bValue) const;
+  virtual double referenceBorder(AxisDirection aDir) const;
 
   /// Output Method for std::ostream, to be overloaded by child classes
   ///
@@ -136,12 +155,12 @@ class VolumeBounds {
 };
 
 /// Binning offset - overloaded for some R-binning types
-inline Vector3 VolumeBounds::binningOffset(
-    BinningValue /*bValue*/) const {  // standard offset is 0.,0.,0.
+inline Vector3 VolumeBounds::referenceOffset(
+    AxisDirection /*aDir*/) const {  // standard offset is 0.,0.,0.
   return Vector3(0., 0., 0.);
 }
 
-inline double VolumeBounds::binningBorder(BinningValue /*bValue*/) const {
+inline double VolumeBounds::referenceBorder(AxisDirection /*aDir*/) const {
   return 0.;
 }
 
@@ -154,5 +173,7 @@ inline bool operator==(const VolumeBounds& lhs, const VolumeBounds& rhs) {
   }
   return (lhs.type() == rhs.type()) && (lhs.values() == rhs.values());
 }
+
+std::ostream& operator<<(std::ostream& sl, const VolumeBounds::BoundsType& bt);
 
 }  // namespace Acts

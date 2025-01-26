@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/unit_test.hpp>
 
@@ -20,6 +20,7 @@
 #include "Acts/Utilities/Grid.hpp"
 #include "Acts/Utilities/GridAxisGenerators.hpp"
 
+#include <numbers>
 #include <tuple>
 
 using namespace Acts;
@@ -42,7 +43,7 @@ IndexedSurfacesConverter::Options generateDrawOptions() {
   sensitiveStyle.highlights = {"onmouseover", "onmouseout"};
   sensitiveStyle.strokeWidth = 0.5;
   sensitiveStyle.strokeColor = {0, 0, 0};
-  sensitiveStyle.nSegments = 72u;
+  sensitiveStyle.quarterSegments = 72u;
   std::pair<GeometryIdentifier, Style> allSensitives = {GeometryIdentifier(0u),
                                                         sensitiveStyle};
 
@@ -74,10 +75,11 @@ BOOST_AUTO_TEST_CASE(RingDisc1D) {
   auto rSurfaces = cGeometry.surfacesRing(dStore, 6.4, 12.4, 36., 0.125, 0.,
                                           55., 0., 2., 22u);
 
-  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesImpl> irSurfaces{
-      rSurfaces, {}, {binPhi}};
+  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesNavigation>
+      irSurfaces{rSurfaces, {}, {AxisDirection::AxisPhi}};
 
-  GridAxisGenerators::EqClosed aGenerator{{-M_PI, M_PI}, 44u};
+  GridAxisGenerators::EqClosed aGenerator{{-std::numbers::pi, std::numbers::pi},
+                                          44u};
   PolyhedronReferenceGenerator<1u, true> rGenerator;
 
   auto indexedRing = irSurfaces(tContext, aGenerator, rGenerator);
@@ -99,10 +101,11 @@ BOOST_AUTO_TEST_CASE(RingDisc1DWithSupport) {
                                                    std::move(rBounds));
   rSurfaces.push_back(dSurface.get());
 
-  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesImpl> irSurfaces{
-      rSurfaces, {rSurfaces.size() - 1u}, {binPhi}};
+  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesNavigation>
+      irSurfaces{rSurfaces, {rSurfaces.size() - 1u}, {AxisDirection::AxisPhi}};
 
-  GridAxisGenerators::EqClosed aGenerator{{-M_PI, M_PI}, 44u};
+  GridAxisGenerators::EqClosed aGenerator{{-std::numbers::pi, std::numbers::pi},
+                                          44u};
   PolyhedronReferenceGenerator<1u, true> rGenerator;
 
   auto indexedRing = irSurfaces(tContext, aGenerator, rGenerator);
@@ -125,11 +128,11 @@ BOOST_AUTO_TEST_CASE(RingDisc2D) {
   decltype(rSurfacesR0) rSurfaces = rSurfacesR0;
   rSurfaces.insert(rSurfaces.end(), rSurfacesR1.begin(), rSurfacesR1.end());
 
-  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesImpl> irSurfaces{
-      rSurfaces, {}, {binR, binPhi}};
+  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesNavigation>
+      irSurfaces{rSurfaces, {}, {AxisDirection::AxisR, AxisDirection::AxisPhi}};
 
   GridAxisGenerators::VarBoundEqClosed aGenerator{
-      {24., 74., 110.}, {-M_PI, M_PI}, 44u};
+      {24., 74., 110.}, {-std::numbers::pi, std::numbers::pi}, 44u};
   PolyhedronReferenceGenerator<1u, true> rGenerator;
 
   auto indexedRing = irSurfaces(tContext, aGenerator, rGenerator);
@@ -157,11 +160,11 @@ BOOST_AUTO_TEST_CASE(RingDisc2DFine) {
   rSurfaces.insert(rSurfaces.end(), rSurfacesR1.begin(), rSurfacesR1.end());
   rSurfaces.insert(rSurfaces.end(), rSurfacesR2.begin(), rSurfacesR2.end());
 
-  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesImpl> irSurfaces{
-      rSurfaces, {}, {binR, binPhi}};
+  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesNavigation>
+      irSurfaces{rSurfaces, {}, {AxisDirection::AxisR, AxisDirection::AxisPhi}};
 
   GridAxisGenerators::EqBoundEqClosed aGenerator{
-      {24., 152}, 8u, {-M_PI, M_PI}, 88u};
+      {24., 152}, 8u, {-std::numbers::pi, std::numbers::pi}, 88u};
 
   PolyhedronReferenceGenerator<1u, true> rGenerator;
   auto indexedRing = irSurfaces(tContext, aGenerator, rGenerator);
@@ -189,11 +192,14 @@ BOOST_AUTO_TEST_CASE(RingDisc2DFineExpanded) {
   rSurfaces.insert(rSurfaces.end(), rSurfacesR1.begin(), rSurfacesR1.end());
   rSurfaces.insert(rSurfaces.end(), rSurfacesR2.begin(), rSurfacesR2.end());
 
-  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesImpl> irSurfaces{
-      rSurfaces, {}, {binR, binPhi}, {2u, 4u}};
+  IndexedSurfacesGenerator<decltype(rSurfaces), IndexedSurfacesNavigation>
+      irSurfaces{rSurfaces,
+                 {},
+                 {AxisDirection::AxisR, AxisDirection::AxisPhi},
+                 {2u, 4u}};
 
   GridAxisGenerators::EqBoundEqClosed aGenerator{
-      {24., 152}, 8u, {-M_PI, M_PI}, 88u};
+      {24., 152}, 8u, {-std::numbers::pi, std::numbers::pi}, 88u};
   PolyhedronReferenceGenerator<1u, true> rGenerator;
 
   auto indexedRing = irSurfaces(tContext, aGenerator, rGenerator);
@@ -210,11 +216,14 @@ BOOST_AUTO_TEST_CASE(Cylinder2D) {
   auto surfaces = cGeometry.surfacesCylinder(dStore, 8.4, 36., 0.15, 0.145,
                                              116., 3., 2., {52, 14});
 
-  IndexedSurfacesGenerator<decltype(surfaces), IndexedSurfacesImpl> icSurfaces{
-      surfaces, {}, {binZ, binPhi}, {1u, 1u}};
+  IndexedSurfacesGenerator<decltype(surfaces), IndexedSurfacesNavigation>
+      icSurfaces{surfaces,
+                 {},
+                 {AxisDirection::AxisZ, AxisDirection::AxisPhi},
+                 {1u, 1u}};
 
   GridAxisGenerators::EqBoundEqClosed aGenerator{
-      {-500., 500}, 28, {-M_PI, M_PI}, 52u};
+      {-500., 500}, 28, {-std::numbers::pi, std::numbers::pi}, 52u};
   PolyhedronReferenceGenerator<1u, true> rGenerator;
 
   auto indexedCylinder = icSurfaces(tContext, aGenerator, rGenerator);

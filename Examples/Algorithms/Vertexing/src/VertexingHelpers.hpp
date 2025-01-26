@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -15,6 +15,7 @@
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -24,21 +25,20 @@ namespace ActsExamples {
 ///
 /// @param trackParameters input examples track parameters container
 /// @return track parameters pointer container referencing the input tracks
-inline std::vector<const Acts::BoundTrackParameters*>
-makeTrackParametersPointerContainer(
+inline std::vector<Acts::InputTrack> makeInputTracks(
     const TrackParametersContainer& trackParameters) {
-  std::vector<const Acts::BoundTrackParameters*> trackParametersPointers;
-  trackParametersPointers.reserve(trackParameters.size());
+  std::vector<Acts::InputTrack> inputTracks;
+  inputTracks.reserve(trackParameters.size());
 
   for (const auto& trackParam : trackParameters) {
-    trackParametersPointers.push_back(&trackParam);
+    inputTracks.emplace_back(&trackParam);
   }
-  return trackParametersPointers;
+  return inputTracks;
 }
 
 /// Create proto vertices from reconstructed vertices.
 ///
-/// @param trackParameters input track parameters container
+/// @param inputTracks input track parameters container
 /// @param vertices reconstructed vertices
 /// @return proto vertices corresponding to the reconstructed vertices
 ///
@@ -46,8 +46,8 @@ makeTrackParametersPointerContainer(
 /// elements in the given input track parameters container. If that is not the
 /// case the behaviour is undefined.
 inline ProtoVertexContainer makeProtoVertices(
-    const std::vector<const Acts::BoundTrackParameters*>& trackParameters,
-    const std::vector<Acts::Vertex<Acts::BoundTrackParameters>>& vertices) {
+    const std::vector<Acts::InputTrack>& inputTracks,
+    const std::vector<Acts::Vertex>& vertices) {
   ProtoVertexContainer protoVertices;
   protoVertices.reserve(vertices.size());
 
@@ -56,10 +56,9 @@ inline ProtoVertexContainer makeProtoVertices(
     protoVertex.reserve(vertex.tracks().size());
 
     for (const auto& track : vertex.tracks()) {
-      auto it = std::find(trackParameters.begin(), trackParameters.end(),
-                          track.originalParams);
-      if (it != trackParameters.end()) {
-        protoVertex.push_back(std::distance(trackParameters.begin(), it));
+      auto it = std::ranges::find(inputTracks, track.originalParams);
+      if (it != inputTracks.end()) {
+        protoVertex.push_back(std::distance(inputTracks.begin(), it));
       } else {
         protoVertex.push_back(-1);
       }

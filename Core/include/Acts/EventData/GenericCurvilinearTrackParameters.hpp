@@ -1,16 +1,16 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/EventData/GenericBoundTrackParameters.hpp"
 #include "Acts/EventData/TrackParametersConcept.hpp"
-#include "Acts/Surfaces/PlaneSurface.hpp"
+#include "Acts/Surfaces/CurvilinearSurface.hpp"
 
 namespace Acts {
 
@@ -30,7 +30,6 @@ class GenericCurvilinearTrackParameters
   using Base = GenericBoundTrackParameters<particle_hypothesis_t>;
 
  public:
-  using Scalar = ActsScalar;
   using ParametersVector = BoundVector;
   using CovarianceMatrix = BoundSquareMatrix;
   using ParticleHypothesis = particle_hypothesis_t;
@@ -43,12 +42,11 @@ class GenericCurvilinearTrackParameters
   /// @param cov Curvilinear bound parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
   GenericCurvilinearTrackParameters(const Vector4& pos4, const Vector3& dir,
-                                    Scalar qOverP,
+                                    double qOverP,
                                     std::optional<CovarianceMatrix> cov,
                                     ParticleHypothesis particleHypothesis)
-      : Base(Surface::makeShared<PlaneSurface>(pos4.segment<3>(ePos0), dir),
-             detail::transformFreeToCurvilinearParameters(pos4[eTime], dir,
-                                                          qOverP),
+      : Base(CurvilinearSurface(pos4.segment<3>(ePos0), dir).surface(),
+             transformFreeToCurvilinearParameters(pos4[eTime], dir, qOverP),
              std::move(cov), std::move(particleHypothesis)) {}
 
   /// Construct from four-position, angles, and qOverP.
@@ -59,14 +57,15 @@ class GenericCurvilinearTrackParameters
   /// @param qOverP Charge over momentum
   /// @param cov Curvilinear bound parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
-  GenericCurvilinearTrackParameters(const Vector4& pos4, Scalar phi,
-                                    Scalar theta, Scalar qOverP,
+  GenericCurvilinearTrackParameters(const Vector4& pos4, double phi,
+                                    double theta, double qOverP,
                                     std::optional<CovarianceMatrix> cov,
                                     ParticleHypothesis particleHypothesis)
-      : Base(Surface::makeShared<PlaneSurface>(
-                 pos4.segment<3>(ePos0), makeDirectionFromPhiTheta(phi, theta)),
-             detail::transformFreeToCurvilinearParameters(pos4[eTime], phi,
-                                                          theta, qOverP),
+      : Base(CurvilinearSurface(pos4.segment<3>(ePos0),
+                                makeDirectionFromPhiTheta(phi, theta))
+                 .surface(),
+             transformFreeToCurvilinearParameters(pos4[eTime], phi, theta,
+                                                  qOverP),
              std::move(cov), std::move(particleHypothesis)) {}
 
   /// Converts a bound track parameter with a different hypothesis.
@@ -82,8 +81,7 @@ class GenericCurvilinearTrackParameters
   template <typename other_track_parameter_t>
   static GenericCurvilinearTrackParameters create(
       const other_track_parameter_t& other) {
-    static_assert(
-        Concepts::BoundTrackParametersConcept<other_track_parameter_t>);
+    static_assert(BoundTrackParametersConcept<other_track_parameter_t>);
 
     return GenericCurvilinearTrackParameters(
         other.fourPosition(), other.particleHypothesis(), other.covariance());
@@ -111,6 +109,14 @@ class GenericCurvilinearTrackParameters
   /// Spatial position three-vector.
   Vector3 position() const {
     return GenericBoundTrackParameters<ParticleHypothesis>::position({});
+  }
+
+  /// Reflect the parameters.
+  /// @return Reflected parameters.
+  GenericCurvilinearTrackParameters<ParticleHypothesis> reflect() const {
+    GenericCurvilinearTrackParameters<ParticleHypothesis> reflected = *this;
+    reflected.reflectInPlace();
+    return reflected;
   }
 };
 

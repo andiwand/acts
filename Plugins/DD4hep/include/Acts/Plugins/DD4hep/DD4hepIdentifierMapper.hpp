@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -26,14 +26,14 @@ struct DD4hepIdentifierCapture {
   /// @brief Return an invalid identifier for volumes as they are not directly translated
   /// @return maximum value
   DD4hepIdentifier operator()(
-      const Acts::Experimental::DetectorVolume& /*unused*/) const {
+      const Acts::Experimental::DetectorVolume& /*volume*/) const {
     return std::numeric_limits<DD4hepIdentifier>::max();
   }
 
   /// @brief Return an invalid identifier for portal objects as they are not directly translated
   /// @return maximum value
   DD4hepIdentifier operator()(
-      const Acts::Experimental::Portal& /*unused*/) const {
+      const Acts::Experimental::Portal& /*portal*/) const {
     return std::numeric_limits<DD4hepIdentifier>::max();
   }
 

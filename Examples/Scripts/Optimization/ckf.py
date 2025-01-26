@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-from pathlib import Path
-from typing import Optional, Union
-from collections import namedtuple
-import argparse
-import sys
-import os
 
-from acts.examples import Sequencer, GenericDetector, RootParticleReader
+from pathlib import Path
+from typing import Optional
+import argparse
 
 import acts
-
 from acts import UnitConstants as u
+from acts.examples import GenericDetector, RootParticleReader
 
 
 def getArgumentParser():
@@ -122,12 +118,13 @@ def runCKFTracks(
         ParticleConfig,
         addFatras,
         addDigitization,
+        ParticleSelectorConfig,
+        addDigiParticleSelection,
     )
 
     from acts.examples.reconstruction import (
         addSeeding,
-        TruthSeedRanges,
-        ParticleSmearingSigmas,
+        TrackSmearingSigmas,
         SeedFinderConfigArg,
         SeedFinderOptionsArg,
         SeedingAlgorithm,
@@ -164,8 +161,7 @@ def runCKFTracks(
             RootParticleReader(
                 level=acts.logging.INFO,
                 filePath=str(inputParticlePath.resolve()),
-                particleCollection="particles_input",
-                orderedEvents=False,
+                outputParticles="particles_generated",
             )
         )
 
@@ -184,12 +180,32 @@ def runCKFTracks(
         rnd=rnd,
     )
 
+    addDigiParticleSelection(
+        s,
+        ParticleSelectorConfig(
+            pt=(0.5 * u.GeV, None),
+            measurements=(9, None),
+            removeNeutral=True,
+        ),
+    )
+
     addSeeding(
         s,
         trackingGeometry,
         field,
-        TruthSeedRanges(pt=(500.0 * u.MeV, None), nHits=(9, None)),
-        ParticleSmearingSigmas(pRel=0.01),  # only used by SeedingAlgorithm.TruthSmeared
+        TrackSmearingSigmas(  # only used by SeedingAlgorithm.TruthSmeared
+            # zero eveything so the CKF has a chance to find the measurements
+            loc0=0,
+            loc0PtA=0,
+            loc0PtB=0,
+            loc1=0,
+            loc1PtA=0,
+            loc1PtB=0,
+            time=0,
+            phi=0,
+            theta=0,
+            ptRel=0,
+        ),
         SeedFinderConfigArg(
             r=(None, 200 * u.mm),  # rMin=default, 33mm
             deltaR=(DeltaRMin * u.mm, DeltaRMax * u.mm),
@@ -205,11 +221,25 @@ def runCKFTracks(
         ),
         SeedFinderOptionsArg(bFieldInZ=2 * u.T, beamPos=(0.0, 0, 0)),
         TruthEstimatedSeedingAlgorithmConfigArg(deltaR=(10.0 * u.mm, None)),
-        seedingAlgorithm=SeedingAlgorithm.TruthSmeared
-        if truthSmearedSeeded
-        else SeedingAlgorithm.TruthEstimated
-        if truthEstimatedSeeded
-        else SeedingAlgorithm.Default,
+        seedingAlgorithm=(
+            SeedingAlgorithm.TruthSmeared
+            if truthSmearedSeeded
+            else (
+                SeedingAlgorithm.TruthEstimated
+                if truthEstimatedSeeded
+                else SeedingAlgorithm.Default
+            )
+        ),
+        initialSigmas=[
+            1 * u.mm,
+            1 * u.mm,
+            1 * u.degree,
+            1 * u.degree,
+            0.1 * u.e / u.GeV,
+            1 * u.ns,
+        ],
+        initialSigmaPtRel=0.01,
+        initialVarInflation=[1.0] * 6,
         geoSelectionConfigFile=geometrySelection,
         outputDirRoot=outputDir,
         rnd=rnd,  # only used by SeedingAlgorithm.TruthSmeared
@@ -234,11 +264,13 @@ if "__main__" == __name__:
 
     srcdir = Path(__file__).resolve().parent.parent.parent.parent
 
-    detector, trackingGeometry, decorators = GenericDetector.create()
+    detector = GenericDetector()
+    trackingGeometry = detector.trackingGeometry()
+    decorators = detector.contextDecorators()
 
     field = acts.ConstantBField(acts.Vector3(0, 0, 2 * u.T))
 
-    inputParticlePath = Path(Inputdir) / "pythia8_particles.root"
+    inputParticlePath = Path(Inputdir) / "particles.root"
     if not inputParticlePath.exists():
         inputParticlePath = None
 

@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Material/Interactions.hpp"
 
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Material/Material.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -53,7 +54,7 @@ struct RelativisticQuantities {
     betaGamma = pOverM;
     assert((betaGamma >= 0) && "Negative betaGamma");
     // gamma = sqrt(m² + p²)/m = sqrt(1 + (p/m)²)
-    gamma = std::sqrt(1.0f + pOverM * pOverM);
+    gamma = Acts::fastHypot(1.0f, pOverM);
   }
 };
 
@@ -156,7 +157,7 @@ namespace detail {
 inline float computeEnergyLossLandauFwhm(const Acts::MaterialSlab& slab,
                                          const RelativisticQuantities& rq) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -173,7 +174,7 @@ inline float computeEnergyLossLandauFwhm(const Acts::MaterialSlab& slab,
 float Acts::computeEnergyLossBethe(const MaterialSlab& slab, float m,
                                    float qOverP, float absQ) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -182,7 +183,7 @@ float Acts::computeEnergyLossBethe(const MaterialSlab& slab, float m,
   const float Ne = slab.material().molarElectronDensity();
   const float thickness = slab.thickness();
   const float eps = computeEpsilon(Ne, thickness, rq);
-  // TODO calculation of dhalf is not nessessary
+  // TODO calculation of dhalf is not necessary
   const float dhalf = computeDeltaHalf(I, Ne, rq);
   const float u = computeMassTerm(Me, rq);
   const float wmax = computeWMax(m, rq);
@@ -199,7 +200,7 @@ float Acts::computeEnergyLossBethe(const MaterialSlab& slab, float m,
 float Acts::deriveEnergyLossBetheQOverP(const MaterialSlab& slab, float m,
                                         float qOverP, float absQ) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -236,7 +237,7 @@ float Acts::deriveEnergyLossBetheQOverP(const MaterialSlab& slab, float m,
 float Acts::computeEnergyLossLandau(const MaterialSlab& slab, float m,
                                     float qOverP, float absQ) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -256,7 +257,7 @@ float Acts::computeEnergyLossLandau(const MaterialSlab& slab, float m,
 float Acts::deriveEnergyLossLandauQOverP(const MaterialSlab& slab, float m,
                                          float qOverP, float absQ) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -291,7 +292,7 @@ float Acts::deriveEnergyLossLandauQOverP(const MaterialSlab& slab, float m,
 float Acts::computeEnergyLossLandauSigma(const MaterialSlab& slab, float m,
                                          float qOverP, float absQ) {
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -389,7 +390,7 @@ float Acts::computeEnergyLossRadiative(const MaterialSlab& slab,
          "pdg is not absolute");
 
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -398,7 +399,7 @@ float Acts::computeEnergyLossRadiative(const MaterialSlab& slab,
   // particle momentum and energy
   // do not need to care about the sign since it is only used squared
   const float momentum = absQ / qOverP;
-  const float energy = std::hypot(m, momentum);
+  const float energy = fastHypot(m, momentum);
 
   float dEdx = computeBremsstrahlungLossMean(m, energy);
 
@@ -418,7 +419,7 @@ float Acts::deriveEnergyLossRadiativeQOverP(const MaterialSlab& slab,
          "pdg is not absolute");
 
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 
@@ -427,7 +428,7 @@ float Acts::deriveEnergyLossRadiativeQOverP(const MaterialSlab& slab,
   // particle momentum and energy
   // do not need to care about the sign since it is only used squared
   const float momentum = absQ / qOverP;
-  const float energy = std::hypot(m, momentum);
+  const float energy = fastHypot(m, momentum);
 
   // compute derivative w/ respect to energy.
   float derE = deriveBremsstrahlungLossMeanE(m);
@@ -507,7 +508,7 @@ float Acts::computeMultipleScatteringTheta0(const MaterialSlab& slab,
          "pdg is not absolute");
 
   // return early in case of vacuum or zero thickness
-  if (!slab) {
+  if (!slab.isValid()) {
     return 0.0f;
   }
 

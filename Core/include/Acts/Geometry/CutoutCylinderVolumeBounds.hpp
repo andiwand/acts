@@ -1,21 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/Volume.hpp"
 #include "Acts/Geometry/VolumeBounds.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 
 #include <array>
 #include <iosfwd>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace Acts {
@@ -47,8 +47,6 @@ class CutoutCylinderVolumeBounds : public VolumeBounds {
     eSize
   };
 
-  CutoutCylinderVolumeBounds() = delete;
-
   /// Constructor from defining parameters
   ///
   /// @param rmin Minimum radius at the "choke points"
@@ -72,8 +70,6 @@ class CutoutCylinderVolumeBounds : public VolumeBounds {
     checkConsistency();
     buildSurfaceBounds();
   }
-
-  ~CutoutCylinderVolumeBounds() override = default;
 
   VolumeBounds::BoundsType type() const final {
     return VolumeBounds::eCutoutCylinder;
@@ -101,7 +97,7 @@ class CutoutCylinderVolumeBounds : public VolumeBounds {
   /// It will throw an exception if the orientation prescription is not adequate
   ///
   /// @return a vector of surfaces bounding this volume
-  OrientedSurfaces orientedSurfaces(
+  std::vector<OrientedSurface> orientedSurfaces(
       const Transform3& transform = Transform3::Identity()) const override;
 
   /// Construct bounding box for this shape
@@ -113,6 +109,15 @@ class CutoutCylinderVolumeBounds : public VolumeBounds {
   Volume::BoundingBox boundingBox(const Transform3* trf = nullptr,
                                   const Vector3& envelope = {0, 0, 0},
                                   const Volume* entity = nullptr) const final;
+
+  /// Get the canonical binning direction, i.e. the axis values
+  /// that fully describe the shape's extent
+  ///
+  /// @return vector of canonical binning values
+  std::vector<AxisDirection> canonicalAxes() const override {
+    using enum AxisDirection;
+    return {AxisR, AxisPhi, AxisZ};
+  };
 
   /// Write information about this instance to an outstream
   ///
@@ -141,25 +146,5 @@ class CutoutCylinderVolumeBounds : public VolumeBounds {
   /// will throw a logic_exception if consistency is not given
   void checkConsistency() noexcept(false);
 };
-
-inline std::vector<double> CutoutCylinderVolumeBounds::values() const {
-  std::vector<double> valvector;
-  valvector.insert(valvector.begin(), m_values.begin(), m_values.end());
-  return valvector;
-}
-
-inline void CutoutCylinderVolumeBounds::checkConsistency() noexcept(false) {
-  if (get(eMinR) < 0. || get(eMedR) <= 0. || get(eMaxR) <= 0. ||
-      get(eMinR) >= get(eMedR) || get(eMinR) >= get(eMaxR) ||
-      get(eMedR) >= get(eMaxR)) {
-    throw std::invalid_argument(
-        "CutoutCylinderVolumeBounds: invalid radial input.");
-  }
-  if (get(eHalfLengthZ) <= 0 || get(eHalfLengthZcutout) <= 0. ||
-      get(eHalfLengthZcutout) > get(eHalfLengthZ)) {
-    throw std::invalid_argument(
-        "CutoutCylinderVolumeBounds: invalid longitudinal input.");
-  }
-}
 
 }  // namespace Acts

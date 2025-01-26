@@ -1,13 +1,13 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/ExaTrkX/BoostTrackBuilding.hpp"
-#include "Acts/Plugins/ExaTrkX/CugraphTrackBuilding.hpp"
+#include "Acts/Plugins/ExaTrkX/CudaTrackBuilding.hpp"
 #include "Acts/Plugins/ExaTrkX/ExaTrkXPipeline.hpp"
 #include "Acts/Plugins/ExaTrkX/OnnxEdgeClassifier.hpp"
 #include "Acts/Plugins/ExaTrkX/OnnxMetricLearning.hpp"
@@ -18,6 +18,7 @@
 #include "ActsExamples/TrackFindingExaTrkX/PrototracksToParameters.hpp"
 #include "ActsExamples/TrackFindingExaTrkX/TrackFindingAlgorithmExaTrkX.hpp"
 #include "ActsExamples/TrackFindingExaTrkX/TrackFindingFromPrototrackAlgorithm.hpp"
+#include "ActsExamples/TrackFindingExaTrkX/TruthGraphBuilder.hpp"
 
 #include <memory>
 
@@ -29,6 +30,7 @@ namespace py = pybind11;
 
 using namespace ActsExamples;
 using namespace Acts;
+using namespace py::literals;
 
 namespace Acts::Python {
 
@@ -66,10 +68,11 @@ void addExaTrkXTrackFinding(Context &ctx) {
     auto c = py::class_<Config>(alg, "Config").def(py::init<>());
     ACTS_PYTHON_STRUCT_BEGIN(c, Config);
     ACTS_PYTHON_MEMBER(modelPath);
-    ACTS_PYTHON_MEMBER(numFeatures);
+    ACTS_PYTHON_MEMBER(selectedFeatures);
     ACTS_PYTHON_MEMBER(embeddingDim);
     ACTS_PYTHON_MEMBER(rVal);
     ACTS_PYTHON_MEMBER(knnVal);
+    ACTS_PYTHON_MEMBER(deviceID);
     ACTS_PYTHON_STRUCT_END();
   }
   {
@@ -89,10 +92,12 @@ void addExaTrkXTrackFinding(Context &ctx) {
     auto c = py::class_<Config>(alg, "Config").def(py::init<>());
     ACTS_PYTHON_STRUCT_BEGIN(c, Config);
     ACTS_PYTHON_MEMBER(modelPath);
-    ACTS_PYTHON_MEMBER(numFeatures);
+    ACTS_PYTHON_MEMBER(selectedFeatures);
     ACTS_PYTHON_MEMBER(cut);
     ACTS_PYTHON_MEMBER(nChunks);
     ACTS_PYTHON_MEMBER(undirected);
+    ACTS_PYTHON_MEMBER(deviceID);
+    ACTS_PYTHON_MEMBER(useEdgeFeatures);
     ACTS_PYTHON_STRUCT_END();
   }
   {
@@ -105,6 +110,25 @@ void addExaTrkXTrackFinding(Context &ctx) {
                               getDefaultLogger("EdgeClassifier", lvl));
                         }),
                         py::arg("level"));
+  }
+#endif
+
+#ifdef ACTS_EXATRKX_WITH_CUDA
+  {
+    using Alg = Acts::CudaTrackBuilding;
+    using Config = Alg::Config;
+
+    auto alg = py::class_<Alg, Acts::TrackBuildingBase, std::shared_ptr<Alg>>(
+                   mex, "CudaTrackBuilding")
+                   .def(py::init([](const Config &c, Logging::Level lvl) {
+                          return std::make_shared<Alg>(
+                              c, getDefaultLogger("TrackBuilding", lvl));
+                        }),
+                        "config"_a, "level"_a);
+
+    auto c = py::class_<Config>(alg, "Config").def(py::init<>());
+    ACTS_PYTHON_STRUCT_BEGIN(c, Config);
+    ACTS_PYTHON_STRUCT_END();
   }
 #endif
 
@@ -152,27 +176,69 @@ void addExaTrkXTrackFinding(Context &ctx) {
     ACTS_PYTHON_MEMBER(cut);
     ACTS_PYTHON_STRUCT_END();
   }
-  {
-    using Alg = Acts::CugraphTrackBuilding;
-
-    auto alg = py::class_<Alg, Acts::TrackBuildingBase, std::shared_ptr<Alg>>(
-                   mex, "CugraphTrackBuilding")
-                   .def(py::init([](Logging::Level lvl) {
-                          return std::make_shared<Alg>(
-                              getDefaultLogger("EdgeClassifier", lvl));
-                        }),
-                        py::arg("level"));
-  }
 #endif
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
+      ActsExamples::TruthGraphBuilder, mex, "TruthGraphBuilder",
+      inputSpacePoints, inputSimHits, inputParticles,
+      inputMeasurementSimHitsMap, inputMeasurementParticlesMap, outputGraph,
+      targetMinPT, targetMinSize, uniqueModules);
+
+  {
+    auto nodeFeatureEnum =
+        py::enum_<TrackFindingAlgorithmExaTrkX::NodeFeature>(mex, "NodeFeature")
+            .value("R", TrackFindingAlgorithmExaTrkX::NodeFeature::eR)
+            .value("Phi", TrackFindingAlgorithmExaTrkX::NodeFeature::ePhi)
+            .value("Z", TrackFindingAlgorithmExaTrkX::NodeFeature::eZ)
+            .value("X", TrackFindingAlgorithmExaTrkX::NodeFeature::eX)
+            .value("Y", TrackFindingAlgorithmExaTrkX::NodeFeature::eY)
+            .value("Eta", TrackFindingAlgorithmExaTrkX::NodeFeature::eEta)
+            .value("ClusterX",
+                   TrackFindingAlgorithmExaTrkX::NodeFeature::eClusterLoc0)
+            .value("ClusterY",
+                   TrackFindingAlgorithmExaTrkX::NodeFeature::eClusterLoc1)
+            .value("CellCount",
+                   TrackFindingAlgorithmExaTrkX::NodeFeature::eCellCount)
+            .value("ChargeSum",
+                   TrackFindingAlgorithmExaTrkX::NodeFeature::eChargeSum);
+
+    // clang-format off
+#define ADD_FEATURE_ENUMS(n) \
+  nodeFeatureEnum \
+    .value("Cluster" #n "X", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##X) \
+    .value("Cluster" #n "Y", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##Y) \
+    .value("Cluster" #n "Z", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##Z) \
+    .value("Cluster" #n "R", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##R) \
+    .value("Cluster" #n "Phi", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##Phi) \
+    .value("Cluster" #n "Eta", TrackFindingAlgorithmExaTrkX::NodeFeature::eCluster##n##Eta) \
+    .value("CellCount" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eCellCount##n) \
+    .value("ChargeSum" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eChargeSum##n) \
+    .value("LocEta" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLocEta##n) \
+    .value("LocPhi" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLocPhi##n) \
+    .value("LocDir0" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLocDir0##n) \
+    .value("LocDir1" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLocDir1##n) \
+    .value("LocDir2" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLocDir2##n) \
+    .value("LengthDir0" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLengthDir0##n) \
+    .value("LengthDir1" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLengthDir1##n) \
+    .value("LengthDir2" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eLengthDir2##n) \
+    .value("GlobEta" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eGlobEta##n) \
+    .value("GlobPhi" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eGlobPhi##n) \
+    .value("EtaAngle" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::eEtaAngle##n) \
+    .value("PhiAngle" #n, TrackFindingAlgorithmExaTrkX::NodeFeature::ePhiAngle##n)
+    // clang-format on
+
+    ADD_FEATURE_ENUMS(1);
+    ADD_FEATURE_ENUMS(2);
+
+#undef ADD_FEATURE_ENUMS
+  }
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TrackFindingAlgorithmExaTrkX, mex,
-      "TrackFindingAlgorithmExaTrkX", inputSpacePoints, inputSimHits,
-      inputParticles, inputClusters, inputMeasurementSimhitsMap,
-      outputProtoTracks, outputGraph, graphConstructor, edgeClassifiers,
-      trackBuilder, rScale, phiScale, zScale, cellCountScale, cellSumScale,
-      clusterXScale, clusterYScale, filterShortTracks, targetMinHits,
-      targetMinPT);
+      "TrackFindingAlgorithmExaTrkX", inputSpacePoints, inputClusters,
+      inputTruthGraph, outputProtoTracks, outputGraph, graphConstructor,
+      edgeClassifiers, trackBuilder, nodeFeatures, featureScales,
+      minMeasurementsPerTrack, geometryIdMap);
 
   {
     auto cls =
@@ -185,11 +251,11 @@ void addExaTrkXTrackFinding(Context &ctx) {
 
     auto cls = py::class_<Class, Acts::ExaTrkXHook, std::shared_ptr<Class>>(
                    mex, "TorchTruthGraphMetricsHook")
-                   .def(py::init(
-                       [](const std::vector<int64_t> &g, Logging::Level lvl) {
-                         return std::make_shared<Class>(
-                             g, getDefaultLogger("PipelineHook", lvl));
-                       }));
+                   .def(py::init([](const std::vector<std::int64_t> &g,
+                                    Logging::Level lvl) {
+                     return std::make_shared<Class>(
+                         g, getDefaultLogger("PipelineHook", lvl));
+                   }));
   }
 
   {
@@ -208,7 +274,7 @@ void addExaTrkXTrackFinding(Context &ctx) {
                  py::arg("graphConstructor"), py::arg("edgeClassifiers"),
                  py::arg("trackBuilder"), py::arg("level"))
             .def("run", &ExaTrkXPipeline::run, py::arg("features"),
-                 py::arg("spacepoints"), py::arg("deviceHint") = -1,
+                 py::arg("moduleIds"), py::arg("spacepoints"),
                  py::arg("hook") = Acts::ExaTrkXHook{},
                  py::arg("timing") = nullptr);
   }
@@ -221,9 +287,8 @@ void addExaTrkXTrackFinding(Context &ctx) {
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TrackFindingFromPrototrackAlgorithm, mex,
       "TrackFindingFromPrototrackAlgorithm", inputProtoTracks,
-      inputMeasurements, inputSourceLinks, inputInitialTrackParameters,
-      outputTracks, measurementSelectorCfg, trackingGeometry, magneticField,
-      findTracks, tag);
+      inputMeasurements, inputInitialTrackParameters, outputTracks,
+      measurementSelectorCfg, trackingGeometry, magneticField, findTracks, tag);
 }
 
 }  // namespace Acts::Python

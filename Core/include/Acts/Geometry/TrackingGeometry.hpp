@@ -1,23 +1,22 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
-#include "Acts/Geometry/SurfaceVisitorConcept.hpp"
 #include "Acts/Geometry/TrackingVolume.hpp"
-#include "Acts/Utilities/Concepts.hpp"
+#include "Acts/Geometry/TrackingVolumeVisitorConcept.hpp"
+#include "Acts/Surfaces/SurfaceVisitorConcept.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
 #include <memory>
-#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -28,9 +27,6 @@ class Surface;
 class PerigeeSurface;
 class IMaterialDecorator;
 class TrackingVolume;
-
-using TrackingVolumePtr = std::shared_ptr<const TrackingVolume>;
-using MutableTrackingVolumePtr = std::shared_ptr<TrackingVolume>;
 
 ///  @class TrackingGeometry
 ///
@@ -52,7 +48,7 @@ class TrackingGeometry {
   ///        surface or volume based material to the TrackingVolume
   /// @param hook Identifier hook to be applied to surfaces
   /// @param logger instance of a logger (defaulting to the "silent" one)
-  TrackingGeometry(const MutableTrackingVolumePtr& highestVolume,
+  TrackingGeometry(const std::shared_ptr<TrackingVolume>& highestVolume,
                    const IMaterialDecorator* materialDecorator = nullptr,
                    const GeometryIdentifierHook& hook = {},
                    const Logger& logger = getDummyLogger());
@@ -66,8 +62,7 @@ class TrackingGeometry {
 
   /// Access to the world volume
   /// @return shared pointer to the world volume
-  const std::shared_ptr<const TrackingVolume>& highestTrackingVolumeShared()
-      const;
+  std::shared_ptr<const TrackingVolume> highestTrackingVolumePtr() const;
 
   /// return the lowest tracking Volume
   ///
@@ -87,28 +82,48 @@ class TrackingGeometry {
   const Layer* associatedLayer(const GeometryContext& gctx,
                                const Vector3& gp) const;
 
-  /// Register the beam tube
+  /// @brief Visit all reachable surfaces
   ///
-  /// @param beam is the beam line surface
-  void registerBeamTube(std::shared_ptr<const PerigeeSurface> beam);
-
-  /// @brief surface representing the beam pipe
+  /// @tparam visitor_t Type of the callable visitor
   ///
-  /// @note The ownership is not passed, e.g. do not delete the pointer
+  /// @param visitor The callable. Will be called for each reachable surface
+  /// that is found, a selection of the surfaces can be done in the visitor
+  /// @param restrictToSensitives If true, only sensitive surfaces are visited
   ///
-  /// @return raw pointer to surface representing the beam pipe
-  ///         (could be a null pointer)
-  const Surface* getBeamline() const;
+  /// @note If a context is needed for the visit, the visitor has to provide
+  /// this, e.g. as a private member
+  template <SurfaceVisitor visitor_t>
+  void visitSurfaces(visitor_t&& visitor, bool restrictToSensitives) const {
+    highestTrackingVolume()->template visitSurfaces<visitor_t>(
+        std::forward<visitor_t>(visitor), restrictToSensitives);
+  }
 
   /// @brief Visit all sensitive surfaces
   ///
   /// @tparam visitor_t Type of the callable visitor
   ///
   /// @param visitor The callable. Will be called for each sensitive surface
-  /// that is found
-  template <ACTS_CONCEPT(SurfaceVisitor) visitor_t>
+  /// that is found, a selection of the surfaces can be done in the visitor
+  ///
+  /// @note If a context is needed for the visit, the visitor has to provide
+  /// this, e.g. as a private member
+  template <SurfaceVisitor visitor_t>
   void visitSurfaces(visitor_t&& visitor) const {
-    highestTrackingVolume()->template visitSurfaces<visitor_t>(
+    visitSurfaces(std::forward<visitor_t>(visitor), true);
+  }
+
+  /// @brief Visit all reachable tracking volumes
+  ///
+  /// @tparam visitor_t Type of the callable visitor
+  ///
+  /// @param visitor The callable. Will be called for each reachable volume
+  /// that is found, a selection of the volumes can be done in the visitor
+  ///
+  /// @note If a context is needed for the visit, the visitor has to provide
+  /// this, e.g. as a private member
+  template <TrackingVolumeVisitor visitor_t>
+  void visitVolumes(visitor_t&& visitor) const {
+    highestTrackingVolume()->template visitVolumes<visitor_t>(
         std::forward<visitor_t>(visitor));
   }
 
@@ -126,11 +141,24 @@ class TrackingGeometry {
   /// @retval pointer to the found surface otherwise.
   const Surface* findSurface(GeometryIdentifier id) const;
 
+  /// Access to the GeometryIdentifier - Surface association map
+  const std::unordered_map<GeometryIdentifier, const Surface*>&
+  geoIdSurfaceMap() const;
+
+  /// Visualize a tracking geometry including substructure
+  /// @param helper The visualization helper that implement the output
+  /// @param gctx The geometry context
+  /// @param viewConfig Global view config
+  /// @param portalViewConfig View config for portals
+  /// @param sensitiveViewConfig View configuration for sensitive surfaces
+  void visualize(IVisualization3D& helper, const GeometryContext& gctx,
+                 const ViewConfig& viewConfig = s_viewVolume,
+                 const ViewConfig& portalViewConfig = s_viewPortal,
+                 const ViewConfig& sensitiveViewConfig = s_viewSensitive) const;
+
  private:
   // the known world
-  TrackingVolumePtr m_world;
-  // beam line
-  std::shared_ptr<const PerigeeSurface> m_beam;
+  std::shared_ptr<TrackingVolume> m_world;
   // lookup containers
   std::unordered_map<GeometryIdentifier, const TrackingVolume*> m_volumesById;
   std::unordered_map<GeometryIdentifier, const Surface*> m_surfacesById;

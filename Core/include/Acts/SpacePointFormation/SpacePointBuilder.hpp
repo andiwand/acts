@@ -1,17 +1,14 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018-2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/Digitization/CartesianSegmentation.hpp"
-#include "Acts/Digitization/DigitizationModule.hpp"
-#include "Acts/Digitization/Segmentation.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
@@ -34,17 +31,17 @@ namespace Acts {
 template <typename spacepoint_t>
 class SpacePointBuilder {
  public:
+  using BuilderFunction = std::function<spacepoint_t(
+      Acts::Vector3, std::optional<double>, Acts::Vector2,
+      std::optional<double>, boost::container::static_vector<SourceLink, 2>)>;
+
   // Constructor
   /// @param cfg The configuration for the space point builder
   /// @param func The function that provides user's SP constructor with global pos, global cov, and sourceLinks.
   /// @param logger The logging instance
-  SpacePointBuilder(const SpacePointBuilderConfig& cfg,
-                    std::function<spacepoint_t(
-                        Acts::Vector3, Acts::Vector2,
-                        boost::container::static_vector<SourceLink, 2>)>
-                        func,
+  SpacePointBuilder(const SpacePointBuilderConfig& cfg, BuilderFunction func,
                     std::unique_ptr<const Logger> logger =
-                        getDefaultLogger("SpamcePointBuilder", Logging::INFO));
+                        getDefaultLogger("SpacePointBuilder", Logging::INFO));
 
   // Default constructor
   SpacePointBuilder() = default;
@@ -83,9 +80,7 @@ class SpacePointBuilder {
   /// @brief Function to create external space point
   /// The constructor of spacepoint_t with Vector3 global pos, Vector2 global
   /// cov, and vector of source link pointers.
-  std::function<spacepoint_t(Acts::Vector3, Acts::Vector2,
-                             boost::container::static_vector<SourceLink, 2>)>
-      m_spConstructor;
+  BuilderFunction m_spConstructor;
 
   /// the logging instance
   std::unique_ptr<const Acts::Logger> m_logger;
@@ -96,4 +91,5 @@ class SpacePointBuilder {
 };
 
 }  // namespace Acts
+
 #include "Acts/SpacePointFormation/detail/SpacePointBuilder.ipp"

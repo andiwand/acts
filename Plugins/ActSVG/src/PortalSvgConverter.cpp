@@ -1,15 +1,15 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/ActSVG/PortalSvgConverter.hpp"
 
 #include "Acts/Detector/Portal.hpp"
-#include "Acts/Navigation/DetectorVolumeUpdaters.hpp"
+#include "Acts/Navigation/PortalNavigation.hpp"
 #include "Acts/Surfaces/RegularSurface.hpp"
 
 namespace {
@@ -49,7 +49,7 @@ Acts::Svg::ProtoLink makeProtoLink(
 /// @return it will return the proto links
 std::vector<Acts::Svg::ProtoLink> convertMultiLink(
     const Acts::GeometryContext& gctx,
-    const Acts::Experimental::BoundVolumesGrid1Impl& multiLink,
+    const Acts::Experimental::BoundVolumesGrid1Navigation& multiLink,
     const Acts::Surface& surface, const Acts::Vector3& refPosition,
     const Acts::Svg::PortalConverter::Options& portalOptions,
     int sign) noexcept(false) {
@@ -68,23 +68,23 @@ std::vector<Acts::Svg::ProtoLink> convertMultiLink(
     Acts::Vector3 position = refPosition;
     if constexpr (decltype(multiLink.indexedUpdater)::grid_type::DIM == 1u) {
       // Get the binning value
-      Acts::BinningValue bValue = casts[0u];
+      Acts::AxisDirection bValue = casts[0u];
       // Get the boundaries - take care, they are in local coordinates
       const auto& boundaries =
           multiLink.indexedUpdater.grid.axes()[0u]->getBinEdges();
 
-      Acts::ActsScalar refC = 0.5 * (boundaries[il + 1u] + boundaries[il]);
+      double refC = 0.5 * (boundaries[il + 1u] + boundaries[il]);
 
-      if (bValue == Acts::binR) {
-        Acts::ActsScalar phi = Acts::VectorHelpers::phi(refPosition);
+      if (bValue == Acts::AxisDirection::AxisR) {
+        double phi = Acts::VectorHelpers::phi(refPosition);
         position = Acts::Vector3(refC * std::cos(phi), refC * std::sin(phi),
                                  refPosition.z());
-      } else if (bValue == Acts::binZ) {
-        position[2] = refC;
+      } else if (bValue == Acts::AxisDirection::AxisZ) {
         // correct to global
         refC += surface.transform(gctx).translation().z();
-      } else if (bValue == Acts::binPhi) {
-        Acts::ActsScalar r = Acts::VectorHelpers::perp(refPosition);
+        position[2] = refC;
+      } else if (bValue == Acts::AxisDirection::AxisPhi) {
+        double r = Acts::VectorHelpers::perp(refPosition);
         position = Acts::Vector3(r * std::cos(refC), r * std::sin(refC),
                                  refPosition.z());
       } else {
@@ -119,15 +119,15 @@ Acts::Svg::ProtoPortal Acts::Svg::PortalConverter::convert(
   switch (surfaceType) {
     case SurfaceBounds::eCylinder: {
       // Get phi
-      ActsScalar r = boundValues[0u];
-      ActsScalar aphi = boundValues[3u];
+      double r = boundValues[0u];
+      double aphi = boundValues[3u];
       rPos = Vector3(r * std::cos(aphi), r * std::sin(aphi),
                      surfaceTranslation.z());
     } break;
     case SurfaceBounds::eDisc: {
       // Get phi
-      ActsScalar r = 0.5 * (boundValues[0u] + boundValues[1u]);
-      ActsScalar aphi = boundValues[3u];
+      double r = 0.5 * (boundValues[0u] + boundValues[1u]);
+      double aphi = boundValues[3u];
       rPos = Vector3(r * std::cos(aphi), r * std::sin(aphi),
                      surfaceTranslation.z());
     } break;
@@ -138,20 +138,22 @@ Acts::Svg::ProtoPortal Acts::Svg::PortalConverter::convert(
   rDir = surface.normal(gctx, rPos);
 
   // Now convert the link objects
-  const auto& updators = portal.detectorVolumeUpdaters();
+  const auto& updators = portal.portalNavigation();
 
   int sign = -1;
   for (const auto& dvu : updators) {
     // Get the instance and start the casting
     const auto* instance = dvu.instance();
     auto singleLink =
-        dynamic_cast<const Experimental::SingleDetectorVolumeImpl*>(instance);
+        dynamic_cast<const Experimental::SingleDetectorVolumeNavigation*>(
+            instance);
     if (singleLink != nullptr) {
       pPortal._volume_links.push_back(makeProtoLink(
-          portalOptions, rPos, Vector3(sign * rDir), singleLink->dVolume));
+          portalOptions, rPos, Vector3(sign * rDir), singleLink->object()));
     }
     auto multiLink =
-        dynamic_cast<const Experimental::BoundVolumesGrid1Impl*>(instance);
+        dynamic_cast<const Experimental::BoundVolumesGrid1Navigation*>(
+            instance);
     if (multiLink != nullptr) {
       auto pLinks = convertMultiLink(gctx, *multiLink, surface, rPos,
                                      portalOptions, sign);
@@ -162,6 +164,7 @@ Acts::Svg::ProtoPortal Acts::Svg::PortalConverter::convert(
     // Switch to the other side
     sign += 2;
   }
+
   // Return the proto Portal
   return pPortal;
 }

@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/Io/EDM4hep/EDM4hepTrackReader.hpp"
 
@@ -28,12 +28,12 @@ EDM4hepTrackReader::EDM4hepTrackReader(const Config& config,
 
   m_outputTracks.initialize(m_cfg.outputTracks);
 
-  m_reader.openFile(m_cfg.inputPath);
+  m_eventsRange = {0, reader().getEntries("events")};
 }
 
 std::pair<std::size_t, std::size_t> EDM4hepTrackReader::availableEvents()
     const {
-  return {0, m_reader.getEntries("events")};
+  return m_eventsRange;
 }
 
 std::string EDM4hepTrackReader::EDM4hepTrackReader::name() const {
@@ -41,7 +41,7 @@ std::string EDM4hepTrackReader::EDM4hepTrackReader::name() const {
 }
 
 ProcessCode EDM4hepTrackReader::read(const AlgorithmContext& ctx) {
-  podio::Frame frame = m_reader.readEntry("events", ctx.eventNumber);
+  podio::Frame frame = reader().readEntry("events", ctx.eventNumber);
 
   const auto& trackCollection =
       frame.get<edm4hep::TrackCollection>(m_cfg.inputTracks);
@@ -51,7 +51,7 @@ ProcessCode EDM4hepTrackReader::read(const AlgorithmContext& ctx) {
   TrackContainer tracks(trackContainer, trackStateContainer);
 
   for (const auto& inputTrack : trackCollection) {
-    auto track = tracks.getTrack(tracks.addTrack());
+    auto track = tracks.makeTrack();
     Acts::EDM4hepUtil::readTrack(inputTrack, track, m_cfg.Bz);
   }
 
@@ -64,6 +64,16 @@ ProcessCode EDM4hepTrackReader::read(const AlgorithmContext& ctx) {
   m_outputTracks(ctx, std::move(constTracks));
 
   return ProcessCode::SUCCESS;
+}
+
+Acts::PodioUtil::ROOTReader& EDM4hepTrackReader::reader() {
+  bool exists = false;
+  auto& reader = m_reader.local(exists);
+  if (!exists) {
+    reader.openFile(m_cfg.inputPath);
+  }
+
+  return reader;
 }
 
 }  // namespace ActsExamples

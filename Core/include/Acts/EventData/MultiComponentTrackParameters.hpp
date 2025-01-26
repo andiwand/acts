@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -34,7 +34,6 @@ class MultiComponentBoundTrackParameters {
  public:
   using Parameters = BoundTrackParameters;
   using ParticleHypothesis = Parameters::ParticleHypothesis;
-  using Scalar = typename Parameters::Scalar;
   using ParametersVector = typename Parameters::ParametersVector;
   using CovarianceMatrix = typename Parameters::CovarianceMatrix;
 
@@ -130,11 +129,11 @@ class MultiComponentBoundTrackParameters {
 
   /// Get the weight and a GenericBoundTrackParameters object for one component
   std::pair<double, Parameters> operator[](std::size_t i) const {
-    return std::make_pair(
+    return {
         std::get<double>(m_components[i]),
         Parameters(m_surface, std::get<BoundVector>(m_components[i]),
                    std::get<std::optional<BoundSquareMatrix>>(m_components[i]),
-                   m_particleHypothesis));
+                   m_particleHypothesis)};
   }
 
   /// Parameters vector.
@@ -159,7 +158,7 @@ class MultiComponentBoundTrackParameters {
   ///
   /// @tparam kIndex Track parameter index
   template <BoundIndices kIndex>
-  Scalar get() const {
+  double get() const {
     return reduce([&](const Parameters& p) { return p.get<kIndex>(); });
   }
 
@@ -180,7 +179,7 @@ class MultiComponentBoundTrackParameters {
   }
 
   /// Time coordinate.
-  Scalar time() const {
+  double time() const {
     return reduce([](const Parameters& p) { return p.time(); });
   }
 
@@ -192,21 +191,21 @@ class MultiComponentBoundTrackParameters {
   }
 
   /// Phi direction.
-  Scalar phi() const { return VectorHelpers::phi(direction()); }
+  double phi() const { return VectorHelpers::phi(direction()); }
 
   /// Theta direction.
-  Scalar theta() const { return VectorHelpers::theta(direction()); }
+  double theta() const { return VectorHelpers::theta(direction()); }
 
   /// Charge over momentum.
-  Scalar qOverP() const { return get<eBoundQOverP>(); }
+  double qOverP() const { return get<eBoundQOverP>(); }
 
   /// Absolute momentum.
-  Scalar absoluteMomentum() const {
+  double absoluteMomentum() const {
     return reduce([](const Parameters& p) { return p.absoluteMomentum(); });
   }
 
   /// Transverse momentum.
-  Scalar transverseMomentum() const {
+  double transverseMomentum() const {
     return reduce([](const Parameters& p) { return p.transverseMomentum(); });
   }
 
@@ -216,7 +215,7 @@ class MultiComponentBoundTrackParameters {
   }
 
   /// Particle electric charge.
-  Scalar charge() const {
+  double charge() const {
     return reduce([](const Parameters& p) { return p.charge(); });
   }
 
@@ -238,8 +237,8 @@ class MultiComponentCurvilinearTrackParameters
   using covariance_t = BoundSquareMatrix;
 
  public:
-  using ConstructionTuple = std::tuple<double, Acts::Vector4, Acts::Vector3,
-                                       ActsScalar, covariance_t>;
+  using ConstructionTuple =
+      std::tuple<double, Acts::Vector4, Acts::Vector3, double, covariance_t>;
 
  private:
   using Base = MultiComponentBoundTrackParameters;
@@ -262,7 +261,7 @@ class MultiComponentCurvilinearTrackParameters
       avgDir += w * dir;
     }
 
-    auto s = Surface::makeShared<PlaneSurface>(avgPos, avgDir);
+    auto s = CurvilinearSurface(avgPos, avgDir).planeSurface();
 
     std::vector<std::tuple<double, BoundVector, covariance_t>> bound;
     bound.reserve(curvi.size());
@@ -270,12 +269,12 @@ class MultiComponentCurvilinearTrackParameters
     // Project the position onto the surface, keep everything else as is
     for (const auto& [w, pos4, dir, qop, cov] : curvi) {
       Vector3 newPos = s->intersect(gctx, pos4.template segment<3>(eFreePos0),
-                                    dir, BoundaryCheck(false))
+                                    dir, BoundaryTolerance::Infinite())
                            .closest()
                            .position();
 
       BoundVector bv =
-          detail::transformFreeToCurvilinearParameters(pos4[eTime], dir, qop);
+          transformFreeToCurvilinearParameters(pos4[eTime], dir, qop);
 
       // Because of the projection this should never fail
       bv.template segment<2>(eBoundLoc0) =

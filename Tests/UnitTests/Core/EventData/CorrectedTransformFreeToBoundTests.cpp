@@ -1,12 +1,11 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2022 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
@@ -14,7 +13,8 @@
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/detail/CorrectedTransformationFreeToBound.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Surfaces/BoundaryCheck.hpp"
+#include "Acts/Surfaces/BoundaryTolerance.hpp"
+#include "Acts/Surfaces/CurvilinearSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -33,7 +34,7 @@ using namespace Acts;
 using namespace Acts::UnitLiterals;
 
 namespace {
-constexpr ActsScalar eps = 0.01;
+constexpr double eps = 0.01;
 }
 
 BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
@@ -42,7 +43,7 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   const auto loc0 = 0.0;
   const auto loc1 = 0.0;
   const auto phi = 0.0;
-  const auto theta = M_PI / 4;
+  const auto theta = std::numbers::pi / 4.;
   const auto qOverP = 1 / 1_GeV;
   const auto t = 1_ns;
 
@@ -54,11 +55,9 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   const auto resTime = 0.01_ns;
 
   // construct two parallel plane surfaces with normal in x direction
-  ActsScalar distance = 10_mm;
-  auto sSurface =
-      Surface::makeShared<PlaneSurface>(Vector3(0, 0, 0), Vector3::UnitX());
-  auto eSurface = Surface::makeShared<PlaneSurface>(Vector3(distance, 0, 0),
-                                                    Vector3::UnitX());
+  double distance = 10_mm;
+  auto eSurface = CurvilinearSurface(Vector3(distance, 0, 0), Vector3::UnitX())
+                      .planeSurface();
 
   // the bound parameters at the starting plane
   BoundVector sBoundParams = BoundVector::Zero();
@@ -78,23 +77,23 @@ BOOST_AUTO_TEST_CASE(CorrectedFreeToBoundTrackParameters) {
   // the intersection of the track with the end surface
   SurfaceIntersection intersection =
       eSurface
-          ->intersect(geoCtx, Vector3(0, 0, 0), dir, Acts::BoundaryCheck(true))
+          ->intersect(geoCtx, Vector3(0, 0, 0), dir, BoundaryTolerance::None())
           .closest();
   Vector3 tpos = intersection.position();
   auto s = intersection.pathLength();
 
-  BOOST_CHECK_EQUAL(s, distance * std::sqrt(2));
+  BOOST_CHECK_EQUAL(s, distance * std::numbers::sqrt2);
 
   // construct the free parameters vector
   FreeVector eFreeParams = FreeVector::Zero();
-  eFreeParams.segment<3>(0) = tpos;
+  eFreeParams.segment<3>(eFreePos0) = tpos;
   eFreeParams[eFreeTime] = t;
-  eFreeParams.segment<3>(4) = dir;
+  eFreeParams.segment<3>(eFreeDir0) = dir;
   eFreeParams[eFreeQOverP] = qOverP;
 
   // the jacobian from local to global at the starting position
   BoundToFreeMatrix boundToFreeJac =
-      sSurface->boundToFreeJacobian(geoCtx, sBoundParams);
+      eSurface->boundToFreeJacobian(geoCtx, tpos, dir);
 
   // the transport jacobian without B field
   FreeMatrix transportJac = FreeMatrix::Identity();

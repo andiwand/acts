@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/DD4hep/DD4hepVolumeBuilder.hpp"
 
@@ -64,6 +64,8 @@ Acts::DD4hepVolumeBuilder::centralVolumes() const {
       if (tube == nullptr) {
         ACTS_ERROR(
             "[L] Cylinder layer has wrong shape - needs to be TGeoTubeSeg!");
+        throw std::logic_error{
+            "[L] Cylinder layer has wrong shape - needs to be TGeoTubeSeg!"};
       }
 
       // Extract the boundaries
@@ -79,9 +81,8 @@ Acts::DD4hepVolumeBuilder::centralVolumes() const {
                       "constructor!"));
     }
     // Build boundaries
-    CylinderVolumeBounds cvBounds(rMin, rMax, dz);
-    volumes.push_back(TrackingVolume::create(
-        transform, std::make_shared<const CylinderVolumeBounds>(cvBounds)));
+    volumes.push_back(std::make_shared<TrackingVolume>(
+        transform, std::make_shared<CylinderVolumeBounds>(rMin, rMax, dz)));
   }
   return volumes;
 }

@@ -1,12 +1,11 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include <boost/test/data/test_case.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Units.hpp"
@@ -34,9 +33,7 @@
 
 using namespace Acts::UnitLiterals;
 
-namespace Acts {
-
-namespace Test {
+namespace Acts::Test {
 
 /// @brief struct to load the global geometry
 struct RootGeometry {
@@ -59,7 +56,8 @@ BOOST_AUTO_TEST_CASE(TGeoLayerBuilderTests) {
   b0Config.sensorNames = {"PixelActiveo2", "PixelActiveo4", "PixelActiveo5",
                           "PixelActiveo6"};
   b0Config.localAxes = "XYZ";
-  b0Config.parseRanges = {{binR, {0., 40_mm}}, {binZ, {-60_mm, 15_mm}}};
+  b0Config.parseRanges = {{AxisDirection::AxisR, {0., 40_mm}},
+                          {AxisDirection::AxisZ, {-60_mm, 15_mm}}};
   b0Config.envelope = {0_mm, 0_mm};
 
   TglConfig eAllConfig;
@@ -67,8 +65,9 @@ BOOST_AUTO_TEST_CASE(TGeoLayerBuilderTests) {
   eAllConfig.sensorNames = {"PixelActiveo2", "PixelActiveo4", "PixelActiveo5",
                             "PixelActiveo6"};
   eAllConfig.localAxes = "XYZ";
-  eAllConfig.parseRanges = {{binR, {0., 40_mm}}, {binZ, {16_mm, 60_mm}}};
-  eAllConfig.splitConfigs = {{binZ, 5_mm}};
+  eAllConfig.parseRanges = {{AxisDirection::AxisR, {0., 40_mm}},
+                            {AxisDirection::AxisZ, {16_mm, 60_mm}}};
+  eAllConfig.splitConfigs = {{AxisDirection::AxisZ, 5_mm}};
   eAllConfig.envelope = {0_mm, 0_mm};
 
   std::vector<TglConfig> cConfigs = {b0Config};
@@ -119,6 +118,4 @@ BOOST_AUTO_TEST_CASE(TGeoLayerBuilderTests) {
   }
 }
 
-}  // namespace Test
-
-}  // namespace Acts
+}  // namespace Acts::Test

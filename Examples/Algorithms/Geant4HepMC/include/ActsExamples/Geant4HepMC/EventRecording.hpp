@@ -1,21 +1,21 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
-#include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Propagator/MaterialInteractor.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/DetectorCommons/Detector.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/SequenceElement.hpp"
+#include "ActsExamples/Geant4/Geant4ConstructionOptions.hpp"
 
 #include <memory>
 #include <mutex>
@@ -24,9 +24,12 @@
 
 class G4RunManager;
 
-namespace ActsExamples {
-
+namespace ActsExamples::Geant4 {
 class DetectorConstructionFactory;
+class RegionCreator;
+}  // namespace ActsExamples::Geant4
+
+namespace ActsExamples {
 
 class EventRecording final : public ActsExamples::IAlgorithm {
  public:
@@ -37,7 +40,11 @@ class EventRecording final : public ActsExamples::IAlgorithm {
     /// The recorded events output
     std::string outputHepMcTracks = "geant-outcome-tracks";
 
-    std::shared_ptr<DetectorConstructionFactory> detectorConstructionFactory;
+    /// Geant4 construction options.
+    Geant4ConstructionOptions constructionOptions;
+
+    /// Detector instance to access Geant4 geometry construction.
+    std::shared_ptr<Detector> detector;
 
     /// random number seed 1
     int seed1 = 12345;

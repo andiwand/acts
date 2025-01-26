@@ -1,35 +1,26 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/MultiTrajectoryHelpers.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/Index.hpp"
+#include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/Track.hpp"
-#include "ActsExamples/EventData/Trajectories.hpp"
-#include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
 #include <string>
 #include <vector>
-
-namespace ActsExamples {
-struct AlgorithmContext;
-}  // namespace ActsExamples
-
-using namespace Acts::UnitLiterals;
 
 namespace ActsExamples {
 
@@ -48,19 +39,25 @@ namespace ActsExamples {
 /// and each line in the file corresponds to one track.
 class CsvTrackWriter : public WriterT<ConstTrackContainer> {
  public:
-  using HitParticlesMap = ActsExamples::IndexMultimap<ActsFatras::Barcode>;
-
   struct Config {
-    std::string inputTracks;                 ///< Input track collection
-    std::string outputDir;                   ///< where to place output files
-    std::string fileName = "CKFtracks.csv";  ///< name of the output files
-    std::string
-        inputMeasurementParticlesMap;  ///< Input hit-particles map collection
-    std::size_t outputPrecision = 6;   ///< floating point precision
-    std::size_t nMeasurementsMin = 7;  ///< Min number of measurements
-    bool onlyTruthMatched = false;     ///< Only write truth matched tracks
-    double truthMatchProbMin = 0.5;  ///< Probability threshold for fake tracks
-    double ptMin = 1_GeV;            ///< Min pt of tracks
+    /// Input track collection
+    std::string inputTracks;
+    /// where to place output files
+    std::string outputDir;
+    /// name of the output files
+    std::string fileName = "CKFtracks.csv";
+    /// Input hit-particles map collection
+    std::string inputMeasurementParticlesMap;
+    /// floating point precision
+    std::size_t outputPrecision = 6;
+    /// Min number of measurements
+    std::size_t nMeasurementsMin = 7;
+    /// Only write truth matched tracks
+    bool onlyTruthMatched = false;
+    /// Probability threshold for fake tracks
+    double truthMatchProbMin = 0.5;
+    /// Min pt of tracks
+    double ptMin = 1 * Acts::UnitConstants::GeV;
   };
 
   /// constructor
@@ -80,9 +77,10 @@ class CsvTrackWriter : public WriterT<ConstTrackContainer> {
                      const ConstTrackContainer& tracks) override;
 
  private:
-  Config m_cfg;  //!< Nested configuration struct
+  /// Nested configuration struct
+  Config m_cfg;
 
-  ReadDataHandle<HitParticlesMap> m_inputMeasurementParticlesMap{
+  ReadDataHandle<MeasurementParticlesMap> m_inputMeasurementParticlesMap{
       this, "InputMeasurementParticlesMap"};
 
   /// @brief Struct for brief trajectory summary info
@@ -95,8 +93,8 @@ class CsvTrackWriter : public WriterT<ConstTrackContainer> {
     std::string trackType;
     double truthMatchProb = 0;
     std::optional<TrackParameters> fittedParameters;
-    std::vector<uint64_t> measurementsID;
-  };  // TrackInfo struct
+    std::vector<std::uint64_t> measurementsID;
+  };
 };
 
 }  // namespace ActsExamples

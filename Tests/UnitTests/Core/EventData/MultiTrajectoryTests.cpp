@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2019-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include <boost/test/data/test_case.hpp>
 #include <boost/test/tools/context.hpp>
@@ -131,6 +131,11 @@ BOOST_AUTO_TEST_CASE(AddTrackStateWithBitMask) {
   ct.testAddTrackStateWithBitMask();
 }
 
+BOOST_AUTO_TEST_CASE(AddTrackStateComponents) {
+  CommonTests ct;
+  ct.testAddTrackStateComponents();
+}
+
 // assert expected "cross-talk" between trackstate proxies
 BOOST_AUTO_TEST_CASE(TrackStateProxyCrossTalk) {
   CommonTests ct;
@@ -198,6 +203,11 @@ BOOST_AUTO_TEST_CASE(MultiTrajectoryExtraColumnsRuntime) {
   ct.testMultiTrajectoryExtraColumnsRuntime();
 }
 
+BOOST_AUTO_TEST_CASE(MultiTrajectoryAllocateCalibratedInit) {
+  CommonTests ct;
+  ct.testMultiTrajectoryAllocateCalibratedInit(rng);
+}
+
 BOOST_AUTO_TEST_CASE(MemoryStats) {
   using namespace boost::histogram;
   using cat = axis::category<std::string>;
@@ -225,7 +235,7 @@ BOOST_AUTO_TEST_CASE(MemoryStats) {
   }
 
   TestTrackState pc(rng, 2u);
-  auto ts = mt.getTrackState(mt.addTrackState());
+  auto ts = mt.makeTrackState();
   fillTrackState<VectorMultiTrajectory>(pc, TrackStatePropMask::All, ts);
 
   stats = mt.statistics();
@@ -251,7 +261,7 @@ BOOST_AUTO_TEST_CASE(Accessors) {
   mtj.addColumn<unsigned int>("ndof");
   mtj.addColumn<double>("super_chi2");
 
-  auto ts = mtj.getTrackState(mtj.addTrackState());
+  auto ts = mtj.makeTrackState();
 
   ProxyAccessor<unsigned int> ndof("ndof");
   ConstProxyAccessor<unsigned int> ndofConst("ndof");
@@ -271,6 +281,26 @@ BOOST_AUTO_TEST_CASE(Accessors) {
 
   // should not compile
   // superChi2Const(ts) = 66.66;
+}
+
+BOOST_AUTO_TEST_CASE(ChangeSourceLinkType) {
+  VectorMultiTrajectory mtj;
+  auto ts = mtj.makeTrackState();
+
+  int value = 5;
+  ts.setUncalibratedSourceLink(SourceLink{value});
+
+  BOOST_CHECK_EQUAL(ts.getUncalibratedSourceLink().get<int>(), value);
+  BOOST_CHECK_THROW(ts.getUncalibratedSourceLink().get<double>(),
+                    std::bad_any_cast);
+
+  double otherValue = 42.42;
+
+  // this changes the stored type
+  ts.setUncalibratedSourceLink(SourceLink{otherValue});
+  BOOST_CHECK_EQUAL(ts.getUncalibratedSourceLink().get<double>(), otherValue);
+  BOOST_CHECK_THROW(ts.getUncalibratedSourceLink().get<int>(),
+                    std::bad_any_cast);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

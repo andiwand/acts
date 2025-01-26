@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-from __future__ import print_function
-
 import argparse
 import os
 from glob import glob
-from concurrent.futures import ProcessPoolExecutor
 import re
 from fnmatch import fnmatch
 import sys
@@ -60,7 +57,6 @@ def check_include_guards(file):
 
     if valid_global or len(match_local) > 1:
         for m in match_local:
-
             lineno = text[: m.start()].count("\n") + 1
 
             valid_local = False
@@ -79,7 +75,7 @@ def main():
     input_help = """
 Input files: either file path, dir path (will glob for headers) or custom glob pattern
     """
-    p.add_argument("input", help=input_help.strip())
+    p.add_argument("input", nargs="+", help=input_help.strip())
     p.add_argument(
         "--fail-local", "-l", action="store_true", help="Fail on local include guards"
     )
@@ -94,15 +90,20 @@ Input files: either file path, dir path (will glob for headers) or custom glob p
 
     headers = []
 
-    if os.path.isfile(args.input):
-        headers = [args.input]
-    elif os.path.isdir(args.input):
-        patterns = ["**/*.hpp", "**/*.h"]
-        headers = sum(
-            [glob(os.path.join(args.input, p), recursive=True) for p in patterns], []
-        )
-    else:
-        headers = glob(args.input, recursive=True)
+    if len(args.input) == 1:
+        if os.path.isdir(args.input[0]):
+            patterns = ["**/*.hpp", "**/*.h"]
+            headers = sum(
+                [
+                    glob(os.path.join(args.input[0], p), recursive=True)
+                    for p in patterns
+                ],
+                [],
+            )
+        else:
+            headers = glob(args.input[0], recursive=True)
+    elif all([os.path.isfile(i) for i in args.input]):
+        headers = args.input
 
     valid = True
     nlocal = 0

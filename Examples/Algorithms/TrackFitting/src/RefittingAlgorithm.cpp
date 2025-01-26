@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2023 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "ActsExamples/TrackFitting/RefittingAlgorithm.hpp"
 
@@ -24,6 +24,7 @@
 #include "ActsExamples/TrackFitting/RefittingCalibrator.hpp"
 #include "ActsExamples/TrackFitting/TrackFitterFunction.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 #include <ostream>
@@ -63,13 +64,21 @@ ActsExamples::ProcessCode ActsExamples::RefittingAlgorithm::execute(
   auto itrack = 0ul;
   for (const auto& track : inputTracks) {
     // Check if you are not in picking mode
-    if (m_cfg.pickTrack > -1 && m_cfg.pickTrack != static_cast<int>(itrack++)) {
+    if (m_cfg.pickTrack > -1 &&
+        static_cast<std::size_t>(m_cfg.pickTrack) != itrack++) {
+      continue;
+    }
+
+    if (!track.hasReferenceSurface()) {
+      ACTS_VERBOSE("Skip track " << itrack << ": missing ref surface");
       continue;
     }
 
     TrackFitterFunction::GeneralFitterOptions options{
         ctx.geoContext, ctx.magFieldContext, ctx.calibContext,
-        &track.referenceSurface(), Acts::PropagatorPlainOptions()};
+        &track.referenceSurface(),
+        Acts::PropagatorPlainOptions(ctx.geoContext, ctx.magFieldContext)};
+    options.doRefit = true;
 
     const Acts::BoundTrackParameters initialParams(
         track.referenceSurface().getSharedPtr(), track.parameters(),
@@ -93,6 +102,8 @@ ActsExamples::ProcessCode ActsExamples::RefittingAlgorithm::execute(
       ACTS_WARNING("Empty track " << itrack << " found.");
       continue;
     }
+
+    std::ranges::reverse(surfSequence);
 
     ACTS_VERBOSE("Initial parameters: "
                  << initialParams.fourPosition(ctx.geoContext).transpose()

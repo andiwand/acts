@@ -1,10 +1,10 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2021 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
@@ -15,8 +15,8 @@
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
-#include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Vertexing/FullBilloirVertexFitter.hpp"
 #include "Acts/Vertexing/HelicalTrackLinearizer.hpp"
@@ -51,19 +51,14 @@ struct AlgorithmContext;
 
 class IterativeVertexFinderAlgorithm final : public IAlgorithm {
  public:
-  using Propagator = Acts::Propagator<Acts::EigenStepper<>>;
-  using IPEstimator =
-      Acts::ImpactPointEstimator<Acts::BoundTrackParameters, Propagator>;
-  using Linearizer = Acts::HelicalTrackLinearizer<Propagator>;
-  using Fitter =
-      Acts::FullBilloirVertexFitter<Acts::BoundTrackParameters, Linearizer>;
-  using Seeder = Acts::TrackDensityVertexFinder<
-      Fitter, Acts::GaussianTrackDensity<Acts::BoundTrackParameters>>;
-  using Finder = Acts::IterativeVertexFinder<Fitter, Seeder>;
-  using Options = Acts::VertexingOptions<Acts::BoundTrackParameters>;
+  using Propagator = Acts::Propagator<Acts::SympyStepper>;
+  using Linearizer = Acts::HelicalTrackLinearizer;
+  using Fitter = Acts::FullBilloirVertexFitter;
+  using Seeder = Acts::TrackDensityVertexFinder;
+  using Finder = Acts::IterativeVertexFinder;
+  using Options = Acts::VertexingOptions;
 
-  using VertexCollection =
-      std::vector<Acts::Vertex<Acts::BoundTrackParameters>>;
+  using VertexCollection = std::vector<Acts::Vertex>;
 
   struct Config {
     /// Optional. Input track parameters collection
@@ -72,8 +67,12 @@ class IterativeVertexFinderAlgorithm final : public IAlgorithm {
     std::string outputProtoVertices;
     /// Output vertex collection
     std::string outputVertices = "vertices";
+
     /// The magnetic field
     std::shared_ptr<Acts::MagneticFieldProvider> bField;
+
+    /// Maximum number of iterations for the vertex finding
+    int maxIterations = 1000;
   };
 
   IterativeVertexFinderAlgorithm(const Config& config,

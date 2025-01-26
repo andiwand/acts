@@ -1,16 +1,17 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2017-2018 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
+
 #include "Acts/Geometry/Extent.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 
 #include <iostream>
 #include <memory>
@@ -31,7 +32,10 @@ struct ProtoLayer {
   Extent extent;
 
   /// The envelope parameters
-  ExtentEnvelope envelope = zeroEnvelopes;
+  ExtentEnvelope envelope = ExtentEnvelope::Zero();
+
+  /// The local transform
+  Transform3 transform = Transform3::Identity();
 
   /// Constructor
   ///
@@ -41,8 +45,10 @@ struct ProtoLayer {
   ///
   /// @param gctx The current geometry context object, e.g. alignment
   /// @param surfaces The vector of surfaces to consider
+  /// @param transformIn The local transform to evaluate the sizing in
   ProtoLayer(const GeometryContext& gctx,
-             const std::vector<const Surface*>& surfaces);
+             const std::vector<const Surface*>& surfaces,
+             const Transform3& transformIn = Transform3::Identity());
 
   /// Constructor
   ///
@@ -52,34 +58,57 @@ struct ProtoLayer {
   ///
   /// @param gctx The current geometry context object, e.g. alignment
   /// @param surfaces The vector of surfaces to consider
+  /// @param transformIn The local transform to evaluate the sizing in
   ProtoLayer(const GeometryContext& gctx,
-             const std::vector<std::shared_ptr<const Surface>>& surfaces);
+             const std::vector<std::shared_ptr<const Surface>>& surfaces,
+             const Transform3& transformIn = Transform3::Identity());
+
+  /// Constructor
+  ///
+  /// Loops over a provided vector of surface and calculates the various
+  /// min/max values in one go. Also takes into account the thickness
+  /// of an associated DetectorElement, if it exists.
+  ///
+  /// @param gctx The current geometry context object, e.g. alignment
+  /// @param surfaces The vector of surfaces to consider
+  /// @param transformIn The local transform to evaluate the sizing in
+  ProtoLayer(const GeometryContext& gctx,
+             const std::vector<std::shared_ptr<Surface>>& surfaces,
+             const Transform3& transformIn = Transform3::Identity());
 
   ProtoLayer() = default;
 
   /// Get the parameters : min
-  /// @param bval The accessed binning value
+  /// @param aDir The accessed axis direction
   /// @param addenv The steering if enevlope is added or not
-  double min(BinningValue bval, bool addenv = true) const;
+  double min(AxisDirection aDir, bool addenv = true) const;
 
   // Get the  parameters : max
-  /// @param bval The accessed binning value
+  /// @param aDir The accessed axis direction
   /// @param addenv The steering if enevlope is added or not
-  double max(BinningValue bval, bool addenv = true) const;
+  double max(AxisDirection aDir, bool addenv = true) const;
 
   // Get the  parameters : max
-  /// @param bval The accessed binning value
+  /// @param aDir The accessed axis direction
   /// @param addenv The steering if enevlope is added or not
-  double medium(BinningValue bval, bool addenv = true) const;
+  double medium(AxisDirection aDir, bool addenv = true) const;
 
   // Get the  parameters : max
-  /// @param bval The accessed binning value
+  /// @param aDir The accessed axis direction
   /// @param addenv The steering if enevlope is added or not
-  double range(BinningValue bval, bool addenv = true) const;
+  double range(AxisDirection aDir, bool addenv = true) const;
 
   /// Output to ostream
   /// @param sl the input ostream
   std::ostream& toStream(std::ostream& sl) const;
+
+  /// Output stream operator
+  /// @param sl the input ostream
+  /// @param pl the ProtoLayer to be printed
+  /// @return the output ostream
+  friend std::ostream& operator<<(std::ostream& sl, const ProtoLayer& pl) {
+    return pl.toStream(sl);
+  }
 
   /// Give access to the surfaces used/assigned to the ProtoLayer
   const std::vector<const Surface*>& surfaces() const;

@@ -1,19 +1,19 @@
-// This file is part of the Acts project.
+// This file is part of the ACTS project.
 //
-// Copyright (C) 2016-2020 CERN for the benefit of the Acts project
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Detector/ProtoBinning.hpp"
 #include "Acts/Material/ISurfaceMaterial.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
 
-#include <cstddef>
 #include <iosfwd>
 
 namespace Acts {
@@ -66,9 +66,9 @@ class ProtoSurfaceMaterialT : public ISurfaceMaterial {
   ProtoSurfaceMaterialT<BinningType>& operator=(
       ProtoSurfaceMaterialT<BinningType>&& smproxy) = default;
 
-  /// Scale operator - dummy implementation
+  /// Scale operation - dummy implementation
   ///
-  ProtoSurfaceMaterialT<BinningType>& operator*=(double /*unused*/) final {
+  ProtoSurfaceMaterialT<BinningType>& scale(double /*factor*/) final {
     return (*this);
   }
 
@@ -79,7 +79,7 @@ class ProtoSurfaceMaterialT : public ISurfaceMaterial {
   /// coordinates
   ///
   /// @return will return dummy material
-  const MaterialSlab& materialSlab(const Vector2& /*unused*/) const final {
+  const MaterialSlab& materialSlab(const Vector2& /*lp*/) const final {
     return (m_materialSlab);
   }
 
@@ -87,15 +87,7 @@ class ProtoSurfaceMaterialT : public ISurfaceMaterial {
   /// global coordinates
   ///
   /// @return will return dummy material
-  const MaterialSlab& materialSlab(const Vector3& /*unused*/) const final {
-    return (m_materialSlab);
-  }
-
-  /// Direct access via bins to the MaterialSlab
-  ///
-  /// @return will return dummy material
-  const MaterialSlab& materialSlab(std::size_t /*unused*/,
-                                   std::size_t /*unused*/) const final {
+  const MaterialSlab& materialSlab(const Vector3& /*gp*/) const final {
     return (m_materialSlab);
   }
 
@@ -117,5 +109,8 @@ class ProtoSurfaceMaterialT : public ISurfaceMaterial {
 };
 
 using ProtoSurfaceMaterial = ProtoSurfaceMaterialT<Acts::BinUtility>;
+
+using ProtoGridSurfaceMaterial =
+    ProtoSurfaceMaterialT<Acts::Experimental::BinningDescription>;
 
 }  // namespace Acts
