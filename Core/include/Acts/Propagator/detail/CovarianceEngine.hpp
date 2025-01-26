@@ -61,7 +61,7 @@ Result<std::tuple<BoundTrackParameters, BoundMatrix, double>> boundState(
     BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
     FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
     BoundToFreeMatrix& boundToFreeJacobian,
-    std::optional<FreeMatrix>& additionalFreeCovariance,
+    const std::optional<FreeMatrix>& additionalFreeCovariance,
     FreeVector& freeParameters, const ParticleHypothesis& particleHypothesis,
     bool covTransport, double accumulatedPath,
     const FreeToBoundCorrection& freeToBoundCorrection);
@@ -92,7 +92,7 @@ std::tuple<CurvilinearTrackParameters, BoundMatrix, double> curvilinearState(
     BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
     FreeMatrix& transportJacobian, FreeVector& freeToPathDerivatives,
     BoundToFreeMatrix& boundToFreeJacobian,
-    std::optional<FreeMatrix>& additionalFreeCovariance,
+    const std::optional<FreeMatrix>& additionalFreeCovariance,
     const FreeVector& freeParameters,
     const ParticleHypothesis& particleHypothesis, bool covTransport,
     double accumulatedPath);
@@ -119,7 +119,7 @@ void transportCovarianceToBound(
     BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
     FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
     BoundToFreeMatrix& boundToFreeJacobian,
-    std::optional<FreeMatrix>& additionalFreeCovariance,
+    const std::optional<FreeMatrix>& additionalFreeCovariance,
     FreeVector& freeParameters,
     const FreeToBoundCorrection& freeToBoundCorrection);
 
@@ -138,7 +138,7 @@ void transportCovarianceToCurvilinear(
     BoundSquareMatrix& boundCovariance, BoundMatrix& fullTransportJacobian,
     FreeMatrix& freeTransportJacobian, FreeVector& freeToPathDerivatives,
     BoundToFreeMatrix& boundToFreeJacobian,
-    std::optional<FreeMatrix>& additionalFreeCovariance,
+    const std::optional<FreeMatrix>& additionalFreeCovariance,
     const Vector3& direction);
 
 /// Convert bound track parameters to another bound surface.

@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(covariance_engine_test) {
   // Produce a curvilinear state without covariance matrix
   auto curvResult = detail::curvilinearState(
       covariance, jacobian, transportJacobian, derivatives, boundToFreeJacobian,
-      parameters, particleHypothesis, false, 1337.);
+      std::nullopt, parameters, particleHypothesis, false, 1337.);
   BOOST_CHECK(!std::get<0>(curvResult).covariance().has_value());
   BOOST_CHECK_EQUAL(std::get<2>(curvResult), 1337.);
 

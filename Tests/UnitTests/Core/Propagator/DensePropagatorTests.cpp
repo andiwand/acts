@@ -1,3 +1,11 @@
+// This file is part of the ACTS project.
+//
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // This file is part of the Acts project.
 //
 // Copyright (C) 2023 CERN for the benefit of the Acts project
@@ -12,8 +20,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Common.hpp"
-#include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Geometry/CuboidVolumeBuilder.hpp"
@@ -23,8 +29,8 @@
 #include "Acts/Material/HomogeneousVolumeMaterial.hpp"
 #include "Acts/Material/Interactions.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
-#include "Acts/Propagator/DenseEnvironmentExtension.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
+#include "Acts/Propagator/EigenStepperDenseExtension.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
@@ -32,16 +38,16 @@
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
+#include <fstream>
 #include <memory>
 
 namespace bdata = boost::unit_test::data;
 using namespace Acts::UnitLiterals;
 
-namespace Acts {
-namespace Test {
+namespace Acts::Test {
 
-const Acts::GeometryContext geoCtx;
-const Acts::MagneticFieldContext magCtx;
+const GeometryContext geoCtx;
+const MagneticFieldContext magCtx;
 
 inline Material makeLiquidArgon() {
   return Material::fromMassDensity(140.0343868497_mm, 857.0639538668_mm,
@@ -53,8 +59,8 @@ inline Material makeIron() {
                                    55.845110798, 26, 7.874 * 1_g / 1_cm3);
 }
 
-inline std::tuple<std::shared_ptr<const Acts::TrackingGeometry>,
-                  std::vector<const Acts::Surface*>>
+inline std::tuple<std::shared_ptr<const TrackingGeometry>,
+                  std::vector<const Surface*>>
 makeDetector() {
   CuboidVolumeBuilder::Config conf;
   conf.position = {0., 0., 0.};
@@ -82,7 +88,8 @@ makeDetector() {
     CuboidVolumeBuilder::SurfaceConfig surface;
     surface.position = {1.5_m, 0, 0};
     surface.rotation =
-        Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitY()).matrix();
+        Eigen::AngleAxisd(std::numbers::pi / 2, Eigen::Vector3d::UnitY())
+            .matrix();
     surface.rBounds = std::make_shared<RectangleBounds>(1_m, 1_m);
 
     CuboidVolumeBuilder::LayerConfig layer;
@@ -105,24 +112,18 @@ makeDetector() {
       });
   auto detector = TrackingGeometryBuilder(tgbCfg).trackingGeometry(geoCtx);
 
-  std::vector<const Acts::Surface*> surfaces;
+  std::vector<const Surface*> surfaces;
   detector->visitSurfaces(
-      [&](const Acts::Surface* surface) { surfaces.push_back(surface); });
+      [&](const Surface* surface) { surfaces.push_back(surface); });
 
   return {std::move(detector), std::move(surfaces)};
 }
 
-auto makePropagator(std::shared_ptr<const Acts::TrackingGeometry> detector,
-                    std::shared_ptr<const Acts::MagneticFieldProvider> bfield) {
-  using Stepper = Acts::EigenStepper<
-      Acts::StepperExtensionList<Acts::DefaultExtension,
-                                 Acts::DenseEnvironmentExtension>,
-      Acts::detail::HighestValidAuctioneer>;
-  using Navigator = Acts::Navigator;
-  using Propagator = Acts::Propagator<Stepper, Navigator>;
-  using Actors = ActionList<>;
-  using Aborters = AbortList<EndOfWorldReached>;
-  using Options = DenseStepperPropagatorOptions<Actors, Aborters>;
+auto makePropagator(std::shared_ptr<const TrackingGeometry> detector,
+                    std::shared_ptr<const MagneticFieldProvider> bfield) {
+  using Stepper = EigenStepper<EigenStepperDenseExtension>;
+  using Navigator = Navigator;
+  using Propagator = Propagator<Stepper, Navigator>;
 
   Navigator navigator({detector, true, true, false},
                       getDefaultLogger("nav", Logging::INFO));
@@ -137,8 +138,7 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
                      bdata::make({1_GeV, 10_GeV, 100_GeV}), p) {
   const double q = 1;
 
-  auto bfield =
-      std::make_shared<Acts::ConstantBField>(Acts::Vector3{0., 0., 0.});
+  auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
   auto [detector, surfaces] = makeDetector();
 
   auto propagator = makePropagator(detector, bfield);
@@ -149,12 +149,12 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
       Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
       BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
 
-  DenseStepperPropagatorOptions<> options(geoCtx, magCtx);
-  options.maxStepSize = 1_m;
+  decltype(propagator)::Options<> options(geoCtx, magCtx);
   options.maxSteps = 10000;
-  options.meanEnergyLoss = true;
+  options.stepping.maxStepSize = 1_m;
+  options.stepping.dense.meanEnergyLoss = true;
 
-  const Acts::Surface& target = *surfaces.back();
+  const Surface& target = *surfaces.back();
 
   auto result = propagator.propagate(startParams, target, options);
 
@@ -262,5 +262,4 @@ BOOST_AUTO_TEST_CASE(chart_eloss_iron) {
   }
 }
 
-}  // namespace Test
-}  // namespace Acts
+}  // namespace Acts::Test
