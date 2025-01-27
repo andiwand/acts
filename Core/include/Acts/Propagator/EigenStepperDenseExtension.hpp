@@ -12,6 +12,8 @@
 #include "Acts/Utilities/detail/ReferenceWrapperAnyCompat.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/Definitions/Units.hpp"
 #include "Acts/Material/Interactions.hpp"
 #include "Acts/Material/Material.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
@@ -507,21 +509,13 @@ struct EigenStepperDenseExtension {
       // for derivation see
       // https://github.com/andiwand/cern-scripts/blob/5f0ebf1bef35db65322f28c2e840c1db1aaaf9a7/notebooks/2023-12-07_qp-dense-nav.ipynb
       //
-      FreeMatrix additionalMscCovariance = FreeMatrix::Zero();
-      additionalMscCovariance.block<3, 3>(eFreeDir0, eFreeDir0) =
-          (s * s / 3 - s * s / 4) *
+      additionalFreeCovariance = FreeMatrix::Zero();
+      additionalFreeCovariance.block<3, 3>(eFreeDir0, eFreeDir0) =
+          square(theta0) *
           (ActsSquareMatrix<3>::Identity() - direction * direction.transpose());
-      additionalMscCovariance.block<3, 3>(eFreeDir0, eFreeDir0) =
-          theta0 * theta0 *
+      additionalFreeCovariance.block<3, 3>(eFreePos0, eFreePos0) =
+          square(theta0 * s) / 3 *
           (ActsSquareMatrix<3>::Identity() - direction * direction.transpose());
-
-      double transportDistance = s / 2;
-      FreeMatrix transportJacobian = FreeMatrix::Identity();
-      transportJacobian.block<3, 3>(eFreePos0, eFreeDir0) =
-          transportDistance * ActsSquareMatrix<3>::Identity();
-
-      additionalFreeCovariance = transportJacobian * additionalMscCovariance *
-                                 transportJacobian.transpose();
     }
 
     // handle energy loss covariance

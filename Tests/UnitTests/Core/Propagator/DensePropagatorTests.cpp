@@ -28,6 +28,7 @@
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Material/HomogeneousVolumeMaterial.hpp"
 #include "Acts/Material/Interactions.hpp"
+#include "Acts/Material/Material.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/EigenStepperDenseExtension.hpp"
@@ -40,6 +41,7 @@
 
 #include <fstream>
 #include <memory>
+#include <utility>
 
 namespace bdata = boost::unit_test::data;
 using namespace Acts::UnitLiterals;
@@ -61,7 +63,7 @@ inline Material makeIron() {
 
 inline std::tuple<std::shared_ptr<const TrackingGeometry>,
                   std::vector<const Surface*>>
-makeDetector() {
+makeDetector(Material material, double thickness) {
   CuboidVolumeBuilder::Config conf;
   conf.position = {0., 0., 0.};
   conf.length = {4_m, 2_m, 2_m};
@@ -70,18 +72,38 @@ makeDetector() {
     CuboidVolumeBuilder::VolumeConfig start;
     start.position = {-1_m, 0, 0};
     start.length = {1_m, 1_m, 1_m};
+    start.name = "start";
 
     conf.volumeCfg.push_back(start);
+  }
+
+  if (thickness < 1_m) {
+    CuboidVolumeBuilder::VolumeConfig gap;
+    gap.position = {-0.25 * (1_m + thickness), 0, 0};
+    gap.length = {0.5 * (1_m - thickness), 1_m, 1_m};
+    gap.name = "gap1";
+
+    conf.volumeCfg.push_back(gap);
   }
 
   {
     CuboidVolumeBuilder::VolumeConfig dense;
     dense.position = {0, 0, 0};
-    dense.length = {1_m, 1_m, 1_m};
+    dense.length = {thickness, 1_m, 1_m};
     dense.volumeMaterial =
-        std::make_shared<const HomogeneousVolumeMaterial>(makeLiquidArgon());
+        std::make_shared<const HomogeneousVolumeMaterial>(material);
+    dense.name = "dense";
 
     conf.volumeCfg.push_back(dense);
+  }
+
+  if (thickness < 1_m) {
+    CuboidVolumeBuilder::VolumeConfig gap;
+    gap.position = {0.25 * (1_m + thickness), 0, 0};
+    gap.length = {0.5 * (1_m - thickness), 1_m, 1_m};
+    gap.name = "gap2";
+
+    conf.volumeCfg.push_back(gap);
   }
 
   {
@@ -99,6 +121,7 @@ makeDetector() {
     end.position = {1_m, 0, 0};
     end.length = {1_m, 1_m, 1_m};
     end.layerCfg.push_back(layer);
+    end.name = "end";
 
     conf.volumeCfg.push_back(end);
   }
@@ -125,9 +148,9 @@ auto makePropagator(std::shared_ptr<const TrackingGeometry> detector,
   using Navigator = Navigator;
   using Propagator = Propagator<Stepper, Navigator>;
 
-  Navigator navigator({detector, true, true, false},
+  Navigator navigator({std::move(detector), true, true, false},
                       getDefaultLogger("nav", Logging::INFO));
-  Stepper stepper(bfield);
+  Stepper stepper(std::move(bfield));
   Propagator propagator(std::move(stepper), std::move(navigator),
                         getDefaultLogger("prop", Logging::INFO));
 
@@ -139,7 +162,7 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   const double q = 1;
 
   auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
-  auto [detector, surfaces] = makeDetector();
+  auto [detector, surfaces] = makeDetector(makeLiquidArgon(), 1_m);
 
   auto propagator = makePropagator(detector, bfield);
 
@@ -202,16 +225,17 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
 
 void chart_eloss(double q, double p_min, double p_max, int n, Material material,
                  std::ostream& out) {
-  out << "p,total_mean,bethe,total_mode,landau_sigma" << std::endl;
+  out << "p_initial,total_mean,bethe,total_mode,landau_sigma" << std::endl;
 
   MaterialSlab slab(material, 1);
+
+  auto particleHypothesis = ParticleHypothesis::muon();
 
   for (int i = 0; i < n; ++i) {
     const double p = std::pow(
         10, std::log10(p_min) +
                 (std::log10(p_max) - std::log10(p_min)) * (1.0 * i / n));
 
-    auto particleHypothesis = ParticleHypothesis::muon();
     double qOverP = particleHypothesis.qOverP(p, q);
 
     double bethe =
@@ -255,6 +279,81 @@ BOOST_AUTO_TEST_CASE(chart_eloss_fe) {
 
   std::ofstream file("eloss_fe.csv");
   chart_eloss(q, p_min, p_max, n, material, file);
+}
+
+void chart_msc(double q, double p_min, double p_max, int n, Material material,
+               double thickness, std::ostream& out) {
+  out << "p_initial,p_final,sigma" << std::endl;
+
+  auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
+  auto [detector, surfaces] = makeDetector(material, thickness);
+
+  auto propagator = makePropagator(detector, bfield);
+
+  auto particleHypothesis = ParticleHypothesis::muon();
+
+  decltype(propagator)::Options<> options(geoCtx, magCtx);
+  options.maxSteps = 10000;
+  options.stepping.maxStepSize = 1_m;
+  options.stepping.dense.meanEnergyLoss = true;
+
+  const Surface& target = *surfaces.back();
+
+  for (int i = 0; i < n; ++i) {
+    const double p = std::pow(
+        10, std::log10(p_min) +
+                (std::log10(p_max) - std::log10(p_min)) * (1.0 * i / n));
+
+    double qOverP = particleHypothesis.qOverP(p, q);
+
+    CurvilinearTrackParameters startParams(
+        Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
+        BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
+
+    auto result = propagator.propagate(startParams, target, options);
+
+    BOOST_CHECK(result.ok());
+    CHECK_CLOSE_REL(3_m, result->pathLength, 1e-6);
+    BOOST_CHECK(result->endParameters);
+
+    BoundTrackParameters endParams = result->endParameters.value();
+
+    BOOST_CHECK(endParams.covariance());
+    CHECK_CLOSE_ABS(startParams.position(geoCtx) + Vector3(3_m, 0, 0),
+                    endParams.position(geoCtx), 1e-6);
+    CHECK_CLOSE_ABS(startParams.direction(), endParams.direction(), 1e-6);
+
+    const auto& cov = endParams.covariance().value();
+
+    double endVarX = cov(eBoundLoc0, eBoundLoc0);
+
+    out << p << "," << endParams.absoluteMomentum() << "," << std::sqrt(endVarX)
+        << std::endl;
+  }
+}
+
+BOOST_AUTO_TEST_CASE(chart_msc_lar) {
+  const double q = 1;
+  const double p_min = 1_GeV;
+  const double p_max = 1_TeV;
+  const int n = 1000;
+  const auto material = makeLiquidArgon();
+  const double thickness = 100_mm;
+
+  std::ofstream file("msc_lar.csv");
+  chart_msc(q, p_min, p_max, n, material, thickness, file);
+}
+
+BOOST_AUTO_TEST_CASE(chart_msc_fe) {
+  const double q = 1;
+  const double p_min = 1_GeV;
+  const double p_max = 1_TeV;
+  const int n = 1000;
+  const auto material = makeIron();
+  const double thickness = 100_mm;
+
+  std::ofstream file("msc_fe.csv");
+  chart_msc(q, p_min, p_max, n, material, thickness, file);
 }
 
 }  // namespace Acts::Test
