@@ -127,19 +127,24 @@ void SympyStepper::transportCovarianceToBound(
       freeToBoundCorrection);
 }
 
-Result<double> SympyStepper::stepImpl(
-    State& state, Direction stepDirection, double stepTolerance,
-    double stepSizeCutOff, std::size_t maxRungeKuttaStepTrials) const {
+Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
+                                      double stepTolerance,
+                                      double stepSizeCutOff,
+                                      std::size_t maxRungeKuttaStepTrials,
+                                      const IVolumeMaterial* material) const {
   auto pos = position(state);
   auto dir = direction(state);
   double t = time(state);
   double qop = qOverP(state);
   double m = particleHypothesis(state).mass();
+  double q = charge(state);
   double p_abs = absoluteMomentum(state);
 
   auto getB = [&](const double* p) -> Result<Vector3> {
     return getField(state, {p[0], p[1], p[2]});
   };
+
+  auto getG = [&](double l) -> double { return 0; };
 
   const auto calcStepSizeScaling = [&](const double errorEstimate_) -> double {
     // For details about these values see ATL-SOFT-PUB-2009-001
@@ -170,13 +175,24 @@ Result<double> SympyStepper::stepImpl(
     ++state.statistics.nAttemptedSteps;
 
     // For details about the factor 4 see ATL-SOFT-PUB-2009-001
-    Result<bool> res =
-        rk4(pos.data(), dir.data(), t, h, qop, m, p_abs, getB, &errorEstimate,
-            4 * stepTolerance, state.pars.template segment<3>(eFreePos0).data(),
-            state.pars.template segment<3>(eFreeDir0).data(),
-            state.pars.template segment<1>(eFreeTime).data(),
-            state.derivative.data(),
-            state.covTransport ? state.jacTransport.data() : nullptr);
+    Result<bool> res = Result<bool>::success(false);
+    if (material == nullptr) {
+      res = rk4_vacuum(
+          pos.data(), dir.data(), t, h, qop, m, p_abs, getB, &errorEstimate,
+          4 * stepTolerance, state.pars.template segment<3>(eFreePos0).data(),
+          state.pars.template segment<1>(eFreeTime).data(),
+          state.pars.template segment<3>(eFreeDir0).data(),
+          state.derivative.data(),
+          state.covTransport ? state.jacTransport.data() : nullptr);
+    } else {
+      res = rk4_dense(pos.data(), dir.data(), t, h, qop, m, q, p_abs, getB,
+                      getG, &errorEstimate, 4 * stepTolerance,
+                      state.pars.template segment<3>(eFreePos0).data(),
+                      state.pars.template segment<1>(eFreeTime).data(),
+                      state.pars.template segment<3>(eFreeDir0).data(),
+                      state.derivative.data(),
+                      state.covTransport ? state.jacTransport.data() : nullptr);
+    }
     if (!res.ok()) {
       return res.error();
     }

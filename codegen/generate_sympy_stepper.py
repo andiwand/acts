@@ -567,11 +567,11 @@ def print_rk4_dense(name_exprs, run_cse=True):
         if str(var) == "p3":
             return "T p3[3];"
         if str(var) == "l2":
-            return "T l2;"
+            return "T l2[1];"
         if str(var) == "l3":
-            return "T l3;"
+            return "T l3[1];"
         if str(var) == "l4":
-            return "T l4;"
+            return "T l4[1];"
         if str(var) == "new_J":
             return "T new_J[64];"
         return None
@@ -582,11 +582,11 @@ def print_rk4_dense(name_exprs, run_cse=True):
         if str(var) == "p3":
             return "const auto B3res = getB(p3);\n  if (!B3res.ok()) {\n    return Acts::Result<bool>::failure(B3res.error());\n  }\n  const auto B3 = *B3res;"
         if str(var) == "l2":
-            return "const auto g2 = getG(l2);"
+            return "const auto g2 = getG(*l2);"
         if str(var) == "l3":
-            return "const auto g3 = getG(l3);"
+            return "const auto g3 = getG(*l3);"
         if str(var) == "l4":
-            return "const auto g4 = getG(l4);"
+            return "const auto g4 = getG(*l4);"
         if str(var) == "err":
             return (
                 "if (*err > errTol) {\n  return Acts::Result<bool>::success(false);\n}"

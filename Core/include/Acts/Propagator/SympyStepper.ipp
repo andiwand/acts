@@ -12,11 +12,12 @@ namespace Acts {
 
 template <typename propagator_state_t, typename navigator_t>
 Result<double> SympyStepper::step(propagator_state_t& state,
-                                  const navigator_t& /*navigator*/) const {
+                                  const navigator_t& navigator) const {
   return stepImpl(state.stepping, state.options.direction,
                   state.options.stepping.stepTolerance,
                   state.options.stepping.stepSizeCutOff,
-                  state.options.stepping.maxRungeKuttaStepTrials);
+                  state.options.stepping.maxRungeKuttaStepTrials,
+                  navigator.currentVolumeMaterial(state.navigation));
 }
 
 }  // namespace Acts

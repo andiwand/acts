@@ -14,12 +14,11 @@
 #include <Acts/Utilities/Result.hpp>
 
 #include <cmath>
-
 template <typename T, typename GetB>
-Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
-                       const T lambda, const T m, const T p_abs, GetB getB,
-                       T* err, const T errTol, T* new_p, T* new_d, T* new_time,
-                       T* path_derivatives, T* J) {
+Acts::Result<bool> rk4_vacuum(const T* p, const T* d, const T t, const T h,
+                              const T l, const T m, const T p_abs, GetB getB,
+                              T* err, const T errTol, T* new_p, T* new_t,
+                              T* new_d, T* path_derivatives, T* J) {
   const auto B1res = getB(p);
   if (!B1res.ok()) {
     return Acts::Result<bool>::failure(B1res.error());
@@ -30,18 +29,18 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
   const auto x1 = B1[0] * d[2];
   const auto x2 = B1[2] * d[0];
   const auto x3 = B1[0] * d[1];
-  const auto x4 = h * d[0];
-  const auto x7 = h * d[1];
-  const auto x8 = h * d[2];
+  const auto x4 = d[0] * h;
+  const auto x7 = d[1] * h;
+  const auto x8 = d[2] * h;
   const auto x6 = (1.0 / 8.0) * x5;
   T k1[3];
-  k1[0] = lambda * (-x0 + B1[2] * d[1]);
-  k1[1] = lambda * (x1 - x2);
-  k1[2] = lambda * (-x3 + B1[1] * d[0]);
+  k1[0] = l * (B1[2] * d[1] - x0);
+  k1[1] = l * (x1 - x2);
+  k1[2] = l * (B1[1] * d[0] - x3);
   T p2[3];
-  p2[0] = (1.0 / 2.0) * x4 + x6 * k1[0] + p[0];
-  p2[1] = x6 * k1[1] + (1.0 / 2.0) * x7 + p[1];
-  p2[2] = x6 * k1[2] + (1.0 / 2.0) * x8 + p[2];
+  p2[0] = p[0] + (1.0 / 2.0) * x4 + x6 * k1[0];
+  p2[1] = p[1] + x6 * k1[1] + (1.0 / 2.0) * x7;
+  p2[2] = p[2] + x6 * k1[2] + (1.0 / 2.0) * x8;
   const auto B2res = getB(p2);
   if (!B2res.ok()) {
     return Acts::Result<bool>::failure(B2res.error());
@@ -49,26 +48,26 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
   const auto B2 = *B2res;
   const auto x9 = (1.0 / 2.0) * h;
   const auto x19 = (1.0 / 2.0) * x5;
-  const auto x11 = lambda * B2[2];
-  const auto x13 = lambda * B2[1];
-  const auto x15 = lambda * B2[0];
-  const auto x20 = x4 + p[0];
-  const auto x21 = x7 + p[1];
-  const auto x22 = x8 + p[2];
-  const auto x10 = x9 * k1[1] + d[1];
-  const auto x12 = x9 * k1[2] + d[2];
-  const auto x14 = x9 * k1[0] + d[0];
+  const auto x11 = B2[1] * l;
+  const auto x13 = B2[0] * l;
+  const auto x15 = B2[2] * l;
+  const auto x20 = p[0] + x4;
+  const auto x21 = p[1] + x7;
+  const auto x22 = p[2] + x8;
+  const auto x10 = d[2] + x9 * k1[2];
+  const auto x12 = d[1] + x9 * k1[1];
+  const auto x14 = d[0] + x9 * k1[0];
   T k2[3];
-  k2[0] = x10 * x11 - x12 * x13;
-  k2[1] = lambda * x12 * B2[0] - x11 * x14;
-  k2[2] = -x10 * x15 + x13 * x14;
-  const auto x16 = x9 * k2[1] + d[1];
-  const auto x17 = x9 * k2[2] + d[2];
-  const auto x18 = x9 * k2[0] + d[0];
+  k2[0] = B2[2] * l * x12 - x10 * x11;
+  k2[1] = x10 * x13 - x14 * x15;
+  k2[2] = B2[1] * l * x14 - x12 * x13;
+  const auto x16 = d[2] + x9 * k2[2];
+  const auto x17 = d[1] + x9 * k2[1];
+  const auto x18 = d[0] + x9 * k2[0];
   T k3[3];
-  k3[0] = x11 * x16 - x13 * x17;
-  k3[1] = lambda * x17 * B2[0] - x11 * x18;
-  k3[2] = x13 * x18 - x15 * x16;
+  k3[0] = B2[2] * l * x17 - x11 * x16;
+  k3[1] = x13 * x16 - x15 * x18;
+  k3[2] = B2[1] * l * x18 - x13 * x17;
   T p3[3];
   p3[0] = x19 * k3[0] + x20;
   p3[1] = x19 * k3[1] + x21;
@@ -78,16 +77,16 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
     return Acts::Result<bool>::failure(B3res.error());
   }
   const auto B3 = *B3res;
-  const auto x24 = lambda * B3[2];
-  const auto x26 = lambda * B3[1];
-  const auto x28 = lambda * B3[0];
-  const auto x23 = h * k3[1] + d[1];
-  const auto x25 = h * k3[2] + d[2];
-  const auto x27 = h * k3[0] + d[0];
+  const auto x24 = B3[1] * l;
+  const auto x26 = B3[0] * l;
+  const auto x28 = B3[2] * l;
+  const auto x23 = d[2] + h * k3[2];
+  const auto x25 = d[1] + h * k3[1];
+  const auto x27 = d[0] + h * k3[0];
   T k4[3];
-  k4[0] = x23 * x24 - x25 * x26;
-  k4[1] = lambda * x25 * B3[0] - x24 * x27;
-  k4[2] = -x23 * x28 + x26 * x27;
+  k4[0] = B3[2] * l * x25 - x23 * x24;
+  k4[1] = x23 * x26 - x27 * x28;
+  k4[2] = B3[1] * l * x27 - x25 * x26;
   const auto x29 = k1[0] + k4[0];
   const auto x30 = k1[1] + k4[1];
   const auto x31 = k1[2] + k4[2];
@@ -101,23 +100,23 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
   new_p[0] = x20 + x32 * (k1[0] + k2[0] + k3[0]);
   new_p[1] = x21 + x32 * (k1[1] + k2[1] + k3[1]);
   new_p[2] = x22 + x32 * (k1[2] + k2[2] + k3[2]);
-  const auto x33 = (1.0 / 6.0) * h;
-  T new_d_tmp[3];
-  new_d_tmp[0] = x33 * (x29 + 2 * k2[0] + 2 * k3[0]) + d[0];
-  new_d_tmp[1] = x33 * (x30 + 2 * k2[1] + 2 * k3[1]) + d[1];
-  new_d_tmp[2] = x33 * (x31 + 2 * k2[2] + 2 * k3[2]) + d[2];
-  const auto x34 = 1.0 / std::sqrt(std::pow(std::fabs(new_d_tmp[0]), 2) +
-                                   std::pow(std::fabs(new_d_tmp[1]), 2) +
-                                   std::pow(std::fabs(new_d_tmp[2]), 2));
-  new_d[0] = x34 * new_d_tmp[0];
-  new_d[1] = x34 * new_d_tmp[1];
-  new_d[2] = x34 * new_d_tmp[2];
-  const auto x35 = std::pow(m, 2);
-  const auto dtds = std::sqrt(std::pow(p_abs, 2) + x35) / p_abs;
-  *new_time = dtds * h + t;
+  const auto x33 = std::pow(m, 2);
+  const auto dtds = std::sqrt(std::pow(p_abs, 2) + x33) / p_abs;
+  *new_t = dtds * h + t;
   if (J == nullptr) {
     return Acts::Result<bool>::success(true);
   }
+  const auto x34 = (1.0 / 6.0) * h;
+  T new_d_tmp[3];
+  new_d_tmp[0] = d[0] + x34 * (x29 + 2 * k2[0] + 2 * k3[0]);
+  new_d_tmp[1] = d[1] + x34 * (x30 + 2 * k2[1] + 2 * k3[1]);
+  new_d_tmp[2] = d[2] + x34 * (x31 + 2 * k2[2] + 2 * k3[2]);
+  const auto x35 = 1.0 / std::sqrt(std::pow(std::fabs(new_d_tmp[0]), 2) +
+                                   std::pow(std::fabs(new_d_tmp[1]), 2) +
+                                   std::pow(std::fabs(new_d_tmp[2]), 2));
+  new_d[0] = x35 * new_d_tmp[0];
+  new_d[1] = x35 * new_d_tmp[1];
+  new_d[2] = x35 * new_d_tmp[2];
   path_derivatives[0] = new_d[0];
   path_derivatives[1] = new_d[1];
   path_derivatives[2] = new_d[2];
@@ -127,64 +126,61 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
   path_derivatives[6] = k4[2];
   path_derivatives[7] = 0;
   const auto x57 = (1.0 / 3.0) * h;
-  const auto x36 = std::pow(lambda, 2) * x9;
+  const auto x36 = std::pow(l, 2) * x9;
   const auto x43 = x1 - x2;
-  const auto x47 = x11 * x9;
-  const auto x48 = x15 * x9;
-  const auto x49 = x13 * x9;
-  const auto x50 = h * x26;
-  const auto x51 = h * x24;
-  const auto x52 = h * x28;
-  const auto x53 = lambda * x32;
-  const auto x58 = lambda * x33;
-  const auto x41 = -x3 + B1[1] * d[0];
-  const auto x46 = -x0 + B1[2] * d[1];
-  const auto x37 = x36 * B2[1];
-  const auto x39 = x36 * B2[2];
+  const auto x47 = x15 * x9;
+  const auto x48 = x13 * x9;
+  const auto x49 = x11 * x9;
+  const auto x50 = h * x24;
+  const auto x51 = h * x28;
+  const auto x52 = h * x26;
+  const auto x53 = l * x32;
+  const auto x58 = l * x34;
+  const auto x41 = B1[1] * d[0] - x3;
+  const auto x46 = B1[2] * d[1] - x0;
+  const auto x37 = B2[1] * x36;
+  const auto x39 = B2[2] * x36;
   const auto x42 = x41 * x9;
-  const auto x44 = x36 * B2[0];
-  const auto x54 = x53 * B1[2];
-  const auto x55 = x53 * B1[1];
-  const auto x56 = x53 * B1[0];
-  const auto x59 = x58 * B1[2];
-  const auto x60 = x58 * B1[1];
-  const auto x61 = x58 * B1[0];
-  const auto x38 = x37 * B1[1];
-  const auto x40 = x39 * B1[2];
-  const auto x45 = x44 * B1[0];
+  const auto x44 = B2[0] * x36;
+  const auto x54 = B1[2] * x53;
+  const auto x55 = B1[1] * x53;
+  const auto x56 = B1[0] * x53;
+  const auto x59 = B1[2] * x58;
+  const auto x60 = B1[1] * x58;
+  const auto x61 = B1[0] * x58;
+  const auto x38 = B1[1] * x37;
+  const auto x40 = B1[2] * x39;
+  const auto x45 = B1[0] * x44;
   T dk2dTL[12];
   dk2dTL[0] = -x38 - x40;
-  dk2dTL[1] = -x11 + x44 * B1[1];
-  dk2dTL[2] = x13 + x44 * B1[2];
-  dk2dTL[3] = x11 + x37 * B1[0];
+  dk2dTL[1] = B1[1] * x44 - x15;
+  dk2dTL[2] = B1[2] * x44 + x11;
+  dk2dTL[3] = B1[0] * x37 + x15;
   dk2dTL[4] = -x40 - x45;
-  dk2dTL[5] = -x15 + x37 * B1[2];
-  dk2dTL[6] = -x13 + x39 * B1[0];
-  dk2dTL[7] = x15 + x39 * B1[1];
+  dk2dTL[5] = B1[2] * x37 - x13;
+  dk2dTL[6] = B1[0] * x39 - x11;
+  dk2dTL[7] = B1[1] * x39 + x13;
   dk2dTL[8] = -x38 - x45;
-  dk2dTL[9] = (1.0 / 2.0) * h * lambda * x43 * B2[2] + x10 * B2[2] -
-              x12 * B2[1] - x13 * x42;
-  dk2dTL[10] = x12 * B2[0] - x14 * B2[2] + x15 * x42 - x46 * x47;
-  dk2dTL[11] = (1.0 / 2.0) * h * lambda * x46 * B2[1] - x10 * B2[0] +
-               x14 * B2[1] - x43 * x48;
+  dk2dTL[9] = -B2[1] * x10 + (1.0 / 2.0) * B2[2] * h * l * x43 + B2[2] * x12 -
+              x11 * x42;
+  dk2dTL[10] = B2[0] * x10 - B2[2] * x14 + x13 * x42 - x46 * x47;
+  dk2dTL[11] = -B2[0] * x12 + (1.0 / 2.0) * B2[1] * h * l * x46 + B2[1] * x14 -
+               x43 * x48;
   T dk3dTL[12];
-  dk3dTL[0] = (1.0 / 2.0) * h * lambda * B2[2] * dk2dTL[1] - x49 * dk2dTL[2];
-  dk3dTL[1] =
-      (1.0 / 2.0) * h * lambda * B2[0] * dk2dTL[2] - x11 - x47 * dk2dTL[0];
-  dk3dTL[2] = x13 - x48 * dk2dTL[1] + x49 * dk2dTL[0];
-  dk3dTL[3] = x11 + x47 * dk2dTL[4] - x49 * dk2dTL[5];
+  dk3dTL[0] = (1.0 / 2.0) * B2[2] * h * l * dk2dTL[1] - x49 * dk2dTL[2];
+  dk3dTL[1] = (1.0 / 2.0) * B2[0] * h * l * dk2dTL[2] - x15 - x47 * dk2dTL[0];
+  dk3dTL[2] = x11 - x48 * dk2dTL[1] + x49 * dk2dTL[0];
+  dk3dTL[3] = x15 + x47 * dk2dTL[4] - x49 * dk2dTL[5];
   dk3dTL[4] = -x47 * dk2dTL[3] + x48 * dk2dTL[5];
-  dk3dTL[5] =
-      (1.0 / 2.0) * h * lambda * B2[1] * dk2dTL[3] - x15 - x48 * dk2dTL[4];
-  dk3dTL[6] =
-      (1.0 / 2.0) * h * lambda * B2[2] * dk2dTL[7] - x13 - x49 * dk2dTL[8];
-  dk3dTL[7] = x15 - x47 * dk2dTL[6] + x48 * dk2dTL[8];
-  dk3dTL[8] = (1.0 / 2.0) * h * lambda * B2[1] * dk2dTL[6] - x48 * dk2dTL[7];
-  dk3dTL[9] = (1.0 / 2.0) * h * lambda * B2[2] * dk2dTL[10] + x16 * B2[2] -
-              x17 * B2[1] - x49 * dk2dTL[11];
-  dk3dTL[10] = x17 * B2[0] - x18 * B2[2] - x47 * dk2dTL[9] + x48 * dk2dTL[11];
-  dk3dTL[11] = (1.0 / 2.0) * h * lambda * B2[1] * dk2dTL[9] - x16 * B2[0] +
-               x18 * B2[1] - x48 * dk2dTL[10];
+  dk3dTL[5] = (1.0 / 2.0) * B2[1] * h * l * dk2dTL[3] - x13 - x48 * dk2dTL[4];
+  dk3dTL[6] = (1.0 / 2.0) * B2[2] * h * l * dk2dTL[7] - x11 - x49 * dk2dTL[8];
+  dk3dTL[7] = x13 - x47 * dk2dTL[6] + x48 * dk2dTL[8];
+  dk3dTL[8] = (1.0 / 2.0) * B2[1] * h * l * dk2dTL[6] - x48 * dk2dTL[7];
+  dk3dTL[9] = -B2[1] * x16 + (1.0 / 2.0) * B2[2] * h * l * dk2dTL[10] +
+              B2[2] * x17 - x49 * dk2dTL[11];
+  dk3dTL[10] = B2[0] * x16 - B2[2] * x18 - x47 * dk2dTL[9] + x48 * dk2dTL[11];
+  dk3dTL[11] = -B2[0] * x17 + (1.0 / 2.0) * B2[1] * h * l * dk2dTL[9] +
+               B2[1] * x18 - x48 * dk2dTL[10];
   T dFdTL[12];
   dFdTL[0] = h + x32 * dk2dTL[0] + x32 * dk3dTL[0];
   dFdTL[1] = x32 * dk2dTL[1] + x32 * dk3dTL[1] - x54;
@@ -199,35 +195,35 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
   dFdTL[10] = x32 * (x43 + dk2dTL[10] + dk3dTL[10]);
   dFdTL[11] = x32 * (x41 + dk2dTL[11] + dk3dTL[11]);
   T dk4dTL[12];
-  dk4dTL[0] = h * lambda * B3[2] * dk3dTL[1] - x50 * dk3dTL[2];
-  dk4dTL[1] = h * lambda * B3[0] * dk3dTL[2] - x24 - x51 * dk3dTL[0];
-  dk4dTL[2] = x26 + x50 * dk3dTL[0] - x52 * dk3dTL[1];
-  dk4dTL[3] = x24 - x50 * dk3dTL[5] + x51 * dk3dTL[4];
+  dk4dTL[0] = B3[2] * h * l * dk3dTL[1] - x50 * dk3dTL[2];
+  dk4dTL[1] = B3[0] * h * l * dk3dTL[2] - x28 - x51 * dk3dTL[0];
+  dk4dTL[2] = x24 + x50 * dk3dTL[0] - x52 * dk3dTL[1];
+  dk4dTL[3] = x28 - x50 * dk3dTL[5] + x51 * dk3dTL[4];
   dk4dTL[4] = -x51 * dk3dTL[3] + x52 * dk3dTL[5];
-  dk4dTL[5] = h * lambda * B3[1] * dk3dTL[3] - x28 - x52 * dk3dTL[4];
-  dk4dTL[6] = h * lambda * B3[2] * dk3dTL[7] - x26 - x50 * dk3dTL[8];
-  dk4dTL[7] = x28 - x51 * dk3dTL[6] + x52 * dk3dTL[8];
-  dk4dTL[8] = h * lambda * B3[1] * dk3dTL[6] - x52 * dk3dTL[7];
-  dk4dTL[9] = h * lambda * B3[2] * dk3dTL[10] + x23 * B3[2] - x25 * B3[1] -
+  dk4dTL[5] = B3[1] * h * l * dk3dTL[3] - x26 - x52 * dk3dTL[4];
+  dk4dTL[6] = B3[2] * h * l * dk3dTL[7] - x24 - x50 * dk3dTL[8];
+  dk4dTL[7] = x26 - x51 * dk3dTL[6] + x52 * dk3dTL[8];
+  dk4dTL[8] = B3[1] * h * l * dk3dTL[6] - x52 * dk3dTL[7];
+  dk4dTL[9] = -B3[1] * x23 + B3[2] * h * l * dk3dTL[10] + B3[2] * x25 -
               x50 * dk3dTL[11];
-  dk4dTL[10] = x25 * B3[0] - x27 * B3[2] - x51 * dk3dTL[9] + x52 * dk3dTL[11];
-  dk4dTL[11] = h * lambda * B3[1] * dk3dTL[9] - x23 * B3[0] + x27 * B3[1] -
-               x52 * dk3dTL[10];
+  dk4dTL[10] = B3[0] * x23 - B3[2] * x27 - x51 * dk3dTL[9] + x52 * dk3dTL[11];
+  dk4dTL[11] =
+      -B3[0] * x25 + B3[1] * h * l * dk3dTL[9] + B3[1] * x27 - x52 * dk3dTL[10];
   T dGdTL[12];
-  dGdTL[0] = x33 * dk4dTL[0] + x57 * dk2dTL[0] + x57 * dk3dTL[0] + 1;
-  dGdTL[1] = x33 * dk4dTL[1] + x57 * dk2dTL[1] + x57 * dk3dTL[1] - x59;
-  dGdTL[2] = x33 * dk4dTL[2] + x57 * dk2dTL[2] + x57 * dk3dTL[2] + x60;
-  dGdTL[3] = x33 * dk4dTL[3] + x57 * dk2dTL[3] + x57 * dk3dTL[3] + x59;
-  dGdTL[4] = x33 * dk4dTL[4] + x57 * dk2dTL[4] + x57 * dk3dTL[4] + 1;
-  dGdTL[5] = x33 * dk4dTL[5] + x57 * dk2dTL[5] + x57 * dk3dTL[5] - x61;
-  dGdTL[6] = x33 * dk4dTL[6] + x57 * dk2dTL[6] + x57 * dk3dTL[6] - x60;
-  dGdTL[7] = x33 * dk4dTL[7] + x57 * dk2dTL[7] + x57 * dk3dTL[7] + x61;
-  dGdTL[8] = x33 * dk4dTL[8] + x57 * dk2dTL[8] + x57 * dk3dTL[8] + 1;
-  dGdTL[9] = x33 * x46 + x33 * dk4dTL[9] + x57 * dk2dTL[9] + x57 * dk3dTL[9];
+  dGdTL[0] = x34 * dk4dTL[0] + x57 * dk2dTL[0] + x57 * dk3dTL[0] + 1;
+  dGdTL[1] = x34 * dk4dTL[1] + x57 * dk2dTL[1] + x57 * dk3dTL[1] - x59;
+  dGdTL[2] = x34 * dk4dTL[2] + x57 * dk2dTL[2] + x57 * dk3dTL[2] + x60;
+  dGdTL[3] = x34 * dk4dTL[3] + x57 * dk2dTL[3] + x57 * dk3dTL[3] + x59;
+  dGdTL[4] = x34 * dk4dTL[4] + x57 * dk2dTL[4] + x57 * dk3dTL[4] + 1;
+  dGdTL[5] = x34 * dk4dTL[5] + x57 * dk2dTL[5] + x57 * dk3dTL[5] - x61;
+  dGdTL[6] = x34 * dk4dTL[6] + x57 * dk2dTL[6] + x57 * dk3dTL[6] - x60;
+  dGdTL[7] = x34 * dk4dTL[7] + x57 * dk2dTL[7] + x57 * dk3dTL[7] + x61;
+  dGdTL[8] = x34 * dk4dTL[8] + x57 * dk2dTL[8] + x57 * dk3dTL[8] + 1;
+  dGdTL[9] = x34 * x46 + x34 * dk4dTL[9] + x57 * dk2dTL[9] + x57 * dk3dTL[9];
   dGdTL[10] =
-      x33 * x43 + x33 * dk4dTL[10] + x57 * dk2dTL[10] + x57 * dk3dTL[10];
+      x34 * x43 + x34 * dk4dTL[10] + x57 * dk2dTL[10] + x57 * dk3dTL[10];
   dGdTL[11] =
-      x33 * x41 + x33 * dk4dTL[11] + x57 * dk2dTL[11] + x57 * dk3dTL[11];
+      x34 * x41 + x34 * dk4dTL[11] + x57 * dk2dTL[11] + x57 * dk3dTL[11];
   T new_J[64];
   new_J[0] = 1;
   new_J[1] = 0;
@@ -291,11 +287,531 @@ Acts::Result<bool> rk4(const T* p, const T* d, const T t, const T h,
               dFdTL[10];
   new_J[58] = J[34] * dGdTL[9] + J[42] * dGdTL[10] + J[50] * dGdTL[11] + J[58] +
               dFdTL[11];
-  new_J[59] = J[59] + h * lambda * x35 / dtds;
+  new_J[59] = J[59] + h * l * x33 / dtds;
   new_J[60] = J[36] * dGdTL[9] + J[44] * dGdTL[10] + J[52] * dGdTL[11] + J[60];
   new_J[61] = J[37] * dGdTL[9] + J[45] * dGdTL[10] + J[53] * dGdTL[11] + J[61];
   new_J[62] = J[38] * dGdTL[9] + J[46] * dGdTL[10] + J[54] * dGdTL[11] + J[62];
   new_J[63] = 1;
+  J[0] = new_J[0];
+  J[1] = new_J[1];
+  J[2] = new_J[2];
+  J[3] = new_J[3];
+  J[4] = new_J[4];
+  J[5] = new_J[5];
+  J[6] = new_J[6];
+  J[7] = new_J[7];
+  J[8] = new_J[8];
+  J[9] = new_J[9];
+  J[10] = new_J[10];
+  J[11] = new_J[11];
+  J[12] = new_J[12];
+  J[13] = new_J[13];
+  J[14] = new_J[14];
+  J[15] = new_J[15];
+  J[16] = new_J[16];
+  J[17] = new_J[17];
+  J[18] = new_J[18];
+  J[19] = new_J[19];
+  J[20] = new_J[20];
+  J[21] = new_J[21];
+  J[22] = new_J[22];
+  J[23] = new_J[23];
+  J[24] = new_J[24];
+  J[25] = new_J[25];
+  J[26] = new_J[26];
+  J[27] = new_J[27];
+  J[28] = new_J[28];
+  J[29] = new_J[29];
+  J[30] = new_J[30];
+  J[31] = new_J[31];
+  J[32] = new_J[32];
+  J[33] = new_J[33];
+  J[34] = new_J[34];
+  J[35] = new_J[35];
+  J[36] = new_J[36];
+  J[37] = new_J[37];
+  J[38] = new_J[38];
+  J[39] = new_J[39];
+  J[40] = new_J[40];
+  J[41] = new_J[41];
+  J[42] = new_J[42];
+  J[43] = new_J[43];
+  J[44] = new_J[44];
+  J[45] = new_J[45];
+  J[46] = new_J[46];
+  J[47] = new_J[47];
+  J[48] = new_J[48];
+  J[49] = new_J[49];
+  J[50] = new_J[50];
+  J[51] = new_J[51];
+  J[52] = new_J[52];
+  J[53] = new_J[53];
+  J[54] = new_J[54];
+  J[55] = new_J[55];
+  J[56] = new_J[56];
+  J[57] = new_J[57];
+  J[58] = new_J[58];
+  J[59] = new_J[59];
+  J[60] = new_J[60];
+  J[61] = new_J[61];
+  J[62] = new_J[62];
+  J[63] = new_J[63];
+  return Acts::Result<bool>::success(true);
+}
+template <typename T, typename GetB, typename GetG>
+Acts::Result<bool> rk4_dense(const T* p, const T* d, const T t, const T h,
+                             const T l, const T m, const T q, const T p_abs,
+                             GetB getB, GetG getG, T* err, const T errTol,
+                             T* new_p, T* new_t, T* new_d, T* path_derivatives,
+                             T* J) {
+  const auto B1res = getB(p);
+  if (!B1res.ok()) {
+    return Acts::Result<bool>::failure(B1res.error());
+  }
+  const auto B1 = *B1res;
+  const auto g1 = getG(l);
+  const auto x0 = std::pow(m, 2);
+  const auto x4 = std::pow(q, -3);
+  const auto x8 = 1.0 / q;
+  const auto x10 = std::pow(h, 2);
+  const auto x9 = d[0] * h;
+  const auto x13 = d[1] * h;
+  const auto x15 = d[2] * h;
+  const auto x11 = (1.0 / 8.0) * x10;
+  const auto x5 = x0 * x4;
+  const auto dtds = std::sqrt(std::pow(p_abs, 2) + x0) / p_abs;
+  const auto x1 = d[2] * dtds;
+  const auto x2 = B1[2] * dtds;
+  const auto x3 = B1[0] * dtds;
+  const auto x6 = std::pow(dtds, 3) * g1;
+  const auto x7 = x5 * x6;
+  T k1[5];
+  k1[0] = -B1[1] * x1 + B1[2] * d[1] * dtds;
+  k1[1] = B1[0] * x1 - d[0] * x2;
+  k1[2] = B1[1] * d[0] * dtds - d[1] * x3;
+  k1[3] = x7 / l;
+  k1[4] = -std::pow(dtds, 2) * g1 * x8;
+  const auto x12 = p[0] + x11 * k1[0] + (1.0 / 2.0) * x9;
+  const auto x14 = p[1] + x11 * k1[1] + (1.0 / 2.0) * x13;
+  const auto x16 = p[2] + x11 * k1[2] + (1.0 / 2.0) * x15;
+  T p2[3];
+  p2[0] = x12;
+  p2[1] = x14;
+  p2[2] = x16;
+  const auto B2res = getB(p2);
+  if (!B2res.ok()) {
+    return Acts::Result<bool>::failure(B2res.error());
+  }
+  const auto B2 = *B2res;
+  const auto x20 = (1.0 / 2.0) * h;
+  const auto x25 = dtds + x20 * k1[4];
+  T l2[1];
+  *l2 = x25;
+  const auto g2 = getG(*l2);
+  const auto x31 = B2[1] * x25;
+  const auto x32 = B2[0] * x25;
+  const auto x33 = B2[2] * x25;
+  const auto x34 = g2 * std::pow(x25, 3);
+  const auto x21 = d[0] + x20 * k1[0];
+  const auto x22 = d[1] + x20 * k1[1];
+  const auto x23 = d[2] + x20 * k1[2];
+  const auto x24 = l + x20 * k1[3];
+  const auto x35 = x34 * x5;
+  T k2[5];
+  k2[0] = B2[2] * x22 * x25 - x23 * x31;
+  k2[1] = -x21 * x33 + x23 * x32;
+  k2[2] = B2[1] * x21 * x25 - x22 * x32;
+  k2[3] = x35 / x24;
+  k2[4] = -g2 * std::pow(x25, 2) * x8;
+  const auto x30 = dtds + x20 * k2[4];
+  T l3[1];
+  *l3 = x30;
+  const auto g3 = getG(*l3);
+  const auto x41 = std::pow(x30, 2);
+  const auto x43 = (1.0 / 2.0) * x10;
+  const auto x36 = B2[1] * x30;
+  const auto x37 = B2[0] * x30;
+  const auto x38 = B2[2] * x30;
+  const auto x42 = g3 * x8;
+  const auto x44 = p[0] + x9;
+  const auto x46 = p[1] + x13;
+  const auto x48 = p[2] + x15;
+  const auto x26 = d[0] + x20 * k2[0];
+  const auto x27 = d[1] + x20 * k2[1];
+  const auto x28 = d[2] + x20 * k2[2];
+  const auto x29 = l + x20 * k2[3];
+  const auto x40 = g3 * std::pow(x30, 3) * x5;
+  const auto x39 = 1.0 / x29;
+  T k3[5];
+  k3[0] = B2[2] * x27 * x30 - x28 * x36;
+  k3[1] = -x26 * x38 + x28 * x37;
+  k3[2] = B2[1] * x26 * x30 - x27 * x37;
+  k3[3] = x39 * x40;
+  k3[4] = -x41 * x42;
+  const auto x45 = x43 * k3[0] + x44;
+  const auto x47 = x43 * k3[1] + x46;
+  const auto x49 = x43 * k3[2] + x48;
+  T p3[3];
+  p3[0] = x45;
+  p3[1] = x47;
+  p3[2] = x49;
+  const auto B3res = getB(p3);
+  if (!B3res.ok()) {
+    return Acts::Result<bool>::failure(B3res.error());
+  }
+  const auto B3 = *B3res;
+  const auto x56 = dtds + h * k3[4];
+  T l4[1];
+  *l4 = x56;
+  const auto g4 = getG(*l4);
+  const auto x62 = std::pow(x56, 2);
+  const auto x57 = B3[1] * x56;
+  const auto x58 = B3[0] * x56;
+  const auto x59 = B3[2] * x56;
+  const auto x63 = g4 * x8;
+  const auto x52 = d[0] + h * k3[0];
+  const auto x53 = d[1] + h * k3[1];
+  const auto x54 = d[2] + h * k3[2];
+  const auto x55 = h * k3[3] + l;
+  const auto x61 = g4 * x5 * std::pow(x56, 3);
+  const auto x60 = 1.0 / x55;
+  T k4[5];
+  k4[0] = B3[2] * x53 * x56 - x54 * x57;
+  k4[1] = -x52 * x59 + x54 * x58;
+  k4[2] = B3[1] * x52 * x56 - x53 * x58;
+  k4[3] = x60 * x61;
+  k4[4] = -x62 * x63;
+  const auto x64 = k1[0] + k4[0];
+  const auto x65 = k1[1] + k4[1];
+  const auto x66 = k1[2] + k4[2];
+  *err =
+      x10 * (std::fabs(-x64 + k2[0] + k3[0]) + std::fabs(-x65 + k2[1] + k3[1]) +
+             std::fabs(-x66 + k2[2] + k3[2]));
+  if (*err > errTol) {
+    return Acts::Result<bool>::success(false);
+  }
+  const auto x67 = (1.0 / 6.0) * x10;
+  const auto x68 = x44 + x67 * (k1[0] + k2[0] + k3[0]);
+  const auto x69 = x46 + x67 * (k1[1] + k2[1] + k3[1]);
+  const auto x70 = x48 + x67 * (k1[2] + k2[2] + k3[2]);
+  new_p[0] = x68;
+  new_p[1] = x69;
+  new_p[2] = x70;
+  const auto x17 = h * l;
+  const auto x50 = t + x17;
+  const auto x71 = x50 + x67 * (k1[3] + k2[3] + k3[3]);
+  *new_t = x71;
+  if (J == nullptr) {
+    return Acts::Result<bool>::success(true);
+  }
+  const auto x72 = (1.0 / 6.0) * h;
+  const auto x73 = d[0] + x72 * (x64 + 2 * k2[0] + 2 * k3[0]);
+  const auto x74 = d[1] + x72 * (x65 + 2 * k2[1] + 2 * k3[1]);
+  const auto x75 = d[2] + x72 * (x66 + 2 * k2[2] + 2 * k3[2]);
+  T new_d_tmp[3];
+  new_d_tmp[0] = x73;
+  new_d_tmp[1] = x74;
+  new_d_tmp[2] = x75;
+  const auto x77 = 1.0 / std::sqrt(std::pow(std::fabs(new_d_tmp[0]), 2) +
+                                   std::pow(std::fabs(new_d_tmp[1]), 2) +
+                                   std::pow(std::fabs(new_d_tmp[2]), 2));
+  new_d[0] = x77 * new_d_tmp[0];
+  new_d[1] = x77 * new_d_tmp[1];
+  new_d[2] = x77 * new_d_tmp[2];
+  const auto x76 = dtds + x72 * (k1[4] + 2 * k2[4] + 2 * k3[4] + k4[4]);
+  const auto new_l = x76;
+  T new_ydot[5];
+  new_ydot[0] = x73;
+  new_ydot[1] = x74;
+  new_ydot[2] = x75;
+  new_ydot[3] = l + x72 * (k1[3] + 2 * k2[3] + 2 * k3[3] + k4[3]);
+  new_ydot[4] = x76;
+  path_derivatives[0] = new_d[0];
+  path_derivatives[1] = new_d[1];
+  path_derivatives[2] = new_d[2];
+  path_derivatives[3] = new_ydot[3];
+  path_derivatives[4] = k4[0];
+  path_derivatives[5] = k4[1];
+  path_derivatives[6] = k4[2];
+  path_derivatives[7] = new_l;
+  const auto x84 = std::pow(x24, -2);
+  const auto x85 = std::pow(l, -2);
+  const auto x111 = (1.0 / 3.0) * h;
+  const auto x18 = dtds * h;
+  const auto x86 = x20 * x36;
+  const auto x87 = x20 * x38;
+  const auto x88 = x20 * x28;
+  const auto x90 = x20 * x37;
+  const auto x93 = x40 / std::pow(x29, 2);
+  const auto x95 = x30 * x42;
+  const auto x97 = h * x59;
+  const auto x98 = h * x57;
+  const auto x99 = h * x54;
+  const auto x101 = h * x58;
+  const auto x104 = x61 / std::pow(x55, 2);
+  const auto x108 = x2 * x67;
+  const auto x110 = x3 * x67;
+  const auto x106 = 2 * x56 * x63;
+  const auto x109 = B1[1] * dtds * x67;
+  const auto x103 = h * (-B3[0] * x53 + B3[1] * x52);
+  const auto x92 = -B2[0] * x20 * x27 + (1.0 / 2.0) * B2[1] * h * x26;
+  const auto x19 = (1.0 / 2.0) * x18;
+  const auto x112 = (1.0 / 6.0) * x18;
+  const auto x94 = x20 * x93;
+  const auto x96 = h * x95;
+  const auto x105 = h * x104;
+  const auto x107 = h * x106;
+  const auto x89 = -B2[1] * x88 + (1.0 / 2.0) * B2[2] * h * x27;
+  const auto x91 = B2[0] * x88 - B2[2] * x20 * x26;
+  const auto x100 = -B3[1] * x99 + B3[2] * h * x53;
+  const auto x102 = B3[0] * x99 - B3[2] * h * x52;
+  const auto x78 = x19 * x31;
+  const auto x80 = x19 * x33;
+  const auto x82 = x19 * x32;
+  const auto x113 = B1[2] * x112;
+  const auto x114 = B1[1] * x112;
+  const auto x115 = B1[0] * x112;
+  const auto x79 = B1[1] * x78;
+  const auto x81 = B1[2] * x80;
+  const auto x83 = B1[0] * x82;
+  T dk2dTL[25];
+  dk2dTL[0] = 0;
+  dk2dTL[1] = 0;
+  dk2dTL[2] = 0;
+  dk2dTL[3] = 0;
+  dk2dTL[4] = 0;
+  dk2dTL[5] = -x79 - x81;
+  dk2dTL[6] = B1[1] * x82 - x33;
+  dk2dTL[7] = B1[2] * x82 + x31;
+  dk2dTL[8] = 0;
+  dk2dTL[9] = 0;
+  dk2dTL[10] = B1[0] * x78 + x33;
+  dk2dTL[11] = -x81 - x83;
+  dk2dTL[12] = B1[2] * x78 - x32;
+  dk2dTL[13] = 0;
+  dk2dTL[14] = 0;
+  dk2dTL[15] = B1[0] * x80 - x31;
+  dk2dTL[16] = B1[1] * x80 + x32;
+  dk2dTL[17] = -x79 - x83;
+  dk2dTL[18] = 0;
+  dk2dTL[19] = 0;
+  dk2dTL[20] = 0;
+  dk2dTL[21] = 0;
+  dk2dTL[22] = 0;
+  dk2dTL[23] =
+      std::pow(m, 4) * x20 * x34 * x6 * x84 * x85 / std::pow(q, 6) - x35 * x84;
+  dk2dTL[24] = 0;
+  T dk3dTL[25];
+  dk3dTL[0] = -x86 * dk2dTL[2] + x87 * dk2dTL[1] + x89 * dk2dTL[4];
+  dk3dTL[1] = -x87 * dk2dTL[0] + x90 * dk2dTL[2] + x91 * dk2dTL[4];
+  dk3dTL[2] = x86 * dk2dTL[0] - x90 * dk2dTL[1] + x92 * dk2dTL[4];
+  dk3dTL[3] =
+      (3.0 / 2.0) * g3 * h * x0 * x39 * x4 * x41 * dk2dTL[4] - x94 * dk2dTL[3];
+  dk3dTL[4] = -h * x95 * dk2dTL[4];
+  dk3dTL[5] = -x86 * dk2dTL[7] + x87 * dk2dTL[6] + x89 * dk2dTL[9];
+  dk3dTL[6] = -x38 - x87 * dk2dTL[5] + x90 * dk2dTL[7] + x91 * dk2dTL[9];
+  dk3dTL[7] = x36 + x86 * dk2dTL[5] - x90 * dk2dTL[6] + x92 * dk2dTL[9];
+  dk3dTL[8] =
+      (3.0 / 2.0) * g3 * h * x0 * x39 * x4 * x41 * dk2dTL[9] - x94 * dk2dTL[8];
+  dk3dTL[9] = -x96 * dk2dTL[9];
+  dk3dTL[10] = x38 - x86 * dk2dTL[12] + x87 * dk2dTL[11] + x89 * dk2dTL[14];
+  dk3dTL[11] = -x87 * dk2dTL[10] + x90 * dk2dTL[12] + x91 * dk2dTL[14];
+  dk3dTL[12] = (1.0 / 2.0) * B2[1] * h * x30 * dk2dTL[10] - x37 -
+               x90 * dk2dTL[11] + x92 * dk2dTL[14];
+  dk3dTL[13] = (3.0 / 2.0) * g3 * h * x0 * x39 * x4 * x41 * dk2dTL[14] -
+               x94 * dk2dTL[13];
+  dk3dTL[14] = -x96 * dk2dTL[14];
+  dk3dTL[15] = (1.0 / 2.0) * B2[2] * h * x30 * dk2dTL[16] - x36 -
+               x86 * dk2dTL[17] + x89 * dk2dTL[19];
+  dk3dTL[16] = x37 - x87 * dk2dTL[15] + x90 * dk2dTL[17] + x91 * dk2dTL[19];
+  dk3dTL[17] = x86 * dk2dTL[15] - x90 * dk2dTL[16] + x92 * dk2dTL[19];
+  dk3dTL[18] = (3.0 / 2.0) * g3 * h * x0 * x39 * x4 * x41 * dk2dTL[19] -
+               x94 * dk2dTL[18];
+  dk3dTL[19] = -x96 * dk2dTL[19];
+  dk3dTL[20] = -x86 * dk2dTL[22] + x87 * dk2dTL[21] + x89 * dk2dTL[24];
+  dk3dTL[21] = -x87 * dk2dTL[20] + x90 * dk2dTL[22] + x91 * dk2dTL[24];
+  dk3dTL[22] = x86 * dk2dTL[20] - x90 * dk2dTL[21] + x92 * dk2dTL[24];
+  dk3dTL[23] = (3.0 / 2.0) * g3 * h * x0 * x39 * x4 * x41 * dk2dTL[24] - x93 -
+               x94 * dk2dTL[23];
+  dk3dTL[24] = -x96 * dk2dTL[24];
+  T dFdTL[20];
+  dFdTL[0] = x67 * (dk2dTL[0] + dk3dTL[0]);
+  dFdTL[1] = x67 * (dk2dTL[1] + dk3dTL[1]);
+  dFdTL[2] = x67 * (dk2dTL[2] + dk3dTL[2]);
+  dFdTL[3] = x67 * dk2dTL[3] + x67 * dk3dTL[3] + 1;
+  dFdTL[4] = h + x67 * dk2dTL[5] + x67 * dk3dTL[5];
+  dFdTL[5] = -x108 + x67 * dk2dTL[6] + x67 * dk3dTL[6];
+  dFdTL[6] = x109 + x67 * dk2dTL[7] + x67 * dk3dTL[7];
+  dFdTL[7] = x67 * (dk2dTL[8] + dk3dTL[8]);
+  dFdTL[8] = x108 + x67 * dk2dTL[10] + x67 * dk3dTL[10];
+  dFdTL[9] = h + x67 * dk2dTL[11] + x67 * dk3dTL[11];
+  dFdTL[10] = -x110 + x67 * dk2dTL[12] + x67 * dk3dTL[12];
+  dFdTL[11] = x67 * (dk2dTL[13] + dk3dTL[13]);
+  dFdTL[12] = -x109 + x67 * dk2dTL[15] + x67 * dk3dTL[15];
+  dFdTL[13] = x110 + x67 * dk2dTL[16] + x67 * dk3dTL[16];
+  dFdTL[14] = h + x67 * dk2dTL[17] + x67 * dk3dTL[17];
+  dFdTL[15] = x67 * (dk2dTL[18] + dk3dTL[18]);
+  dFdTL[16] = x67 * (dk2dTL[20] + dk3dTL[20]);
+  dFdTL[17] = x67 * (dk2dTL[21] + dk3dTL[21]);
+  dFdTL[18] = x67 * (dk2dTL[22] + dk3dTL[22]);
+  dFdTL[19] = h - x67 * x7 * x85 + x67 * dk2dTL[23] + x67 * dk3dTL[23];
+  T dk4dTL[25];
+  dk4dTL[0] = x100 * dk3dTL[4] + x97 * dk3dTL[1] - x98 * dk3dTL[2];
+  dk4dTL[1] = x101 * dk3dTL[2] + x102 * dk3dTL[4] - x97 * dk3dTL[0];
+  dk4dTL[2] = -x101 * dk3dTL[1] + x103 * dk3dTL[4] + x98 * dk3dTL[0];
+  dk4dTL[3] = 3 * g4 * h * x0 * x4 * x60 * x62 * dk3dTL[4] - x105 * dk3dTL[3];
+  dk4dTL[4] = -h * x106 * dk3dTL[4];
+  dk4dTL[5] = x100 * dk3dTL[9] + x97 * dk3dTL[6] - x98 * dk3dTL[7];
+  dk4dTL[6] = x101 * dk3dTL[7] + x102 * dk3dTL[9] - x59 - x97 * dk3dTL[5];
+  dk4dTL[7] = -x101 * dk3dTL[6] + x103 * dk3dTL[9] + x57 + x98 * dk3dTL[5];
+  dk4dTL[8] = 3 * g4 * h * x0 * x4 * x60 * x62 * dk3dTL[9] - x105 * dk3dTL[8];
+  dk4dTL[9] = -x107 * dk3dTL[9];
+  dk4dTL[10] = x100 * dk3dTL[14] + x59 + x97 * dk3dTL[11] - x98 * dk3dTL[12];
+  dk4dTL[11] = x101 * dk3dTL[12] + x102 * dk3dTL[14] - x97 * dk3dTL[10];
+  dk4dTL[12] = B3[1] * h * x56 * dk3dTL[10] - x101 * dk3dTL[11] +
+               x103 * dk3dTL[14] - x58;
+  dk4dTL[13] =
+      3 * g4 * h * x0 * x4 * x60 * x62 * dk3dTL[14] - x105 * dk3dTL[13];
+  dk4dTL[14] = -x107 * dk3dTL[14];
+  dk4dTL[15] =
+      B3[2] * h * x56 * dk3dTL[16] + x100 * dk3dTL[19] - x57 - x98 * dk3dTL[17];
+  dk4dTL[16] = x101 * dk3dTL[17] + x102 * dk3dTL[19] + x58 - x97 * dk3dTL[15];
+  dk4dTL[17] = -x101 * dk3dTL[16] + x103 * dk3dTL[19] + x98 * dk3dTL[15];
+  dk4dTL[18] =
+      3 * g4 * h * x0 * x4 * x60 * x62 * dk3dTL[19] - x105 * dk3dTL[18];
+  dk4dTL[19] = -x107 * dk3dTL[19];
+  dk4dTL[20] = x100 * dk3dTL[24] + x97 * dk3dTL[21] - x98 * dk3dTL[22];
+  dk4dTL[21] = x101 * dk3dTL[22] + x102 * dk3dTL[24] - x97 * dk3dTL[20];
+  dk4dTL[22] = -x101 * dk3dTL[21] + x103 * dk3dTL[24] + x98 * dk3dTL[20];
+  dk4dTL[23] =
+      3 * g4 * h * x0 * x4 * x60 * x62 * dk3dTL[24] - x104 - x105 * dk3dTL[23];
+  dk4dTL[24] = -x107 * dk3dTL[24];
+  T dGdTL[20];
+  dGdTL[0] = x111 * dk2dTL[0] + x111 * dk3dTL[0] + x72 * dk4dTL[0];
+  dGdTL[1] = x111 * dk2dTL[1] + x111 * dk3dTL[1] + x72 * dk4dTL[1];
+  dGdTL[2] = x111 * dk2dTL[2] + x111 * dk3dTL[2] + x72 * dk4dTL[2];
+  dGdTL[3] = x111 * dk2dTL[4] + x111 * dk3dTL[4] + x72 * dk4dTL[4];
+  dGdTL[4] = x111 * dk2dTL[5] + x111 * dk3dTL[5] + x72 * dk4dTL[5] + 1;
+  dGdTL[5] = x111 * dk2dTL[6] + x111 * dk3dTL[6] - x113 + x72 * dk4dTL[6];
+  dGdTL[6] = x111 * dk2dTL[7] + x111 * dk3dTL[7] + x114 + x72 * dk4dTL[7];
+  dGdTL[7] = x111 * dk2dTL[9] + x111 * dk3dTL[9] + x72 * dk4dTL[9];
+  dGdTL[8] = x111 * dk2dTL[10] + x111 * dk3dTL[10] + x113 + x72 * dk4dTL[10];
+  dGdTL[9] = x111 * dk2dTL[11] + x111 * dk3dTL[11] + x72 * dk4dTL[11] + 1;
+  dGdTL[10] = x111 * dk2dTL[12] + x111 * dk3dTL[12] - x115 + x72 * dk4dTL[12];
+  dGdTL[11] = x111 * dk2dTL[14] + x111 * dk3dTL[14] + x72 * dk4dTL[14];
+  dGdTL[12] = x111 * dk2dTL[15] + x111 * dk3dTL[15] - x114 + x72 * dk4dTL[15];
+  dGdTL[13] = x111 * dk2dTL[16] + x111 * dk3dTL[16] + x115 + x72 * dk4dTL[16];
+  dGdTL[14] = x111 * dk2dTL[17] + x111 * dk3dTL[17] + x72 * dk4dTL[17] + 1;
+  dGdTL[15] = x111 * dk2dTL[19] + x111 * dk3dTL[19] + x72 * dk4dTL[19];
+  dGdTL[16] = x111 * dk2dTL[20] + x111 * dk3dTL[20] + x72 * dk4dTL[20];
+  dGdTL[17] = x111 * dk2dTL[21] + x111 * dk3dTL[21] + x72 * dk4dTL[21];
+  dGdTL[18] = x111 * dk2dTL[22] + x111 * dk3dTL[22] + x72 * dk4dTL[22];
+  dGdTL[19] = x111 * dk2dTL[24] + x111 * dk3dTL[24] + x72 * dk4dTL[24];
+  T new_J[64];
+  new_J[0] = 1;
+  new_J[1] = 0;
+  new_J[2] = 0;
+  new_J[3] = 0;
+  new_J[4] = 0;
+  new_J[5] = 0;
+  new_J[6] = 0;
+  new_J[7] = 0;
+  new_J[8] = 0;
+  new_J[9] = 1;
+  new_J[10] = 0;
+  new_J[11] = 0;
+  new_J[12] = 0;
+  new_J[13] = 0;
+  new_J[14] = 0;
+  new_J[15] = 0;
+  new_J[16] = 0;
+  new_J[17] = 0;
+  new_J[18] = 1;
+  new_J[19] = 0;
+  new_J[20] = 0;
+  new_J[21] = 0;
+  new_J[22] = 0;
+  new_J[23] = 0;
+  new_J[24] = J[24] * dFdTL[3] + J[32] * dGdTL[0] + J[40] * dGdTL[1] +
+              J[48] * dGdTL[2] + J[56] * dGdTL[3] + dFdTL[0];
+  new_J[25] = J[25] * dFdTL[3] + J[33] * dGdTL[0] + J[41] * dGdTL[1] +
+              J[49] * dGdTL[2] + J[57] * dGdTL[3] + dFdTL[1];
+  new_J[26] = J[26] * dFdTL[3] + J[34] * dGdTL[0] + J[42] * dGdTL[1] +
+              J[50] * dGdTL[2] + J[58] * dGdTL[3] + dFdTL[2];
+  new_J[27] = J[27] * dFdTL[3] + J[35] * dGdTL[0] + J[43] * dGdTL[1] +
+              J[51] * dGdTL[2] + J[59] * dGdTL[3];
+  new_J[28] = J[28] * dFdTL[3] + J[36] * dGdTL[0] + J[44] * dGdTL[1] +
+              J[52] * dGdTL[2] + J[60] * dGdTL[3];
+  new_J[29] = J[29] * dFdTL[3] + J[37] * dGdTL[0] + J[45] * dGdTL[1] +
+              J[53] * dGdTL[2] + J[61] * dGdTL[3];
+  new_J[30] = J[30] * dFdTL[3] + J[38] * dGdTL[0] + J[46] * dGdTL[1] +
+              J[54] * dGdTL[2] + J[62] * dGdTL[3];
+  new_J[31] = J[31] * dFdTL[3] + J[39] * dGdTL[0] + J[47] * dGdTL[1] +
+              J[55] * dGdTL[2] + J[63] * dGdTL[3];
+  new_J[32] = J[24] * dFdTL[7] + J[32] * dGdTL[4] + J[40] * dGdTL[5] +
+              J[48] * dGdTL[6] + J[56] * dGdTL[7] + dFdTL[4];
+  new_J[33] = J[25] * dFdTL[7] + J[33] * dGdTL[4] + J[41] * dGdTL[5] +
+              J[49] * dGdTL[6] + J[57] * dGdTL[7] + dFdTL[5];
+  new_J[34] = J[26] * dFdTL[7] + J[34] * dGdTL[4] + J[42] * dGdTL[5] +
+              J[50] * dGdTL[6] + J[58] * dGdTL[7] + dFdTL[6];
+  new_J[35] = J[27] * dFdTL[7] + J[35] * dGdTL[4] + J[43] * dGdTL[5] +
+              J[51] * dGdTL[6] + J[59] * dGdTL[7];
+  new_J[36] = J[28] * dFdTL[7] + J[36] * dGdTL[4] + J[44] * dGdTL[5] +
+              J[52] * dGdTL[6] + J[60] * dGdTL[7];
+  new_J[37] = J[29] * dFdTL[7] + J[37] * dGdTL[4] + J[45] * dGdTL[5] +
+              J[53] * dGdTL[6] + J[61] * dGdTL[7];
+  new_J[38] = J[30] * dFdTL[7] + J[38] * dGdTL[4] + J[46] * dGdTL[5] +
+              J[54] * dGdTL[6] + J[62] * dGdTL[7];
+  new_J[39] = J[31] * dFdTL[7] + J[39] * dGdTL[4] + J[47] * dGdTL[5] +
+              J[55] * dGdTL[6] + J[63] * dGdTL[7];
+  new_J[40] = J[24] * dFdTL[11] + J[32] * dGdTL[8] + J[40] * dGdTL[9] +
+              J[48] * dGdTL[10] + J[56] * dGdTL[11] + dFdTL[8];
+  new_J[41] = J[25] * dFdTL[11] + J[33] * dGdTL[8] + J[41] * dGdTL[9] +
+              J[49] * dGdTL[10] + J[57] * dGdTL[11] + dFdTL[9];
+  new_J[42] = J[26] * dFdTL[11] + J[34] * dGdTL[8] + J[42] * dGdTL[9] +
+              J[50] * dGdTL[10] + J[58] * dGdTL[11] + dFdTL[10];
+  new_J[43] = J[27] * dFdTL[11] + J[35] * dGdTL[8] + J[43] * dGdTL[9] +
+              J[51] * dGdTL[10] + J[59] * dGdTL[11];
+  new_J[44] = J[28] * dFdTL[11] + J[36] * dGdTL[8] + J[44] * dGdTL[9] +
+              J[52] * dGdTL[10] + J[60] * dGdTL[11];
+  new_J[45] = J[29] * dFdTL[11] + J[37] * dGdTL[8] + J[45] * dGdTL[9] +
+              J[53] * dGdTL[10] + J[61] * dGdTL[11];
+  new_J[46] = J[30] * dFdTL[11] + J[38] * dGdTL[8] + J[46] * dGdTL[9] +
+              J[54] * dGdTL[10] + J[62] * dGdTL[11];
+  new_J[47] = J[31] * dFdTL[11] + J[39] * dGdTL[8] + J[47] * dGdTL[9] +
+              J[55] * dGdTL[10] + J[63] * dGdTL[11];
+  new_J[48] = J[24] * dFdTL[15] + J[32] * dGdTL[12] + J[40] * dGdTL[13] +
+              J[48] * dGdTL[14] + J[56] * dGdTL[15] + dFdTL[12];
+  new_J[49] = J[25] * dFdTL[15] + J[33] * dGdTL[12] + J[41] * dGdTL[13] +
+              J[49] * dGdTL[14] + J[57] * dGdTL[15] + dFdTL[13];
+  new_J[50] = J[26] * dFdTL[15] + J[34] * dGdTL[12] + J[42] * dGdTL[13] +
+              J[50] * dGdTL[14] + J[58] * dGdTL[15] + dFdTL[14];
+  new_J[51] = J[27] * dFdTL[15] + J[35] * dGdTL[12] + J[43] * dGdTL[13] +
+              J[51] * dGdTL[14] + J[59] * dGdTL[15];
+  new_J[52] = J[28] * dFdTL[15] + J[36] * dGdTL[12] + J[44] * dGdTL[13] +
+              J[52] * dGdTL[14] + J[60] * dGdTL[15];
+  new_J[53] = J[29] * dFdTL[15] + J[37] * dGdTL[12] + J[45] * dGdTL[13] +
+              J[53] * dGdTL[14] + J[61] * dGdTL[15];
+  new_J[54] = J[30] * dFdTL[15] + J[38] * dGdTL[12] + J[46] * dGdTL[13] +
+              J[54] * dGdTL[14] + J[62] * dGdTL[15];
+  new_J[55] = J[31] * dFdTL[15] + J[39] * dGdTL[12] + J[47] * dGdTL[13] +
+              J[55] * dGdTL[14] + J[63] * dGdTL[15];
+  new_J[56] = J[24] * dFdTL[19] + J[32] * dGdTL[16] + J[40] * dGdTL[17] +
+              J[48] * dGdTL[18] + J[56] * dGdTL[19] + dFdTL[16];
+  new_J[57] = J[25] * dFdTL[19] + J[33] * dGdTL[16] + J[41] * dGdTL[17] +
+              J[49] * dGdTL[18] + J[57] * dGdTL[19] + dFdTL[17];
+  new_J[58] = J[26] * dFdTL[19] + J[34] * dGdTL[16] + J[42] * dGdTL[17] +
+              J[50] * dGdTL[18] + J[58] * dGdTL[19] + dFdTL[18];
+  new_J[59] = J[27] * dFdTL[19] + J[35] * dGdTL[16] + J[43] * dGdTL[17] +
+              J[51] * dGdTL[18] + J[59] * dGdTL[19];
+  new_J[60] = J[28] * dFdTL[19] + J[36] * dGdTL[16] + J[44] * dGdTL[17] +
+              J[52] * dGdTL[18] + J[60] * dGdTL[19];
+  new_J[61] = J[29] * dFdTL[19] + J[37] * dGdTL[16] + J[45] * dGdTL[17] +
+              J[53] * dGdTL[18] + J[61] * dGdTL[19];
+  new_J[62] = J[30] * dFdTL[19] + J[38] * dGdTL[16] + J[46] * dGdTL[17] +
+              J[54] * dGdTL[18] + J[62] * dGdTL[19];
+  new_J[63] = J[31] * dFdTL[19] + J[39] * dGdTL[16] + J[47] * dGdTL[17] +
+              J[55] * dGdTL[18] + J[63] * dGdTL[19];
   J[0] = new_J[0];
   J[1] = new_J[1];
   J[2] = new_J[2];

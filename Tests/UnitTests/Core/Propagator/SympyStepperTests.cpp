@@ -53,6 +53,16 @@ static constexpr auto eps = 3 * std::numeric_limits<double>::epsilon();
 GeometryContext tgContext = GeometryContext();
 MagneticFieldContext mfContext = MagneticFieldContext();
 
+struct MockNavigator {
+  struct State {};
+
+  const IVolumeMaterial* currentVolumeMaterial(const State& /*state*/) const {
+    return nullptr;
+  }
+};
+
+static constexpr MockNavigator mockNavigator;
+
 /// @brief Simplified propagator state
 template <typename stepper_state_t>
 struct PropState {
@@ -63,6 +73,8 @@ struct PropState {
   }
   /// State of the sympy stepper
   stepper_state_t stepping;
+  /// State of the navigator
+  MockNavigator::State navigation;
   /// Propagator options which only carry the relevant components
   struct {
     Direction direction = Direction::Forward();
@@ -73,10 +85,6 @@ struct PropState {
     } stepping;
   } options;
 };
-
-struct MockNavigator {};
-
-static constexpr MockNavigator mockNavigator;
 
 /// @brief Aborter for the case that a particle leaves the detector or reaches
 /// a custom made threshold.

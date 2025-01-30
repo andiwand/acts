@@ -34,6 +34,7 @@
 #include "Acts/Propagator/EigenStepperDenseExtension.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
@@ -144,7 +145,8 @@ makeDetector(Material material, double thickness) {
 
 auto makePropagator(std::shared_ptr<const TrackingGeometry> detector,
                     std::shared_ptr<const MagneticFieldProvider> bfield) {
-  using Stepper = EigenStepper<EigenStepperDenseExtension>;
+  // using Stepper = EigenStepper<EigenStepperDenseExtension>;
+  using Stepper = SympyStepper;
   using Navigator = Navigator;
   using Propagator = Propagator<Stepper, Navigator>;
 

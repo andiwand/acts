@@ -24,6 +24,8 @@
 
 namespace Acts {
 
+class IVolumeMaterial;
+
 class SympyStepper {
  public:
   /// Jacobian, Covariance and State definitions
@@ -390,7 +392,8 @@ class SympyStepper {
  private:
   Result<double> stepImpl(State& state, Direction stepDirection,
                           double stepTolerance, double stepSizeCutOff,
-                          std::size_t maxRungeKuttaStepTrials) const;
+                          std::size_t maxRungeKuttaStepTrials,
+                          const IVolumeMaterial* material) const;
 };
 
 template <typename navigator_t>
