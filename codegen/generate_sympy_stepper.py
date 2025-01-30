@@ -615,7 +615,8 @@ def print_rk4_dense(name_exprs, run_cse=True):
 
 
 print(
-    """// This file is part of the ACTS project.
+    """
+// This file is part of the ACTS project.
 //
 // Copyright (C) 2016 CERN for the benefit of the ACTS project
 //
@@ -631,7 +632,7 @@ print(
 #include <Acts/Utilities/Result.hpp>
 
 #include <cmath>
-"""
+""".strip()
 )
 
 all_name_exprs = rk4_vacuum_tunedexpr()
