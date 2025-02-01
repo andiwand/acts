@@ -31,7 +31,7 @@ class MaterialSlab {
   ///
   /// @return The resulting object has the combined thickness of all layers but just
   ///         one set of appropriately averaged material constants.
-  static MaterialSlab averageLayers(const MaterialSlab& layerA,
+  static MaterialSlab combineLayers(const MaterialSlab& layerA,
                                     const MaterialSlab& layerB);
 
   /// Combine material properties of multiple layers by averaging them.
@@ -40,7 +40,7 @@ class MaterialSlab {
   ///
   /// @return The resulting object has the combined thickness of all layers but just
   ///         one set of appropriately averaged material constants.
-  static MaterialSlab averageLayers(const std::vector<MaterialSlab>& layers);
+  static MaterialSlab combineLayers(const std::vector<MaterialSlab>& layers);
 
   /// Construct vacuum without thickness.
   MaterialSlab() = default;

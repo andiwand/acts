@@ -470,7 +470,7 @@ struct EigenStepperDenseExtension {
     MaterialSlab newMaterial(material, h);
 
     accumulatedMaterial =
-        MaterialSlab::averageLayers(accumulatedMaterial, newMaterial);
+        MaterialSlab::combineLayers(accumulatedMaterial, newMaterial);
 
     // handle multiple scattering
     {

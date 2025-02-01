@@ -8,6 +8,12 @@
 
 #include "Acts/Propagator/SympyStepper.hpp"
 
+#include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Definitions/PdgParticle.hpp"
+#include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/Material/IVolumeMaterial.hpp"
+#include "Acts/Material/Interactions.hpp"
+#include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Propagator/detail/SympyCovarianceEngine.hpp"
 #include "Acts/Propagator/detail/SympyJacobianEngine.hpp"
 
@@ -16,6 +22,80 @@
 #include "codegen/sympy_stepper_math.hpp"
 
 namespace Acts {
+
+namespace {
+
+std::optional<FreeMatrix> computeAdditionalFreeCovariance(
+    const SympyStepper& stepper, SympyStepper::State& state) {
+  if (state.denseCache.empty()) {
+    return std::nullopt;
+  }
+
+  FreeMatrix additionalFreeCovariance = FreeMatrix::Zero();
+
+  auto particleHypothesis = stepper.particleHypothesis(state);
+  PdgParticle absPdg = particleHypothesis.absolutePdg();
+  float absQ = particleHypothesis.absoluteCharge();
+  float mass = particleHypothesis.mass();
+
+  MaterialSlab combinedMaterial = state.denseCache.accumulatedMaterial;
+  double totalPath = combinedMaterial.thickness();
+
+  // handle multiple scattering
+  {
+    double qOverP = absQ / state.denseCache.entries.front().momentumInitial;
+
+    double varTheta = 0;
+    double varPos = 0;
+    MaterialSlab accumulatedMaterial;
+    for (auto entry : state.denseCache.samples(1)) {
+      MaterialSlab slab(entry.material, entry.pathLength);
+
+      float theta0in = computeMultipleScatteringTheta0(
+          accumulatedMaterial, absPdg, mass, qOverP, absQ);
+      accumulatedMaterial =
+          MaterialSlab::combineLayers(accumulatedMaterial, slab);
+      float theta0out = computeMultipleScatteringTheta0(
+          accumulatedMaterial, absPdg, mass, qOverP, absQ);
+      double deltaVarTheta = square(theta0out) - square(theta0in);
+      varTheta += deltaVarTheta;
+      double accumulatedPath = accumulatedMaterial.thickness();
+      double remainingPath = totalPath - accumulatedPath;
+      double deltaVarPos = deltaVarTheta * (square(entry.pathLength) / 3 +
+                                            square(remainingPath));
+      varPos += deltaVarPos;
+    }
+
+    // for derivation see
+    // https://github.com/andiwand/cern-scripts/blob/5f0ebf1bef35db65322f28c2e840c1db1aaaf9a7/notebooks/2023-12-07_qp-dense-nav.ipynb
+    //
+    Vector3 direction = stepper.direction(state);
+    SquareMatrix3 directionProjection =
+        (ActsSquareMatrix<3>::Identity() - direction * direction.transpose());
+
+    additionalFreeCovariance.block<3, 3>(eFreeDir0, eFreeDir0) =
+        varTheta * directionProjection;
+    additionalFreeCovariance.block<3, 3>(eFreePos0, eFreePos0) =
+        varPos * directionProjection;
+  }
+
+  // handle energy loss covariance
+  {
+    double qOverP = absQ / state.denseCache.entries.front().momentumInitial;
+
+    float qOverPSigma = computeEnergyLossLandauSigmaQOverP(combinedMaterial,
+                                                           mass, qOverP, absQ);
+
+    additionalFreeCovariance(eFreeQOverP, eFreeQOverP) =
+        qOverPSigma * qOverPSigma;
+  }
+
+  state.denseCache.clear();
+
+  return additionalFreeCovariance;
+}
+
+}  // namespace
 
 SympyStepper::SympyStepper(std::shared_ptr<const MagneticFieldProvider> bField)
     : m_bField(std::move(bField)) {}
@@ -77,19 +157,25 @@ Result<std::tuple<BoundTrackParameters, BoundMatrix, double>>
 SympyStepper::boundState(
     State& state, const Surface& surface, bool transportCov,
     const FreeToBoundCorrection& freeToBoundCorrection) const {
+  std::optional<FreeMatrix> additionalFreeCovariance =
+      computeAdditionalFreeCovariance(*this, state);
   return detail::sympy::boundState(
       state.options.geoContext, surface, state.cov, state.jacobian,
-      state.jacTransport, state.derivative, state.jacToGlobal, state.pars,
-      state.particleHypothesis, state.covTransport && transportCov,
-      state.pathAccumulated, freeToBoundCorrection);
+      state.jacTransport, state.derivative, state.jacToGlobal,
+      additionalFreeCovariance, state.pars, state.particleHypothesis,
+      state.covTransport && transportCov, state.pathAccumulated,
+      freeToBoundCorrection);
 }
 
 std::tuple<CurvilinearTrackParameters, BoundMatrix, double>
 SympyStepper::curvilinearState(State& state, bool transportCov) const {
+  std::optional<FreeMatrix> additionalFreeCovariance =
+      computeAdditionalFreeCovariance(*this, state);
   return detail::sympy::curvilinearState(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
-      state.jacToGlobal, state.pars, state.particleHypothesis,
-      state.covTransport && transportCov, state.pathAccumulated);
+      state.jacToGlobal, additionalFreeCovariance, state.pars,
+      state.particleHypothesis, state.covTransport && transportCov,
+      state.pathAccumulated);
 }
 
 void SympyStepper::update(State& state, const FreeVector& freeParams,
@@ -115,7 +201,8 @@ void SympyStepper::update(State& state, const Vector3& uposition,
 void SympyStepper::transportCovarianceToCurvilinear(State& state) const {
   detail::sympy::transportCovarianceToCurvilinear(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
-      state.jacToGlobal, state.pars.template segment<3>(eFreeDir0));
+      state.jacToGlobal, std::nullopt,
+      state.pars.template segment<3>(eFreeDir0));
 }
 
 void SympyStepper::transportCovarianceToBound(
@@ -123,8 +210,8 @@ void SympyStepper::transportCovarianceToBound(
     const FreeToBoundCorrection& freeToBoundCorrection) const {
   detail::sympy::transportCovarianceToBound(
       state.options.geoContext, surface, state.cov, state.jacobian,
-      state.jacTransport, state.derivative, state.jacToGlobal, state.pars,
-      freeToBoundCorrection);
+      state.jacTransport, state.derivative, state.jacToGlobal, std::nullopt,
+      state.pars, freeToBoundCorrection);
 }
 
 Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
@@ -132,19 +219,25 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
                                       double stepSizeCutOff,
                                       std::size_t maxRungeKuttaStepTrials,
                                       const IVolumeMaterial* material) const {
-  auto pos = position(state);
-  auto dir = direction(state);
+  double m = particleHypothesis(state).mass();
+  PdgParticle absPdg = particleHypothesis(state).absolutePdg();
+  double q = charge(state);
+  Vector3 pos = position(state);
+  Vector3 dir = direction(state);
   double t = time(state);
   double qop = qOverP(state);
-  double m = particleHypothesis(state).mass();
-  double q = charge(state);
-  double p_abs = absoluteMomentum(state);
+  double pabs = absoluteMomentum(state);
 
-  auto getB = [&](const double* p) -> Result<Vector3> {
+  const auto getB = [&](const double* p) -> Result<Vector3> {
     return getField(state, {p[0], p[1], p[2]});
   };
 
-  auto getG = [&](double l) -> double { return 0; };
+  const auto getG = [&](const double* p, double l) -> double {
+    return computeEnergyLossMean(
+        MaterialSlab(material->material({p[0], p[1], p[2]}),
+                     1.0f * UnitConstants::mm),
+        absPdg, m, l, q);
+  };
 
   const auto calcStepSizeScaling = [&](const double errorEstimate_) -> double {
     // For details about these values see ATL-SOFT-PUB-2009-001
@@ -178,18 +271,19 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
     Result<bool> res = Result<bool>::success(false);
     if (material == nullptr) {
       res = rk4_vacuum(
-          pos.data(), dir.data(), t, h, qop, m, p_abs, getB, &errorEstimate,
+          pos.data(), dir.data(), t, h, qop, m, pabs, getB, &errorEstimate,
           4 * stepTolerance, state.pars.template segment<3>(eFreePos0).data(),
           state.pars.template segment<1>(eFreeTime).data(),
           state.pars.template segment<3>(eFreeDir0).data(),
           state.derivative.data(),
           state.covTransport ? state.jacTransport.data() : nullptr);
     } else {
-      res = rk4_dense(pos.data(), dir.data(), t, h, qop, m, q, p_abs, getB,
-                      getG, &errorEstimate, 4 * stepTolerance,
+      res = rk4_dense(pos.data(), dir.data(), t, h, qop, m, q, pabs, getB, getG,
+                      &errorEstimate, 4 * stepTolerance,
                       state.pars.template segment<3>(eFreePos0).data(),
                       state.pars.template segment<1>(eFreeTime).data(),
                       state.pars.template segment<3>(eFreeDir0).data(),
+                      state.pars.template segment<1>(eFreeQOverP).data(),
                       state.derivative.data(),
                       state.covTransport ? state.jacTransport.data() : nullptr);
     }
@@ -240,6 +334,11 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
   const double initialStepLength = std::abs(initialH);
   if (nextAccuracy < initialStepLength || nextAccuracy > previousAccuracy) {
     state.stepSize.setAccuracy(nextAccuracy);
+  }
+
+  if (material != nullptr || !state.denseCache.empty()) {
+    Material mat = material != nullptr ? material->material(pos) : Material();
+    state.denseCache.addEntry(mat, h, pabs, absoluteMomentum(state));
   }
 
   return h;

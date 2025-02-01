@@ -343,8 +343,8 @@ def rk4_dense_tunedexpr():
         l = ydot[4, 0]
         return Matrix.vstack(
             d.cross(l * B),
-            Matrix([g * m**2 * l**3 / (q**3 * dtds)]),
-            Matrix([-(l**2) * g / q]),
+            Matrix([g * m**2 * l**3 / q**3]),
+            Matrix([dtds * l**2 * g / q]),
         )
 
     big_l = Symbol("big_l", real=True)
@@ -358,7 +358,7 @@ def rk4_dense_tunedexpr():
         f,
         s,
         Matrix.vstack(p, Matrix([t, big_l])),
-        Matrix.vstack(d, Matrix([l, dtds.name])),
+        Matrix.vstack(d, Matrix([dtds.name, l])),
         h,
     )
 
@@ -384,7 +384,7 @@ def rk4_dense_tunedexpr():
     path_derivatives.expr[0:3, 0] = new_d.name.as_explicit()
     path_derivatives.expr[3, 0] = new_ydot.name[3, 0]
     path_derivatives.expr[4:7, 0] = k4.name[0:3, 0].as_explicit()
-    path_derivatives.expr[7, 0] = new_l.name
+    path_derivatives.expr[7, 0] = new_ydot.name[4, 0]
 
     dk1dTL = name_expr("dk1dTL", k1.expr.jacobian([t, d, l]))
     dk2dTL = name_expr(
@@ -544,6 +544,7 @@ def print_rk4_dense(name_exprs, run_cse=True):
             "new_p",
             "new_t",
             "new_d",
+            "new_l",
             "path_derivatives",
             "new_J",
         ]
@@ -551,7 +552,7 @@ def print_rk4_dense(name_exprs, run_cse=True):
 
     lines = []
 
-    head = "template <typename T, typename GetB, typename GetG> Acts::Result<bool> rk4_dense(const T* p, const T* d, const T t, const T h, const T l, const T m, const T q, const T p_abs, GetB getB, GetG getG, T* err, const T errTol, T* new_p, T* new_t, T* new_d, T* path_derivatives, T* J) {"
+    head = "template <typename T, typename GetB, typename GetG> Acts::Result<bool> rk4_dense(const T* p, const T* d, const T t, const T h, const T l, const T m, const T q, const T p_abs, GetB getB, GetG getG, T* err, const T errTol, T* new_p, T* new_t, T* new_d, T* new_l, T* path_derivatives, T* J) {"
     lines.append(head)
 
     lines.append("  const auto B1res = getB(p);")
@@ -559,7 +560,7 @@ def print_rk4_dense(name_exprs, run_cse=True):
         "  if (!B1res.ok()) {\n    return Acts::Result<bool>::failure(B1res.error());\n  }"
     )
     lines.append("  const auto B1 = *B1res;")
-    lines.append("  const auto g1 = getG(l);")
+    lines.append("  const auto g1 = getG(p, l);")
 
     def pre_expr_hook(var):
         if str(var) == "p2":
@@ -582,11 +583,11 @@ def print_rk4_dense(name_exprs, run_cse=True):
         if str(var) == "p3":
             return "const auto B3res = getB(p3);\n  if (!B3res.ok()) {\n    return Acts::Result<bool>::failure(B3res.error());\n  }\n  const auto B3 = *B3res;"
         if str(var) == "l2":
-            return "const auto g2 = getG(*l2);"
+            return "const auto g2 = getG(p2, *l2);"
         if str(var) == "l3":
-            return "const auto g3 = getG(*l3);"
+            return "const auto g3 = getG(p2, *l3);"
         if str(var) == "l4":
-            return "const auto g4 = getG(*l4);"
+            return "const auto g4 = getG(p3, *l4);"
         if str(var) == "err":
             return (
                 "if (*err > errTol) {\n  return Acts::Result<bool>::success(false);\n}"

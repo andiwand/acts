@@ -20,6 +20,7 @@
 #include "Acts/Propagator/PropagatorTraits.hpp"
 #include "Acts/Propagator/StepperOptions.hpp"
 #include "Acts/Propagator/StepperStatistics.hpp"
+#include "Acts/Propagator/detail/DenseMaterialCache.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 
 namespace Acts {
@@ -109,6 +110,8 @@ class SympyStepper {
 
     /// Statistics of the stepper
     StepperStatistics statistics;
+
+    detail::DenseMaterialCache denseCache;
   };
 
   /// Constructor requires knowledge of the detector's magnetic field

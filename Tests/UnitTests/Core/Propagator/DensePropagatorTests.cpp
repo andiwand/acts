@@ -164,7 +164,7 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   const double q = 1;
 
   auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
-  auto [detector, surfaces] = makeDetector(makeLiquidArgon(), 1_m);
+  auto [detector, surfaces] = makeDetector(makeLiquidArgon(), 1000_mm);
 
   auto propagator = makePropagator(detector, bfield);
 
@@ -205,6 +205,7 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
 
   std::cout << "input p = " << p << std::endl;
   std::cout << "output p = " << endP << std::endl;
+  std::cout << "output t = " << endParams.time() << std::endl;
   std::cout << "output std x = " << std::sqrt(endVarX) << std::endl;
   std::cout << "output std y = " << std::sqrt(endVarY) << std::endl;
   std::cout << "output std q/p = " << std::sqrt(endVarQOverP) << std::endl;
