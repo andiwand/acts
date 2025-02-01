@@ -23,57 +23,6 @@
 
 namespace Acts {
 
-namespace {
-
-std::optional<FreeMatrix> computeAdditionalFreeCovariance(
-    const SympyStepper& stepper, SympyStepper::State& state) {
-  if (!state.denseCache.accumulatedMaterial.isValid()) {
-    return std::nullopt;
-  }
-
-  FreeMatrix additionalFreeCovariance = FreeMatrix::Zero();
-
-  auto particleHypothesis = stepper.particleHypothesis(state);
-  float absQ = particleHypothesis.absoluteCharge();
-  float mass = particleHypothesis.mass();
-
-  // handle multiple scattering
-  {
-    // for derivation see
-    // https://github.com/andiwand/cern-scripts/blob/5f0ebf1bef35db65322f28c2e840c1db1aaaf9a7/notebooks/2023-12-07_qp-dense-nav.ipynb
-    //
-    Vector3 direction = stepper.direction(state);
-    SquareMatrix3 directionProjection =
-        (ActsSquareMatrix<3>::Identity() - direction * direction.transpose());
-
-    additionalFreeCovariance.block<3, 3>(eFreeDir0, eFreeDir0) =
-        state.denseCache.varAngle * directionProjection;
-    additionalFreeCovariance.block<3, 3>(eFreePos0, eFreePos0) =
-        state.denseCache.varPosition * directionProjection;
-  }
-
-  // handle energy loss covariance
-  {
-    double qOverP = absQ / state.denseCache.initialMomentum;
-
-    float qOverPSigma = computeEnergyLossLandauSigmaQOverP(
-        state.denseCache.accumulatedMaterial, mass, qOverP, absQ);
-
-    additionalFreeCovariance(eFreeQOverP, eFreeQOverP) =
-        qOverPSigma * qOverPSigma;
-  }
-
-  state.denseCache.initialMomentum = 0;
-  state.denseCache.accumulatedMaterial = MaterialSlab();
-  state.denseCache.varPosition = 0;
-  state.denseCache.varAngle = 0;
-  state.denseCache.covAnglePosition = 0;
-
-  return additionalFreeCovariance;
-}
-
-}  // namespace
-
 SympyStepper::SympyStepper(std::shared_ptr<const MagneticFieldProvider> bField)
     : m_bField(std::move(bField)) {}
 
@@ -135,7 +84,9 @@ SympyStepper::boundState(
     State& state, const Surface& surface, bool transportCov,
     const FreeToBoundCorrection& freeToBoundCorrection) const {
   std::optional<FreeMatrix> additionalFreeCovariance =
-      computeAdditionalFreeCovariance(*this, state);
+      state.materialAccumulator.computeAdditionalFreeCovariance(
+          direction(state));
+  state.materialAccumulator.reset();
   return detail::sympy::boundState(
       state.options.geoContext, surface, state.cov, state.jacobian,
       state.jacTransport, state.derivative, state.jacToGlobal,
@@ -147,7 +98,9 @@ SympyStepper::boundState(
 std::tuple<CurvilinearTrackParameters, BoundMatrix, double>
 SympyStepper::curvilinearState(State& state, bool transportCov) const {
   std::optional<FreeMatrix> additionalFreeCovariance =
-      computeAdditionalFreeCovariance(*this, state);
+      state.materialAccumulator.computeAdditionalFreeCovariance(
+          direction(state));
+  state.materialAccumulator.reset();
   return detail::sympy::curvilinearState(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
       state.jacToGlobal, additionalFreeCovariance, state.pars,
@@ -313,42 +266,16 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
     state.stepSize.setAccuracy(nextAccuracy);
   }
 
-  if (material != nullptr || state.denseCache.accumulatedMaterial.isValid()) {
-    if (!state.denseCache.accumulatedMaterial.isValid()) {
-      state.denseCache.initialMomentum = pabs;
+  if (material != nullptr || state.materialAccumulator.isValid()) {
+    if (!state.materialAccumulator.isValid()) {
+      state.materialAccumulator.initialize(state.options.maxXOverX0Step,
+                                           particleHypothesis(state), pabs);
     }
 
     Material mat = material != nullptr ? material->material(pos) : Material();
     MaterialSlab slab(mat, h);
 
-    std::size_t substepCount =
-        mat.isValid()
-            ? static_cast<std::size_t>(std::ceil(slab.thicknessInX0() /
-                                                 state.options.maxXOverX0Step))
-            : 1;
-    double substep = h * 1.0 / substepCount;
-    MaterialSlab subslab(mat, substep);
-
-    MaterialSlab accumulatedMaterial = state.denseCache.accumulatedMaterial;
-    for (std::size_t i = 0; i < substepCount; ++i) {
-      float theta0in = computeMultipleScatteringTheta0(accumulatedMaterial,
-                                                       absPdg, m, qop, q);
-
-      accumulatedMaterial =
-          MaterialSlab::combineLayers(accumulatedMaterial, subslab);
-
-      float theta0out = computeMultipleScatteringTheta0(accumulatedMaterial,
-                                                        absPdg, m, qop, q);
-
-      double deltaVarTheta = square(theta0out) - square(theta0in);
-      double deltaVarPos = state.denseCache.varAngle * square(substep) +
-                           2 * state.denseCache.covAnglePosition * substep +
-                           deltaVarTheta * (square(substep) / 3);
-      state.denseCache.varPosition += deltaVarPos;
-      state.denseCache.covAnglePosition += state.denseCache.varAngle * substep;
-      state.denseCache.varAngle += deltaVarTheta;
-    }
-    state.denseCache.accumulatedMaterial = accumulatedMaterial;
+    state.materialAccumulator.accumulate(slab);
   }
 
   return h;
