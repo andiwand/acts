@@ -164,7 +164,8 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   const double q = 1;
 
   auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
-  auto [detector, surfaces] = makeDetector(makeLiquidArgon(), 1000_mm);
+  auto material = makeLiquidArgon();
+  auto [detector, surfaces] = makeDetector(material, 1000_mm);
 
   auto propagator = makePropagator(detector, bfield);
 
@@ -212,13 +213,13 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   std::cout << "output std p = " << std::sqrt(endVarP) << std::endl;
 
   float theta0 = computeMultipleScatteringTheta0(
-      MaterialSlab(makeLiquidArgon(), 1_m), particleHypothesis.absolutePdg(),
+      MaterialSlab(material, 1_m), particleHypothesis.absolutePdg(),
       particleHypothesis.mass(), qOverP, particleHypothesis.absoluteCharge());
 
   std::cout << "theta0 = " << theta0 << std::endl;
 
   double eloss = computeEnergyLossMean(
-      MaterialSlab(makeLiquidArgon(), 1_m), particleHypothesis.absolutePdg(),
+      MaterialSlab(material, 1_m), particleHypothesis.absolutePdg(),
       particleHypothesis.mass(), qOverP, particleHypothesis.absoluteCharge());
 
   std::cout << "eloss = " << eloss << std::endl;

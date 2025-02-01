@@ -16,11 +16,11 @@
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/EventData/detail/CorrectedTransformationFreeToBound.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
+#include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/PropagatorTraits.hpp"
 #include "Acts/Propagator/StepperOptions.hpp"
 #include "Acts/Propagator/StepperStatistics.hpp"
-#include "Acts/Propagator/detail/DenseMaterialCache.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 
 namespace Acts {
@@ -41,6 +41,8 @@ class SympyStepper {
   };
 
   struct Options : public StepperPlainOptions {
+    double maxXOverX0Step = 1;
+
     Options(const GeometryContext& gctx, const MagneticFieldContext& mctx)
         : StepperPlainOptions(gctx, mctx) {}
 
@@ -111,7 +113,14 @@ class SympyStepper {
     /// Statistics of the stepper
     StepperStatistics statistics;
 
-    detail::DenseMaterialCache denseCache;
+    struct {
+      double initialMomentum = 0.;
+      MaterialSlab accumulatedMaterial;
+
+      double varAngle = 0;
+      double varPosition = 0;
+      double covAnglePosition = 0;
+    } denseCache;
   };
 
   /// Constructor requires knowledge of the detector's magnetic field
