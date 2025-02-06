@@ -41,7 +41,8 @@ class SympyStepper {
   };
 
   struct Options : public StepperPlainOptions {
-    double maxXOverX0Step = 10;
+    bool doDense = true;
+    double maxXOverX0Step = 1;
 
     Options(const GeometryContext& gctx, const MagneticFieldContext& mctx)
         : StepperPlainOptions(gctx, mctx) {}

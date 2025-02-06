@@ -40,9 +40,9 @@ struct MaterialAccumulator {
     initialMomentum = initialMomentum_;
   }
 
-  void accumulate(const MaterialSlab& slab) {
-    double qOverP = particleHypothesis.qOverP(
-        initialMomentum, particleHypothesis.absoluteCharge());
+  void accumulate(const MaterialSlab& slab, double qOverPin, double qOverPout) {
+    double momentumIn = particleHypothesis.extractMomentum(qOverPin);
+    double momentumOut = particleHypothesis.extractMomentum(qOverPout);
 
     std::size_t substepCount =
         slab.isValid() ? static_cast<std::size_t>(
@@ -52,9 +52,14 @@ struct MaterialAccumulator {
     MaterialSlab subslab(slab.material(), substep);
 
     for (std::size_t i = 0; i < substepCount; ++i) {
+      double momentumMean =
+          momentumIn + (momentumOut - momentumIn) * (i + 0.5) / substepCount;
+      double qOverPmean = particleHypothesis.qOverP(
+          momentumMean, particleHypothesis.absoluteCharge());
+
       double theta0in = computeMultipleScatteringTheta0(
           accumulatedMaterial, particleHypothesis.absolutePdg(),
-          particleHypothesis.mass(), qOverP,
+          particleHypothesis.mass(), qOverPmean,
           particleHypothesis.absoluteCharge());
 
       accumulatedMaterial =
@@ -62,7 +67,7 @@ struct MaterialAccumulator {
 
       double theta0out = computeMultipleScatteringTheta0(
           accumulatedMaterial, particleHypothesis.absolutePdg(),
-          particleHypothesis.mass(), qOverP,
+          particleHypothesis.mass(), qOverPmean,
           particleHypothesis.absoluteCharge());
 
       double deltaVarTheta = square(theta0out) - square(theta0in);
@@ -95,6 +100,10 @@ struct MaterialAccumulator {
           varAngle * directionProjection;
       additionalFreeCovariance.block<3, 3>(eFreePos0, eFreePos0) =
           varPosition * directionProjection;
+      additionalFreeCovariance.block<3, 3>(eFreePos0, eFreeDir0) =
+          covAnglePosition * directionProjection;
+      additionalFreeCovariance.block<3, 3>(eFreeDir0, eFreePos0) =
+          additionalFreeCovariance.block<3, 3>(eFreePos0, eFreeDir0);
     }
 
     // handle energy loss covariance
@@ -109,6 +118,9 @@ struct MaterialAccumulator {
 
       additionalFreeCovariance(eFreeQOverP, eFreeQOverP) =
           qOverPSigma * qOverPSigma;
+
+      // in principle the energy loss uncertainty also affects the time
+      // uncertainty continuously. these terms are not included here.
     }
 
     return additionalFreeCovariance;

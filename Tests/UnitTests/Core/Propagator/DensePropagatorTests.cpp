@@ -34,9 +34,11 @@
 #include "Acts/Propagator/EigenStepperDenseExtension.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
+#include "Acts/Propagator/PropagatorOptions.hpp"
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Tests/CommonHelpers/BenchmarkTools.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
@@ -60,6 +62,11 @@ inline Material makeLiquidArgon() {
 inline Material makeIron() {
   return Material::fromMassDensity(17.57493465097_mm, 169.9030027586_mm,
                                    55.845110798, 26, 7.874 * 1_g / 1_cm3);
+}
+
+std::shared_ptr<const MagneticFieldProvider> makeMagneticField(
+    const Vector3& field = {0., 0., 0.}) {
+  return std::make_shared<ConstantBField>(field);
 }
 
 inline std::tuple<std::shared_ptr<const TrackingGeometry>,
@@ -143,31 +150,43 @@ makeDetector(Material material, double thickness) {
   return {std::move(detector), std::move(surfaces)};
 }
 
+template <typename Stepper>
 auto makePropagator(std::shared_ptr<const TrackingGeometry> detector,
-                    std::shared_ptr<const MagneticFieldProvider> bfield) {
-  // using Stepper = EigenStepper<EigenStepperDenseExtension>;
-  using Stepper = SympyStepper;
+                    Stepper stepper) {
   using Navigator = Navigator;
   using Propagator = Propagator<Stepper, Navigator>;
 
   Navigator navigator({std::move(detector), true, true, false},
                       getDefaultLogger("nav", Logging::INFO));
-  Stepper stepper(std::move(bfield));
   Propagator propagator(std::move(stepper), std::move(navigator),
                         getDefaultLogger("prop", Logging::INFO));
 
   return propagator;
 }
 
+auto makeEigenStepperVacuum(
+    std::shared_ptr<const MagneticFieldProvider> bfield) {
+  return EigenStepper<EigenStepperDefaultExtension>(std::move(bfield));
+}
+
+auto makeEigenStepperDense(
+    std::shared_ptr<const MagneticFieldProvider> bfield) {
+  return EigenStepper<EigenStepperDenseExtension>(std::move(bfield));
+}
+
+auto makeSympyStepper(std::shared_ptr<const MagneticFieldProvider> bfield) {
+  return SympyStepper(std::move(bfield));
+}
+
 BOOST_DATA_TEST_CASE(dense_propagator_test,
                      bdata::make({1_GeV, 10_GeV, 100_GeV}), p) {
   const double q = 1;
 
-  auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
+  auto bfield = makeMagneticField();
   auto material = makeLiquidArgon();
   auto [detector, surfaces] = makeDetector(material, 1000_mm);
 
-  auto propagator = makePropagator(detector, bfield);
+  auto propagator = makePropagator(detector, makeSympyStepper(bfield));
 
   auto particleHypothesis = ParticleHypothesis::muon();
   double qOverP = particleHypothesis.qOverP(p, q);
@@ -177,8 +196,9 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
 
   decltype(propagator)::Options<> options(geoCtx, magCtx);
   options.maxSteps = 10000;
-  options.stepping.maxStepSize = 1_m;
-  options.stepping.dense.meanEnergyLoss = true;
+  options.stepping.maxStepSize = 1000_mm;
+  options.stepping.dense.meanEnergyLoss = false;
+  options.stepping.dense.momentumCutOff = 1_MeV;
 
   const Surface& target = *surfaces.back();
 
@@ -285,21 +305,22 @@ BOOST_AUTO_TEST_CASE(chart_eloss_fe) {
   chart_eloss(q, p_min, p_max, n, material, file);
 }
 
-void chart_msc(double q, double p_min, double p_max, int n, Material material,
-               double thickness, std::ostream& out) {
+void chart_msc_eloss(double q, double p_min, double p_max, int n,
+                     Material material, double thickness, std::ostream& out) {
   out << "p_initial,p_final,sigma" << std::endl;
 
-  auto bfield = std::make_shared<ConstantBField>(Vector3{0., 0., 0.});
+  auto bfield = makeMagneticField();
   auto [detector, surfaces] = makeDetector(material, thickness);
 
-  auto propagator = makePropagator(detector, bfield);
+  auto propagator = makePropagator(detector, makeSympyStepper(bfield));
 
   auto particleHypothesis = ParticleHypothesis::muon();
 
   decltype(propagator)::Options<> options(geoCtx, magCtx);
   options.maxSteps = 10000;
-  options.stepping.maxStepSize = 1_m;
-  options.stepping.dense.meanEnergyLoss = true;
+  options.stepping.maxStepSize = 1000_mm;
+  options.stepping.dense.meanEnergyLoss = false;
+  options.stepping.dense.momentumCutOff = 1_MeV;
 
   const Surface& target = *surfaces.back();
 
@@ -316,7 +337,13 @@ void chart_msc(double q, double p_min, double p_max, int n, Material material,
 
     auto result = propagator.propagate(startParams, target, options);
 
-    BOOST_CHECK(result.ok());
+    if (!result.ok()) {
+      std::cout << "propagation failed for p=" << p
+                << " in thickness=" << thickness << " with " << result.error()
+                << " " << result.error().message() << std::endl;
+      continue;
+    }
+
     CHECK_CLOSE_REL(3_m, result->pathLength, 1e-6);
     BOOST_CHECK(result->endParameters);
 
@@ -336,28 +363,155 @@ void chart_msc(double q, double p_min, double p_max, int n, Material material,
   }
 }
 
-BOOST_AUTO_TEST_CASE(chart_msc_lar) {
+BOOST_AUTO_TEST_CASE(chart_msc_eloss_lar) {
   const double q = 1;
   const double p_min = 1_GeV;
   const double p_max = 1_TeV;
   const int n = 1000;
   const auto material = makeLiquidArgon();
-  const double thickness = 100_mm;
 
-  std::ofstream file("msc_lar.csv");
-  chart_msc(q, p_min, p_max, n, material, thickness, file);
+  for (double thickness : {10_mm, 100_mm, 1000_mm}) {
+    std::ofstream file("msc_eloss_lar_" +
+                       std::to_string(static_cast<int>(thickness)) + "mm.csv");
+    chart_msc_eloss(q, p_min, p_max, n, material, thickness, file);
+  }
 }
 
-BOOST_AUTO_TEST_CASE(chart_msc_fe) {
+BOOST_AUTO_TEST_CASE(chart_msc_eloss_fe) {
   const double q = 1;
   const double p_min = 1_GeV;
   const double p_max = 1_TeV;
   const int n = 1000;
   const auto material = makeIron();
-  const double thickness = 100_mm;
 
-  std::ofstream file("msc_fe.csv");
-  chart_msc(q, p_min, p_max, n, material, thickness, file);
+  for (double thickness : {10_mm, 100_mm, 1000_mm}) {
+    std::ofstream file("msc_eloss_fe_" +
+                       std::to_string(static_cast<int>(thickness)) + "mm.csv");
+    chart_msc_eloss(q, p_min, p_max, n, material, thickness, file);
+  }
+}
+
+template <typename Propagator, typename PropagatorOptions>
+MicroBenchmarkResult bench_propagation(const Propagator& propagator,
+                                       const PropagatorOptions& options,
+                                       const BoundTrackParameters& startParams,
+                                       const Surface& target) {
+  const auto propagationBenchResult = Acts::Test::microBenchmark(
+      [&] {
+        return propagator.propagate(startParams, target, options).value();
+      },
+      100, 100);
+  std::cout << propagationBenchResult << std::endl;
+
+  auto propagationResult =
+      propagator.propagate(startParams, target, options).value();
+  std::cout
+      << "Ended up at position = "
+      << propagationResult.endParameters.value().position(geoCtx).transpose()
+      << std::endl;
+  std::cout << "Ended up at momentum = "
+            << propagationResult.endParameters.value().absoluteMomentum()
+            << std::endl;
+  std::cout << "Positional uncertainty = "
+            << std::sqrt(
+                   propagationResult.endParameters.value().covariance().value()(
+                       eBoundLoc0, eBoundLoc0))
+            << std::endl;
+
+  return propagationBenchResult;
+}
+
+BOOST_AUTO_TEST_CASE(perf) {
+  auto material = makeLiquidArgon();
+  auto [detector, surfaces] = makeDetector(material, 1000_mm);
+  auto bfield = makeMagneticField();
+
+  PropagatorPlainOptions plainOptions(geoCtx, magCtx);
+  plainOptions.maxSteps = 10000;
+  plainOptions.stepping.maxStepSize = 1000_mm;
+  plainOptions.stepping.dense.meanEnergyLoss = false;
+  plainOptions.stepping.dense.momentumCutOff = 1_MeV;
+
+  auto particleHypothesis = ParticleHypothesis::muon();
+  double q = 1;
+  double p = 1_GeV;
+  double qOverP = particleHypothesis.qOverP(p, q);
+  CurvilinearTrackParameters startParams(
+      Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
+      BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
+
+  std::vector<std::vector<MicroBenchmarkResult>> results;
+
+  for (double stepSize : {1_m, 1_mm}) {
+    auto& result = results.emplace_back();
+
+    plainOptions.stepping.maxStepSize = stepSize;
+
+    std::cout << "step size = " << stepSize << std::endl;
+
+    std::cout << "use EigenStepper with default extension (vacuum)"
+              << std::endl;
+    {
+      auto stepper = makeEigenStepperVacuum(bfield);
+      auto propagator = makePropagator(detector, std::move(stepper));
+      decltype(propagator)::Options<> options(geoCtx, magCtx);
+      options.setPlainOptions(plainOptions);
+      auto r =
+          bench_propagation(propagator, options, startParams, *surfaces.back());
+      result.push_back(r);
+    }
+
+    std::cout << "use EigenStepper with dense extension" << std::endl;
+    {
+      auto stepper = makeEigenStepperDense(bfield);
+      auto propagator = makePropagator(detector, std::move(stepper));
+      decltype(propagator)::Options<> options(geoCtx, magCtx);
+      options.setPlainOptions(plainOptions);
+      auto r =
+          bench_propagation(propagator, options, startParams, *surfaces.back());
+      result.push_back(r);
+    }
+
+    std::cout << "use SympyStepper without dense" << std::endl;
+    {
+      auto stepper = makeSympyStepper(bfield);
+      auto propagator = makePropagator(detector, std::move(stepper));
+      decltype(propagator)::Options<> options(geoCtx, magCtx);
+      options.setPlainOptions(plainOptions);
+      options.stepping.doDense = false;
+      auto r =
+          bench_propagation(propagator, options, startParams, *surfaces.back());
+      result.push_back(r);
+    }
+
+    std::cout << "use SympyStepper with dense" << std::endl;
+    {
+      auto stepper = makeSympyStepper(bfield);
+      auto propagator = makePropagator(detector, std::move(stepper));
+      decltype(propagator)::Options<> options(geoCtx, magCtx);
+      options.setPlainOptions(plainOptions);
+      options.stepping.doDense = true;
+      auto r =
+          bench_propagation(propagator, options, startParams, *surfaces.back());
+      result.push_back(r);
+    }
+  }
+
+  std::vector<std::vector<double>> relativeTimes;
+  for (const auto& result : results) {
+    auto& relativeTime = relativeTimes.emplace_back();
+    for (const auto& r : result) {
+      relativeTime.push_back(r.totalTime() / result[0].totalTime());
+    }
+  }
+
+  std::cout << "relative time" << std::endl;
+  for (const auto& relativeTime : relativeTimes) {
+    for (const auto& t : relativeTime) {
+      std::cout << t << ",";
+    }
+    std::cout << std::endl;
+  }
 }
 
 }  // namespace Acts::Test

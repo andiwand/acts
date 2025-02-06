@@ -158,15 +158,32 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
   double qop = qOverP(state);
   double pabs = absoluteMomentum(state);
 
+  if (state.options.doDense && material != nullptr &&
+      pabs < state.options.dense.momentumCutOff) {
+    return EigenStepperError::StepInvalid;
+  }
+
   const auto getB = [&](const double* p) -> Result<Vector3> {
     return getField(state, {p[0], p[1], p[2]});
   };
 
   const auto getG = [&](const double* p, double l) -> double {
-    return computeEnergyLossMean(
-        MaterialSlab(material->material({p[0], p[1], p[2]}),
-                     1.0f * UnitConstants::mm),
-        absPdg, m, l, q);
+    double newPabs = particleHypothesis(state).extractMomentum(l);
+    if (newPabs < state.options.dense.momentumCutOff) {
+      return 0.;
+    }
+
+    if (state.options.dense.meanEnergyLoss) {
+      return computeEnergyLossMean(
+          MaterialSlab(material->material({p[0], p[1], p[2]}),
+                       1.0f * UnitConstants::mm),
+          absPdg, m, l, q);
+    } else {
+      return computeEnergyLossMode(
+          MaterialSlab(material->material({p[0], p[1], p[2]}),
+                       1.0f * UnitConstants::mm),
+          absPdg, m, l, q);
+    }
   };
 
   const auto calcStepSizeScaling = [&](const double errorEstimate_) -> double {
@@ -199,7 +216,7 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
 
     // For details about the factor 4 see ATL-SOFT-PUB-2009-001
     Result<bool> res = Result<bool>::success(false);
-    if (material == nullptr) {
+    if (!state.options.doDense || material == nullptr) {
       res = rk4_vacuum(
           pos.data(), dir.data(), t, h, qop, m, pabs, getB, &errorEstimate,
           4 * stepTolerance, state.pars.template segment<3>(eFreePos0).data(),
@@ -266,7 +283,8 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
     state.stepSize.setAccuracy(nextAccuracy);
   }
 
-  if (material != nullptr || state.materialAccumulator.isValid()) {
+  if (state.options.doDense &&
+      (material != nullptr || state.materialAccumulator.isValid())) {
     if (!state.materialAccumulator.isValid()) {
       state.materialAccumulator.initialize(state.options.maxXOverX0Step,
                                            particleHypothesis(state), pabs);
@@ -275,7 +293,7 @@ Result<double> SympyStepper::stepImpl(State& state, Direction stepDirection,
     Material mat = material != nullptr ? material->material(pos) : Material();
     MaterialSlab slab(mat, h);
 
-    state.materialAccumulator.accumulate(slab);
+    state.materialAccumulator.accumulate(slab, qop, qOverP(state));
   }
 
   return h;
