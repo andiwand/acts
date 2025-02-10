@@ -16,7 +16,6 @@
 #include "Acts/Material/Material.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Propagator/EigenStepperDefaultExtension.hpp"
-#include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
 
 namespace Acts {
@@ -36,7 +35,7 @@ struct EigenStepperDenseExtension {
   double initialMomentum = 0.;
   /// Material that will be passed
   /// TODO : Might not be needed anymore
-  Material material;
+  Material material = Material::Vacuum();
   /// Derivatives dLambda''dlambda at each sub-step point
   std::array<double, 4> dLdl{};
   /// q/p at each sub-step

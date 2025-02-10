@@ -55,7 +55,7 @@ void Acts::AccumulatedMaterialSlab::trackAverage(bool useEmptyTrack) {
     m_totalCount += 1;
   }
   // reset track average
-  m_trackAverage = MaterialSlab();
+  m_trackAverage = MaterialSlab::Nothing();
 }
 
 std::pair<Acts::MaterialSlab, unsigned int>
