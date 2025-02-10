@@ -93,7 +93,7 @@ class Material {
   explicit Material(const ParametersVector& parameters);
 
   /// Check if the material is vacuum.
-  bool isVacuum() const { return 0.0f < m_ar; }
+  bool isVacuum() const { return m_ar <= 0.f; }
 
   /// Return the radiation length. Infinity in case of vacuum.
   constexpr float X0() const { return m_x0; }
