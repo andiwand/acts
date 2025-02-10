@@ -27,6 +27,10 @@ enum MaterialClassificationNumberIndices {
 // Avogadro constant
 constexpr double kAvogadro = 6.02214076e23 / UnitConstants::mol;
 
+constexpr float calculateMolarElectronDensity(float z, float molarRho) {
+  return z * molarRho;
+}
+
 constexpr float approximateMeanExcitationEnergy(float z) {
   using namespace UnitLiterals;
 
@@ -58,7 +62,8 @@ Material Material::fromMassDensity(float x0, float l0, float ar, float z,
 
 Material Material::fromMolarDensity(float x0, float l0, float ar, float z,
                                     float molarRho) {
-  return Material::fromMolarDensity(x0, l0, ar, z, molarRho, z * molarRho,
+  return Material::fromMolarDensity(x0, l0, ar, z, molarRho,
+                                    calculateMolarElectronDensity(z, molarRho),
                                     std::nullopt);
 }
 
@@ -82,7 +87,9 @@ Material::Material(const ParametersVector& parameters)
       m_l0(parameters[eInteractionLength]),
       m_ar(parameters[eRelativeAtomicMass]),
       m_z(parameters[eNuclearCharge]),
-      m_molarRho(parameters[eMolarDensity]) {}
+      m_molarRho(parameters[eMolarDensity]),
+      m_molarElectronRho(calculateMolarElectronDensity(m_z, m_molarRho)),
+      m_meanExcitationEnergy(approximateMeanExcitationEnergy(m_z)) {}
 
 float Material::massDensity() const {
   using namespace UnitLiterals;
