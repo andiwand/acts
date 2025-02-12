@@ -108,7 +108,6 @@ auto makeDefaultBoundPars(bool cov = true, std::size_t n = 4,
       params[eBoundPhi] = phiDis(gen);
       params[eBoundTheta] = thetaDis(gen);
       params[eBoundQOverP] = qOverPDis(gen);
-      params[eBoundTime] = timeDis(gen);
     }
 
     cmps.push_back(

@@ -329,15 +329,13 @@ Acts::Result<double> Acts::EigenStepper<E>::step(
     // sub-matrices at all!
     assert((D.topLeftCorner<3, 3>().isIdentity()));
     assert((D.bottomLeftCorner<4, 3>().isZero()));
-    assert((state.stepping.jacTransport.template topLeftCorner<3, 3>()
-                .isIdentity()));
-    assert((state.stepping.jacTransport.template bottomLeftCorner<4, 3>()
-                .isZero()));
+    assert((state.jacTransport.template topLeftCorner<3, 3>().isIdentity()));
+    assert((state.jacTransport.template bottomLeftCorner<4, 3>().isZero()));
 
-    state.stepping.jacTransport.template topRightCorner<3, 4>() +=
+    state.jacTransport.template topRightCorner<3, 4>() +=
         D.topRightCorner<3, 4>() *
-        state.stepping.jacTransport.template bottomRightCorner<4, 4>();
-    state.stepping.jacTransport.template bottomRightCorner<4, 4>() =
+        state.jacTransport.template bottomRightCorner<4, 4>();
+    state.jacTransport.template bottomRightCorner<4, 4>() =
         (D.bottomRightCorner<4, 4>() *
          state.jacTransport.template bottomRightCorner<4, 4>())
             .eval();

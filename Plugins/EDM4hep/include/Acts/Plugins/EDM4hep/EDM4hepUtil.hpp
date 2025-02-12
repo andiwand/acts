@@ -39,20 +39,20 @@ static constexpr std::int32_t EDM4HEP_ACTS_POSITION_TYPE = 42;
 
 namespace detail {
 struct Parameters {
-  Acts::ActsVector<6> values;
+  Acts::ActsVector<5> values;
   // Dummy default
   ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
   std::optional<Acts::BoundSquareMatrix> covariance;
   std::shared_ptr<const Acts::Surface> surface;
 };
 
-ActsSquareMatrix<6> jacobianToEdm4hep(double theta, double qOverP, double Bz);
+ActsSquareMatrix<5> jacobianToEdm4hep(double theta, double qOverP, double Bz);
 
-ActsSquareMatrix<6> jacobianFromEdm4hep(double tanLambda, double omega,
+ActsSquareMatrix<5> jacobianFromEdm4hep(double tanLambda, double omega,
                                         double Bz);
 
-void unpackCovariance(const float* from, ActsSquareMatrix<6>& to);
-void packCovariance(const ActsSquareMatrix<6>& from, float* to);
+void unpackCovariance(const float* from, ActsSquareMatrix<5>& to);
+void packCovariance(const ActsSquareMatrix<5>& from, float* to);
 
 Parameters convertTrackParametersToEdm4hep(const Acts::GeometryContext& gctx,
                                            double Bz,

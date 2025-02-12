@@ -50,7 +50,7 @@ const double halfZ = 10.;
 const double deltaX = 10.;
 const double deltaYZ = 1.;
 
-const Vector4 trueVertex(-5., 0., 0., 0);
+const Vector3 trueVertex(-5., 0., 0.);
 const std::vector<double> truePhis = {-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15};
 const double trueTheta = std::numbers::pi / 2.;
 const double trueQOverP = 1. / 1._GeV;
@@ -129,7 +129,7 @@ class TrackEstimator {
 
     Vector3 direction = (pivot3 - m_ip).normalized();
 
-    Vector4 ip = {m_ip.x(), m_ip.y(), m_ip.z(), 0};
+    Vector3 ip = {m_ip.x(), m_ip.y(), m_ip.z()};
     double qOverP = 1_e / 1._GeV;
     double phi = Acts::VectorHelpers::phi(direction);
     double theta = Acts::VectorHelpers::theta(direction);

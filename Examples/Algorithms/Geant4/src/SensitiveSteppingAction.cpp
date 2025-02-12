@@ -52,27 +52,26 @@ BOOST_DESCRIBE_ENUM(G4TrackStatus, fAlive, fStopButAlive, fStopAndKill,
 
 namespace {
 
-std::array<Acts::Vector4, 4u> kinematicsOfStep(const G4Step* step) {
+std::tuple<Acts::Vector3, Acts::Vector4, Acts::Vector3, Acts::Vector4>
+kinematicsOfStep(const G4Step* step) {
   static constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
   static constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
-  static constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
 
   const G4StepPoint* preStepPoint = step->GetPreStepPoint();
   const G4StepPoint* postStepPoint = step->GetPostStepPoint();
 
-  Acts::Vector4 preStepPosition(convertLength * preStepPoint->GetPosition().x(),
-                                convertLength * preStepPoint->GetPosition().y(),
-                                convertLength * preStepPoint->GetPosition().z(),
-                                convertTime * preStepPoint->GetGlobalTime());
+  Acts::Vector3 preStepPosition(
+      convertLength * preStepPoint->GetPosition().x(),
+      convertLength * preStepPoint->GetPosition().y(),
+      convertLength * preStepPoint->GetPosition().z());
   Acts::Vector4 preStepMomentum(convertEnergy * preStepPoint->GetMomentum().x(),
                                 convertEnergy * preStepPoint->GetMomentum().y(),
                                 convertEnergy * preStepPoint->GetMomentum().z(),
                                 convertEnergy * preStepPoint->GetTotalEnergy());
-  Acts::Vector4 postStepPosition(
+  Acts::Vector3 postStepPosition(
       convertLength * postStepPoint->GetPosition().x(),
       convertLength * postStepPoint->GetPosition().y(),
-      convertLength * postStepPoint->GetPosition().z(),
-      convertTime * postStepPoint->GetGlobalTime());
+      convertLength * postStepPoint->GetPosition().z());
   Acts::Vector4 postStepMomentum(
       convertEnergy * postStepPoint->GetMomentum().x(),
       convertEnergy * postStepPoint->GetMomentum().y(),
@@ -219,7 +218,7 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
       double absMomentum = track->GetMomentum().mag() * convertEnergy;
 
       PropagationSummary iSummary(Acts::CurvilinearTrackParameters(
-          Acts::Vector4(xVtx, yVtx, zVtx, 0.),
+          Acts::Vector3(xVtx, yVtx, zVtx),
           Acts::Vector3(xDirVtx, yDirVtx, zDirVtx), absCharge / absMomentum,
           std::nullopt, Acts::ParticleHypothesis::pion()));
 

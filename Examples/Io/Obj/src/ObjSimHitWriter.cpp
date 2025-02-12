@@ -58,16 +58,16 @@ ActsExamples::ProcessCode ActsExamples::ObjSimHitWriter::writeT(
     // Write data from internal immplementation
     for (const auto& simHit : simHits) {
       // local simhit information in global coord.
-      const Acts::Vector4& globalPos4 = simHit.fourPosition();
+      const Acts::Vector3& globalPos = simHit.position();
 
-      osHits << "v " << globalPos4[Acts::ePos0] / Acts::UnitConstants::mm << " "
-             << globalPos4[Acts::ePos1] / Acts::UnitConstants::mm << " "
-             << globalPos4[Acts::ePos2] / Acts::UnitConstants::mm << std::endl;
+      osHits << "v " << globalPos[Acts::ePos0] / Acts::UnitConstants::mm << " "
+             << globalPos[Acts::ePos1] / Acts::UnitConstants::mm << " "
+             << globalPos[Acts::ePos2] / Acts::UnitConstants::mm << std::endl;
 
     }  // end simHit loop
   } else {
     // We need to associate first
-    std::unordered_map<std::size_t, std::vector<Acts::Vector4>> particleHits;
+    std::unordered_map<std::size_t, std::vector<Acts::Vector3>> particleHits;
     // Pre-loop over hits ... write those below threshold
     for (const auto& simHit : simHits) {
       double momentum = simHit.momentum4Before().head<3>().norm();
@@ -78,11 +78,11 @@ ActsExamples::ProcessCode ActsExamples::ObjSimHitWriter::writeT(
         ACTS_VERBOSE(
             "Skipping (trajectory): Hit below threshold: " << momentum);
         osHits << "v "
-               << simHit.fourPosition()[Acts::ePos0] / Acts::UnitConstants::mm
+               << simHit.position()[Acts::ePos0] / Acts::UnitConstants::mm
                << " "
-               << simHit.fourPosition()[Acts::ePos1] / Acts::UnitConstants::mm
+               << simHit.position()[Acts::ePos1] / Acts::UnitConstants::mm
                << " "
-               << simHit.fourPosition()[Acts::ePos2] / Acts::UnitConstants::mm
+               << simHit.position()[Acts::ePos2] / Acts::UnitConstants::mm
                << std::endl;
         continue;
       }
@@ -92,18 +92,11 @@ ActsExamples::ProcessCode ActsExamples::ObjSimHitWriter::writeT(
           particleHits.end()) {
         particleHits[simHit.particleId().value()] = {};
       }
-      particleHits[simHit.particleId().value()].push_back(
-          simHit.fourPosition());
+      particleHits[simHit.particleId().value()].push_back(simHit.position());
     }
     // Draw loop
     std::size_t lOffset = 1;
     for (auto& [pId, pHits] : particleHits) {
-      // Draw the particle hits
-      std::sort(pHits.begin(), pHits.end(),
-                [](const Acts::Vector4& a, const Acts::Vector4& b) {
-                  return a[Acts::eTime] < b[Acts::eTime];
-                });
-
       osHits << "o particle_" << pId << std::endl;
       for (const auto& hit : pHits) {
         osHits << "v " << hit[Acts::ePos0] / Acts::UnitConstants::mm << " "
@@ -114,7 +107,7 @@ ActsExamples::ProcessCode ActsExamples::ObjSimHitWriter::writeT(
 
       // Interpolate the points, a minimum number of 3 hits is necessary for
       // that
-      std::vector<Acts::Vector4> trajectory;
+      std::vector<Acts::Vector3> trajectory;
       if (pHits.size() < 3 || m_cfg.nInterpolatedPoints == 0) {
         trajectory = pHits;
       } else {

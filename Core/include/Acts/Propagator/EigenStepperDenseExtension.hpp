@@ -159,7 +159,7 @@ struct EigenStepperDenseExtension {
     // Update momentum
     state.pars[eFreeQOverP] = stepper.charge(state) / newMomentum;
     // Add derivative dt/ds = 1/(beta * c) = sqrt(m^2 * p^{-2} + c^{-2})
-    state.stepping.derivative(3) = fastHypot(1, mass / newMomentum);
+    state.derivative(3) = fastHypot(1, mass / newMomentum);
 
     return true;
   }

@@ -126,12 +126,8 @@ class SimParticle final {
   /// Particl qOverP.
   double qOverP() const { return initial().qOverP(); }
 
-  /// Space-time position four-vector.
-  const Acts::Vector4& fourPosition() const { return initial().fourPosition(); }
   /// Three-position, i.e. spatial coordinates without the time.
   auto position() const { return initial().position(); }
-  /// Time coordinate.
-  double time() const { return initial().time(); }
   /// Energy-momentum four-vector.
   Acts::Vector4 fourMomentum() const { return initial().fourMomentum(); }
   /// Unit three-direction, i.e. the normalized momentum three-vector.

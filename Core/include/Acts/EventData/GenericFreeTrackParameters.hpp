@@ -64,16 +64,15 @@ class GenericFreeTrackParameters {
   /// @param qOverP Charge over momentum
   /// @param cov Free parameters covariance matrix
   /// @param particleHypothesis Particle hypothesis
-  GenericFreeTrackParameters(const Vector4& pos4, const Vector3& dir,
+  GenericFreeTrackParameters(const Vector3& pos, const Vector3& dir,
                              double qOverP, std::optional<CovarianceMatrix> cov,
                              ParticleHypothesis particleHypothesis)
       : m_params(FreeVector::Zero()),
         m_cov(std::move(cov)),
         m_particleHypothesis(std::move(particleHypothesis)) {
-    m_params[eFreePos0] = pos4[ePos0];
-    m_params[eFreePos1] = pos4[ePos1];
-    m_params[eFreePos2] = pos4[ePos2];
-    m_params[eFreeTime] = pos4[eTime];
+    m_params[eFreePos0] = pos[ePos0];
+    m_params[eFreePos1] = pos[ePos1];
+    m_params[eFreePos2] = pos[ePos2];
     m_params[eFreeDir0] = dir[eMom0];
     m_params[eFreeDir1] = dir[eMom1];
     m_params[eFreeDir2] = dir[eMom2];

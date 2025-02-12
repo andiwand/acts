@@ -588,7 +588,7 @@ BOOST_AUTO_TEST_CASE(DetectorNavigatorTestsMultipleIntersection) {
   auto statesFwd = resultFwd.get<StateRecorder::result_type>();
 
   options.direction = Acts::Direction::Backward();
-  Acts::Vector4 posBwd(5, 0, 0, 0);
+  Acts::Vector3 posBwd(5, 0, 0);
   Acts::CurvilinearTrackParameters startBwd(
       posBwd, 0_degree, 90_degree, 1_e / 1_GeV, std::nullopt,
       Acts::ParticleHypothesis::electron());

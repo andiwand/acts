@@ -90,7 +90,7 @@ ProcessCode EventRecording::execute(const AlgorithmContext& context) const {
 
     // Set event start time
     HepMC3::GenEvent event = Geant4::HepMC3::EventAction::instance()->event();
-    HepMC3::FourVector shift(0., 0., 0., part.time() / Acts::UnitConstants::mm);
+    HepMC3::FourVector shift(0., 0., 0., 0.);
     event.shift_position_by(shift);
 
     // Set beam particle properties

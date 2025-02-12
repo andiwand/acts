@@ -38,9 +38,8 @@ HepMC3::GenParticlePtr actsParticleToGen(
 /// @return Converted Acts vertex to HepMC3::GenVertexPtr
 HepMC3::GenVertexPtr createGenVertex(
     const std::shared_ptr<SimVertex>& actsVertex) {
-  const HepMC3::FourVector vec(
-      actsVertex->position4[0], actsVertex->position4[1],
-      actsVertex->position4[2], actsVertex->position4[3]);
+  const HepMC3::FourVector vec(actsVertex->position[0], actsVertex->position[1],
+                               actsVertex->position[2], 0);
 
   // Create vertex
   auto genVertex = std::make_shared<HepMC3::GenVertex>(vec);
@@ -63,16 +62,16 @@ bool compareVertices(const std::shared_ptr<SimVertex>& actsVertex,
   // Compare position, time, number of incoming and outgoing particles between
   // both vertices. Return false if one criterium does not match, else true.
   HepMC3::FourVector genVec = genVertex->position();
-  if (actsVertex->position4[0] != genVec.x()) {
+  if (actsVertex->position[0] != genVec.x()) {
     return false;
   }
-  if (actsVertex->position4[1] != genVec.y()) {
+  if (actsVertex->position[1] != genVec.y()) {
     return false;
   }
-  if (actsVertex->position4[2] != genVec.z()) {
+  if (actsVertex->position[2] != genVec.z()) {
     return false;
   }
-  if (actsVertex->position4[3] != genVec.t()) {
+  if (0 != genVec.t()) {
     return false;
   }
   if (actsVertex->incoming.size() != genVertex->particles_in().size()) {

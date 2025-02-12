@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(TrackParametersJsonIO) {
   Acts::GeometryContext gctx;
 
   // Track parameters
-  Acts::Vector4 position(1., 2., 3., 4.);
+  Acts::Vector3 position(1., 2., 3.);
   double phi = 0.1;
   double theta = 0.2;
   double qOverP = 3.0;
@@ -73,7 +73,7 @@ BOOST_AUTO_TEST_CASE(TrackParametersJsonIO) {
                     ctpRead.referenceSurface().bounds());
 
   // Bound track parameters conversion
-  Acts::BoundVector boundPosition{1., 2., 3., 4., 5., 6.};
+  Acts::BoundVector boundPosition{1., 2., 3., 4., 5.};
   Acts::BoundTrackParameters btp(surface, boundPosition, boundCov, particle);
 
   nlohmann::json btpJson = btp;

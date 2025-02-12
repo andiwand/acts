@@ -71,15 +71,6 @@ Acts::HelicalTrackLinearizer::linearizeTrack(
 
   // q over p
   double qOvP = paramsAtPCA(BoundIndices::eBoundQOverP);
-  // Rest mass
-  double m0 = params.particleHypothesis().mass();
-  // Momentum
-  double p = params.particleHypothesis().extractMomentum(qOvP);
-
-  // Speed in units of c
-  double beta = p / fastHypot(p, m0);
-  // Transverse speed (i.e., speed in the x-y plane)
-  double betaT = beta * sinTheta;
 
   // Momentum direction at the PCA
   Vector3 momentumAtPCA(phi, theta, qOvP);

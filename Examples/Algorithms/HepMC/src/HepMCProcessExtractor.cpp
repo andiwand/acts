@@ -133,7 +133,7 @@ std::vector<SimParticle> selectOutgoingParticles(
 
       // Build an Acts particle out of the data
       SimParticleState simParticle(barcode, pid);
-      simParticle.setPosition4(pos4.x(), pos4.y(), pos4.z(), pos4.t());
+      simParticle.setPosition({pos4.x(), pos4.y(), pos4.z()});
       Acts::Vector3 mom3(mom4[0], mom4[1], mom4[2]);
       simParticle.setDirection(mom3.normalized());
       simParticle.setAbsoluteMomentum(mom3.norm());

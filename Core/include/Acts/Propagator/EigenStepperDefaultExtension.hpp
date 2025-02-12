@@ -72,6 +72,10 @@ struct EigenStepperDefaultExtension {
   template <typename stepper_t>
   bool finalize(typename stepper_t::State& state, const stepper_t& stepper,
                 const IVolumeMaterial* volumeMaterial, const double h) const {
+    (void)state;
+    (void)stepper;
+    (void)volumeMaterial;
+    (void)h;
     return true;
   }
 
@@ -92,6 +96,7 @@ struct EigenStepperDefaultExtension {
   bool finalize(typename stepper_t::State& state, const stepper_t& stepper,
                 const IVolumeMaterial* volumeMaterial, const double h,
                 FreeMatrix& D) const {
+    (void)volumeMaterial;
     return transportMatrix(state, stepper, h, D);
   }
 
@@ -129,9 +134,9 @@ struct EigenStepperDefaultExtension {
     /// constant offset does not exist for rectangular matrix dGdu' (due to the
     /// missing Lambda part) and only exists for dFdu' in dlambda/dlambda.
 
-    auto& sd = state.stepping.stepData;
-    auto dir = stepper.direction(state.stepping);
-    auto qop = stepper.qOverP(state.stepping);
+    auto& sd = state.stepData;
+    auto dir = stepper.direction(state);
+    auto qop = stepper.qOverP(state);
 
     D = FreeMatrix::Identity();
 

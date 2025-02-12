@@ -49,9 +49,9 @@ void addTruthTracking(Context& ctx) {
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TrackParameterSmearing, mex, "TrackParameterSmearing",
       inputTrackParameters, outputTrackParameters, sigmaLoc0, sigmaLoc0PtA,
-      sigmaLoc0PtB, sigmaLoc1, sigmaLoc1PtA, sigmaLoc1PtB, sigmaTime, sigmaPhi,
-      sigmaTheta, sigmaPtRel, initialSigmas, initialSigmaPtRel,
-      initialVarInflation, particleHypothesis, randomNumbers);
+      sigmaLoc0PtB, sigmaLoc1, sigmaLoc1PtA, sigmaLoc1PtB, sigmaPhi, sigmaTheta,
+      sigmaPtRel, initialSigmas, initialSigmaPtRel, initialVarInflation,
+      particleHypothesis, randomNumbers);
 
   {
     using Alg = ActsExamples::ParticleSelector;
@@ -128,8 +128,6 @@ void addTruthTracking(Context& ctx) {
     ACTS_PYTHON_MEMBER(loc0Max);
     ACTS_PYTHON_MEMBER(loc1Min);
     ACTS_PYTHON_MEMBER(loc1Max);
-    ACTS_PYTHON_MEMBER(timeMin);
-    ACTS_PYTHON_MEMBER(timeMax);
     ACTS_PYTHON_MEMBER(phiMin);
     ACTS_PYTHON_MEMBER(phiMax);
     ACTS_PYTHON_MEMBER(etaMin);
@@ -142,7 +140,6 @@ void addTruthTracking(Context& ctx) {
 
     pythonRangeProperty(c, "loc0", &Config::loc0Min, &Config::loc0Max);
     pythonRangeProperty(c, "loc1", &Config::loc1Min, &Config::loc1Max);
-    pythonRangeProperty(c, "time", &Config::timeMin, &Config::timeMax);
     pythonRangeProperty(c, "phi", &Config::phiMin, &Config::phiMax);
     pythonRangeProperty(c, "eta", &Config::etaMin, &Config::etaMax);
     pythonRangeProperty(c, "absEta", &Config::absEtaMin, &Config::absEtaMax);

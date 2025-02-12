@@ -29,8 +29,7 @@ namespace Acts {
 /// range defined by the iterators. The magnetic field (which might be along any
 /// direction) is also necessary for the momentum estimation.
 ///
-/// This is a purely spatial estimation, i.e. the time parameter will be set to
-/// 0.
+/// This is a purely spatial estimation.
 ///
 /// It resembles the method used in ATLAS for the track parameters estimated
 /// from seed, i.e. the function InDet::SiTrackMaker_xk::getAtaPlane here:
@@ -78,17 +77,13 @@ FreeVector estimateTrackParamsFromSeed(spacepoint_range_t spRange,
   // The global positions of the bottom, middle and space points
   std::array<Vector3, 3> spPositions = {Vector3::Zero(), Vector3::Zero(),
                                         Vector3::Zero()};
-  std::array<std::optional<double>, 3> spTimes = {std::nullopt, std::nullopt,
-                                                  std::nullopt};
   // The first, second and third space point are assumed to be bottom, middle
   // and top space point, respectively
-  for (auto [sp, spPosition, spTime] :
-       Acts::zip(spRange, spPositions, spTimes)) {
+  for (auto [sp, spPosition] : Acts::zip(spRange, spPositions)) {
     if (sp == nullptr) {
       throw std::invalid_argument("Empty space point found.");
     }
     spPosition = Vector3(sp->x(), sp->y(), sp->z());
-    spTime = sp->t();
   }
 
   FreeVector params = estimateTrackParamsFromSeed(
@@ -164,10 +159,7 @@ struct EstimateTrackParamCovarianceConfig {
   double initialSigmaPtRel = 0.1;
 
   /// The inflation factors for the variances of the track parameters
-  BoundVector initialVarInflation = {1., 1., 1., 1., 1., 1.};
-  /// The inflation factor for time uncertainty if the time parameter was not
-  /// estimated
-  double noTimeVarInflation = 100.;
+  BoundVector initialVarInflation = {1., 1., 1., 1., 1.};
 };
 
 /// Estimate the covariance matrix of the given track parameters based on the
@@ -179,11 +171,10 @@ struct EstimateTrackParamCovarianceConfig {
 ///
 /// @param config is the configuration for the estimation
 /// @param params is the track parameters
-/// @param hasTime is true if the track parameters have time
 ///
 /// @return the covariance matrix of the track parameters
 BoundMatrix estimateTrackParamCovariance(
-    const EstimateTrackParamCovarianceConfig& config, const BoundVector& params,
-    bool hasTime);
+    const EstimateTrackParamCovarianceConfig& config,
+    const BoundVector& params);
 
 }  // namespace Acts

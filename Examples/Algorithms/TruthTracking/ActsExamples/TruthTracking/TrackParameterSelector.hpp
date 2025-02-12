@@ -34,9 +34,6 @@ class TrackParameterSelector final : public IAlgorithm {
     double loc0Max = std::numeric_limits<double>::infinity();
     double loc1Min = -std::numeric_limits<double>::infinity();
     double loc1Max = std::numeric_limits<double>::infinity();
-    // Minimum/maximum track time.
-    double timeMin = -std::numeric_limits<double>::infinity();
-    double timeMax = std::numeric_limits<double>::infinity();
     // Direction cuts.
     double phiMin = -std::numeric_limits<double>::infinity();
     double phiMax = std::numeric_limits<double>::infinity();

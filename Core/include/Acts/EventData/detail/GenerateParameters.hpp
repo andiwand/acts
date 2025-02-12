@@ -204,9 +204,6 @@ struct GenerateBoundParametersOptions {
 
     double loc1Mean = 0 * UnitConstants::mm;
     double loc1Std = 1 * UnitConstants::mm;
-
-    double timeMean = 0 * UnitConstants::ns;
-    double timeStd = 1 * UnitConstants::ns;
   } position;
 
   GenerateBoundDirectionOptions direction;
@@ -215,7 +212,7 @@ struct GenerateBoundParametersOptions {
 };
 
 inline BoundVector someBoundParametersA() {
-  return {0.0, 0.0, 0.0, std::numbers::pi / 2, 1.0, 0.0};
+  return {0.0, 0.0, 0.0, std::numbers::pi / 2, 1.0};
 }
 
 template <typename generator_t>
@@ -231,10 +228,7 @@ inline BoundVector generateBoundParameters(
   auto [phi, theta] = generateBoundDirection(rng, options.direction);
   auto qOverP = generateQoverP(rng, options.qOverP, theta);
 
-  const double time = options.position.timeMean +
-                      options.position.timeStd * standardNormal(rng);
-
-  return {loc0, loc1, phi, theta, qOverP, time};
+  return {loc0, loc1, phi, theta, qOverP};
 }
 
 template <typename generator_t>
@@ -255,9 +249,6 @@ struct GenerateFreeParametersOptions {
 
     double zMean = 0 * UnitConstants::mm;
     double zStd = 1 * UnitConstants::mm;
-
-    double timeMean = 0 * UnitConstants::ns;
-    double timeStd = 1 * UnitConstants::ns;
   } position;
 
   GenerateBoundDirectionOptions direction;
@@ -266,7 +257,7 @@ struct GenerateFreeParametersOptions {
 };
 
 inline FreeVector someFreeParametersA() {
-  return {0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0};
+  return {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0};
 }
 
 template <typename generator_t>
@@ -280,8 +271,6 @@ inline FreeVector generateFreeParameters(
       options.position.yMean + options.position.yStd * standardNormal(rng);
   const double z =
       options.position.zMean + options.position.zStd * standardNormal(rng);
-  const double time = options.position.timeMean +
-                      options.position.timeStd * standardNormal(rng);
 
   auto [phi, theta] = generateBoundDirection(rng, options.direction);
 
@@ -290,7 +279,7 @@ inline FreeVector generateFreeParameters(
   auto qOverP = generateQoverP(rng, options.qOverP, theta);
 
   FreeVector freeParams;
-  freeParams << x, y, z, time, direction, qOverP;
+  freeParams << x, y, z, direction, qOverP;
   return freeParams;
 }
 

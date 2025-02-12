@@ -600,9 +600,8 @@ RootAthenaDumpReader::readSpacepoints(
                                   SPtopStripCenterPosition->at(isp).at(1),
                                   SPtopStripCenterPosition->at(isp).at(2)};
       }
-      sp = SimSpacePoint(globalPos, std::nullopt, spCovr, spCovz, std::nullopt,
-                         sLinks, SPhl_topstrip[isp], SPhl_botstrip[isp],
-                         topStripDirection.cast<double>(),
+      sp = SimSpacePoint(globalPos, spCovr, spCovz, sLinks, SPhl_topstrip[isp],
+                         SPhl_botstrip[isp], topStripDirection.cast<double>(),
                          bottomStripDirection.cast<double>(),
                          stripCenterDistance.cast<double>(),
                          topStripCenterPosition.cast<double>());

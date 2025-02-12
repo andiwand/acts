@@ -85,9 +85,9 @@ HepMC3::GenParticlePtr matchParticles(
 
 std::unique_ptr<SimVertex> HepMC3Vertex::processVertex(
     const std::shared_ptr<HepMC3::GenVertex>& vertex) {
-  SimVertex vtx(SimVertexBarcode().setVertexPrimary(vertex->id()),
-                {vertex->position().x(), vertex->position().y(),
-                 vertex->position().z(), vertex->position().t()});
+  SimVertex vtx(
+      SimVertexBarcode().setVertexPrimary(vertex->id()),
+      {vertex->position().x(), vertex->position().y(), vertex->position().z()});
   vtx.incoming = genBarcodeToActs(vertex->particles_in());
   vtx.outgoing = genBarcodeToActs(vertex->particles_out());
   // Create Acts vertex

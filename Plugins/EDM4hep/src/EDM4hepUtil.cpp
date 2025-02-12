@@ -27,7 +27,7 @@
 namespace Acts::EDM4hepUtil {
 namespace detail {
 
-ActsSquareMatrix<6> jacobianToEdm4hep(double theta, double qOverP, double Bz) {
+ActsSquareMatrix<5> jacobianToEdm4hep(double theta, double qOverP, double Bz) {
   // Calculate jacobian from our internal parametrization (d0, z0, phi, theta,
   // q/p) to the LCIO / edm4hep (see:
   // https://bib-pubdb1.desy.de/record/81214/files/LC-DET-2006-004%5B1%5D.pdf)
@@ -52,7 +52,7 @@ ActsSquareMatrix<6> jacobianToEdm4hep(double theta, double qOverP, double Bz) {
   // [      2             sin(theta)]
   // [   sin (theta)                ]
 
-  ActsSquareMatrix<6> J;
+  ActsSquareMatrix<5> J;
   J.setIdentity();
   double sinTheta = std::sin(theta);
   J(3, 3) = -1.0 / (sinTheta * sinTheta);
@@ -62,7 +62,7 @@ ActsSquareMatrix<6> jacobianToEdm4hep(double theta, double qOverP, double Bz) {
   return J;
 }
 
-ActsSquareMatrix<6> jacobianFromEdm4hep(double tanLambda, double omega,
+ActsSquareMatrix<5> jacobianFromEdm4hep(double tanLambda, double omega,
                                         double Bz) {
   // [     d      /                     pi\                                  ]
   // [------------|-atan(\tan\lambda) + --|                 0                ]
@@ -87,7 +87,7 @@ ActsSquareMatrix<6> jacobianFromEdm4hep(double tanLambda, double omega,
   // [  /           2    \         /            2     ]
   // [B*\\tan\lambda  + 1/     B*\/  \tan\lambda  + 1 ]
 
-  ActsSquareMatrix<6> J;
+  ActsSquareMatrix<5> J;
   J.setIdentity();
   J(3, 3) = -1 / (tanLambda * tanLambda + 1);
   J(4, 3) = -1 * omega * tanLambda /
@@ -97,7 +97,7 @@ ActsSquareMatrix<6> jacobianFromEdm4hep(double tanLambda, double omega,
   return J;
 }
 
-void packCovariance(const ActsSquareMatrix<6>& from, float* to) {
+void packCovariance(const ActsSquareMatrix<5>& from, float* to) {
   for (int i = 0; i < from.rows(); i++) {
     for (int j = 0; j <= i; j++) {
       std::size_t k = (i + 1) * i / 2 + j;
@@ -106,7 +106,7 @@ void packCovariance(const ActsSquareMatrix<6>& from, float* to) {
   }
 }
 
-void unpackCovariance(const float* from, ActsSquareMatrix<6>& to) {
+void unpackCovariance(const float* from, ActsSquareMatrix<5>& to) {
   auto k = [](std::size_t i, std::size_t j) { return (i + 1) * i / 2 + j; };
   for (int i = 0; i < to.rows(); i++) {
     for (int j = 0; j < to.cols(); j++) {
@@ -148,7 +148,7 @@ Parameters convertTrackParametersToEdm4hep(const Acts::GeometryContext& gctx,
 
   // Only run covariance conversion if we have a covariance input
   if (targetCov) {
-    Acts::ActsSquareMatrix<6> J = jacobianToEdm4hep(
+    Acts::ActsSquareMatrix<5> J = jacobianToEdm4hep(
         targetPars[eBoundTheta], targetPars[eBoundQOverP], Bz);
     result.covariance = J * targetCov.value() * J.transpose();
   }
@@ -160,7 +160,6 @@ Parameters convertTrackParametersToEdm4hep(const Acts::GeometryContext& gctx,
       std::tan(std::numbers::pi / 2. - targetPars[Acts::eBoundTheta]);
   result.values[4] = targetPars[Acts::eBoundQOverP] /
                      std::sin(targetPars[Acts::eBoundTheta]) * Bz;
-  result.values[5] = targetPars[Acts::eBoundTime];
 
   result.particleHypothesis = params.particleHypothesis();
 
@@ -171,7 +170,7 @@ BoundTrackParameters convertTrackParametersFromEdm4hep(
     double Bz, const Parameters& params) {
   BoundVector targetPars;
 
-  ActsSquareMatrix<6> J =
+  ActsSquareMatrix<5> J =
       jacobianFromEdm4hep(params.values[3], params.values[4], Bz);
 
   std::optional<BoundMatrix> cov;
@@ -185,7 +184,6 @@ BoundTrackParameters convertTrackParametersFromEdm4hep(
   targetPars[eBoundTheta] = std::numbers::pi / 2. - std::atan(params.values[3]);
   targetPars[eBoundQOverP] =
       params.values[4] * std::sin(targetPars[eBoundTheta]) / Bz;
-  targetPars[eBoundTime] = params.values[5];
 
   return {params.surface, targetPars, cov, params.particleHypothesis};
 }

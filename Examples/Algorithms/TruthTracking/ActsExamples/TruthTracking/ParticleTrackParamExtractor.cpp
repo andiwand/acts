@@ -56,12 +56,10 @@ ActsExamples::ProcessCode ParticleTrackParamExtractor::execute(
     const auto phi = Acts::VectorHelpers::phi(particle.direction());
     const auto theta = Acts::VectorHelpers::theta(particle.direction());
     const auto qOverP = particle.qOverP();
-    const auto time = particle.time();
 
-    trackParameters.emplace_back(
-        perigeeSurfaces.at(vtxId),
-        Acts::BoundVector{0, 0, phi, theta, qOverP, time}, std::nullopt,
-        particleHypothesis);
+    trackParameters.emplace_back(perigeeSurfaces.at(vtxId),
+                                 Acts::BoundVector{0, 0, phi, theta, qOverP},
+                                 std::nullopt, particleHypothesis);
   }
 
   m_outputTrackParameters(ctx, std::move(trackParameters));

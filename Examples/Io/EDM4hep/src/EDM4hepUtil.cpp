@@ -35,10 +35,9 @@ SimParticle EDM4hepUtil::readParticle(const edm4hep::MCParticle& from,
   // TODO do we have that in EDM4hep?
   // particle.setProcess(static_cast<ActsFatras::ProcessType>(data.process));
 
-  to.initial().setPosition4(from.getVertex()[0] * Acts::UnitConstants::mm,
+  to.initial().setPosition({from.getVertex()[0] * Acts::UnitConstants::mm,
                             from.getVertex()[1] * Acts::UnitConstants::mm,
-                            from.getVertex()[2] * Acts::UnitConstants::mm,
-                            from.getTime() * Acts::UnitConstants::ns);
+                            from.getVertex()[2] * Acts::UnitConstants::mm});
 
   // Only used for direction; normalization/units do not matter
   Acts::Vector3 momentum = {from.getMomentum()[0], from.getMomentum()[1],
@@ -81,11 +80,10 @@ ActsFatras::Hit EDM4hepUtil::readSimHit(
   };
   const auto energy = std::hypot(momentum.norm(), mass);
 
-  Acts::Vector4 pos4{
+  Acts::Vector3 pos{
       from.getPosition().x * 1_mm,
       from.getPosition().y * 1_mm,
       from.getPosition().z * 1_mm,
-      from.getTime() * 1_ns,
   };
 
   Acts::Vector4 mom4{
@@ -104,7 +102,7 @@ ActsFatras::Hit EDM4hepUtil::readSimHit(
   // first
   std::int32_t index = -1;
 
-  return ActsFatras::Hit(geometryId, particleId, pos4, mom4, mom4 + delta4,
+  return ActsFatras::Hit(geometryId, particleId, pos, mom4, mom4 + delta4,
                          index);
 }
 
@@ -112,7 +110,7 @@ void EDM4hepUtil::writeSimHit(const ActsFatras::Hit& from,
                               edm4hep::MutableSimTrackerHit to,
                               const MapParticleIdTo& particleMapper,
                               const MapGeometryIdTo& geometryMapper) {
-  const Acts::Vector4& globalPos4 = from.fourPosition();
+  const Acts::Vector3& globalPos = from.position();
   const Acts::Vector4& momentum4Before = from.momentum4Before();
   const auto delta4 = from.momentum4After() - momentum4Before;
 
@@ -125,12 +123,10 @@ void EDM4hepUtil::writeSimHit(const ActsFatras::Hit& from,
     to.setCellID(geometryMapper(from.geometryId()));
   }
 
-  to.setTime(globalPos4[Acts::eTime] / Acts::UnitConstants::ns);
-
   to.setPosition({
-      globalPos4[Acts::ePos0] / Acts::UnitConstants::mm,
-      globalPos4[Acts::ePos1] / Acts::UnitConstants::mm,
-      globalPos4[Acts::ePos2] / Acts::UnitConstants::mm,
+      globalPos[Acts::ePos0] / Acts::UnitConstants::mm,
+      globalPos[Acts::ePos1] / Acts::UnitConstants::mm,
+      globalPos[Acts::ePos2] / Acts::UnitConstants::mm,
   });
 
   to.setMomentum({
@@ -166,10 +162,6 @@ VariableBoundMeasurementProxy EDM4hepUtil::readMeasurement(
   dParameters.values.push_back(pos.y);
   dParameters.variances.push_back(cov[2]);
 
-  dParameters.indices.push_back(Acts::eBoundTime);
-  dParameters.values.push_back(pos.z);
-  dParameters.variances.push_back(cov[5]);
-
   auto to = createMeasurement(container, geometryId, dParameters);
 
   // @TODO: Figure out if cell information is accessible
@@ -192,12 +184,10 @@ void EDM4hepUtil::writeMeasurement(
   const auto& parameters = from.fullParameters();
   const auto& covariance = from.fullCovariance();
 
-  to.setTime(parameters[Acts::eBoundTime] / Acts::UnitConstants::ns);
-
   to.setType(Acts::EDM4hepUtil::EDM4HEP_ACTS_POSITION_TYPE);
   // TODO set uv (which are in global spherical coordinates with r=1)
-  to.setPosition({parameters[Acts::eBoundLoc0], parameters[Acts::eBoundLoc1],
-                  parameters[Acts::eBoundTime]});
+  to.setPosition(
+      {parameters[Acts::eBoundLoc0], parameters[Acts::eBoundLoc1], 0});
 
   to.setCovMatrix({
       static_cast<float>(covariance(Acts::eBoundLoc0, Acts::eBoundLoc0)),

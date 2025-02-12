@@ -151,14 +151,17 @@ ProcessCode RootParticleReader::read(const AlgorithmContext& context) {
   for (unsigned int i = 0; i < nParticles; i++) {
     SimParticle p;
 
-    p.setProcess(static_cast<ActsFatras::ProcessType>((*m_process)[i]));
-    p.setPdg(static_cast<Acts::PdgParticle>((*m_particleType)[i]));
-    p.setCharge((*m_q)[i] * Acts::UnitConstants::e);
-    p.setMass((*m_m)[i] * Acts::UnitConstants::GeV);
-    p.setParticleId((*m_particleId)[i]);
-    p.setPosition(Acts::Vector3((*m_vx)[i] * Acts::UnitConstants::mm,
-                                (*m_vy)[i] * Acts::UnitConstants::mm,
-                                (*m_vz)[i] * Acts::UnitConstants::mm));
+    p.setProcess(static_cast<ActsFatras::ProcessType>((*m_process).at(i)));
+    p.setPdg(static_cast<Acts::PdgParticle>((*m_particleType).at(i)));
+    p.setCharge((*m_q).at(i) * Acts::UnitConstants::e);
+    p.setMass((*m_m).at(i) * Acts::UnitConstants::GeV);
+    p.setParticleId((*m_particleId).at(i));
+
+    SimParticleState& initialState = p.initial();
+
+    initialState.setPosition({(*m_vx).at(i) * Acts::UnitConstants::mm,
+                              (*m_vy).at(i) * Acts::UnitConstants::mm,
+                              (*m_vz).at(i) * Acts::UnitConstants::mm});
     // NOTE: direction is normalized inside `setDirection`
     initialState.setDirection((*m_px).at(i), (*m_py).at(i), (*m_pz).at(i));
     initialState.setAbsoluteMomentum((*m_p).at(i) * Acts::UnitConstants::GeV);

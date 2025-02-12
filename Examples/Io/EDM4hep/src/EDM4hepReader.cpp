@@ -269,18 +269,10 @@ ProcessCode EDM4hepReader::read(const AlgorithmContext& ctx) {
     }
     SimParticle particleSimulated = particleInitial;
 
-    float time = inParticle.getTime() * Acts::UnitConstants::ns;
-    for (const auto& daughter : inParticle.getDaughters()) {
-      if (!daughter.vertexIsNotEndpointOfParent()) {
-        time = daughter.getTime() * Acts::UnitConstants::ns;
-        break;
-      }
-    }
-
-    particleSimulated.final().setPosition4(
-        inParticle.getEndpoint()[0] * Acts::UnitConstants::mm,
-        inParticle.getEndpoint()[1] * Acts::UnitConstants::mm,
-        inParticle.getEndpoint()[2] * Acts::UnitConstants::mm, time);
+    particleSimulated.final().setPosition(
+        {inParticle.getEndpoint()[0] * Acts::UnitConstants::mm,
+         inParticle.getEndpoint()[1] * Acts::UnitConstants::mm,
+         inParticle.getEndpoint()[2] * Acts::UnitConstants::mm});
 
     Acts::Vector3 momentumFinal = {inParticle.getMomentumAtEndpoint()[0],
                                    inParticle.getMomentumAtEndpoint()[1],
@@ -289,8 +281,8 @@ ProcessCode EDM4hepReader::read(const AlgorithmContext& ctx) {
     particleSimulated.final().setAbsoluteMomentum(momentumFinal.norm());
 
     ACTS_VERBOSE("- Updated particle initial -> final, position: "
-                 << particleInitial.fourPosition().transpose() << " -> "
-                 << particleSimulated.final().fourPosition().transpose());
+                 << particleInitial.position().transpose() << " -> "
+                 << particleSimulated.final().position().transpose());
     ACTS_VERBOSE("                                     momentum: "
                  << particleInitial.fourMomentum().transpose() << " -> "
                  << particleSimulated.final().fourMomentum().transpose());
@@ -419,19 +411,15 @@ ProcessCode EDM4hepReader::read(const AlgorithmContext& ctx) {
       if (logger().doPrint(Acts::Logging::VERBOSE)) {
         ACTS_VERBOSE("Before sorting:");
         for (const auto& hitIdx : hitIndices) {
-          ACTS_VERBOSE(" - " << hitIdx << " / " << simHits.nth(hitIdx)->index()
-                             << " " << simHits.nth(hitIdx)->time());
+          ACTS_VERBOSE(" - " << hitIdx << " / "
+                             << simHits.nth(hitIdx)->index());
         }
       }
-
-      std::ranges::sort(hitIndices, {}, [&simHits](std::size_t h) {
-        return simHits.nth(h)->time();
-      });
 
       for (std::size_t i = 0; i < hitIndices.size(); ++i) {
         auto& hit = *simHits.nth(hitIndices[i]);
         SimHit updatedHit{hit.geometryId(),     hit.particleId(),
-                          hit.fourPosition(),   hit.momentum4Before(),
+                          hit.position(),       hit.momentum4Before(),
                           hit.momentum4After(), static_cast<std::int32_t>(i)};
         hit = updatedHit;
       }
@@ -439,8 +427,8 @@ ProcessCode EDM4hepReader::read(const AlgorithmContext& ctx) {
       if (logger().doPrint(Acts::Logging::VERBOSE)) {
         ACTS_VERBOSE("After sorting:");
         for (const auto& hitIdx : hitIndices) {
-          ACTS_VERBOSE(" - " << hitIdx << " / " << simHits.nth(hitIdx)->index()
-                             << " " << simHits.nth(hitIdx)->time());
+          ACTS_VERBOSE(" - " << hitIdx << " / "
+                             << simHits.nth(hitIdx)->index());
         }
       }
     }

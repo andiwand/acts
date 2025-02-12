@@ -92,8 +92,8 @@ Acts::FreeVector Acts::estimateTrackParamsFromSeed(const Vector3& sp0,
 }
 
 Acts::BoundMatrix Acts::estimateTrackParamCovariance(
-    const EstimateTrackParamCovarianceConfig& config, const BoundVector& params,
-    bool hasTime) {
+    const EstimateTrackParamCovarianceConfig& config,
+    const BoundVector& params) {
   assert((params[eBoundTheta] > 0 && params[eBoundTheta] < std::numbers::pi) &&
          "Theta must be in the range (0, pi)");
 
@@ -114,11 +114,6 @@ Acts::BoundMatrix Acts::estimateTrackParamCovariance(
       variance +=
           varianceTheta *
           std::pow(params[eBoundQOverP] / std::tan(params[eBoundTheta]), 2);
-    }
-
-    if (i == eBoundTime && !hasTime) {
-      // Inflate the time uncertainty if no time measurement is available
-      variance *= config.noTimeVarInflation;
     }
 
     // Inflate the initial covariance

@@ -65,8 +65,6 @@ ProcessCode HitSelector::execute(const AlgorithmContext& ctx) const {
     const bool validZ =
         (m_cfg.minZ <= hit.position().z()) && (hit.position().z() < m_cfg.maxZ);
     const bool validR = (m_cfg.minR <= r) && (r < m_cfg.maxR);
-    const bool validTime =
-        (m_cfg.minTime <= hit.time()) && (hit.time() < m_cfg.maxTime);
     const bool validEnergyLoss =
         (m_cfg.minEnergyLoss <= hit.depositedEnergy()) &&
         (hit.depositedEnergy() < m_cfg.maxEnergyLoss);
@@ -75,8 +73,7 @@ ProcessCode HitSelector::execute(const AlgorithmContext& ctx) const {
         (primaryVertexId < m_cfg.maxPrimaryVertexId);
 
     const bool validHit = validParticle && validX && validY && validZ &&
-                          validR && validTime && validEnergyLoss &&
-                          validPrimaryVertexId;
+                          validR && validEnergyLoss && validPrimaryVertexId;
     if (validHit) {
       unorderedHits.push_back(hit);
     }

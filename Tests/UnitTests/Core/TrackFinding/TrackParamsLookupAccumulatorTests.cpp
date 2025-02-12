@@ -76,7 +76,7 @@ BOOST_AUTO_TEST_CASE(Exceptions) {
       Acts::Surface::makeShared<Acts::PlaneSurface>(transform, bounds2);
 
   // Create parameters to accumulate
-  Acts::Vector4 pos{1, 2, 0, 4};
+  Acts::Vector3 pos{1, 2, 0};
   Acts::Vector3 dir{1, 0, 0};
   double P = 1.;
 
@@ -135,13 +135,13 @@ BOOST_AUTO_TEST_CASE(Accumulation) {
 
   auto hypothesis = Acts::ParticleHypothesis::electron();
 
-  std::vector<Acts::Vector4> avgPoss;
+  std::vector<Acts::Vector3> avgPoss;
   std::vector<Acts::Vector3> avgMoms;
-  Acts::Vector4 pos{1, 2, 0, 4};
+  Acts::Vector3 pos{1, 2, 0};
   for (std::size_t i = 0; i < gridBound.size(); i++) {
     // Create parameters to accumulate
-    std::array<Acts::Vector4, 4> fourPositions = {pos * (i + 1), pos * (i + 2),
-                                                  pos * (i + 3), pos * (i + 4)};
+    std::array<Acts::Vector3, 4> positions = {pos * (i + 1), pos * (i + 2),
+                                              pos * (i + 3)};
 
     std::array<double, 4> thetas = {
         std::numbers::pi / (i + 1), std::numbers::pi / (i + 2),
@@ -159,34 +159,34 @@ BOOST_AUTO_TEST_CASE(Accumulation) {
     Acts::Vector2 loc{center.at(0), center.at(1)};
 
     // Accumulate
-    Acts::Vector4 avgPos{0, 0, 0, 0};
+    Acts::Vector3 avgPos{0, 0, 0};
     Acts::Vector3 avgMom{0, 0, 0};
     for (std::size_t j = 0; j < 4; j++) {
       Acts::Vector3 direction{std::sin(thetas.at(j)) * std::cos(phis.at(j)),
                               std::sin(thetas.at(j)) * std::sin(phis.at(j)),
                               std::cos(thetas.at(j))};
 
-      avgPos += fourPositions.at(j);
+      avgPos += positions.at(j);
       avgMom += P * direction;
 
       // Fill in each grid
       auto parsBound = Acts::BoundTrackParameters::create(
-                           surf, gctx, fourPositions.at(j), direction, 1. / P,
+                           surf, gctx, positions.at(j), direction, 1. / P,
                            std::nullopt, hypothesis)
                            .value();
 
       auto parsCurvilinear = Acts::CurvilinearTrackParameters(
-          fourPositions.at(j), direction, 1. / P, std::nullopt, hypothesis);
+          positions.at(j), direction, 1. / P, std::nullopt, hypothesis);
 
       auto parsFree = Acts::FreeTrackParameters(
-          fourPositions.at(j), direction, 1. / P, std::nullopt, hypothesis);
+          positions.at(j), direction, 1. / P, std::nullopt, hypothesis);
 
       accBound.addTrack(parsBound, parsBound, loc);
       accCurvilinear.addTrack(parsCurvilinear, parsCurvilinear, loc);
       accFree.addTrack(parsFree, parsFree, loc);
     }
-    avgPoss.push_back(avgPos / fourPositions.size());
-    avgMoms.push_back(avgMom / fourPositions.size());
+    avgPoss.push_back(avgPos / positions.size());
+    avgMoms.push_back(avgMom / positions.size());
   }
 
   // Finalize and compare
@@ -198,21 +198,21 @@ BOOST_AUTO_TEST_CASE(Accumulation) {
     auto [ipCurvilinear, refCurvilinear] = avgGridCurvilinear.at(i);
     auto [ipFree, refFree] = avgGridFree.at(i);
 
-    Acts::Vector4 avgPos = avgPoss.at(i);
+    Acts::Vector3 avgPos = avgPoss.at(i);
 
     Acts::Vector3 avgMom = avgMoms.at(i);
     Acts::Vector3 avgDir = avgMom.normalized();
     double avgP = avgMom.norm();
 
-    CHECK_CLOSE_ABS(ipBound->fourPosition(gctx), avgPos, 1e-3);
+    CHECK_CLOSE_ABS(ipBound->position(gctx), avgPos, 1e-3);
     CHECK_CLOSE_ABS(ipBound->direction(), avgDir, 1e-3);
     CHECK_CLOSE_ABS(ipBound->absoluteMomentum(), avgP, 1e-3);
 
-    CHECK_CLOSE_ABS(ipCurvilinear->fourPosition(), avgPos, 1e-3);
+    CHECK_CLOSE_ABS(ipCurvilinear->position(), avgPos, 1e-3);
     CHECK_CLOSE_ABS(ipCurvilinear->direction(), avgDir, 1e-3);
     CHECK_CLOSE_ABS(ipCurvilinear->absoluteMomentum(), avgP, 1e-3);
 
-    CHECK_CLOSE_ABS(ipFree->fourPosition(), avgPos, 1e-3);
+    CHECK_CLOSE_ABS(ipFree->position(), avgPos, 1e-3);
     CHECK_CLOSE_ABS(ipFree->direction(), avgDir, 1e-3);
     CHECK_CLOSE_ABS(ipFree->absoluteMomentum(), avgP, 1e-3);
   }

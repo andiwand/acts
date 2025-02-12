@@ -79,7 +79,7 @@ class TrackParamsLookupAccumulator {
 
         auto res = TrackParameters::create(
             track.referenceSurface().getSharedPtr(), gctx,
-            track.fourPosition(gctx) / count, track.momentum().normalized(),
+            track.position(gctx) / count, track.momentum().normalized(),
             count * track.charge() / track.momentum().norm(),
             track.covariance(), track.particleHypothesis());
 
@@ -88,7 +88,7 @@ class TrackParamsLookupAccumulator {
         }
         return res.value();
       } else {
-        return TrackParameters(track.fourPosition() / count,
+        return TrackParameters(track.position() / count,
                                track.momentum().normalized(),
                                count * track.charge() / track.momentum().norm(),
                                track.covariance(), track.particleHypothesis());
@@ -145,10 +145,10 @@ class TrackParamsLookupAccumulator {
     if constexpr (detail::isGenericBoundTrackParams<TrackParameters>) {
       Acts::GeometryContext gctx;
 
-      Acts::Vector4 fourPosition = a.fourPosition(gctx) + b.fourPosition(gctx);
+      Acts::Vector3 position = a.position(gctx) + b.position(gctx);
 
       auto res = TrackParameters::create(
-          a.referenceSurface().getSharedPtr(), gctx, fourPosition,
+          a.referenceSurface().getSharedPtr(), gctx, position,
           momentum.normalized(), a.charge() / momentum.norm(), a.covariance(),
           a.particleHypothesis());
 
@@ -157,8 +157,8 @@ class TrackParamsLookupAccumulator {
       }
       return res.value();
     } else {
-      Acts::Vector4 fourPosition = a.fourPosition() + b.fourPosition();
-      return TrackParameters(fourPosition, momentum.normalized(),
+      Acts::Vector3 position = a.position() + b.position();
+      return TrackParameters(position, momentum.normalized(),
                              a.charge() / momentum.norm(), a.covariance(),
                              a.particleHypothesis());
     }

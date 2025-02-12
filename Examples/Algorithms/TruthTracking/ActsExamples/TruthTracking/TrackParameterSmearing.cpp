@@ -46,7 +46,6 @@ TrackParameterSmearing::TrackParameterSmearing(const Config& config,
   ACTS_DEBUG("smearing track param loc1 " << m_cfg.sigmaLoc1 << " A "
                                           << m_cfg.sigmaLoc1PtA << " B "
                                           << m_cfg.sigmaLoc1PtB);
-  ACTS_DEBUG("smearing track param time " << m_cfg.sigmaTime);
   ACTS_DEBUG("smearing track param phi " << m_cfg.sigmaPhi);
   ACTS_DEBUG("smearing track param theta " << m_cfg.sigmaTheta);
   ACTS_DEBUG("smearing track param q/p " << m_cfg.sigmaPtRel);
@@ -82,7 +81,6 @@ ProcessCode TrackParameterSmearing::execute(const AlgorithmContext& ctx) const {
 
   for (const auto& inputTrackParameters : inputTrackParametersContainer) {
     const auto position = inputTrackParameters.localPosition();
-    const auto time = inputTrackParameters.time();
     const auto phi = inputTrackParameters.phi();
     const auto theta = inputTrackParameters.theta();
     const auto pt = inputTrackParameters.transverseMomentum();
@@ -98,7 +96,6 @@ ProcessCode TrackParameterSmearing::execute(const AlgorithmContext& ctx) const {
         m_cfg.sigmaLoc1 +
         m_cfg.sigmaLoc1PtA * std::exp(-1.0 * std::abs(m_cfg.sigmaLoc1PtB) * pt);
     // shortcuts for other resolutions
-    const double sigmaTime = m_cfg.sigmaTime;
     const double sigmaPhi = m_cfg.sigmaPhi;
     const double sigmaTheta = m_cfg.sigmaTheta;
     const double sigmaQOverP =
@@ -106,11 +103,10 @@ ProcessCode TrackParameterSmearing::execute(const AlgorithmContext& ctx) const {
                   std::pow(sigmaTheta * (qOverP * std::tan(theta)), 2));
 
     Acts::BoundVector params = Acts::BoundVector::Zero();
-    // smear the position/time
+    // smear the position
     // note that we smear d0 and z0 in the perigee frame
     params[Acts::eBoundLoc0] = position[0] + sigmaLoc0 * stdNormal(rng);
     params[Acts::eBoundLoc1] = position[1] + sigmaLoc1 * stdNormal(rng);
-    params[Acts::eBoundTime] = time + sigmaTime * stdNormal(rng);
     // smear direction angles phi,theta ensuring correct bounds
     const auto [newPhi, newTheta] = Acts::detail::normalizePhiTheta(
         phi + sigmaPhi * stdNormal(rng), theta + sigmaTheta * stdNormal(rng));
@@ -131,12 +127,12 @@ ProcessCode TrackParameterSmearing::execute(const AlgorithmContext& ctx) const {
           .initialVarInflation = Eigen::Map<const Acts::BoundVector>{
               m_cfg.initialVarInflation.data()}};
 
-      cov = Acts::estimateTrackParamCovariance(config, params, false);
+      cov = Acts::estimateTrackParamCovariance(config, params);
     } else {
       // otherwise use the smearing sigmas
 
       Acts::BoundVector sigmas = Acts::BoundVector(
-          {sigmaLoc0, sigmaLoc1, sigmaPhi, sigmaTheta, sigmaQOverP, sigmaTime});
+          {sigmaLoc0, sigmaLoc1, sigmaPhi, sigmaTheta, sigmaQOverP});
 
       for (std::size_t i = Acts::eBoundLoc0; i < Acts::eBoundSize; ++i) {
         double sigma = sigmas[i];
@@ -154,15 +150,13 @@ ProcessCode TrackParameterSmearing::execute(const AlgorithmContext& ctx) const {
             inputTrackParameters.referenceSurface().shared_from_this(), params,
             cov, particleHypothesis);
 
-    ACTS_VERBOSE("Smearing particle (pos, time, phi, theta, q/p):");
+    ACTS_VERBOSE("Smearing particle (pos, phi, theta, q/p):");
     ACTS_VERBOSE(
         " from: " << inputTrackParameters.position(ctx.geoContext).transpose()
-                  << ", " << time << ", " << phi << ", " << theta << ", "
-                  << qOverP);
+                  << ", " << phi << ", " << theta << ", " << qOverP);
     ACTS_VERBOSE(
         "   to: " << outputTrackParameters.position(ctx.geoContext).transpose()
-                  << ", " << params[Acts::eBoundTime] << ", "
-                  << params[Acts::eBoundPhi] << ", "
+                  << ", " << params[Acts::eBoundPhi] << ", "
                   << params[Acts::eBoundTheta] << ", "
                   << params[Acts::eBoundQOverP]);
   }

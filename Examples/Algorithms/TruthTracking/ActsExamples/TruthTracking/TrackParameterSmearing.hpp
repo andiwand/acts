@@ -56,8 +56,6 @@ class TrackParameterSmearing final : public IAlgorithm {
     /// A*exp(-1.*abs(B)*pt).
     double sigmaLoc1PtA = 30 * Acts::UnitConstants::um;
     double sigmaLoc1PtB = 0.3 / Acts::UnitConstants::GeV;
-    /// Time resolution.
-    double sigmaTime = 1 * Acts::UnitConstants::ns;
     /// Phi angular resolution.
     double sigmaPhi = 1 * Acts::UnitConstants::degree;
     /// Theta angular resolution.

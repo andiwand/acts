@@ -133,8 +133,8 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
         .initialVarInflation = Eigen::Map<const Acts::BoundVector>{
             m_cfg.initialVarInflation.data()}};
 
-    Acts::BoundSquareMatrix cov = Acts::estimateTrackParamCovariance(
-        config, params, bottomSP->t().has_value());
+    Acts::BoundSquareMatrix cov =
+        Acts::estimateTrackParamCovariance(config, params);
 
     trackParameters.emplace_back(surface->getSharedPtr(), params, cov,
                                  m_cfg.particleHypothesis);

@@ -88,12 +88,12 @@ struct adl_serializer<parameters_t> {
     // and position takes a geometry context
     if constexpr (Acts::detail::isGenericBoundTrackParams<parameters_t>) {
       Acts::GeometryContext gctx;
-      j["position"] = t.fourPosition(gctx);
+      j["position"] = t.position(gctx);
 
       j["referenceSurface"] =
           Acts::SurfaceJsonConverter::toJson(gctx, t.referenceSurface());
     } else {
-      j["position"] = t.fourPosition();
+      j["position"] = t.position();
     }
   }
 
@@ -104,7 +104,7 @@ struct adl_serializer<parameters_t> {
   static parameters_t from_json(const nlohmann::json& j) {
     // Extract common parameters
     std::array<double, 4> posData = j.at("position");
-    Acts::Vector4 position(posData[0], posData[1], posData[2], posData[3]);
+    Acts::Vector3 position(posData[0], posData[1], posData[2]);
 
     std::array<double, 3> dirData = j.at("direction");
     Acts::Vector3 direction(dirData[0], dirData[1], dirData[2]);
