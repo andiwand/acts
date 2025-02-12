@@ -47,6 +47,7 @@ void SympyStepper::initialize(State& state, const BoundVector& boundParams,
   state.nSteps = 0;
   state.nStepTrials = 0;
   state.stepSize = ConstrainedStep(state.options.maxStepSize);
+  state.stepSize.setAccuracy(state.options.initialStepSize);
   state.previousStepSize = 0;
   state.statistics = StepperStatistics();
 
@@ -173,6 +174,8 @@ Result<double> SympyStepper::stepImpl(
   double errorEstimate = 0.;
 
   while (true) {
+    // std::cout << state.nStepTrials + nStepTrials << " " << h;
+
     ++nStepTrials;
     ++state.statistics.nAttemptedSteps;
 
@@ -189,6 +192,8 @@ Result<double> SympyStepper::stepImpl(
     }
     // Protect against division by zero
     errorEstimate = std::max(1e-20, errorEstimate);
+
+    // std::cout << " " << errorEstimate << std::endl;
 
     if (*res) {
       break;

@@ -38,6 +38,8 @@ struct StepperPlainOptions {
   /// Absolute maximum step size
   double maxStepSize = 10 * Acts::UnitConstants::m;
 
+  double initialStepSize = 100 * Acts::UnitConstants::mm;
+
   /// Maximum number of Runge-Kutta steps for the stepper step call
   unsigned int maxRungeKuttaStepTrials = 10000;
 

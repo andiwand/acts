@@ -6,6 +6,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#include <boost/test/data/test_case.hpp>
+#include <boost/test/tools/old/interface.hpp>
+#include <boost/test/tools/output_test_stream.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Algebra.hpp"
@@ -22,6 +25,7 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
+#include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/CurvilinearSurface.hpp"
@@ -29,6 +33,7 @@
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
+#include "Acts/Utilities/VectorHelpers.hpp"
 
 #include <cmath>
 #include <limits>
@@ -39,6 +44,7 @@
 #include <utility>
 #include <vector>
 
+namespace bdata = boost::unit_test::data;
 using namespace Acts::UnitLiterals;
 using Acts::VectorHelpers::makeVector4;
 
@@ -412,6 +418,36 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_test) {
   double h0 = esState.stepSize.value();
   es.step(esState, Direction::Forward(), nullptr);
   CHECK_CLOSE_ABS(h0, esState.stepSize.value(), eps);
+}
+
+BOOST_DATA_TEST_CASE(dense_propagator_test,
+                     bdata::make({1_GeV, 10_GeV, 100_GeV}), pt) {
+  auto bField = std::make_shared<ConstantBField>(Vector3(0, 0, 2_T));
+
+  // Construct the parameters
+  Vector3 pos(0, 0, 0);
+  Vector3 dir = Vector3(1, 1, 1).normalized();
+  double time = 0;
+  double absMom = pt / std::cos(VectorHelpers::theta(dir));
+  double charge = -1.;
+  CurvilinearTrackParameters cp(makeVector4(pos, time), dir, charge / absMom,
+                                std::nullopt, ParticleHypothesis::pion());
+
+  using Propagator = Propagator<SympyStepper>;
+  using Options = Propagator::Options<>;
+
+  Propagator propagator((SympyStepper(bField)));
+  Options options(tgContext, mfContext);
+  options.pathLimit = 10_m;
+  options.loopProtection = false;
+  options.stepping.initialStepSize = 100_mm;
+
+  std::cout << "pt=" << pt << " p=" << absMom << std::endl;
+  std::cout << "nstep,size,error" << std::endl;
+
+  auto res = propagator.propagate(cp, options);
+
+  BOOST_CHECK(res.ok());
 }
 
 }  // namespace Acts::Test
