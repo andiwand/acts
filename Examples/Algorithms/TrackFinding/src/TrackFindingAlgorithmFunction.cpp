@@ -9,7 +9,7 @@
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
-#include "Acts/Propagator/SympyStepper.hpp"
+#include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Track.hpp"
@@ -25,7 +25,7 @@ class TrackingGeometry;
 
 namespace {
 
-using Stepper = Acts::SympyStepper;
+using Stepper = Acts::EigenStepper<>;
 using Navigator = Acts::Navigator;
 using Propagator = Acts::Propagator<Stepper, Navigator>;
 using CKF =
