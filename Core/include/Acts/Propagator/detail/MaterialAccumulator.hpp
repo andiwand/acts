@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/EventData/ParticleHypothesis.hpp"
 #include "Acts/Material/Interactions.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
@@ -26,6 +27,7 @@ struct MaterialAccumulator {
   double varAngle = 0;
   double varPosition = 0;
   double covAnglePosition = 0;
+  double molarElectronDensity = 0;
 
   bool isValid() const { return accumulatedMaterial.isValid(); }
 
@@ -41,6 +43,10 @@ struct MaterialAccumulator {
   }
 
   void accumulate(const MaterialSlab& slab, double qOverPin, double qOverPout) {
+    double mass = particleHypothesis.mass();
+    double absQ = particleHypothesis.absoluteCharge();
+    PdgParticle absPdg = particleHypothesis.absolutePdg();
+
     double momentumIn = particleHypothesis.extractMomentum(qOverPin);
     double momentumOut = particleHypothesis.extractMomentum(qOverPout);
 
@@ -54,29 +60,30 @@ struct MaterialAccumulator {
     for (std::size_t i = 0; i < substepCount; ++i) {
       double momentumMean =
           momentumIn + (momentumOut - momentumIn) * (i + 0.5) / substepCount;
-      double qOverPmean = particleHypothesis.qOverP(
-          momentumMean, particleHypothesis.absoluteCharge());
+      double qOverPmean = particleHypothesis.qOverP(momentumMean, absQ);
 
       double theta0in = computeMultipleScatteringTheta0(
-          accumulatedMaterial, particleHypothesis.absolutePdg(),
-          particleHypothesis.mass(), qOverPmean,
-          particleHypothesis.absoluteCharge());
+          accumulatedMaterial, absPdg, mass, qOverPmean, absQ);
 
+      molarElectronDensity =
+          (molarElectronDensity * accumulatedMaterial.thickness() +
+           subslab.material().molarElectronDensity() * subslab.thickness()) /
+          (accumulatedMaterial.thickness() + subslab.thickness());
       accumulatedMaterial =
           MaterialSlab::combineLayers(accumulatedMaterial, subslab);
 
       double theta0out = computeMultipleScatteringTheta0(
-          accumulatedMaterial, particleHypothesis.absolutePdg(),
-          particleHypothesis.mass(), qOverPmean,
-          particleHypothesis.absoluteCharge());
+          accumulatedMaterial, absPdg, mass, qOverPmean, absQ);
 
       double deltaVarTheta = square(theta0out) - square(theta0in);
       double deltaVarPos = varAngle * square(substep) +
                            2 * covAnglePosition * substep +
                            deltaVarTheta * (square(substep) / 3);
-      varPosition += deltaVarPos;
-      covAnglePosition += varAngle * substep;
+      double deltaCovAnglePosition =
+          varAngle * substep + deltaVarTheta * substep / 2;
       varAngle += deltaVarTheta;
+      varPosition += deltaVarPos;
+      covAnglePosition += deltaCovAnglePosition;
     }
   }
 
@@ -113,8 +120,14 @@ struct MaterialAccumulator {
       double qOverP = particleHypothesis.qOverP(
           initialMomentum, particleHypothesis.absoluteCharge());
 
-      float qOverPSigma = computeEnergyLossLandauSigmaQOverP(
-          accumulatedMaterial, mass, qOverP, absQ);
+      Material other = accumulatedMaterial.material();
+      Material tmp = Material::fromMolarDensity(
+          other.X0(), other.L0(), other.Ar(),
+          molarElectronDensity / other.molarDensity(), other.molarDensity());
+      MaterialSlab tmpslab(tmp, accumulatedMaterial.thickness());
+
+      float qOverPSigma =
+          computeEnergyLossLandauSigmaQOverP(tmpslab, mass, qOverP, absQ);
 
       additionalFreeCovariance(eFreeQOverP, eFreeQOverP) =
           qOverPSigma * qOverPSigma;

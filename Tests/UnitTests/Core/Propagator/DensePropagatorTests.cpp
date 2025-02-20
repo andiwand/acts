@@ -22,6 +22,7 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
+#include "Acts/EventData/TransformationHelpers.hpp"
 #include "Acts/Geometry/CuboidVolumeBuilder.hpp"
 #include "Acts/Geometry/TrackingGeometryBuilder.hpp"
 #include "Acts/MagneticField/ConstantBField.hpp"
@@ -41,6 +42,7 @@
 #include "Acts/Tests/CommonHelpers/BenchmarkTools.hpp"
 #include "Acts/Tests/CommonHelpers/FloatComparisons.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
 #include <fstream>
 #include <memory>
@@ -196,8 +198,8 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
 
   decltype(propagator)::Options<> options(geoCtx, magCtx);
   options.maxSteps = 10000;
-  options.stepping.maxStepSize = 1000_mm;
-  options.stepping.dense.meanEnergyLoss = false;
+  options.stepping.maxStepSize = 10_mm;
+  options.stepping.dense.meanEnergyLoss = true;
   options.stepping.dense.momentumCutOff = 1_MeV;
 
   const Surface& target = *surfaces.back();
@@ -223,6 +225,9 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   double endVarQOverP = cov(eBoundQOverP, eBoundQOverP);
   double endVarP =
       std::pow(q / std::pow(endParams.qOverP(), 2), 2) * endVarQOverP;
+  double endVarTheta = cov(eBoundTheta, eBoundTheta);
+  double endVarPhi = cov(eBoundPhi, eBoundPhi);
+  double endVarDir1 = cov(eBoundTheta, eBoundTheta);
 
   std::cout << "input p = " << p << std::endl;
   std::cout << "output p = " << endP << std::endl;
@@ -231,6 +236,9 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
   std::cout << "output std y = " << std::sqrt(endVarY) << std::endl;
   std::cout << "output std q/p = " << std::sqrt(endVarQOverP) << std::endl;
   std::cout << "output std p = " << std::sqrt(endVarP) << std::endl;
+  std::cout << "output std theta = " << std::sqrt(endVarTheta) << std::endl;
+  std::cout << "output std phi = " << std::sqrt(endVarPhi) << std::endl;
+  std::cout << "output std dir1 = " << std::sqrt(endVarDir1) << std::endl;
 
   float theta0 = computeMultipleScatteringTheta0(
       MaterialSlab(material, 1_m), particleHypothesis.absolutePdg(),
@@ -307,7 +315,7 @@ BOOST_AUTO_TEST_CASE(chart_eloss_fe) {
 
 void chart_msc_eloss(double q, double p_min, double p_max, int n,
                      Material material, double thickness, std::ostream& out) {
-  out << "p_initial,p_final,sigma" << std::endl;
+  out << "p_initial,p_final,e_loss,x_sigma,dir_sigma,e_sigma" << std::endl;
 
   auto bfield = makeMagneticField();
   auto [detector, surfaces] = makeDetector(material, thickness);
@@ -318,18 +326,18 @@ void chart_msc_eloss(double q, double p_min, double p_max, int n,
 
   decltype(propagator)::Options<> options(geoCtx, magCtx);
   options.maxSteps = 10000;
-  options.stepping.maxStepSize = 1000_mm;
-  options.stepping.dense.meanEnergyLoss = false;
+  options.stepping.maxStepSize = 10_mm;
+  options.stepping.dense.meanEnergyLoss = true;
   options.stepping.dense.momentumCutOff = 1_MeV;
 
   const Surface& target = *surfaces.back();
 
   for (int i = 0; i < n; ++i) {
-    const double p = std::pow(
+    const double p_initial = std::pow(
         10, std::log10(p_min) +
                 (std::log10(p_max) - std::log10(p_min)) * (1.0 * i / n));
 
-    double qOverP = particleHypothesis.qOverP(p, q);
+    double qOverP = particleHypothesis.qOverP(p_initial, q);
 
     CurvilinearTrackParameters startParams(
         Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
@@ -338,7 +346,7 @@ void chart_msc_eloss(double q, double p_min, double p_max, int n,
     auto result = propagator.propagate(startParams, target, options);
 
     if (!result.ok()) {
-      std::cout << "propagation failed for p=" << p
+      std::cout << "propagation failed for p=" << p_initial
                 << " in thickness=" << thickness << " with " << result.error()
                 << " " << result.error().message() << std::endl;
       continue;
@@ -356,10 +364,28 @@ void chart_msc_eloss(double q, double p_min, double p_max, int n,
 
     const auto& cov = endParams.covariance().value();
 
-    double endVarX = cov(eBoundLoc0, eBoundLoc0);
+    FreeMatrix freeCov = [&]() -> FreeMatrix {
+      const Surface& surface = endParams.referenceSurface();
+      Vector3 position = endParams.position(geoCtx);
+      Vector3 direction = endParams.direction();
+      BoundToFreeMatrix boundToFreeJacobian =
+          surface.boundToFreeJacobian(geoCtx, position, direction);
+      return boundToFreeJacobian * cov * boundToFreeJacobian.transpose();
+    }();
 
-    out << p << "," << endParams.absoluteMomentum() << "," << std::sqrt(endVarX)
-        << std::endl;
+    double p_final = endParams.absoluteMomentum();
+    double eloss =
+        std::sqrt(square(p_initial) + square(particleHypothesis.mass())) -
+        std::sqrt(square(p_final) + square(particleHypothesis.mass()));
+    double x_sigma = std::sqrt(cov(eBoundLoc0, eBoundLoc0));
+    double dir_sigma = std::sqrt(freeCov(eFreeDir1, eFreeDir1));
+    double e_sigma =
+        std::pow(q, 2) / std::pow(endParams.qOverP(), 3) * 1 /
+        std::sqrt(square(p_final) + square(particleHypothesis.mass())) *
+        std::sqrt(cov(eBoundQOverP, eBoundQOverP));
+
+    out << p_initial << "," << p_final << "," << eloss << "," << x_sigma << ","
+        << dir_sigma << "," << e_sigma << std::endl;
   }
 }
 
@@ -428,8 +454,8 @@ BOOST_AUTO_TEST_CASE(perf) {
 
   PropagatorPlainOptions plainOptions(geoCtx, magCtx);
   plainOptions.maxSteps = 10000;
-  plainOptions.stepping.maxStepSize = 1000_mm;
-  plainOptions.stepping.dense.meanEnergyLoss = false;
+  plainOptions.stepping.maxStepSize = 10_mm;
+  plainOptions.stepping.dense.meanEnergyLoss = true;
   plainOptions.stepping.dense.momentumCutOff = 1_MeV;
 
   auto particleHypothesis = ParticleHypothesis::muon();
