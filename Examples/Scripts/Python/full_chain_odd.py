@@ -146,6 +146,9 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+args.output_csv = None
+args.output_obj = None
+
 outputDir = args.output
 ambi_ML = args.ambi_solver == "ML"
 ambi_scoring = args.ambi_solver == "scoring"
@@ -223,22 +226,20 @@ else:
         addParticleGun(
             s,
             MomentumConfig(
-                args.gun_pt_range[0] * u.GeV,
-                args.gun_pt_range[1] * u.GeV,
+                1 * u.GeV,
+                1 * u.GeV,
                 transverse=True,
             ),
-            EtaConfig(args.gun_eta_range[0], args.gun_eta_range[1]),
+            EtaConfig(-3, 3),
             PhiConfig(0.0, 360.0 * u.degree),
-            ParticleConfig(
-                args.gun_particles, acts.PdgParticle.eMuon, randomizeCharge=True
-            ),
+            ParticleConfig(1, acts.PdgParticle.eMuon, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
                     0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
                 ),
             ),
-            multiplicity=args.gun_multiplicity,
+            multiplicity=1,
             rnd=rnd,
         )
     else:

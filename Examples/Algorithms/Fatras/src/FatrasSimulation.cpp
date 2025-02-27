@@ -14,6 +14,7 @@
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/StraightLineStepper.hpp"
 #include "Acts/Propagator/SympyStepper.hpp"
+#include "Acts/Propagator/TryAllNavigator.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
@@ -32,7 +33,6 @@
 #include "ActsFatras/Selectors/SelectorHelpers.hpp"
 #include "ActsFatras/Selectors/SurfaceSelectors.hpp"
 
-#include <algorithm>
 #include <ostream>
 #include <stdexcept>
 #include <system_error>
@@ -82,10 +82,12 @@ namespace {
 struct FatrasSimulationT final : ActsExamples::detail::FatrasSimulation {
   using CutPMin = ActsFatras::Min<ActsFatras::Casts::P>;
 
+  using Navigator = Acts::Navigator;
+
   // typedefs for charge particle simulation
   // propagate charged particles numerically in the given magnetic field
   using ChargedStepper = Acts::SympyStepper;
-  using ChargedPropagator = Acts::Propagator<ChargedStepper, Acts::Navigator>;
+  using ChargedPropagator = Acts::Propagator<ChargedStepper, Navigator>;
   // charged particles w/ standard em physics list and selectable hits
   using ChargedSelector = CutPMin;
   using ChargedSimulation = ActsFatras::SingleParticleSimulation<
@@ -95,7 +97,7 @@ struct FatrasSimulationT final : ActsExamples::detail::FatrasSimulation {
   // typedefs for neutral particle simulation
   // propagate neutral particles with just straight lines
   using NeutralStepper = Acts::StraightLineStepper;
-  using NeutralPropagator = Acts::Propagator<NeutralStepper, Acts::Navigator>;
+  using NeutralPropagator = Acts::Propagator<NeutralStepper, Navigator>;
   // neutral particles w/ photon conversion and no hits
   using NeutralSelector = CutPMin;
   using NeutralInteractions =
@@ -112,21 +114,20 @@ struct FatrasSimulationT final : ActsExamples::detail::FatrasSimulation {
 
   FatrasSimulationT(const ActsExamples::FatrasSimulation::Config &cfg,
                     Acts::Logging::Level lvl)
-      : simulation(
-            ChargedSimulation(
-                ChargedPropagator(
-                    ChargedStepper(cfg.magneticField),
-                    Acts::Navigator({cfg.trackingGeometry},
-                                    Acts::getDefaultLogger("SimNav", lvl)),
-                    Acts::getDefaultLogger("SimProp", lvl)),
-                Acts::getDefaultLogger("Simulation", lvl)),
-            NeutralSimulation(
-                NeutralPropagator(
-                    NeutralStepper(),
-                    Acts::Navigator({cfg.trackingGeometry},
-                                    Acts::getDefaultLogger("SimNav", lvl)),
-                    Acts::getDefaultLogger("SimProp", lvl)),
-                Acts::getDefaultLogger("Simulation", lvl))) {
+      : simulation(ChargedSimulation(
+                       ChargedPropagator(
+                           ChargedStepper(cfg.magneticField),
+                           Navigator({cfg.trackingGeometry},
+                                     Acts::getDefaultLogger("SimNav", lvl)),
+                           Acts::getDefaultLogger("SimProp", lvl)),
+                       Acts::getDefaultLogger("Simulation", lvl)),
+                   NeutralSimulation(
+                       NeutralPropagator(
+                           NeutralStepper(),
+                           Navigator({cfg.trackingGeometry},
+                                     Acts::getDefaultLogger("SimNav", lvl)),
+                           Acts::getDefaultLogger("SimProp", lvl)),
+                       Acts::getDefaultLogger("Simulation", lvl))) {
     using namespace ActsFatras;
     using namespace ActsFatras::detail;
     // apply the configuration

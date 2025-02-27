@@ -230,7 +230,7 @@ class TryAllNavigatorBase {
 
   Config m_cfg;
 
-  std::unique_ptr<const Logger> m_logger;
+  std::shared_ptr<const Logger> m_logger;
 };
 
 /// @brief Alternative @c Navigator which tries all possible intersections
