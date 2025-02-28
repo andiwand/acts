@@ -179,8 +179,9 @@ field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
 s = acts.examples.Sequencer(
-    events=args.events,
-    skip=args.skip,
+    # events=10000,
+    events=1,
+    skip=486,
     numThreads=1 if args.geant4 else -1,
     outputDir=str(outputDir),
 )
@@ -297,6 +298,7 @@ else:
             outputDirCsv=outputDir if args.output_csv else None,
             outputDirObj=outputDir if args.output_obj else None,
             rnd=rnd,
+            logLevel=acts.logging.VERBOSE,
         )
 
 addDigitization(

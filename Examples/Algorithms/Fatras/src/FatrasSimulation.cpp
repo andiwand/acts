@@ -82,7 +82,7 @@ namespace {
 struct FatrasSimulationT final : ActsExamples::detail::FatrasSimulation {
   using CutPMin = ActsFatras::Min<ActsFatras::Casts::P>;
 
-  using Navigator = Acts::Navigator;
+  using Navigator = Acts::TryAllOverstepNavigator;
 
   // typedefs for charge particle simulation
   // propagate charged particles numerically in the given magnetic field

@@ -74,7 +74,7 @@ class FatrasSimulation final : public IAlgorithm {
     bool generateHitsOnPassive = false;
 
     /// Absolute maximum step size
-    double maxStepSize = 1 * Acts::UnitConstants::m;
+    double maxStepSize = 1 * Acts::UnitConstants::cm;
     /// Absolute maximum path length
     double pathLimit = 30 * Acts::UnitConstants::m;
 
