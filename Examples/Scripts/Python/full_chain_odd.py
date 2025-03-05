@@ -145,6 +145,10 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+args.ttbar = True
+args.output_root = False
+args.output_csv = False
+args.output_obj = False
 
 outputDir = args.output
 ambi_ML = args.ambi_solver == "ML"
@@ -176,9 +180,9 @@ field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
 s = acts.examples.Sequencer(
-    events=args.events,
+    events=10,
     skip=args.skip,
-    numThreads=1 if args.geant4 else -1,
+    numThreads=1,
     outputDir=str(outputDir),
 )
 
@@ -390,7 +394,7 @@ if args.reco:
                 30,  # long strip
             ],
         ),
-        outputDirRoot=outputDir if args.output_root else None,
+        outputDirRoot=outputDir,
         outputDirCsv=outputDir if args.output_csv else None,
         writeCovMat=True,
     )
