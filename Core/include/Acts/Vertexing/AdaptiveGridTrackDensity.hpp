@@ -167,6 +167,7 @@ class AdaptiveGridTrackDensity {
   /// @return Bin number
   std::int32_t getTemporalBin(double value) const;
 
+ public:
   /// @brief Calculates the spatial bin center corresponding to a bin number
   /// @param bin Bin number
   /// @return Bin center
@@ -176,6 +177,7 @@ class AdaptiveGridTrackDensity {
   /// @return Bin center
   double getTemporalBinCenter(std::int32_t bin) const;
 
+ private:
   /// @brief Calculates the grid size in z direction
   /// @param sigma Standard deviation of the track density
   /// @return Grid size

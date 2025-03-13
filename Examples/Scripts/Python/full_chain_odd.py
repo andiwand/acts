@@ -145,6 +145,11 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+args.events = 1
+args.ttbar = True
+args.ouptut_root = False
+args.output_csv = False
+args.output_obj = False
 
 outputDir = args.output
 ambi_ML = args.ambi_solver == "ML"
@@ -178,7 +183,7 @@ rnd = acts.examples.RandomNumbers(seed=42)
 s = acts.examples.Sequencer(
     events=args.events,
     skip=args.skip,
-    numThreads=1 if args.geant4 else -1,
+    numThreads=1,
     outputDir=str(outputDir),
 )
 
@@ -437,7 +442,9 @@ if args.reco:
     addVertexFitting(
         s,
         field,
+        useTime=True,
         vertexFinder=VertexFinder.AMVF,
+        seeder=acts.VertexSeedFinder.AdaptiveGridSeeder,
         outputDirRoot=outputDir if args.output_root else None,
     )
 

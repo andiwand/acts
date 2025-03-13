@@ -8,6 +8,8 @@
 
 #include "Acts/Vertexing/AdaptiveGridDensityVertexFinder.hpp"
 
+#include <fstream>
+
 Acts::Result<std::vector<Acts::Vertex>>
 Acts::AdaptiveGridDensityVertexFinder::find(
     const std::vector<InputTrack>& trackVector,
@@ -42,6 +44,15 @@ Acts::AdaptiveGridDensityVertexFinder::find(
       }
     }
     state.isInitialized = true;
+
+    std::ofstream file("track-density-map.csv");
+    file << "i,j,z,t,density\n";
+    for (const auto& [bin, density] : state.mainDensityMap) {
+      double z = m_cfg.gridDensity.getSpatialBinCenter(bin.first);
+      double t = m_cfg.gridDensity.getTemporalBinCenter(bin.second);
+      file << bin.first << "," << bin.second << "," << z << "," << t << ","
+           << density << "\n";
+    }
   }
 
   if (state.mainDensityMap.empty()) {
