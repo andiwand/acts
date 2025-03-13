@@ -29,7 +29,7 @@ struct MaterialAccumulator {
   double covAnglePosition = 0;
   double molarElectronDensity = 0;
 
-  bool isValid() const { return accumulatedMaterial.isValid(); }
+  bool isVacuum() const { return accumulatedMaterial.isVacuum(); }
 
   void reset() { *this = MaterialAccumulator(); }
 
@@ -51,9 +51,9 @@ struct MaterialAccumulator {
     double momentumOut = particleHypothesis.extractMomentum(qOverPout);
 
     std::size_t substepCount =
-        slab.isValid() ? static_cast<std::size_t>(
-                             std::ceil(slab.thicknessInX0() / maxXOverX0Step))
-                       : 1;
+        slab.isVacuum() ? 1
+                        : static_cast<std::size_t>(
+                              std::ceil(slab.thicknessInX0() / maxXOverX0Step));
     double substep = slab.thickness() / substepCount;
     MaterialSlab subslab(slab.material(), substep);
 
@@ -89,7 +89,7 @@ struct MaterialAccumulator {
 
   std::optional<FreeMatrix> computeAdditionalFreeCovariance(
       const Vector3& direction) {
-    if (!isValid()) {
+    if (isVacuum()) {
       return std::nullopt;
     }
 

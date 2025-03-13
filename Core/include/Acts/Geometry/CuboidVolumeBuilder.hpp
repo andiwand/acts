@@ -123,7 +123,7 @@ class CuboidVolumeBuilder : public ITrackingVolumeBuilder {
   /// @brief Constructor that sets the config
   ///
   /// @param [in] cfg Configuration of the detector
-  CuboidVolumeBuilder(Config& cfg) : m_cfg(cfg) {}
+  explicit CuboidVolumeBuilder(Config& cfg) : m_cfg(cfg) {}
 
   /// @brief Setter of the config
   ///

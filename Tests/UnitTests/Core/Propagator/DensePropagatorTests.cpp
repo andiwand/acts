@@ -192,7 +192,7 @@ BOOST_DATA_TEST_CASE(dense_propagator_test,
 
   auto particleHypothesis = ParticleHypothesis::muon();
   double qOverP = particleHypothesis.qOverP(p, q);
-  CurvilinearTrackParameters startParams(
+  auto startParams = BoundTrackParameters::createCurvilinear(
       Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
       BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
 
@@ -339,7 +339,7 @@ void chart_msc_eloss(double q, double p_min, double p_max, int n,
 
     double qOverP = particleHypothesis.qOverP(p_initial, q);
 
-    CurvilinearTrackParameters startParams(
+    auto startParams = BoundTrackParameters::createCurvilinear(
         Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
         BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
 
@@ -462,7 +462,7 @@ BOOST_AUTO_TEST_CASE(perf) {
   double q = 1;
   double p = 1_GeV;
   double qOverP = particleHypothesis.qOverP(p, q);
-  CurvilinearTrackParameters startParams(
+  auto startParams = BoundTrackParameters::createCurvilinear(
       Vector4(-1.5_m, 0, 0, 0), Vector3(1, 0, 0), qOverP,
       BoundVector::Constant(1e-16).asDiagonal(), particleHypothesis);
 

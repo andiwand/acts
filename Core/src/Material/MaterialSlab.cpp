@@ -10,23 +10,13 @@
 
 #include "Acts/Material/detail/AverageMaterials.hpp"
 
-#include <limits>
 #include <ostream>
 #include <stdexcept>
 
 namespace Acts {
 
-namespace {
-static constexpr auto eps = 2 * std::numeric_limits<float>::epsilon();
-}
-
-MaterialSlab::MaterialSlab(float thickness) : m_thickness(thickness) {}
-
 MaterialSlab::MaterialSlab(const Material& material, float thickness)
-    : m_material(material),
-      m_thickness(thickness),
-      m_thicknessInX0((eps < material.X0()) ? (thickness / material.X0()) : 0),
-      m_thicknessInL0((eps < material.L0()) ? (thickness / material.L0()) : 0) {
+    : MaterialSlab(material, thickness, false) {
   if (thickness < 0) {
     throw std::runtime_error("thickness < 0");
   }
@@ -47,7 +37,7 @@ MaterialSlab MaterialSlab::combineLayers(
   //   but I am not sure if this is actually a problem.
   // NOTE yes, this loop is exactly like std::reduce which apparently does not
   //   exist on gcc 8 although it is required by C++17.
-  MaterialSlab result;
+  MaterialSlab result = MaterialSlab::Nothing();
   for (const auto& layer : layers) {
     result = detail::combineSlabs(result, layer);
   }
