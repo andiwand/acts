@@ -237,6 +237,6 @@ struct EigenStepperDefaultExtension {
     D(3, 7) = h * m * m * qop / dtds;
     return true;
   }
-};  // namespace Acts
+};
 
 }  // namespace Acts
