@@ -206,6 +206,8 @@ PYBIND11_MODULE(ActsPythonBindingsGeant4, mod) {
     ACTS_PYTHON_MEMBER(killVolume);
     ACTS_PYTHON_MEMBER(killAfterTime);
     ACTS_PYTHON_MEMBER(killSecondaries);
+    ACTS_PYTHON_MEMBER(killMinEnergy);
+    ACTS_PYTHON_MEMBER(killMinMomentum);
     ACTS_PYTHON_MEMBER(recordHitsOfCharged);
     ACTS_PYTHON_MEMBER(recordHitsOfNeutrals);
     ACTS_PYTHON_MEMBER(recordHitsOfPrimaries);

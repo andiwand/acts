@@ -40,7 +40,7 @@ void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
   // event, so seems not to be too problematic
   if (!eventStore().hitBuffer.empty()) {
     eventStore().hitBuffer.clear();
-    ACTS_WARNING("Hit buffer not empty after track");
+    ACTS_DEBUG("Hit buffer not empty after track");
   }
 
   auto barcode = makeParticleId(aTrack->GetTrackID(), aTrack->GetParentID());
@@ -50,6 +50,8 @@ void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
   if (!barcode) {
     return;
   }
+
+  ++eventStore().statistics.particles;
 
   auto fatrasParticle = convert(*aTrack, *barcode);
   SimParticle particle(fatrasParticle, fatrasParticle);

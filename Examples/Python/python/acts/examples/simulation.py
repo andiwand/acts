@@ -573,6 +573,8 @@ def addGeant4(
     killVolume: Optional[acts.Volume] = None,
     killAfterTime: float = float("inf"),
     killSecondaries: bool = False,
+    killMinEnergy: float = 0.0,
+    killMinMomentum: float = 0.0,
     physicsList: str = "FTFP_BERT",
     regionList: List[Any] = [],
 ) -> None:
@@ -627,6 +629,8 @@ def addGeant4(
         killVolume=killVolume,
         killAfterTime=killAfterTime,
         killSecondaries=killSecondaries,
+        killMinEnergy=killMinEnergy,
+        killMinMomentum=killMinMomentum,
         recordHitsOfCharged=True,
         recordHitsOfNeutrals=False,
         recordHitsOfPrimaries=True,

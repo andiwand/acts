@@ -22,6 +22,8 @@ enum class ParticleOutcome : std::uint32_t {
   KilledVolumeExit = 2,
   KilledTime = 3,
   KilledSecondaryParticle = 4,
+  KilledEnergy = 5,
+  KilledMomentum = 6
 };
 
 std::ostream &operator<<(std::ostream &os, ParticleOutcome outcome);

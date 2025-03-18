@@ -25,6 +25,10 @@ std::ostream &operator<<(std::ostream &os, ParticleOutcome outcome) {
       return (os << "KilledTime");
     case ActsFatras::ParticleOutcome::KilledSecondaryParticle:
       return (os << "KilledSecondaryParticle");
+    case ActsFatras::ParticleOutcome::KilledEnergy:
+      return (os << "KilledEnergy");
+    case ActsFatras::ParticleOutcome::KilledMomentum:
+      return (os << "KilledMomentum");
   }
 
   throw std::runtime_error("Unknown ParticleOutcome");

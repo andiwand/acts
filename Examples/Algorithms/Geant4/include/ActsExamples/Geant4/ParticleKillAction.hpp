@@ -41,6 +41,9 @@ class ParticleKillAction : public G4UserSteppingAction {
     double maxTime = std::numeric_limits<double>::infinity();
     /// secondary particles will be terminated
     bool secondaries = false;
+
+    double minEnergy = 0;
+    double minMomentum = 0;
   };
 
   /// Construct the stepping action
@@ -51,7 +54,6 @@ class ParticleKillAction : public G4UserSteppingAction {
                               std::unique_ptr<const Acts::Logger> logger =
                                   Acts::getDefaultLogger("ParticleKillAction",
                                                          Acts::Logging::INFO));
-  ~ParticleKillAction() override = default;
 
   /// @brief Called every step, conditionally sets the tracking state to `fStopAndKill`
   /// @param step is the Geant4 step of the particle

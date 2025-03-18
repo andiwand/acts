@@ -44,12 +44,33 @@ void ParticleKillAction::UserSteppingAction(const G4Step* step) {
                                                pos.x(), pos.y(), pos.z()});
   const bool outOfTime = time > m_cfg.maxTime;
   const bool invalidSecondary = m_cfg.secondaries && isSecondary;
+  const bool outOfEnergy = track->GetTotalEnergy() < m_cfg.minEnergy;
+  const bool outOfMomentum = track->GetKineticEnergy() < m_cfg.minMomentum;
 
-  if (outOfVolume || outOfTime || invalidSecondary) {
-    ACTS_DEBUG("Kill track with internal track ID "
-               << track->GetTrackID() << " at " << pos << " and global time "
-               << time / Acts::UnitConstants::ns << "ns and isSecondary "
-               << isSecondary);
+  if (outOfVolume || outOfTime || invalidSecondary || outOfEnergy ||
+      outOfMomentum) {
+    ACTS_VERBOSE("Kill track with internal track ID "
+                 << track->GetTrackID() << " at " << pos << " and global time "
+                 << time / Acts::UnitConstants::ns << "ns and isSecondary "
+                 << isSecondary);
+
+    ++eventStore().statistics.killedTotal;
+    if (outOfVolume) {
+      ++eventStore().statistics.killedByVolume;
+    }
+    if (outOfTime) {
+      ++eventStore().statistics.killedByTime;
+    }
+    if (invalidSecondary) {
+      ++eventStore().statistics.killedSecondary;
+    }
+    if (outOfEnergy) {
+      ++eventStore().statistics.killedByEnergy;
+    }
+    if (outOfMomentum) {
+      ++eventStore().statistics.killedByMomentum;
+    }
+
     track->SetTrackStatus(G4TrackStatus::fStopAndKill);
   }
 
@@ -71,6 +92,12 @@ void ParticleKillAction::UserSteppingAction(const G4Step* step) {
     } else if (track->GetTrackStatus() == fStopAndKill) {
       eventStore().particleOutcome[particleId] =
           ActsFatras::ParticleOutcome::KilledInteraction;
+    } else if (outOfEnergy) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledEnergy;
+    } else if (outOfMomentum) {
+      eventStore().particleOutcome[particleId] =
+          ActsFatras::ParticleOutcome::KilledMomentum;
     }
   }
 }

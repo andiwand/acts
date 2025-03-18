@@ -84,6 +84,40 @@ struct EventStore {
   using BarcodeWithoutSubparticle =
       Acts::MultiIndex<std::uint64_t, 16, 16, 16, 16>;
   std::unordered_map<BarcodeWithoutSubparticle, std::size_t> subparticleMap;
+
+  // statistics
+  struct {
+    std::size_t particles = 0;
+    std::size_t hits = 0;
+    std::size_t killedTotal = 0;
+    std::size_t killedByTime = 0;
+    std::size_t killedByVolume = 0;
+    std::size_t killedSecondary = 0;
+    std::size_t killedByEnergy = 0;
+    std::size_t killedByMomentum = 0;
+  } statistics;
+
+  void clear() {
+    store = nullptr;
+    inputParticles = nullptr;
+
+    particlesInitial.clear();
+    particlesSimulated.clear();
+    hits.clear();
+    hitBuffer.clear();
+    numberGeantSteps = 0;
+    maxStepsForHit = 0;
+    materialTracks.clear();
+    propagationRecords.clear();
+    particleHitCount.clear();
+    particleOutcome.clear();
+    trackIdMapping.clear();
+    trackIdSubparticleCount.clear();
+    particleIdCollisionsInitial = 0;
+    particleIdCollisionsFinal = 0;
+    parentIdNotFound = 0;
+    subparticleMap.clear();
+  }
 };
 
 }  // namespace ActsExamples::Geant4

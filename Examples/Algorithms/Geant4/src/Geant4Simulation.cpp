@@ -107,6 +107,22 @@ ProcessCode Geant4SimulationBase::initialize() {
   return ProcessCode::SUCCESS;
 }
 
+ProcessCode Geant4SimulationBase::finalize() {
+  ACTS_INFO("Statistics for Geant4 simulation:");
+  ACTS_INFO("  Number of particles: " << eventStore().statistics.particles);
+  ACTS_INFO("    Killed total: " << eventStore().statistics.killedTotal);
+  ACTS_INFO("    Killed by time: " << eventStore().statistics.killedByTime);
+  ACTS_INFO("    Killed by volume: " << eventStore().statistics.killedByVolume);
+  ACTS_INFO(
+      "    Killed secondary: " << eventStore().statistics.killedSecondary);
+  ACTS_INFO("    Killed by energy: " << eventStore().statistics.killedByEnergy);
+  ACTS_INFO(
+      "    Killed by momentum: " << eventStore().statistics.killedByMomentum);
+  ACTS_INFO("  Number of hits: " << eventStore().statistics.hits);
+
+  return ProcessCode::SUCCESS;
+}
+
 ProcessCode Geant4SimulationBase::execute(const AlgorithmContext& ctx) const {
   // Ensure exclusive access to the Geant4 run manager
   std::lock_guard<std::mutex> guard(m_geant4Instance->mutex);
@@ -115,7 +131,7 @@ ProcessCode Geant4SimulationBase::execute(const AlgorithmContext& ctx) const {
   G4Random::setTheSeed(config().randomNumbers->generateSeed(ctx));
 
   // Get and reset event registry state
-  eventStore() = Geant4::EventStore{};
+  eventStore().clear();
 
   // Register the current event store to the registry
   // this will allow access from the User*Actions
@@ -217,6 +233,8 @@ Geant4Simulation::Geant4Simulation(const Config& cfg,
     particleKillCfg.volume = cfg.killVolume;
     particleKillCfg.maxTime = cfg.killAfterTime;
     particleKillCfg.secondaries = cfg.killSecondaries;
+    particleKillCfg.minEnergy = cfg.killMinEnergy;
+    particleKillCfg.minMomentum = cfg.killMinMomentum;
 
     Geant4::SensitiveSteppingAction::Config stepCfg;
     stepCfg.eventStore = m_eventStore;

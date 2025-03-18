@@ -35,7 +35,9 @@ ActsExamples::RootParticleWriter::RootParticleWriter(
   }
 
   // open root file and create the tree
-  m_outputFile = TFile::Open(m_cfg.filePath.c_str(), m_cfg.fileMode.c_str());
+  m_outputFile =
+      TFile::Open(m_cfg.filePath.c_str(), m_cfg.fileMode.c_str(), "",
+                  ROOT::RCompressionSetting::ELevel::EValues::kUncompressed);
   if (m_outputFile == nullptr) {
     throw std::ios_base::failure("Could not open '" + m_cfg.filePath + "'");
   }

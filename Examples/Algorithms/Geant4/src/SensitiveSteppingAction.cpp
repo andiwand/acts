@@ -292,6 +292,7 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
   // Add hit to collection.
   if (preOnBoundary && postOnBoundary) {
     ACTS_VERBOSE("-> merge single step to hit");
+    ++eventStore().statistics.hits;
     ++eventStore().particleHitCount[particleId];
     eventStore().hits.push_back(
         hitFromStep(step, particleId, geoId,
@@ -312,6 +313,7 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
     const auto pos4 =
         0.5 * (buffer.front().fourPosition() + buffer.back().fourPosition());
 
+    ++eventStore().statistics.hits;
     ++eventStore().particleHitCount[particleId];
     eventStore().hits.emplace_back(
         geoId, particleId, pos4, buffer.front().momentum4Before(),

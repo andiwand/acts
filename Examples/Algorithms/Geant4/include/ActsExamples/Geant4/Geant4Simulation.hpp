@@ -79,6 +79,8 @@ class Geant4SimulationBase : public IAlgorithm {
   /// Initialize the algorithm
   ProcessCode initialize() final;
 
+  ProcessCode finalize() final;
+
   /// Algorithm execute method, called once per event with context
   ///
   /// @param ctx the AlgorithmContext for this event
@@ -140,6 +142,8 @@ class Geant4Simulation final : public Geant4SimulationBase {
     std::shared_ptr<const Acts::Volume> killVolume;
     double killAfterTime = std::numeric_limits<double>::infinity();
     bool killSecondaries = false;
+    double killMinEnergy = 0;
+    double killMinMomentum = 0;
 
     bool recordHitsOfCharged = true;
 
