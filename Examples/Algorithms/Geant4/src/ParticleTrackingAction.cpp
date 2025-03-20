@@ -40,7 +40,9 @@ void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
   // event, so seems not to be too problematic
   if (!eventStore().hitBuffer.empty()) {
     eventStore().hitBuffer.clear();
-    ACTS_DEBUG("Hit buffer not empty after track");
+    ACTS_DEBUG("Hit buffer not empty after track. Track ID "
+               << aTrack->GetTrackID() << " parent ID " << aTrack->GetParentID()
+               << ". Clearing buffer");
   }
 
   auto barcode = makeParticleId(aTrack->GetTrackID(), aTrack->GetParentID());
@@ -65,7 +67,9 @@ void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
     eventStore().particleIdCollisionsInitial++;
     ACTS_WARNING("Particle ID collision with "
                  << particle.particleId()
-                 << " detected for initial particles. Skip particle");
+                 << " detected for initial particles. Track ID "
+                 << aTrack->GetTrackID() << " parent ID "
+                 << aTrack->GetParentID() << ". Skip particle");
   }
 }
 
@@ -73,8 +77,9 @@ void ParticleTrackingAction::PostUserTrackingAction(const G4Track* aTrack) {
   // The initial particle maybe was not registered because of a particle ID
   // collision
   if (!eventStore().trackIdMapping.contains(aTrack->GetTrackID())) {
-    ACTS_WARNING("Particle ID for track ID " << aTrack->GetTrackID()
-                                             << " not registered. Skip");
+    ACTS_WARNING("Particle ID for track ID "
+                 << aTrack->GetTrackID() << " parent ID "
+                 << aTrack->GetParentID() << " not registered. Skip");
     return;
   }
 
@@ -93,7 +98,9 @@ void ParticleTrackingAction::PostUserTrackingAction(const G4Track* aTrack) {
   auto particleIt = eventStore().particlesInitial.find(barcode);
   if (particleIt == eventStore().particlesInitial.end()) {
     ACTS_WARNING("Particle ID " << barcode
-                                << " not found in initial particles");
+                                << " not found in initial particles. Track ID "
+                                << aTrack->GetTrackID() << " parent ID "
+                                << aTrack->GetParentID() << ". Skip");
     return;
   }
   SimParticle particle = *particleIt;
@@ -105,7 +112,9 @@ void ParticleTrackingAction::PostUserTrackingAction(const G4Track* aTrack) {
     eventStore().particleIdCollisionsFinal++;
     ACTS_WARNING("Particle ID collision with "
                  << particle.particleId()
-                 << " detected for final particles. Skip particle");
+                 << " detected for final particles. Track ID "
+                 << aTrack->GetTrackID() << " parent ID "
+                 << aTrack->GetParentID() << ". Skip particle");
   }
 }
 
