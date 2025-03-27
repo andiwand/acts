@@ -519,7 +519,7 @@ def addSeeding(
                 level=logLevel,
                 inputTrackParameters=parEstimateAlg.config.outputTrackParameters,
                 inputSimSeeds=seeds,
-                inputSimHits="simhits",
+                inputSimHits="simhits_selected",
                 inputMeasurementParticlesMap="measurement_particles_map",
                 inputMeasurementSimHitsMap="measurement_simhits_map",
                 outputDir=str(outputDirCsv),
@@ -1191,7 +1191,7 @@ def addSeedPerformanceWriters(
             inputTrackParameters=outputTrackParameters,
             inputProtoTracks=prototracks,
             inputParticles=inputParticles,
-            inputSimHits="simhits",
+            inputSimHits="simhits_selected",
             inputMeasurementParticlesMap="measurement_particles_map",
             inputMeasurementSimHitsMap="measurement_simhits_map",
             filePath=str(outputDirRoot / "estimatedparams.root"),
@@ -1291,7 +1291,7 @@ def addSeedFilterML(
             level=customLogLevel,
             inputTrackParameters=estParams,
             inputSimSeeds=seeds,
-            inputSimHits="simhits",
+            inputSimHits="simhits_selected",
             inputMeasurementParticlesMap="measurement_particles_map",
             inputMeasurementSimHitsMap="measurement_simhits_map",
             outputDir=str(outputDirCsv),
@@ -1680,7 +1680,7 @@ def addTrackWriters(
                 inputTracks=tracks,
                 inputParticles="particles_selected",
                 inputTrackParticleMatching="track_particle_matching",
-                inputSimHits="simhits",
+                inputSimHits="simhits_selected",
                 inputMeasurementSimHitsMap="measurement_simhits_map",
                 filePath=str(outputDirRoot / f"trackstates_{name}.root"),
                 treeName="trackstates",
@@ -2173,7 +2173,7 @@ def addVertexFitting(
     tracks = tracks if tracks is not None else ""
     inputParticles = "particles"
     selectedParticles = "particles_selected"
-    inputTruthVertices = "vertices_truth"
+    inputTruthVertices = "vertices_selected"
 
     if vertexFinder == VertexFinder.Truth:
         findVertices = TruthVertexFinder(

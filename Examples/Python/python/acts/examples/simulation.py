@@ -43,12 +43,13 @@ ParticleSelectorConfig = namedtuple(
         "m",  # (min,max)
         "hits",  # (min,max)
         "measurements",  # (min,max)
+        "primaryVertexId",  # (min,max)
         "removeCharged",  # bool
         "removeNeutral",  # bool
         "removeSecondaries",  # bool
         "nMeasurementsGroupMin",
     ],
-    defaults=[(None, None)] * 10 + [None] * 4,
+    defaults=[(None, None)] * 11 + [None] * 4,
 )
 
 
@@ -74,6 +75,8 @@ def _getParticleSelectionKWargs(config: ParticleSelectorConfig) -> dict:
         "hitsMax": config.hits[1],
         "measurementsMin": config.measurements[0],
         "measurementsMax": config.measurements[1],
+        "minPrimaryVertexId": config.primaryVertexId[0],
+        "maxPrimaryVertexId": config.primaryVertexId[1],
         "removeCharged": config.removeCharged,
         "removeNeutral": config.removeNeutral,
         "removeSecondaries": config.removeSecondaries,
@@ -167,7 +170,7 @@ def addParticleGun(
     s.addReader(evGen)
 
     s.addWhiteboardAlias("particles", evGen.config.outputParticles)
-    s.addWhiteboardAlias("vertices_truth", evGen.config.outputVertices)
+    s.addWhiteboardAlias("vertices_selected", evGen.config.outputVertices)
 
     s.addWhiteboardAlias("particles_generated_selected", evGen.config.outputParticles)
 
@@ -332,7 +335,7 @@ def addPythia8(
     s.addReader(evGen)
 
     s.addWhiteboardAlias("particles", evGen.config.outputParticles)
-    s.addWhiteboardAlias("vertices_truth", evGen.config.outputVertices)
+    s.addWhiteboardAlias("vertices_selected", evGen.config.outputVertices)
 
     s.addWhiteboardAlias("particles_generated_selected", evGen.config.outputParticles)
 
@@ -470,8 +473,8 @@ def addFatras(
     s.addAlgorithm(alg)
 
     s.addWhiteboardAlias("particles", outputParticles)
-
     s.addWhiteboardAlias("particles_simulated_selected", outputParticles)
+    s.addWhiteboardAlias("simhits_selected", outputSimHits)
 
     addSimWriters(
         s,
@@ -578,7 +581,6 @@ def addGeant4(
     killMinEnergy: float = 0.0,
     killMinMomentum: float = 0.0,
     physicsList: str = "FTFP_BERT",
-    regionList: List[Any] = [],
 ) -> None:
     """This function steers the detector simulation using Geant4
 
@@ -644,8 +646,8 @@ def addGeant4(
     s.addAlgorithm(alg)
 
     s.addWhiteboardAlias("particles", outputParticles)
-
     s.addWhiteboardAlias("particles_simulated_selected", outputParticles)
+    s.addWhiteboardAlias("simhits_selected", outputSimHits)
 
     addSimWriters(
         s,
@@ -731,7 +733,7 @@ def addDigitization(
         ),
         surfaceByIdentifier=trackingGeometry.geoIdSurfaceMap(),
         randomNumbers=rnd,
-        inputSimHits="simhits",
+        inputSimHits="simhits_selected",
         outputMeasurements="measurements",
         outputMeasurementParticlesMap="measurement_particles_map",
         outputMeasurementSimHitsMap="measurement_simhits_map",

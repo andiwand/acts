@@ -18,6 +18,7 @@
 #include "ActsExamples/TruthTracking/TruthSeedingAlgorithm.hpp"
 #include "ActsExamples/TruthTracking/TruthTrackFinder.hpp"
 #include "ActsExamples/TruthTracking/TruthVertexFinder.hpp"
+#include "ActsExamples/TruthTracking/VertexSelector.hpp"
 
 #include <memory>
 
@@ -119,6 +120,10 @@ void addTruthTracking(Context& ctx) {
     pythonRangeProperty(c, "primaryVertexId", &Config::minPrimaryVertexId,
                         &Config::maxPrimaryVertexId);
   }
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::VertexSelector, mex,
+                                "VertexSelector", inputVertices, outputVertices,
+                                minPrimaryVertexId, maxPrimaryVertexId);
 
   {
     using Alg = ActsExamples::TrackParameterSelector;
