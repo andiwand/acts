@@ -131,7 +131,7 @@ struct KalmanFitterOptions {
                       const PropagatorPlainOptions& pOptions,
                       const Surface* rSurface = nullptr,
                       bool mScattering = true, bool eLoss = true,
-                      bool rFiltering = false, double rfScaling = 1.0,
+                      bool rFiltering = false, double rfScaling = 100.0,
                       const FreeToBoundCorrection& freeToBoundCorrection_ =
                           FreeToBoundCorrection(false))
       : geoContext(gctx),
