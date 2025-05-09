@@ -144,8 +144,7 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
     trackParameters.emplace_back(surface->getSharedPtr(), params, cov,
                                  m_cfg.particleHypothesis);
     if (m_outputSeeds.isInitialized()) {
-      // TODO
-      // outputSeeds.copySeed(seed);
+      outputSeeds.copySeed(seed);
     }
     if (m_outputTracks.isInitialized() && inputTracks != nullptr) {
       outputTracks.push_back(inputTracks->at(iseed));

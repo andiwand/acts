@@ -60,6 +60,10 @@ class SeedProxy {
     return m_container->vertexZ(m_index);
   }
 
+  std::span<const std::size_t> spacePointIndices() const {
+    return m_container->spacePointIndices(m_index);
+  }
+
   class SpacePointIterator {
    public:
     using iterator_category = std::forward_iterator_tag;
@@ -176,6 +180,16 @@ class SeedContainer {
   MutableSeedProxy makeSeed(SpacePointIndex bottom, SpacePointIndex middle,
                             SpacePointIndex top) {
     return at(addSeed(bottom, middle, top));
+  }
+
+  template <bool read_only>
+  MutableSeedProxy copySeed(SeedProxy<read_only> other) {
+    auto seed =
+        makeSeed(other.spacePointIndices()[0], other.spacePointIndices()[1],
+                 other.spacePointIndices()[2]);
+    seed.quality() = other.quality();
+    seed.vertexZ() = other.vertexZ();
+    return seed;
   }
 
   MutableProxyType at(IndexType index) {
