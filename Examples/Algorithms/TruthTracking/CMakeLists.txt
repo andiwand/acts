@@ -9,7 +9,7 @@ add_library(
     ActsExamples/TruthTracking/TrackTruthMatcher.cpp
     ActsExamples/TruthTracking/TruthTrackFinder.cpp
     ActsExamples/TruthTracking/TruthVertexFinder.cpp
-    ActsExamples/TruthTracking/TruthSeedingAlgorithm.cpp
+    #ActsExamples/TruthTracking/TruthSeedingAlgorithm.cpp
     ActsExamples/TruthTracking/HitSelector.cpp
 )
 target_include_directories(

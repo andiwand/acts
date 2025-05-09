@@ -7,7 +7,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Plugins/Python/Utilities.hpp"
-#include "ActsExamples/Io/Root/RootAthenaDumpReader.hpp"
+// #include "ActsExamples/Io/Root/RootAthenaDumpReader.hpp"
 #include "ActsExamples/Io/Root/RootAthenaNTupleReader.hpp"
 #include "ActsExamples/Io/Root/RootMaterialDecorator.hpp"
 #include "ActsExamples/Io/Root/RootMaterialTrackReader.hpp"
@@ -51,14 +51,14 @@ void addRootInput(Context& ctx) {
                              outputTruthVtxParameters, outputRecoVtxParameters,
                              outputBeamspotConstraint);
 
-  ACTS_PYTHON_DECLARE_READER(
-      ActsExamples::RootAthenaDumpReader, mex, "RootAthenaDumpReader", treename,
-      inputfiles, outputMeasurements, outputPixelSpacePoints,
-      outputStripSpacePoints, outputSpacePoints, outputClusters,
-      outputMeasurementParticlesMap, outputParticleMeasurementsMap,
-      outputParticles, onlySpacepoints, onlyPassedParticles, skipOverlapSPsPhi,
-      skipOverlapSPsEta, geometryIdMap, trackingGeometry, absBoundaryTolerance,
-      onlySpacepoints, noTruth, readCellData);
+  // ACTS_PYTHON_DECLARE_READER(
+  //     ActsExamples::RootAthenaDumpReader, mex, "RootAthenaDumpReader",
+  //     treename, inputfiles, outputMeasurements, outputPixelSpacePoints,
+  //     outputStripSpacePoints, outputSpacePoints, outputClusters,
+  //     outputMeasurementParticlesMap, outputParticleMeasurementsMap,
+  //     outputParticles, onlySpacepoints, onlyPassedParticles,
+  //     skipOverlapSPsPhi, skipOverlapSPsEta, geometryIdMap, trackingGeometry,
+  //     absBoundaryTolerance, onlySpacepoints, noTruth, readCellData);
 
 #ifdef WITH_GEOMODEL_PLUGIN
   ACTS_PYTHON_DECLARE_READER(ActsExamples::RootAthenaDumpGeoIdCollector, mex,

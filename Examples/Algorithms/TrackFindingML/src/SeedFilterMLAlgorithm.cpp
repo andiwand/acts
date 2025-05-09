@@ -23,25 +23,25 @@ ActsExamples::SeedFilterMLAlgorithm::SeedFilterMLAlgorithm(
   if (m_cfg.inputTrackParameters.empty()) {
     throw std::invalid_argument("Missing track parameters input collection");
   }
-  if (m_cfg.inputSimSeeds.empty()) {
+  if (m_cfg.inputSeedProxys.empty()) {
     throw std::invalid_argument("Missing seed input collection");
   }
   if (m_cfg.outputTrackParameters.empty()) {
     throw std::invalid_argument("Missing track parameters output collection");
   }
-  if (m_cfg.outputSimSeeds.empty()) {
+  if (m_cfg.outputSeedProxys.empty()) {
     throw std::invalid_argument("Missing seed output collection");
   }
   m_inputTrackParameters.initialize(m_cfg.inputTrackParameters);
-  m_inputSimSeeds.initialize(m_cfg.inputSimSeeds);
+  m_inputSeedProxys.initialize(m_cfg.inputSeedProxys);
   m_outputTrackParameters.initialize(m_cfg.outputTrackParameters);
-  m_outputSimSeeds.initialize(m_cfg.outputSimSeeds);
+  m_outputSeedProxys.initialize(m_cfg.outputSeedProxys);
 }
 
 ActsExamples::ProcessCode ActsExamples::SeedFilterMLAlgorithm::execute(
     const AlgorithmContext& ctx) const {
   // Read input data
-  const auto& seeds = m_inputSimSeeds(ctx);
+  const auto& seeds = m_inputSeedProxys(ctx);
   const auto& params = m_inputTrackParameters(ctx);
   if (seeds.size() != params.size()) {
     throw std::invalid_argument(
@@ -83,7 +83,7 @@ ActsExamples::ProcessCode ActsExamples::SeedFilterMLAlgorithm::execute(
       cluster, networkInput, m_cfg.minSeedScore);
 
   // Create the output seed collection
-  SimSeedContainer outputSeeds;
+  SeedContainer outputSeeds;
   outputSeeds.reserve(goodSeed.size());
 
   // Create the output track parameters collection
@@ -95,7 +95,7 @@ ActsExamples::ProcessCode ActsExamples::SeedFilterMLAlgorithm::execute(
     outputTrackParameters.push_back(params[i]);
   }
 
-  m_outputSimSeeds(ctx, SimSeedContainer{outputSeeds});
+  m_outputSeedProxys(ctx, SeedContainer{outputSeeds});
   m_outputTrackParameters(ctx, TrackParametersContainer{outputTrackParameters});
 
   return ActsExamples::ProcessCode::SUCCESS;

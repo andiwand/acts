@@ -10,14 +10,11 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/SourceLink.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 
-#include <array>
-#include <fstream>
-#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -53,7 +50,7 @@ ActsExamples::CsvSpacePointReader::availableEvents() const {
 
 ActsExamples::ProcessCode ActsExamples::CsvSpacePointReader::read(
     const ActsExamples::AlgorithmContext& ctx) {
-  SimSpacePointContainer spacePoints;
+  SpacePointContainer spacePoints;
 
   const auto& filename = m_cfg.inputCollection.empty()
                              ? m_cfg.inputStem
@@ -87,15 +84,16 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointReader::read(
                                              data.sp_topStripCenterPosition[2]);
 
         // TODO time
-        spacePoints.emplace_back(
-            globalPos, std::nullopt, data.sp_covr, data.sp_covz, std::nullopt,
-            sLinks, data.sp_topHalfStripLength, data.sp_bottomHalfStripLength,
-            topStripDirection, bottomStripDirection, stripCenterDistance,
-            topStripCenterPosition);
+        // spacePoints.emplace_back(
+        //     globalPos, std::nullopt, data.sp_covr, data.sp_covz,
+        //     std::nullopt, sLinks, data.sp_topHalfStripLength,
+        //     data.sp_bottomHalfStripLength, topStripDirection,
+        //     bottomStripDirection, stripCenterDistance,
+        //     topStripCenterPosition);
       } else {
         // TODO time
-        spacePoints.emplace_back(globalPos, std::nullopt, data.sp_covr,
-                                 data.sp_covz, std::nullopt, sLinks);
+        // spacePoints.emplace_back(globalPos, std::nullopt, data.sp_covr,
+        //                          data.sp_covz, std::nullopt, sLinks);
       }
     } else {
       ACTS_ERROR("Invalid space point type " << m_cfg.inputStem);

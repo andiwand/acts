@@ -20,14 +20,6 @@ SeedFinder<external_spacepoint_t, Acts::Cuda>::SeedFinder(
     const Acts::SeedFinderConfig<external_spacepoint_t>& config,
     const Acts::SeedFinderOptions& options)
     : m_config(config), m_options(options) {
-  if (not m_config.isInInternalUnits)
-    throw std::runtime_error(
-        "SeedFinderConfig not in ACTS internal units in "
-        "Cuda/Seeding/SeedFinder");
-  if (not m_options.isInInternalUnits)
-    throw std::runtime_error(
-        "SeedFinderOptions not in ACTS internal units in "
-        "Cuda/Seeding/SeedFinder");
   if (std::isnan(m_config.deltaRMaxTopSP)) {
     throw std::runtime_error("Value of deltaRMaxTopSP was not initialised");
   }

@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -32,7 +32,7 @@ struct AlgorithmContext;
 /// Safe to use from multiple writer threads. To avoid thread-saftey issues,
 /// the writer must be the sole owner of the underlying file. Thus, the
 /// output file pointer can not be given from the outside.
-class RootSpacepointWriter final : public WriterT<SimSpacePointContainer> {
+class RootSpacepointWriter final : public WriterT<SpacePointContainer> {
  public:
   struct Config {
     /// Input particle collection to write.
@@ -66,7 +66,7 @@ class RootSpacepointWriter final : public WriterT<SimSpacePointContainer> {
   /// @param[in] ctx is the algorithm context
   /// @param[in] spacepoints are the spacepoints to be written
   ProcessCode writeT(const AlgorithmContext& ctx,
-                     const SimSpacePointContainer& spacepoints) final;
+                     const SpacePointContainer& spacepoints) final;
 
  private:
   Config m_cfg;

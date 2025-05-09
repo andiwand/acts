@@ -8,19 +8,20 @@
 
 #include "ActsExamples/Utilities/EventDataTransforms.hpp"
 
-#include "Acts/EventData/SourceLink.hpp"
+#include "Acts/EventData/SpacePointContainer.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 
 #include <algorithm>
-#include <vector>
+#include <optional>
 
 ActsExamples::ProtoTrack ActsExamples::seedToPrototrack(
-    const ActsExamples::SimSeed& seed) {
+    const ActsExamples::SeedProxy& seed,
+    const SpacePointContainer& spacePointContainer) {
   ProtoTrack track;
-  track.reserve(seed.sp().size());
-  for (const auto& spacePoints : seed.sp()) {
-    for (const auto& slink : spacePoints->sourceLinks()) {
+  track.reserve(seed.size());
+  for (auto spacePoint : seed.spacePoints(spacePointContainer)) {
+    for (const auto& slink : spacePoint.sourceLinks()) {
       const auto& islink = slink.get<IndexSourceLink>();
       track.emplace_back(islink.index());
     }
@@ -28,57 +29,66 @@ ActsExamples::ProtoTrack ActsExamples::seedToPrototrack(
   return track;
 }
 
-const ActsExamples::SimSpacePoint* ActsExamples::findSpacePointForIndex(
-    ActsExamples::Index index, const SimSpacePointContainer& spacepoints) {
-  auto match = [&](const SimSpacePoint& sp) {
-    const auto& sls = sp.sourceLinks();
-    return std::ranges::any_of(sls, [&](const auto& sl) {
-      return sl.template get<IndexSourceLink>().index() == index;
+std::optional<ActsExamples::SpacePointProxy>
+ActsExamples::findSpacePointByMeasurementIndex(
+    ActsExamples::Index measurementIndex,
+    const SpacePointContainer& spacePointContainer) {
+  auto match = [&](const SpacePointProxy& sp) {
+    auto sourceLinks = sp.sourceLinks();
+    return std::ranges::any_of(sourceLinks, [&](const Acts::SourceLink& sl) {
+      return sl.template get<IndexSourceLink>().index() == measurementIndex;
     });
   };
 
-  auto found = std::ranges::find_if(spacepoints, match);
+  auto found = std::ranges::find_if(spacePointContainer, match);
 
-  if (found == spacepoints.end()) {
-    return nullptr;
+  if (found == spacePointContainer.end()) {
+    return std::nullopt;
   }
 
-  return &(*found);
+  return *found;
 }
 
-ActsExamples::SimSeed ActsExamples::prototrackToSeed(
+ActsExamples::SeedProxy ActsExamples::prototrackToSeed(
     const ActsExamples::ProtoTrack& track,
-    const ActsExamples::SimSpacePointContainer& spacepoints) {
-  auto findSpacePoint = [&](ActsExamples::Index index) {
-    auto found = findSpacePointForIndex(index, spacepoints);
-    if (found == nullptr) {
-      throw std::runtime_error("No spacepoint found for source-link index " +
-                               std::to_string(index));
+    const ActsExamples::SpacePointContainer& spacePointContainer,
+    SeedContainer& seedContainer) {
+  auto findSpacePointIndex =
+      [&](ActsExamples::Index measurementIndex) -> Acts::SpacePointIndex {
+    auto found =
+        findSpacePointByMeasurementIndex(measurementIndex, spacePointContainer);
+    if (!found.has_value()) {
+      throw std::runtime_error("No spacepoint found for measurement index " +
+                               std::to_string(measurementIndex));
     }
-    return found;
+    return found->index();
   };
 
   const auto s = track.size();
   if (s < 3) {
     throw std::runtime_error(
-        "Cannot convert track with less then 3 spacepoints to seed");
+        "Cannot convert track with less then 3 spacePoints to seed");
   }
 
-  std::vector<const SimSpacePoint*> ps;
-  ps.reserve(track.size());
+  std::vector<Acts::SpacePointIndex> spacePointIndices;
+  spacePointIndices.reserve(track.size());
 
-  std::transform(track.begin(), track.end(), std::back_inserter(ps),
-                 findSpacePoint);
-  std::ranges::sort(ps, {}, [](const auto& p) { return p->r(); });
+  std::transform(track.begin(), track.end(),
+                 std::back_inserter(spacePointIndices), findSpacePointIndex);
+  std::ranges::sort(spacePointIndices, {}, [&](const auto& spacePointIndex) {
+    return spacePointContainer.at(spacePointIndex).radius();
+  });
 
   // Simply use r = m*z + t and solve for r=0 to find z vertex position...
   // Probably not the textbook way to do
-  const auto m =
-      (ps.back()->r() - ps.front()->r()) / (ps.back()->z() - ps.front()->z());
-  const auto t = ps.front()->r() - m * ps.front()->z();
+  auto front = spacePointContainer.at(spacePointIndices.front());
+  auto back = spacePointContainer.at(spacePointIndices.back());
+  const auto m = (back.radius() - front.radius()) / (back.z() - front.z());
+  const auto t = front.radius() - m * front.z();
   const auto z_vertex = -t / m;
 
-  SimSeed seed(*ps[0], *ps[s / 2], *ps[s - 1]);
-  seed.setVertexZ(z_vertex);
-  return seed;
+  auto seed = seedContainer.makeSeed(
+      spacePointIndices[0], spacePointIndices[s / 2], spacePointIndices[s - 1]);
+  seed.vertexZ() = z_vertex;
+  return SeedProxy(seed);
 }

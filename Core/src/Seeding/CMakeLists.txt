@@ -1,1 +1,7 @@
-target_sources(ActsCore PRIVATE EstimateTrackParamsFromSeed.cpp)
+target_sources(
+    ActsCore
+    PRIVATE
+        CandidatesForMiddleSp.cpp
+        EstimateTrackParamsFromSeed.cpp
+        SeedFilter.cpp
+)

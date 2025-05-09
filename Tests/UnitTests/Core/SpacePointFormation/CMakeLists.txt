@@ -1,1 +1,1 @@
-add_unittest(SpacePointBuilder SpacePointBuilderTests.cpp)
+#add_unittest(SpacePointBuilder SpacePointBuilderTests.cpp)

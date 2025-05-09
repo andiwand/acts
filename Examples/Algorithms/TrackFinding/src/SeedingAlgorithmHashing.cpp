@@ -23,7 +23,7 @@
 #include "Acts/Utilities/GridBinFinder.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 #include "ActsExamples/Framework/WhiteBoard.hpp"
 
 #include <cmath>
@@ -65,7 +65,7 @@ ActsExamples::SeedingAlgorithmHashing::SeedingAlgorithmHashing(
     }
 
     auto& handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
+        std::make_unique<ReadDataHandle<SpacePointContainer>>(
             this,
             "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
     handle->initialize(spName);
@@ -250,7 +250,7 @@ ActsExamples::ProcessCode ActsExamples::SeedingAlgorithmHashing::execute(
   using seed_type = Acts::Seed<value_type>;
 
   // Create the set with custom comparison function
-  static thread_local std::set<ActsExamples::SimSeed,
+  static thread_local std::set<ActsExamples::SeedProxy,
                                SeedComparison<SimSpacePoint>>
       seedsSet;
   seedsSet.clear();
@@ -320,7 +320,7 @@ ActsExamples::ProcessCode ActsExamples::SeedingAlgorithmHashing::execute(
       const SimSpacePoint* middle = sps[1]->externalSpacePoint();
       const SimSpacePoint* top = sps[2]->externalSpacePoint();
 
-      ActsExamples::SimSeed toAdd(*bottom, *middle, *top);
+      ActsExamples::SeedProxy toAdd(*bottom, *middle, *top);
       toAdd.setVertexZ(seed.z());
       toAdd.setQuality(seed.seedQuality());
 
@@ -329,25 +329,25 @@ ActsExamples::ProcessCode ActsExamples::SeedingAlgorithmHashing::execute(
   }
 
   // convert the set to a simseed collection
-  ActsExamples::SimSeedContainer seeds;
+  ActsExamples::SeedContainer seeds;
   seeds.reserve(seedsSet.size());
-  for (const ActsExamples::SimSeed& seed : seedsSet) {
+  for (const ActsExamples::SeedProxy& seed : seedsSet) {
     seeds.push_back(seed);
   }
 
   ACTS_INFO("Created " << seeds.size() << " track seeds from "
                        << spacePointPtrs.size() << " space points");
 
-  m_outputSeeds(ctx, SimSeedContainer{seeds});
-  std::vector<SimSpacePointContainer> buckets;
+  m_outputSeeds(ctx, SeedContainer{seeds});
+  std::vector<SpacePointContainer> buckets;
   for (const SpacePointPtrVector& bucket : bucketsPtrs) {
-    SimSpacePointContainer bucketSP;
+    SpacePointContainer bucketSP;
     for (const SimSpacePoint* spacePoint : bucket) {
       bucketSP.push_back(*spacePoint);
     }
     buckets.push_back(bucketSP);
   }
-  m_outputBuckets(ctx, std::vector<SimSpacePointContainer>{buckets});
+  m_outputBuckets(ctx, std::vector<SpacePointContainer>{buckets});
 
   ACTS_DEBUG("End of SeedingAlgorithmHashing execute");
   return ActsExamples::ProcessCode::SUCCESS;

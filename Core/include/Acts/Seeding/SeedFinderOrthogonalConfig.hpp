@@ -8,23 +8,19 @@
 
 #pragma once
 
-#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
+#include "Acts/Seeding/SeedFilter.hpp"
 #include "Acts/Utilities/Delegate.hpp"
 
 #include <memory>
 #include <numbers>
 
 namespace Acts {
-// forward declaration to avoid cyclic dependence
-template <typename T>
-class SeedFilter;
 
 /// @brief Structure that holds configuration parameters for the orthogonal seed finder algorithm
-template <typename SpacePoint>
 struct SeedFinderOrthogonalConfig {
-  std::shared_ptr<Acts::SeedFilter<SpacePoint>> seedFilter;
+  std::shared_ptr<SeedFilter> seedFilter;
 
   /// Seeding parameters for geometry settings and detector ROI
 
@@ -32,12 +28,12 @@ struct SeedFinderOrthogonalConfig {
   float phiMin = -std::numbers::pi_v<float>;
   float phiMax = std::numbers::pi_v<float>;
   /// limiting location of measurements
-  float zMin = -2800 * Acts::UnitConstants::mm;
-  float zMax = 2800 * Acts::UnitConstants::mm;
-  float rMax = 600 * Acts::UnitConstants::mm;
+  float zMin = -2800 * UnitConstants::mm;
+  float zMax = 2800 * UnitConstants::mm;
+  float rMax = 600 * UnitConstants::mm;
   /// @warning If rMin is smaller than impactMax, the bin size will be 2*pi,
   /// which will make seeding very slow!
-  float rMin = 33 * Acts::UnitConstants::mm;
+  float rMin = 33 * UnitConstants::mm;
 
   /// Seeding parameters used to define the region of interest for middle
   /// space-point
@@ -46,8 +42,8 @@ struct SeedFinderOrthogonalConfig {
   /// The range can be defined manually with (rMinMiddle, rMaxMiddle). If
   /// useVariableMiddleSPRange is set to false and the vector rRangeMiddleSP is
   /// empty, we use (rMinMiddle, rMaxMiddle) to cut the middle space-points
-  float rMinMiddle = 60.f * Acts::UnitConstants::mm;
-  float rMaxMiddle = 120.f * Acts::UnitConstants::mm;
+  float rMinMiddle = 60.f * UnitConstants::mm;
+  float rMaxMiddle = 120.f * UnitConstants::mm;
   /// If useVariableMiddleSPRange is set to false, the vector rRangeMiddleSP can
   /// be used to define a fixed r range for each z bin: {{rMin, rMax}, ...}
   bool useVariableMiddleSPRange = true;
@@ -56,13 +52,13 @@ struct SeedFinderOrthogonalConfig {
   /// If useVariableMiddleSPRange is true, the radial range will be calculated
   /// based on the maximum and minimum r values of the space-points in the event
   /// and a deltaR (deltaRMiddleMinSPRange, deltaRMiddleMaxSPRange)
-  float deltaRMiddleMinSPRange = 10. * Acts::UnitConstants::mm;
-  float deltaRMiddleMaxSPRange = 10. * Acts::UnitConstants::mm;
+  float deltaRMiddleMinSPRange = 10. * UnitConstants::mm;
+  float deltaRMiddleMaxSPRange = 10. * UnitConstants::mm;
 
   /// Vector containing minimum and maximum z boundaries for cutting middle
   /// space-points
-  std::pair<float, float> zOutermostLayers{-2700 * Acts::UnitConstants::mm,
-                                           2700 * Acts::UnitConstants::mm};
+  std::pair<float, float> zOutermostLayers{-2700 * UnitConstants::mm,
+                                           2700 * UnitConstants::mm};
 
   /// Seeding parameters used to define the cuts on space-point doublets
 
@@ -80,8 +76,7 @@ struct SeedFinderOrthogonalConfig {
   float deltaPhiMax = 0.085;
 
   /// Maximum value of z-distance between space-points in doublet
-  float deltaZMax =
-      std::numeric_limits<float>::infinity() * Acts::UnitConstants::mm;
+  float deltaZMax = std::numeric_limits<float>::infinity() * UnitConstants::mm;
 
   /// Maximum allowed cotTheta between two space-points in doublet, used to
   /// check if forward angle is within bounds
@@ -89,8 +84,8 @@ struct SeedFinderOrthogonalConfig {
 
   /// Limiting location of collision region in z-axis used to check if doublet
   /// origin is within reasonable bounds
-  float collisionRegionMin = -150 * Acts::UnitConstants::mm;
-  float collisionRegionMax = +150 * Acts::UnitConstants::mm;
+  float collisionRegionMin = -150 * UnitConstants::mm;
+  float collisionRegionMax = +150 * UnitConstants::mm;
 
   /// Enable cut on the compatibility between interaction point and doublet,
   /// this is an useful approximation to speed up the seeding
@@ -103,7 +98,7 @@ struct SeedFinderOrthogonalConfig {
   /// minimum allowed pT particle) + a certain uncertainty term. Check the
   /// documentation for more information
   /// https://acts.readthedocs.io/en/latest/core/reconstruction/pattern_recognition/seeding.html
-  float minPt = 400. * Acts::UnitConstants::MeV;
+  float minPt = 400. * UnitConstants::MeV;
   /// Number of sigmas of scattering angle to be considered in the minimum pT
   /// scattering term
   float sigmaScattering = 5;
@@ -113,9 +108,9 @@ struct SeedFinderOrthogonalConfig {
   /// TODO: necessary to make amount of material dependent on detector region?
   float radLengthPerSeed = 0.05;
   /// Maximum transverse momentum for scattering calculation
-  float maxPtScattering = 10 * Acts::UnitConstants::GeV;
+  float maxPtScattering = 10 * UnitConstants::GeV;
   /// Maximum value of impact parameter estimation of the seed candidates
-  float impactMax = 20. * Acts::UnitConstants::mm;
+  float impactMax = 20. * UnitConstants::mm;
   /// Parameter which can loosen the tolerance of the track seed to form a
   /// helix. This is useful for e.g. misaligned seeding.
   float helixCutTolerance = 1.;
@@ -146,46 +141,13 @@ struct SeedFinderOrthogonalConfig {
   Delegate<bool(float /*bottomRadius*/, float /*cotTheta*/)> experimentCuts{
       DelegateFuncTag<&noopExperimentCuts>{}};
 
-  bool isInInternalUnits = false;
-
   SeedFinderOrthogonalConfig calculateDerivedQuantities() const {
-    if (!isInInternalUnits) {
-      throw std::runtime_error(
-          "SeedFinderOrthogonalConfig not in ACTS internal units in "
-          "calculateDerivedQuantities");
-    }
     SeedFinderOrthogonalConfig config = *this;
     /// calculation of scattering using the highland formula
     /// convert pT to p once theta angle is known
     config.highland = 13.6 * std::sqrt(radLengthPerSeed) *
                       (1 + 0.038 * std::log(radLengthPerSeed));
     config.maxScatteringAngle2 = std::pow(config.highland / config.minPt, 2);
-    return config;
-  }
-
-  SeedFinderOrthogonalConfig toInternalUnits() const {
-    if (isInInternalUnits) {
-      throw std::runtime_error(
-          "SeedFinderOrthogonalConfig already in ACTS internal units in "
-          "toInternalUnits");
-    }
-    using namespace Acts::UnitLiterals;
-    SeedFinderOrthogonalConfig config = *this;
-    config.isInInternalUnits = true;
-    config.minPt /= 1_MeV;
-    config.deltaRMinTopSP /= 1_mm;
-    config.deltaRMaxTopSP /= 1_mm;
-    config.deltaRMinBottomSP /= 1_mm;
-    config.deltaRMaxBottomSP /= 1_mm;
-    config.impactMax /= 1_mm;
-    config.maxPtScattering /= 1_MeV;
-    config.collisionRegionMin /= 1_mm;
-    config.collisionRegionMax /= 1_mm;
-    config.zMin /= 1_mm;
-    config.zMax /= 1_mm;
-    config.rMax /= 1_mm;
-    config.rMin /= 1_mm;
-
     return config;
   }
 };

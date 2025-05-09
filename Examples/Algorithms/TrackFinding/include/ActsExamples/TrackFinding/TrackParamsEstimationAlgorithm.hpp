@@ -13,7 +13,8 @@
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
@@ -46,6 +47,8 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
   struct Config {
     /// Input seeds collection.
     std::string inputSeeds;
+    /// Input space points collection.
+    std::string inputSpacePoints;
     /// Input prototracks (optional)
     std::string inputProtoTracks;
     /// Output estimated track parameters collection.
@@ -108,12 +111,14 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimSeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
+                                                         "InputSpacePoints"};
   ReadDataHandle<ProtoTrackContainer> m_inputTracks{this, "InputTracks"};
 
   WriteDataHandle<TrackParametersContainer> m_outputTrackParameters{
       this, "OutputTrackParameters"};
-  WriteDataHandle<SimSeedContainer> m_outputSeeds{this, "OutputSeeds"};
+  WriteDataHandle<SeedContainer> m_outputSeeds{this, "OutputSeeds"};
   WriteDataHandle<ProtoTrackContainer> m_outputTracks{this, "OutputTracks"};
 };
 

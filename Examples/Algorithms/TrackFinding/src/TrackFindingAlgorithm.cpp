@@ -19,6 +19,7 @@
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/EventData/VectorTrackContainer.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/MaterialInteractor.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
@@ -26,27 +27,24 @@
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
 #include "Acts/TrackFinding/TrackStateCreator.hpp"
 #include "Acts/TrackFitting/GainMatrixUpdater.hpp"
-#include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/TrackHelpers.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/MeasurementCalibration.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
-#include <cmath>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <stdexcept>
-#include <system_error>
 #include <unordered_map>
 #include <utility>
 
@@ -74,10 +72,12 @@ class MeasurementSelector {
  public:
   using Traj = Acts::VectorMultiTrajectory;
 
-  explicit MeasurementSelector(Acts::MeasurementSelector selector)
-      : m_selector(std::move(selector)) {}
+  MeasurementSelector(const SpacePointContainer* spacePointContainer,
+                      Acts::MeasurementSelector selector)
+      : m_spacePointContainer{spacePointContainer},
+        m_selector{std::move(selector)} {}
 
-  void setSeed(const std::optional<SimSeed>& seed) { m_seed = seed; }
+  void setSeed(const std::optional<SeedProxy>& seed) { m_seed = seed; }
 
   Acts::Result<std::pair<std::vector<Traj::TrackStateProxy>::iterator,
                          std::vector<Traj::TrackStateProxy>::iterator>>
@@ -102,16 +102,17 @@ class MeasurementSelector {
   }
 
  private:
+  const SpacePointContainer* m_spacePointContainer;
   Acts::MeasurementSelector m_selector;
-  std::optional<SimSeed> m_seed;
+  std::optional<SeedProxy> m_seed;
 
   bool isSeedCandidate(const Traj::TrackStateProxy& candidate) const {
     assert(candidate.hasUncalibratedSourceLink());
 
     const Acts::SourceLink& sourceLink = candidate.getUncalibratedSourceLink();
 
-    for (const auto& sp : m_seed->sp()) {
-      for (const auto& sl : sp->sourceLinks()) {
+    for (const auto& sp : m_seed->spacePoints(*m_spacePointContainer)) {
+      for (const auto& sl : sp.sourceLinks()) {
         if (sourceLink.get<IndexSourceLink>() == sl.get<IndexSourceLink>()) {
           return true;
         }
@@ -130,12 +131,15 @@ using SeedIdentifier = std::array<Index, 3>;
 ///
 /// @param seed The seed to build the identifier from.
 /// @return The seed identifier.
-SeedIdentifier makeSeedIdentifier(const SimSeed& seed) {
+SeedIdentifier makeSeedIdentifier(
+    const SeedProxy& seed, const SpacePointContainer& spacePointContainer) {
   SeedIdentifier result;
 
-  for (const auto& [i, sp] : Acts::enumerate(seed.sp())) {
-    const Acts::SourceLink& firstSourceLink = sp->sourceLinks().front();
+  std::size_t i = 0;
+  for (const auto& sp : seed.spacePoints(spacePointContainer)) {
+    const Acts::SourceLink& firstSourceLink = *sp.sourceLinks().begin();
     result.at(i) = firstSourceLink.get<IndexSourceLink>().index();
+    ++i;
   }
 
   return result;
@@ -294,6 +298,7 @@ TrackFindingAlgorithm::TrackFindingAlgorithm(Config config,
   m_inputMeasurements.initialize(m_cfg.inputMeasurements);
   m_inputInitialTrackParameters.initialize(m_cfg.inputInitialTrackParameters);
   m_inputSeeds.maybeInitialize(m_cfg.inputSeeds);
+  m_inputSpacePoints.maybeInitialize(m_cfg.inputSpacePoints);
   m_outputTracks.initialize(m_cfg.outputTracks);
 }
 
@@ -301,10 +306,12 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   // Read input data
   const auto& measurements = m_inputMeasurements(ctx);
   const auto& initialParameters = m_inputInitialTrackParameters(ctx);
-  const SimSeedContainer* seeds = nullptr;
+  const SeedContainer* seeds = nullptr;
+  const SpacePointContainer* spacePointContainer = nullptr;
 
   if (m_inputSeeds.isInitialized()) {
     seeds = &m_inputSeeds(ctx);
+    spacePointContainer = &m_inputSpacePoints(ctx);
 
     if (initialParameters.size() != seeds->size()) {
       ACTS_ERROR("Number of initial parameters and seeds do not match. "
@@ -324,6 +331,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
   BranchStopper branchStopper(m_cfg);
   MeasurementSelector measSel{
+      spacePointContainer,
       Acts::MeasurementSelector(m_cfg.measurementSelectorCfg)};
 
   IndexSourceLinkAccessor slAccessor;
@@ -448,7 +456,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   if (seeds != nullptr && m_cfg.seedDeduplication) {
     // Index the seeds for deduplication
     for (const auto& seed : *seeds) {
-      SeedIdentifier seedIdentifier = makeSeedIdentifier(seed);
+      SeedIdentifier seedIdentifier =
+          makeSeedIdentifier(seed, *spacePointContainer);
       discoveredSeeds.emplace(seedIdentifier, false);
     }
   }
@@ -457,10 +466,11 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
     m_nTotalSeeds++;
 
     if (seeds != nullptr) {
-      const SimSeed& seed = seeds->at(iSeed);
+      const SeedProxy& seed = seeds->at(iSeed);
 
       if (m_cfg.seedDeduplication) {
-        SeedIdentifier seedIdentifier = makeSeedIdentifier(seed);
+        SeedIdentifier seedIdentifier =
+            makeSeedIdentifier(seed, *spacePointContainer);
         // check if the seed has been discovered already
         if (auto it = discoveredSeeds.find(seedIdentifier);
             it != discoveredSeeds.end() && it->second) {

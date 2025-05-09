@@ -84,11 +84,8 @@ FreeVector estimateTrackParamsFromSeed(spacepoint_range_t spRange,
   // and top space point, respectively
   for (auto [sp, spPosition, spTime] :
        Acts::zip(spRange, spPositions, spTimes)) {
-    if (sp == nullptr) {
-      throw std::invalid_argument("Empty space point found.");
-    }
-    spPosition = Vector3(sp->x(), sp->y(), sp->z());
-    spTime = sp->t();
+    spPosition = Vector3(sp.x(), sp.y(), sp.z());
+    spTime = sp.t();
   }
 
   FreeVector params = estimateTrackParamsFromSeed(
@@ -127,8 +124,8 @@ Result<BoundVector> estimateTrackParamsFromSeed(const GeometryContext& gctx,
                                                 const Vector3& bField) {
   FreeVector freeParams = estimateTrackParamsFromSeed(spRange, bField);
 
-  const auto* sp0 = *spRange.begin();
-  Vector3 origin = Vector3(sp0->x(), sp0->y(), sp0->z());
+  auto sp0 = *spRange.begin();
+  Vector3 origin = Vector3(sp0.x(), sp0.y(), sp0.z());
   Vector3 direction = freeParams.segment<3>(eFreeDir0);
 
   BoundVector params = BoundVector::Zero();
@@ -146,7 +143,7 @@ Result<BoundVector> estimateTrackParamsFromSeed(const GeometryContext& gctx,
   // The estimated loc0 and loc1
   params[eBoundLoc0] = bottomLocalPos.x();
   params[eBoundLoc1] = bottomLocalPos.y();
-  params[eBoundTime] = sp0->t().value_or(0);
+  params[eBoundTime] = sp0.t().value_or(0);
 
   return Result<BoundVector>::success(params);
 }

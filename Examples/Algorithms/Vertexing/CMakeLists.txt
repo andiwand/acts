@@ -2,7 +2,7 @@ add_library(
     ActsExamplesVertexing
     SHARED
     src/AdaptiveMultiVertexFinderAlgorithm.cpp
-    src/HoughVertexFinderAlgorithm.cpp
+    #src/HoughVertexFinderAlgorithm.cpp
     src/IterativeVertexFinderAlgorithm.cpp
     src/VertexFitterAlgorithm.cpp
     src/TruthVertexSeeder.cpp

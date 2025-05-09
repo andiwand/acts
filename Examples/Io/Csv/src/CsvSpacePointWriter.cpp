@@ -12,7 +12,7 @@
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
@@ -38,7 +38,7 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointWriter::finalize() {
 }
 
 ActsExamples::ProcessCode ActsExamples::CsvSpacePointWriter::writeT(
-    const AlgorithmContext& ctx, const SimSpacePointContainer& spacepoints) {
+    const AlgorithmContext& ctx, const SpacePointContainer& spacepoints) {
   // Open per-event file for all components
   std::string pathSP =
       perEventFilepath(m_cfg.outputDir, "spacepoint.csv", ctx.eventNumber);

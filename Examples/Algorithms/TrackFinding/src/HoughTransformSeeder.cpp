@@ -52,7 +52,7 @@ ActsExamples::HoughTransformSeeder::HoughTransformSeeder(
     }
 
     auto& handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
+        std::make_unique<ReadDataHandle<SpacePointContainer>>(
             this,
             "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
     handle->initialize(spName);

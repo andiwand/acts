@@ -14,15 +14,14 @@
 #include "Acts/Plugins/Hashing/HashingTraining.hpp"
 #include "Acts/Plugins/Hashing/HashingTrainingConfig.hpp"
 #include "Acts/Seeding/SeedFilter.hpp"
-#include "Acts/Seeding/SeedFilterConfig.hpp"
 #include "Acts/Seeding/SeedFinder.hpp"
 #include "Acts/Seeding/SeedFinderConfig.hpp"
 #include "Acts/Seeding/SpacePointGrid.hpp"
 #include "Acts/Utilities/GridBinFinder.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/SpacePointContainer.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
@@ -140,11 +139,11 @@ class SeedingAlgorithmHashing final : public IAlgorithm {
 
   Config m_cfg;
 
-  std::vector<std::unique_ptr<ReadDataHandle<SimSpacePointContainer>>>
+  std::vector<std::unique_ptr<ReadDataHandle<SpacePointContainer>>>
       m_inputSpacePoints{};
 
-  WriteDataHandle<SimSeedContainer> m_outputSeeds{this, "OutputSeeds"};
-  WriteDataHandle<std::vector<SimSpacePointContainer>> m_outputBuckets{
+  WriteDataHandle<SeedContainer> m_outputSeeds{this, "OutputSeeds"};
+  WriteDataHandle<std::vector<SpacePointContainer>> m_outputBuckets{
       this, "OutputBuckets"};
   Acts::HashingAlgorithm<const SimSpacePoint*,
                          std::vector<const SimSpacePoint*>>

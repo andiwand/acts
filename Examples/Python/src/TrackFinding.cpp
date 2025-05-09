@@ -6,31 +6,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "Acts/EventData/SpacePointContainer.hpp"
-#include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "Acts/Geometry/TrackingGeometry.hpp"
+#include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Plugins/Python/Utilities.hpp"
 #include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
-#include "Acts/Seeding/SeedFilterConfig.hpp"
 #include "Acts/Seeding/SeedFinderConfig.hpp"
-#include "Acts/Seeding/SeedFinderGbtsConfig.hpp"
+// #include "Acts/Seeding/SeedFinderGbtsConfig.hpp"
 #include "Acts/Seeding/SeedFinderOrthogonalConfig.hpp"
-#include "Acts/Seeding/SpacePointGrid.hpp"
 #include "Acts/TrackFinding/MeasurementSelector.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/SpacePointContainer.hpp"
-#include "ActsExamples/EventData/Track.hpp"
-#include "ActsExamples/TrackFinding/GbtsSeedingAlgorithm.hpp"
-#include "ActsExamples/TrackFinding/HoughTransformSeeder.hpp"
+// #include "ActsExamples/TrackFinding/GbtsSeedingAlgorithm.hpp"
+// #include "ActsExamples/TrackFinding/HoughTransformSeeder.hpp"
 #include "ActsExamples/TrackFinding/MuonHoughSeeder.hpp"
 #include "ActsExamples/TrackFinding/SeedingAlgorithm.hpp"
-#include "ActsExamples/TrackFinding/SeedingOrthogonalAlgorithm.hpp"
+// #include "ActsExamples/TrackFinding/SeedingOrthogonalAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/TrackParamsEstimationAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/TrackParamsLookupEstimation.hpp"
 
-#include <array>
 #include <cstddef>
 #include <memory>
 #include <tuple>
@@ -39,15 +34,6 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-
-namespace Acts {
-class MagneticFieldProvider;
-class TrackingGeometry;
-}  // namespace Acts
-namespace ActsExamples {
-class IAlgorithm;
-class SimSpacePoint;
-}  // namespace ActsExamples
 
 namespace py = pybind11;
 
@@ -76,9 +62,7 @@ void addTrackFinding(Context& ctx) {
   }
 
   {
-    using Config = Acts::SeedFinderConfig<typename Acts::SpacePointContainer<
-        ActsExamples::SpacePointContainer<std::vector<const SimSpacePoint*>>,
-        Acts::detail::RefHolder>::SpacePointProxyType>;
+    using Config = Acts::SeedFinderConfig;
     auto c = py::class_<Config>(m, "SeedFinderConfig").def(py::init<>());
     ACTS_PYTHON_STRUCT(
         c, minPt, cotThetaMax, deltaRMin, deltaRMax, deltaRMinBottomSP,
@@ -101,11 +85,7 @@ void addTrackFinding(Context& ctx) {
     patchKwargsConstructor(c);
   }
   {
-    using Config =
-        Acts::SeedFinderOrthogonalConfig<typename Acts::SpacePointContainer<
-            ActsExamples::SpacePointContainer<
-                std::vector<const SimSpacePoint*>>,
-            Acts::detail::RefHolder>::SpacePointProxyType>;
+    using Config = Acts::SeedFinderOrthogonalConfig;
     auto c =
         py::class_<Config>(m, "SeedFinderOrthogonalConfig").def(py::init<>());
     ACTS_PYTHON_STRUCT(
@@ -121,14 +101,15 @@ void addTrackFinding(Context& ctx) {
     patchKwargsConstructor(c);
   }
 
-  {
-    using Config = Acts::Experimental::SeedFinderGbtsConfig<SimSpacePoint>;
-    auto c = py::class_<Config>(m, "SeedFinderGbtsConfig").def(py::init<>());
-    ACTS_PYTHON_STRUCT(c, minPt, sigmaScattering, highland, maxScatteringAngle2,
-                       ConnectorInputFile, m_phiSliceWidth, m_nMaxPhiSlice,
-                       m_useClusterWidth, m_layerGeometry);
-    patchKwargsConstructor(c);
-  }
+  // {
+  //   using Config = Acts::Experimental::SeedFinderGbtsConfig<SimSpacePoint>;
+  //   auto c = py::class_<Config>(m, "SeedFinderGbtsConfig").def(py::init<>());
+  //   ACTS_PYTHON_STRUCT(c, minPt, sigmaScattering, highland,
+  //   maxScatteringAngle2,
+  //                      ConnectorInputFile, m_phiSliceWidth, m_nMaxPhiSlice,
+  //                      m_useClusterWidth, m_layerGeometry);
+  //   patchKwargsConstructor(c);
+  // }
 
   {
     using seedConf = Acts::SeedConfirmationRangeConfig;
@@ -163,23 +144,25 @@ void addTrackFinding(Context& ctx) {
       gridConfig, gridOptions, allowSeparateRMax, zBinNeighborsTop,
       zBinNeighborsBottom, numPhiNeighbors, useExtraCuts);
 
-  ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::SeedingOrthogonalAlgorithm, mex,
-                                "SeedingOrthogonalAlgorithm", inputSpacePoints,
-                                outputSeeds, seedFilterConfig, seedFinderConfig,
-                                seedFinderOptions);
+  // ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::SeedingOrthogonalAlgorithm,
+  // mex,
+  //                               "SeedingOrthogonalAlgorithm",
+  //                               inputSpacePoints, outputSeeds,
+  //                               seedFilterConfig, seedFinderConfig,
+  //                               seedFinderOptions);
 
-  ACTS_PYTHON_DECLARE_ALGORITHM(
-      ActsExamples::GbtsSeedingAlgorithm, mex, "GbtsSeedingAlgorithm",
-      inputSpacePoints, outputSeeds, seedFinderConfig, seedFinderOptions,
-      layerMappingFile, geometrySelection, trackingGeometry, ActsGbtsMap,
-      fill_module_csv, inputClusters);
+  // ACTS_PYTHON_DECLARE_ALGORITHM(
+  //     ActsExamples::GbtsSeedingAlgorithm, mex, "GbtsSeedingAlgorithm",
+  //     inputSpacePoints, outputSeeds, seedFinderConfig, seedFinderOptions,
+  //     layerMappingFile, geometrySelection, trackingGeometry, ActsGbtsMap,
+  //     fill_module_csv, inputClusters);
 
-  ACTS_PYTHON_DECLARE_ALGORITHM(
-      ActsExamples::HoughTransformSeeder, mex, "HoughTransformSeeder",
-      inputSpacePoints, outputProtoTracks, trackingGeometry, geometrySelection,
-      inputMeasurements, subRegions, nLayers, xMin, xMax, yMin, yMax,
-      houghHistSize_x, houghHistSize_y, hitExtend_x, threshold,
-      localMaxWindowSize, kA);
+  // ACTS_PYTHON_DECLARE_ALGORITHM(
+  //     ActsExamples::HoughTransformSeeder, mex, "HoughTransformSeeder",
+  //     inputSpacePoints, outputProtoTracks, trackingGeometry,
+  //     geometrySelection, inputMeasurements, subRegions, nLayers, xMin, xMax,
+  //     yMin, yMax, houghHistSize_x, houghHistSize_y, hitExtend_x, threshold,
+  //     localMaxWindowSize, kA);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::MuonHoughSeeder, mex,
                                 "MuonHoughSeeder", inTruthSegments,
@@ -187,11 +170,11 @@ void addTrackFinding(Context& ctx) {
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       ActsExamples::TrackParamsEstimationAlgorithm, mex,
-      "TrackParamsEstimationAlgorithm", inputSeeds, inputProtoTracks,
-      outputTrackParameters, outputSeeds, outputProtoTracks, trackingGeometry,
-      magneticField, bFieldMin, initialSigmas, initialSigmaQoverPt,
-      initialSigmaPtRel, initialVarInflation, noTimeVarInflation,
-      particleHypothesis);
+      "TrackParamsEstimationAlgorithm", inputSeeds, inputSpacePoints,
+      inputProtoTracks, outputTrackParameters, outputSeeds, outputProtoTracks,
+      trackingGeometry, magneticField, bFieldMin, initialSigmas,
+      initialSigmaQoverPt, initialSigmaPtRel, initialVarInflation,
+      noTimeVarInflation, particleHypothesis);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::TrackParamsLookupEstimation, mex,
                                 "TrackParamsLookupEstimation", refLayers, bins,
@@ -225,13 +208,13 @@ void addTrackFinding(Context& ctx) {
         alg, "TrackFinderFunction");
 
     auto c = py::class_<Config>(alg, "Config").def(py::init<>());
-    ACTS_PYTHON_STRUCT(c, inputMeasurements, inputInitialTrackParameters,
-                       inputSeeds, outputTracks, trackingGeometry,
-                       magneticField, findTracks, measurementSelectorCfg,
-                       trackSelectorCfg, maxSteps, twoWay, reverseSearch,
-                       seedDeduplication, stayOnSeed, pixelVolumeIds,
-                       stripVolumeIds, maxPixelHoles, maxStripHoles, trimTracks,
-                       constrainToVolumeIds, endOfWorldVolumeIds);
+    ACTS_PYTHON_STRUCT(
+        c, inputMeasurements, inputInitialTrackParameters, inputSeeds,
+        inputSpacePoints, outputTracks, trackingGeometry, magneticField,
+        findTracks, measurementSelectorCfg, trackSelectorCfg, maxSteps, twoWay,
+        reverseSearch, seedDeduplication, stayOnSeed, pixelVolumeIds,
+        stripVolumeIds, maxPixelHoles, maxStripHoles, trimTracks,
+        constrainToVolumeIds, endOfWorldVolumeIds);
   }
 
   {

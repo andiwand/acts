@@ -8,10 +8,12 @@
 
 #pragma once
 
+#include "Acts/EventData/SpacePointContainer.hpp"
 #include "Acts/EventData/SpacePointMutableData.hpp"
 #include "Acts/Seeding/SeedFinderConfig.hpp"
 
 namespace Acts {
+
 /// @brief A partial description of a circle in u-v space.
 struct LinCircle {
   LinCircle() = default;
@@ -27,10 +29,10 @@ struct LinCircle {
   float y{0.};
 };
 
-template <typename external_spacepoint_t, typename callable_t>
-LinCircle transformCoordinates(Acts::SpacePointMutableData& mutableData,
-                               const external_spacepoint_t& sp,
-                               const external_spacepoint_t& spM, bool bottom,
+template <typename callable_t>
+LinCircle transformCoordinates(SpacePointMutableData& mutableData,
+                               ConstSpacePointProxy sp,
+                               ConstSpacePointProxy spM, bool bottom,
                                callable_t&& extractFunction);
 
 /// @brief Transform a vector of spacepoints to u-v space circles with respect
@@ -43,10 +45,10 @@ LinCircle transformCoordinates(Acts::SpacePointMutableData& mutableData,
 /// @param[in] spM The middle spacepoint.
 /// @param[in] bottom Should be true if vec are bottom spacepoints.
 /// @param[out] linCircleVec The output vector to write to.
-template <typename external_spacepoint_t>
-void transformCoordinates(Acts::SpacePointMutableData& mutableData,
-                          const std::vector<const external_spacepoint_t*>& vec,
-                          const external_spacepoint_t& spM, bool bottom,
+void transformCoordinates(const SpacePointContainer& SpacePointContainer,
+                          SpacePointMutableData& mutableData,
+                          const std::vector<SpacePointIndex>& vec,
+                          ConstSpacePointProxy spM, bool bottom,
                           std::vector<LinCircle>& linCircleVec);
 
 /// @brief Check the compatibility of spacepoint coordinates in xyz assuming the Bottom-Middle direction with the strip meassument details
@@ -58,11 +60,9 @@ void transformCoordinates(Acts::SpacePointMutableData& mutableData,
 /// @param[in] spacepointPosition Spacepoint coordinates in xyz plane.
 /// @param[out] outputCoordinates The output vector to write to.
 /// @returns Boolean that says if spacepoint is compatible with being inside the detector element.
-template <typename external_spacepoint_t>
-bool xyzCoordinateCheck(
-    const Acts::SeedFinderConfig<external_spacepoint_t>& config,
-    const external_spacepoint_t& sp, const double* spacepointPosition,
-    double* outputCoordinates);
+bool xyzCoordinateCheck(const SeedFinderConfig& config, ConstSpacePointProxy sp,
+                        const double* spacepointPosition,
+                        double* outputCoordinates);
 
 }  // namespace Acts
 

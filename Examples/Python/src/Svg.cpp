@@ -30,7 +30,7 @@
 #include "Acts/Utilities/Helpers.hpp"
 #include "ActsExamples/EventData/GeometryContainers.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Io/Svg/SvgPointWriter.hpp"
 #include "ActsExamples/Io/Svg/SvgTrackingGeometryWriter.hpp"
 #include <actsvg/core/draw.hpp>

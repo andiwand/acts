@@ -83,15 +83,6 @@ struct SeedFinderGbtsConfig {
     return config;
   }
 
-  SeedFinderGbtsConfig toInternalUnits() const {
-    // throw statement if the isInternalUnits member is false, ie if dont call
-    // this function
-    SeedFinderGbtsConfig config = *this;
-    // divides inputs by 1mm, all ones input
-    // changes member inInInternalUnits to true
-    return config;
-  }
-
 };  // end of config struct
 
 }  // namespace Acts::Experimental

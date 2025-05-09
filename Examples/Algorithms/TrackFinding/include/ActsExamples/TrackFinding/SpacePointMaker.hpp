@@ -12,7 +12,7 @@
 #include "Acts/SpacePointFormation/SpacePointBuilder.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -26,7 +26,6 @@ class TrackingGeometry;
 }
 
 namespace ActsExamples {
-struct AlgorithmContext;
 
 /// Create space point representations from measurements.
 ///
@@ -81,12 +80,12 @@ class SpacePointMaker final : public IAlgorithm {
 
   std::optional<IndexSourceLink::SurfaceAccessor> m_slSurfaceAccessor;
 
-  Acts::SpacePointBuilder<SimSpacePoint> m_spacePointBuilder;
+  std::optional<Acts::SpacePointBuilder> m_spacePointBuilder;
 
   ReadDataHandle<MeasurementContainer> m_inputMeasurements{this,
                                                            "InputMeasurements"};
 
-  WriteDataHandle<SimSpacePointContainer> m_outputSpacePoints{
-      this, "OutputSpacePoints"};
+  WriteDataHandle<SpacePointContainer> m_outputSpacePoints{this,
+                                                           "OutputSpacePoints"};
 };
 }  // namespace ActsExamples

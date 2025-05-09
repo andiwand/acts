@@ -10,7 +10,8 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -24,6 +25,7 @@ class SeedsToPrototracks final : public IAlgorithm {
  public:
   struct Config {
     std::string inputSeeds = "seeds";
+    std::string inputSpacePoints = "spacepoints";
     std::string outputProtoTracks = "tracks-from-seeds";
   };
 
@@ -45,7 +47,9 @@ class SeedsToPrototracks final : public IAlgorithm {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimSeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SpacePointContainer> m_spacePointContainer{this,
+                                                            "SpacePoints"};
   WriteDataHandle<ProtoTrackContainer> m_outputProtoTracks{this,
                                                            "OutputProtoTracks"};
 };

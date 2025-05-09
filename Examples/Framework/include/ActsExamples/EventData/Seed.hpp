@@ -8,14 +8,11 @@
 
 #pragma once
 
-#include "ActsExamples/TrackFindingExaTrkX/TrackFindingAlgorithmExaTrkX.hpp"
+#include "Acts/EventData/SeedContainer.hpp"
 
 namespace ActsExamples {
 
-std::vector<float> createFeatures(
-    const SpacePointContainer &spacepoints,
-    const std::optional<ClusterContainer> &clusters,
-    const std::vector<TrackFindingAlgorithmExaTrkX::NodeFeature> &nodeFeatures,
-    const std::vector<float> &featureScales);
+using SeedProxy = Acts::ConstSeedProxy;
+using SeedContainer = Acts::SeedContainer;
 
-}
+}  // namespace ActsExamples

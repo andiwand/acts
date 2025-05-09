@@ -9,155 +9,368 @@
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Units.hpp"
-#include "Acts/EventData/SpacePointData.hpp"
-#include "Acts/EventData/SpacePointProxy.hpp"
-#include "Acts/EventData/Utils.hpp"
-#include "Acts/Utilities/HashedString.hpp"
-#include "Acts/Utilities/Iterator.hpp"
+#include "Acts/EventData/SourceLink.hpp"
+#include "Acts/Utilities/TypeTraits.hpp"
+#include "Acts/Utilities/VectorHelpers.hpp"
 
-#include <any>
-#include <vector>
+#include <iterator>
+#include <utility>
 
 namespace Acts {
 
-struct SpacePointContainerConfig {
-  bool useDetailedDoubleMeasurementInfo = false;
-  bool isInInternalUnits = false;
+using SpacePointIndex = std::size_t;
 
-  SpacePointContainerConfig toInternalUnits() const {
-    if (isInInternalUnits) {
-      throw std::runtime_error(
-          "Repeated conversion to internal units for "
-          "SpacePointContainerConfig");
-    }
-    using namespace Acts::UnitLiterals;
-    SpacePointContainerConfig config = *this;
-    config.isInInternalUnits = true;
-    return config;
-  };
-};
+class SpacePointContainer;
 
-struct SpacePointContainerOptions {
-  // location of beam in x,y plane.
-  // used as offset for Space Points
-  Acts::Vector2 beamPos{0 * Acts::UnitConstants::mm,
-                        0 * Acts::UnitConstants::mm};
-  bool isInInternalUnits = false;
+template <bool read_only>
+class SpacePointProxy {
+ public:
+  /// Indicates whether this spacepoint proxy is read-only or if it can be
+  /// modified
+  static constexpr bool ReadOnly = read_only;
 
-  SpacePointContainerOptions toInternalUnits() const {
-    if (isInInternalUnits) {
-      throw std::runtime_error(
-          "Repeated conversion to internal units for "
-          "SpacePointContainerOptions");
-    }
-    using namespace Acts::UnitLiterals;
-    SpacePointContainerOptions options = *this;
-    options.isInInternalUnits = true;
-    options.beamPos[0] /= 1_mm;
-    options.beamPos[1] /= 1_mm;
-    return options;
+  using IndexType = SpacePointIndex;
+
+  using ContainerType = const_if_t<ReadOnly, SpacePointContainer>;
+
+  SpacePointProxy(ContainerType &container, IndexType index)
+      : m_container(&container), m_index(index) {}
+
+  SpacePointProxy(const SpacePointProxy &other) = default;
+
+  explicit SpacePointProxy(const SpacePointProxy<false> &other)
+    requires(ReadOnly)
+      : m_container(&other.container()), m_index(other.index()) {}
+
+  SpacePointContainer &container() { return *m_container; }
+
+  const SpacePointContainer &container() const { return *m_container; }
+  SpacePointIndex index() const { return m_index; }
+
+  float &x()
+    requires(!ReadOnly)
+  {
+    return m_container->x(m_index);
   }
-};
+  float &y()
+    requires(!ReadOnly)
+  {
+    return m_container->y(m_index);
+  }
+  float &z()
+    requires(!ReadOnly)
+  {
+    return m_container->z(m_index);
+  }
+  float &phi()
+    requires(!ReadOnly)
+  {
+    return m_container->phi(m_index);
+  }
+  float &radius()
+    requires(!ReadOnly)
+  {
+    return m_container->radius(m_index);
+  }
+  float &varianceR()
+    requires(!ReadOnly)
+  {
+    return m_container->varianceR(m_index);
+  }
+  float &varianceZ()
+    requires(!ReadOnly)
+  {
+    return m_container->varianceZ(m_index);
+  }
 
-template <typename container_t, template <typename> class holder_t>
-class SpacePointContainer {
- public:
-  friend class Acts::SpacePointProxy<
-      Acts::SpacePointContainer<container_t, holder_t>>;
+  float x() const { return m_container->x(m_index); }
+  float y() const { return m_container->y(m_index); }
+  float z() const { return m_container->z(m_index); }
+  std::optional<float> t() const {
+    // TODO
+    return std::nullopt;
+  }
+  float phi() const { return m_container->phi(m_index); }
+  float radius() const { return m_container->radius(m_index); }
+  float varianceR() const { return m_container->varianceR(m_index); }
+  float varianceZ() const { return m_container->varianceZ(m_index); }
 
- public:
-  using SpacePointProxyType =
-      Acts::SpacePointProxy<Acts::SpacePointContainer<container_t, holder_t>>;
+  Vector3 topStripVector() const { return Vector3::Zero(); }
+  Vector3 topStripCenterPosition() const { return Vector3::Zero(); }
+  Vector3 bottomStripVector() const { return Vector3::Zero(); }
+  Vector3 stripCenterDistance() const { return Vector3::Zero(); }
 
-  using iterator =
-      ContainerIndexIterator<Acts::SpacePointContainer<container_t, holder_t>,
-                             SpacePointProxyType&, false>;
-  using const_iterator =
-      ContainerIndexIterator<Acts::SpacePointContainer<container_t, holder_t>,
-                             const SpacePointProxyType&, true>;
+  template <bool read_only_it>
+  class SourceLinkIterator {
+   public:
+    static constexpr bool ReadOnly = read_only_it;
+    using ContainerType = const_if_t<ReadOnly, SpacePointContainer>;
 
-  using ValueType = typename container_t::ValueType;
-  using ProxyType = SpacePointProxyType;
-  using value_type = ProxyType;
-  using size_type = std::size_t;
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const_if_t<ReadOnly, SourceLink>;
+    using reference = value_type &;
+    using pointer = value_type *;
+    using difference_type = std::ptrdiff_t;
 
- public:
-  // Constructors
-  // It makes sense to support both options of
-  // taking or not the ownership
+    SourceLinkIterator() = default;
+    SourceLinkIterator(ContainerType &container, IndexType index,
+                       std::size_t sourceLinkIndex)
+        : m_container(&container),
+          m_index(index),
+          m_sourceLinkIndex(sourceLinkIndex) {}
 
-  // Do not take ownership
-  // Activate only if holder_t is RefHolder
-  template <template <typename> class H = holder_t,
-            typename = std::enable_if_t<Acts::detail::is_same_template<
-                H, Acts::detail::RefHolder>::value>>
-  SpacePointContainer(const Acts::SpacePointContainerConfig& config,
-                      const Acts::SpacePointContainerOptions& options,
-                      const container_t& container);
+    SourceLinkIterator &operator++() {
+      ++m_sourceLinkIndex;
+      return *this;
+    }
+    SourceLinkIterator operator++(int) {
+      SourceLinkIterator tmp(*this);
+      ++(*this);
+      return tmp;
+    }
 
-  // Take the ownership
-  // Activate only if holder_t is ValueHolder
-  template <template <typename> class H = holder_t,
-            typename = std::enable_if_t<Acts::detail::is_same_template<
-                H, Acts::detail::ValueHolder>::value>>
-  SpacePointContainer(const Acts::SpacePointContainerConfig& config,
-                      const Acts::SpacePointContainerOptions& options,
-                      container_t&& container);
+    bool operator==(const SourceLinkIterator &other) const {
+      return m_index == other.m_index &&
+             m_sourceLinkIndex == other.m_sourceLinkIndex &&
+             m_container == other.m_container;
+    }
+    bool operator!=(const SourceLinkIterator &other) const {
+      return !(*this == other);
+    }
 
-  // No copy operations
-  SpacePointContainer(SpacePointContainer& other) = delete;
-  SpacePointContainer& operator=(SpacePointContainer& other) = delete;
+    reference operator*() const {
+      return m_container->sourceLink(m_index, m_sourceLinkIndex);
+    }
 
-  // move operations
-  SpacePointContainer(SpacePointContainer&& other) noexcept = default;
-  SpacePointContainer& operator=(SpacePointContainer&& other) noexcept =
-      default;
+   private:
+    ContainerType *m_container{};
+    IndexType m_index{};
+    std::size_t m_sourceLinkIndex{};
+  };
 
-  // Destructor
-  ~SpacePointContainer() = default;
+  template <bool read_only_range>
+  class SourceLinkRange {
+   public:
+    static constexpr bool ReadOnly = read_only_range;
+    using ContainerType = const_if_t<ReadOnly, SpacePointContainer>;
 
-  std::size_t size() const;
+    using iterator = SourceLinkIterator<read_only_range>;
 
-  iterator begin();
-  iterator end();
-  const_iterator cbegin() const;
-  const_iterator cend() const;
-  const_iterator begin() const;
-  const_iterator end() const;
+    SourceLinkRange(ContainerType &container, IndexType index)
+        : m_container(&container), m_index(index) {}
 
-  ProxyType& at(const std::size_t n);
-  const ProxyType& at(const std::size_t n) const;
-  const ValueType& sp(const std::size_t n) const;
+    std::size_t size() const { return m_container->sourceLinkCount(m_index); }
+    bool empty() const { return size() == 0; }
+
+    SourceLink &operator[](std::size_t index)
+      requires(!ReadOnly)
+    {
+      return m_container->sourceLink(m_index, index);
+    }
+    const SourceLink &operator[](std::size_t index) const {
+      return m_container->sourceLink(m_index, index);
+    }
+
+    iterator begin() const { return iterator(*m_container, m_index, 0); }
+    iterator end() const {
+      return iterator(*m_container, m_index,
+                      m_container->sourceLinkCount(m_index));
+    }
+
+   private:
+    ContainerType *m_container{};
+    IndexType m_index{};
+  };
+
+  SourceLinkRange<false> sourceLinks()
+    requires(!ReadOnly)
+  {
+    return SourceLinkRange<false>(*m_container, m_index);
+  }
+  SourceLinkRange<true> sourceLinks() const {
+    return SourceLinkRange<true>(*m_container, m_index);
+  }
 
  private:
-  void initialize();
+  ContainerType *m_container{};
+  IndexType m_index{};
+};
 
-  const container_t& container() const;
-  const ProxyType& proxy(const std::size_t n) const;
-  std::vector<ProxyType>& proxies();
-  const std::vector<ProxyType>& proxies() const;
+using MutableSpacePointProxy = SpacePointProxy<false>;
+using ConstSpacePointProxy = SpacePointProxy<true>;
 
-  float x(const std::size_t n) const;
-  float y(const std::size_t n) const;
-  float z(const std::size_t n) const;
-  float phi(const std::size_t n) const;
-  float radius(const std::size_t n) const;
-  float varianceR(const std::size_t n) const;
-  float varianceZ(const std::size_t n) const;
+class SpacePointContainer {
+ public:
+  using IndexType = SpacePointIndex;
+  using MutableProxyType = MutableSpacePointProxy;
+  using ConstProxyType = ConstSpacePointProxy;
 
-  const Acts::Vector3& topStripVector(const std::size_t n) const;
-  const Acts::Vector3& bottomStripVector(const std::size_t n) const;
-  const Acts::Vector3& stripCenterDistance(const std::size_t n) const;
-  const Acts::Vector3& topStripCenterPosition(const std::size_t n) const;
+  std::size_t size() const { return m_entries.size(); }
+  bool empty() const { return size() == 0; }
 
-  Acts::SpacePointContainerConfig m_config;
-  Acts::SpacePointContainerOptions m_options;
-  Acts::SpacePointData m_data;
-  holder_t<const container_t> m_container;
-  std::vector<ProxyType> m_proxies;
+  void reserve(std::size_t size) {
+    m_entries.reserve(size);
+    m_xyz.reserve(size * 3);
+    m_phiR.reserve(size * 2);
+    m_varianceRZ.reserve(size * 2);
+    m_sourceLinks.reserve(size);
+  }
+  void clear() {
+    m_entries.clear();
+    m_xyz.clear();
+    m_phiR.clear();
+    m_varianceRZ.clear();
+    m_sourceLinks.clear();
+  }
+
+  void setBeamPos(const Vector2 &beamPos) { m_beamPos = beamPos; }
+
+  IndexType addSpacePoint(SourceLink sourceLink) {
+    return addSpacePoint(std::move(sourceLink), 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+                         0.f);
+  }
+  IndexType addSpacePoint(SourceLink sourceLink, float x, float y, float z) {
+    return addSpacePoint(std::move(sourceLink), x, y, z,
+                         VectorHelpers::phi(Eigen::Vector2f{x, y}),
+                         VectorHelpers::perp(Eigen::Vector2f{x, y}), 0.f, 0.f);
+  }
+  IndexType addSpacePoint(SourceLink sourceLink, float x, float y, float z,
+                          float varianceR, float varianceZ) {
+    return addSpacePoint(std::move(sourceLink), x, y, z,
+                         VectorHelpers::phi(Eigen::Vector2f{x, y}),
+                         VectorHelpers::perp(Eigen::Vector2f{x, y}), varianceR,
+                         varianceZ);
+  }
+  IndexType addSpacePoint(SourceLink sourceLink, float x, float y, float z,
+                          float phi, float radius, float varianceR,
+                          float varianceZ) {
+    m_entries.emplace_back(m_sourceLinks.size(), 1);
+    m_xyz.push_back(x);
+    m_xyz.push_back(y);
+    m_xyz.push_back(z);
+    m_phiR.push_back(phi);
+    m_phiR.push_back(radius);
+    m_varianceRZ.push_back(varianceR);
+    m_varianceRZ.push_back(varianceZ);
+    m_sourceLinks.emplace_back(std::move(sourceLink));
+    return size() - 1;
+  }
+
+  MutableProxyType makeSpacePoint(SourceLink sourceLink) {
+    return at(addSpacePoint(std::move(sourceLink)));
+  }
+  MutableProxyType makeSpacePoint(SourceLink sourceLink, float x, float y,
+                                  float z) {
+    return at(addSpacePoint(std::move(sourceLink), x, y, z));
+  }
+  MutableProxyType makeSpacePoint(SourceLink sourceLink, float x, float y,
+                                  float z, float varianceR, float varianceZ) {
+    return at(
+        addSpacePoint(std::move(sourceLink), x, y, z, varianceR, varianceZ));
+  }
+  MutableProxyType makeSpacePoint(SourceLink sourceLink, float x, float y,
+                                  float z, float phi, float radius,
+                                  float varianceR, float varianceZ) {
+    return at(addSpacePoint(std::move(sourceLink), x, y, z, phi, radius,
+                            varianceR, varianceZ));
+  }
+
+  MutableProxyType at(IndexType index) {
+    return MutableProxyType(*this, index);
+  }
+
+  SourceLink &sourceLink(IndexType index, std::size_t sourceLinkIndex) {
+    return m_sourceLinks[m_entries[index].sourceLinkOffset + sourceLinkIndex];
+  }
+  float &x(IndexType index) { return m_xyz[index * 3]; }
+  float &y(IndexType index) { return m_xyz[index * 3 + 1]; }
+  float &z(IndexType index) { return m_xyz[index * 3 + 2]; }
+  float &phi(IndexType index) { return m_phiR[index * 2]; }
+  float &radius(IndexType index) { return m_phiR[index * 2 + 1]; }
+  float &varianceR(IndexType index) { return m_varianceRZ[index * 2]; }
+  float &varianceZ(IndexType index) { return m_varianceRZ[index * 2 + 1]; }
+
+  const Vector2 &beamPos() const { return m_beamPos; }
+
+  ConstProxyType at(IndexType index) const {
+    return ConstProxyType(*this, index);
+  }
+
+  std::size_t sourceLinkCount(IndexType index) const {
+    return m_entries[index].sourceLinkCount;
+  }
+  const SourceLink &sourceLink(IndexType index,
+                               std::size_t sourceLinkIndex) const {
+    return m_sourceLinks[m_entries[index].sourceLinkOffset + sourceLinkIndex];
+  }
+  float x(IndexType index) const { return m_xyz[index * 3]; }
+  float y(IndexType index) const { return m_xyz[index * 3 + 1]; }
+  float z(IndexType index) const { return m_xyz[index * 3 + 2]; }
+  float phi(IndexType index) const { return m_phiR[index * 2]; }
+  float radius(IndexType index) const { return m_phiR[index * 2 + 1]; }
+  float varianceR(IndexType index) const { return m_varianceRZ[index * 2]; }
+  float varianceZ(IndexType index) const { return m_varianceRZ[index * 2 + 1]; }
+
+  template <bool read_only>
+  class SpacePointIterator {
+   public:
+    static constexpr bool ReadOnly = read_only;
+
+    using ContainerType = const_if_t<ReadOnly, SpacePointContainer>;
+
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = SpacePointProxy<ReadOnly>;
+    using difference_type = std::ptrdiff_t;
+
+    SpacePointIterator() = default;
+    SpacePointIterator(ContainerType &container, IndexType index)
+        : m_container(&container), m_index(index) {}
+
+    SpacePointIterator &operator++() {
+      ++m_index;
+      return *this;
+    }
+    SpacePointIterator operator++(int) {
+      SpacePointIterator tmp(*this);
+      ++(*this);
+      return tmp;
+    }
+
+    bool operator==(const SpacePointIterator &other) const {
+      return m_index == other.m_index && m_container == other.m_container;
+    }
+    bool operator!=(const SpacePointIterator &other) const {
+      return !(*this == other);
+    }
+
+    value_type operator*() const { return value_type(*m_container, m_index); }
+
+   private:
+    ContainerType *m_container{};
+    IndexType m_index{};
+  };
+  using iterator = SpacePointIterator<false>;
+  using const_iterator = SpacePointIterator<true>;
+
+  iterator begin() { return iterator(*this, 0); }
+  iterator end() { return iterator(*this, size()); }
+
+  const_iterator begin() const { return const_iterator(*this, 0); }
+  const_iterator end() const { return const_iterator(*this, size()); }
+
+ private:
+  Vector2 m_beamPos{0, 0};
+
+  struct Entry {
+    std::size_t sourceLinkOffset{};
+    std::size_t sourceLinkCount{};
+  };
+
+  std::vector<Entry> m_entries;
+  std::vector<float> m_xyz;
+  std::vector<float> m_phiR;
+  std::vector<float> m_varianceRZ;
+  std::vector<SourceLink> m_sourceLinks;
 };
 
 }  // namespace Acts
-
-#include "Acts/EventData/SpacePointContainer.ipp"

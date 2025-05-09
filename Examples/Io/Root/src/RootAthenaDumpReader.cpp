@@ -487,17 +487,16 @@ RootAthenaDumpReader::readMeasurements(
           std::move(imIdxMap)};
 }
 
-std::tuple<SimSpacePointContainer, SimSpacePointContainer,
-           SimSpacePointContainer>
+std::tuple<SpacePointContainer, SpacePointContainer, SpacePointContainer>
 RootAthenaDumpReader::readSpacepoints(
     const std::optional<std::unordered_map<int, std::size_t>>& imIdxMap) const {
-  SimSpacePointContainer pixelSpacePoints;
+  SpacePointContainer pixelSpacePoints;
   pixelSpacePoints.reserve(nSP);
 
-  SimSpacePointContainer stripSpacePoints;
+  SpacePointContainer stripSpacePoints;
   stripSpacePoints.reserve(nSP);
 
-  SimSpacePointContainer spacePoints;
+  SpacePointContainer spacePoints;
   spacePoints.reserve(nSP);
 
   // Loop on space points

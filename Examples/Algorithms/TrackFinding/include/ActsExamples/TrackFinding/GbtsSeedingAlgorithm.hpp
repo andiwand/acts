@@ -18,8 +18,8 @@
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Seeding/SeedFinderConfig.hpp"
 #include "Acts/Seeding/SpacePointGrid.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 
@@ -79,10 +79,10 @@ class GbtsSeedingAlgorithm final : public IAlgorithm {
 
   std::unique_ptr<Acts::Experimental::GbtsGeometry<SimSpacePoint>> m_gbtsGeo;
 
-  std::vector<std::unique_ptr<ReadDataHandle<SimSpacePointContainer>>>
+  std::vector<std::unique_ptr<ReadDataHandle<SpacePointContainer>>>
       m_inputSpacePoints{};
 
-  WriteDataHandle<SimSeedContainer> m_outputSeeds{this, "OutputSeeds"};
+  WriteDataHandle<SeedContainer> m_outputSeeds{this, "OutputSeeds"};
 
   ReadDataHandle<ClusterContainer> m_inputClusters{this, "InputClusters"};
 };

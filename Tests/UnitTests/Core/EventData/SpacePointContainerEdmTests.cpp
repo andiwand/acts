@@ -11,11 +11,8 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/SpacePointContainer.hpp"
 #include "Acts/Utilities/HashedString.hpp"
-#include "Acts/Utilities/Holders.hpp"
 
 #include <any>
-#include <cmath>
-#include <iterator>
 #include <ranges>
 #include <vector>
 

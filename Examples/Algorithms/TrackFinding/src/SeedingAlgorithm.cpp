@@ -8,40 +8,29 @@
 
 #include "ActsExamples/TrackFinding/SeedingAlgorithm.hpp"
 
-#include "Acts/Definitions/Algebra.hpp"
-#include "Acts/EventData/Seed.hpp"
-#include "Acts/Seeding/BinnedGroup.hpp"
 #include "Acts/Seeding/SeedFilter.hpp"
-#include "Acts/Utilities/Delegate.hpp"
 #include "Acts/Utilities/GridBinFinder.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 
 #include <cmath>
 #include <csignal>
 #include <cstddef>
 #include <limits>
-#include <ostream>
 #include <stdexcept>
 
 using namespace Acts::HashedStringLiteral;
 
 namespace ActsExamples {
-struct AlgorithmContext;
-}  // namespace ActsExamples
 
-ActsExamples::SeedingAlgorithm::SeedingAlgorithm(
-    ActsExamples::SeedingAlgorithm::Config cfg, Acts::Logging::Level lvl)
-    : ActsExamples::IAlgorithm("SeedingAlgorithm", lvl), m_cfg(std::move(cfg)) {
-  using SpacePointProxy_type = typename Acts::SpacePointContainer<
-      ActsExamples::SpacePointContainer<std::vector<const SimSpacePoint*>>,
-      Acts::detail::RefHolder>::SpacePointProxyType;
-
+SeedingAlgorithm::SeedingAlgorithm(SeedingAlgorithm::Config cfg,
+                                   Acts::Logging::Level lvl)
+    : IAlgorithm("SeedingAlgorithm", lvl), m_cfg(std::move(cfg)) {
   // Seed Finder config requires Seed Filter object before conversion to
   // internal units
   m_cfg.seedFilterConfig = m_cfg.seedFilterConfig.toInternalUnits();
-  m_cfg.seedFinderConfig.seedFilter =
-      std::make_unique<Acts::SeedFilter<SpacePointProxy_type>>(
-          m_cfg.seedFilterConfig, logger().cloneWithSuffix("SeedFilter"));
+  m_cfg.seedFinderConfig.seedFilter = std::make_unique<Acts::SeedFilter>(
+      m_cfg.seedFilterConfig, logger().cloneWithSuffix("SeedFilter"));
   m_cfg.seedFinderConfig =
       m_cfg.seedFinderConfig.toInternalUnits().calculateDerivedQuantities();
   m_cfg.seedFinderOptions =
@@ -52,22 +41,11 @@ ActsExamples::SeedingAlgorithm::SeedingAlgorithm(
   if (m_cfg.inputSpacePoints.empty()) {
     throw std::invalid_argument("Missing space point input collections");
   }
-
-  for (const auto& spName : m_cfg.inputSpacePoints) {
-    if (spName.empty()) {
-      throw std::invalid_argument("Invalid space point input collection");
-    }
-
-    auto& handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
-            this,
-            "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
-    handle->initialize(spName);
-  }
   if (m_cfg.outputSeeds.empty()) {
     throw std::invalid_argument("Missing seeds output collection");
   }
 
+  m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
   m_outputSeeds.initialize(m_cfg.outputSeeds);
 
   if (m_cfg.gridConfig.rMax != m_cfg.seedFinderConfig.rMax &&
@@ -180,66 +158,24 @@ ActsExamples::SeedingAlgorithm::SeedingAlgorithm(
     m_cfg.seedFinderConfig.experimentCuts.connect<itkFastTrackingCuts>();
   }
 
-  using SpacePointProxy_type = typename Acts::SpacePointContainer<
-      ActsExamples::SpacePointContainer<std::vector<const SimSpacePoint*>>,
-      Acts::detail::RefHolder>::SpacePointProxyType;
-
   m_bottomBinFinder = std::make_unique<const Acts::GridBinFinder<3ul>>(
       m_cfg.numPhiNeighbors, cfg.zBinNeighborsBottom, 0);
   m_topBinFinder = std::make_unique<const Acts::GridBinFinder<3ul>>(
       m_cfg.numPhiNeighbors, m_cfg.zBinNeighborsTop, 0);
 
-  m_seedFinder =
-      Acts::SeedFinder<SpacePointProxy_type,
-                       Acts::CylindricalSpacePointGrid<SpacePointProxy_type>>(
-          m_cfg.seedFinderConfig, logger().cloneWithSuffix("SeedFinder"));
+  m_seedFinder = std::make_unique<SeedFinder>(
+      m_cfg.seedFinderConfig, logger().cloneWithSuffix("SeedFinder"));
 }
 
-ActsExamples::ProcessCode ActsExamples::SeedingAlgorithm::execute(
-    const AlgorithmContext& ctx) const {
-  // construct the combined input container of space point pointers from all
-  // configured input sources.
-  // pre-compute the total size required so we only need to allocate once
-  std::size_t nSpacePoints = 0;
-  for (const auto& isp : m_inputSpacePoints) {
-    nSpacePoints += (*isp)(ctx).size();
-  }
+ProcessCode SeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
+  const SpacePointContainer& spacePointContainer = m_inputSpacePoints(ctx);
 
-  std::vector<const SimSpacePoint*> spacePointPtrs;
-  spacePointPtrs.reserve(nSpacePoints);
-  for (const auto& isp : m_inputSpacePoints) {
-    for (const auto& spacePoint : (*isp)(ctx)) {
-      // since the event store owns the space
-      // points, their pointers should be stable and
-      // we do not need to create local copies.
-      spacePointPtrs.push_back(&spacePoint);
-    }
-  }
-
-  // Config
-  Acts::SpacePointContainerConfig spConfig;
-  spConfig.useDetailedDoubleMeasurementInfo =
-      m_cfg.seedFinderConfig.useDetailedDoubleMeasurementInfo;
-  // Options
-  Acts::SpacePointContainerOptions spOptions;
-  spOptions.beamPos = {0., 0.};
-
-  // Prepare interface SpacePoint backend-ACTS
-  ActsExamples::SpacePointContainer container(spacePointPtrs);
-  // Prepare Acts API
-  Acts::SpacePointContainer<decltype(container), Acts::detail::RefHolder>
-      spContainer(spConfig, spOptions, container);
-
-  using value_type = typename decltype(spContainer)::SpacePointProxyType;
-  using seed_type = Acts::Seed<value_type>;
-
-  Acts::CylindricalSpacePointGrid<value_type> grid =
-      Acts::CylindricalSpacePointGridCreator::createGrid<value_type>(
+  Acts::CylindricalSpacePointGrid grid =
+      Acts::CylindricalSpacePointGridCreator::createGrid(
           m_cfg.gridConfig, m_cfg.gridOptions, logger());
 
-  Acts::CylindricalSpacePointGridCreator::fillGrid<value_type>(
-      m_cfg.seedFinderConfig, m_cfg.seedFinderOptions, grid, spContainer,
-      logger());
+  Acts::CylindricalSpacePointGridCreator::fillGrid(
+      m_cfg.seedFinderConfig, grid, spacePointContainer, logger());
 
   // Compute radius Range
   // we rely on the fact the grid is storing the proxies
@@ -250,18 +186,18 @@ ActsExamples::ProcessCode ActsExamples::SeedingAlgorithm::execute(
     if (coll.empty()) {
       continue;
     }
-    const auto* firstEl = coll.front();
-    const auto* lastEl = coll.back();
-    minRange = std::min(firstEl->radius(), minRange);
-    maxRange = std::max(lastEl->radius(), maxRange);
+    auto firstEl = spacePointContainer.at(coll.front());
+    auto lastEl = spacePointContainer.at(coll.back());
+    minRange = std::min(firstEl.radius(), minRange);
+    maxRange = std::max(lastEl.radius(), maxRange);
   }
 
   std::array<std::vector<std::size_t>, 3ul> navigation;
   navigation[1ul] = m_cfg.seedFinderConfig.zBinsCustomLooping;
 
-  auto spacePointsGrouping = Acts::CylindricalBinnedGroup<value_type>(
-      std::move(grid), *m_bottomBinFinder, *m_topBinFinder,
-      std::move(navigation));
+  auto spacePointsGrouping =
+      Acts::CylindricalBinnedGroup(std::move(grid), *m_bottomBinFinder,
+                                   *m_topBinFinder, std::move(navigation));
 
   /// variable middle SP radial region of interest
   const Acts::Range1D<float> rMiddleSPRange(
@@ -271,33 +207,22 @@ ActsExamples::ProcessCode ActsExamples::SeedingAlgorithm::execute(
           m_cfg.seedFinderConfig.deltaRMiddleMaxSPRange);
 
   // run the seeding
-  static thread_local std::vector<seed_type> seeds;
+  static thread_local SeedContainer seeds;
   seeds.clear();
-  static thread_local decltype(m_seedFinder)::SeedingState state;
-  state.spacePointMutableData.resize(spContainer.size());
+  static thread_local SeedFinder::State state;
+  state.spacePointMutableData.resize(spacePointContainer.size());
 
   for (const auto [bottom, middle, top] : spacePointsGrouping) {
-    m_seedFinder.createSeedsForGroup(m_cfg.seedFinderOptions, state,
-                                     spacePointsGrouping.grid(), seeds, bottom,
-                                     middle, top, rMiddleSPRange);
+    m_seedFinder->createSeedsForGroup(
+        spacePointContainer, m_cfg.seedFinderOptions, state,
+        spacePointsGrouping.grid(), seeds, bottom, middle, top, rMiddleSPRange);
   }
 
   ACTS_DEBUG("Created " << seeds.size() << " track seeds from "
-                        << spacePointPtrs.size() << " space points");
+                        << spacePointContainer.size() << " space points");
 
-  // we have seeds of proxies
-  // convert them to seed of external space points
-  SimSeedContainer SeedContainerForStorage;
-  SeedContainerForStorage.reserve(seeds.size());
-  for (const auto& seed : seeds) {
-    const auto& sps = seed.sp();
-    SeedContainerForStorage.emplace_back(*sps[0]->externalSpacePoint(),
-                                         *sps[1]->externalSpacePoint(),
-                                         *sps[2]->externalSpacePoint());
-    SeedContainerForStorage.back().setVertexZ(seed.z());
-    SeedContainerForStorage.back().setQuality(seed.seedQuality());
-  }
-
-  m_outputSeeds(ctx, std::move(SeedContainerForStorage));
-  return ActsExamples::ProcessCode::SUCCESS;
+  m_outputSeeds(ctx, SeedContainer(seeds));
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

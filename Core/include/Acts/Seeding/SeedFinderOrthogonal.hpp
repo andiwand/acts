@@ -16,16 +16,11 @@
 #include "Acts/Utilities/Logger.hpp"
 
 #include <array>
-#include <iostream>
-#include <list>
-#include <map>
 #include <memory>
-#include <set>
-#include <string>
-#include <utility>
 #include <vector>
 
 namespace Acts {
+
 template <typename external_spacepoint_t>
 class SeedFinderOrthogonal {
  public:
@@ -219,7 +214,7 @@ class SeedFinderOrthogonal {
       const external_spacepoint_t &middle,
       const std::vector<const external_spacepoint_t *> &bottom,
       const std::vector<const external_spacepoint_t *> &top,
-      SeedFilterState seedFilterState,
+      SeedFilter::State seedFilterState,
       CandidatesForMiddleSp<const external_spacepoint_t> &candidates_collector)
       const;
 
@@ -256,6 +251,7 @@ class SeedFinderOrthogonal {
    */
   std::unique_ptr<const Acts::Logger> m_logger{getDummyLogger().clone()};
 };
+
 }  // namespace Acts
 
 #include "Acts/Seeding/SeedFinderOrthogonal.ipp"

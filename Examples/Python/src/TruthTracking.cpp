@@ -15,7 +15,7 @@
 #include "ActsExamples/TruthTracking/TrackParameterSelector.hpp"
 #include "ActsExamples/TruthTracking/TrackParameterSmearing.hpp"
 #include "ActsExamples/TruthTracking/TrackTruthMatcher.hpp"
-#include "ActsExamples/TruthTracking/TruthSeedingAlgorithm.hpp"
+// #include "ActsExamples/TruthTracking/TruthSeedingAlgorithm.hpp"
 #include "ActsExamples/TruthTracking/TruthTrackFinder.hpp"
 #include "ActsExamples/TruthTracking/TruthVertexFinder.hpp"
 
@@ -130,10 +130,10 @@ void addTruthTracking(Context& ctx) {
                                 "TrackModifier", inputTracks, outputTracks,
                                 dropCovariance, covScale, killTime);
 
-  ACTS_PYTHON_DECLARE_ALGORITHM(
-      ActsExamples::TruthSeedingAlgorithm, mex, "TruthSeedingAlgorithm",
-      inputParticles, inputParticleMeasurementsMap, inputSpacePoints,
-      outputParticles, outputSeeds, outputProtoTracks, deltaRMin, deltaRMax);
+  // ACTS_PYTHON_DECLARE_ALGORITHM(
+  //     ActsExamples::TruthSeedingAlgorithm, mex, "TruthSeedingAlgorithm",
+  //     inputParticles, inputParticleMeasurementsMap, inputSpacePoints,
+  //     outputParticles, outputSeeds, outputProtoTracks, deltaRMin, deltaRMax);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::HitSelector, mex, "HitSelector",
                                 inputHits, inputParticlesSelected, outputHits,

@@ -9,18 +9,16 @@
 #include "ActsExamples/Io/Root/RootSpacepointWriter.hpp"
 
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/EventData/SourceLink.hpp"
-#include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 
 #include <ios>
-#include <ostream>
 #include <stdexcept>
-#include <vector>
 
 #include <TFile.h>
 #include <TTree.h>
+
+namespace ActsExamples {
 
 ActsExamples::RootSpacepointWriter::RootSpacepointWriter(
     const ActsExamples::RootSpacepointWriter::Config& config,
@@ -76,7 +74,7 @@ ActsExamples::ProcessCode ActsExamples::RootSpacepointWriter::finalize() {
 
 ActsExamples::ProcessCode ActsExamples::RootSpacepointWriter::writeT(
     const AlgorithmContext& ctx,
-    const ActsExamples::SimSpacePointContainer& spacepoints) {
+    const ActsExamples::SpacePointContainer& spacepoints) {
   // ensure exclusive access to tree/file while writing
   std::lock_guard<std::mutex> lock(m_writeMutex);
 
@@ -96,5 +94,8 @@ ActsExamples::ProcessCode ActsExamples::RootSpacepointWriter::writeT(
     // Fill the tree
     m_outputTree->Fill();
   }
+
   return ActsExamples::ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

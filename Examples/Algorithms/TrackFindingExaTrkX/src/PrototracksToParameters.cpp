@@ -16,7 +16,7 @@
 #include "Acts/Utilities/Zip.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 #include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/Utilities/EventDataTransforms.hpp"
 
@@ -81,7 +81,7 @@ ProcessCode PrototracksToParameters::execute(
   ProtoTrackContainer seededTracks;
   seededTracks.reserve(prototracks.size());
 
-  SimSeedContainer seeds;
+  SeedContainer seeds;
   seeds.reserve(prototracks.size());
 
   TrackParametersContainer parameters;
@@ -148,10 +148,10 @@ ProcessCode PrototracksToParameters::execute(
     const auto z_vertex = -t / m;
     const auto s = tmpSps.size();
 
-    SimSeed seed =
+    SeedProxy seed =
         m_cfg.buildTightSeeds
-            ? SimSeed(*tmpSps.at(0), *tmpSps.at(1), *tmpSps.at(2))
-            : SimSeed(*tmpSps.at(0), *tmpSps.at(s / 2), *tmpSps.at(s - 1));
+            ? SeedProxy(*tmpSps.at(0), *tmpSps.at(1), *tmpSps.at(2))
+            : SeedProxy(*tmpSps.at(0), *tmpSps.at(s / 2), *tmpSps.at(s - 1));
     seed.setVertexZ(z_vertex);
 
     // Compute parameters

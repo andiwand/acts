@@ -285,7 +285,7 @@ def addSeeding(
     seedFilterConfigArg: SeedFilterConfigArg = SeedFilterConfigArg(),
     spacePointGridConfigArg: SpacePointGridConfigArg = SpacePointGridConfigArg(),
     seedingAlgorithmConfigArg: SeedingAlgorithmConfigArg = SeedingAlgorithmConfigArg(),
-    houghTransformConfig: acts.examples.HoughTransformSeeder.Config = acts.examples.HoughTransformSeeder.Config(),
+    # houghTransformConfig: acts.examples.HoughTransformSeeder.Config = acts.examples.HoughTransformSeeder.Config(),
     hashingTrainingConfigArg: Optional[
         HashingTrainingConfigArg
     ] = HashingTrainingConfigArg(),
@@ -453,6 +453,7 @@ def addSeeding(
         parEstimateAlg = acts.examples.TrackParamsEstimationAlgorithm(
             level=logLevel,
             inputSeeds=seeds,
+            inputSpacePoints=spacePoints,
             outputTrackParameters="estimatedparameters",
             outputSeeds="estimatedseeds",
             trackingGeometry=trackingGeometry,
@@ -521,7 +522,7 @@ def addSeeding(
             csvSeedWriter = acts.examples.CsvSeedWriter(
                 level=logLevel,
                 inputTrackParameters=parEstimateAlg.config.outputTrackParameters,
-                inputSimSeeds=seeds,
+                inputSeedProxys=seeds,
                 inputSimHits="simhits",
                 inputMeasurementParticlesMap="measurement_particles_map",
                 inputMeasurementSimHitsMap="measurement_simhits_map",
@@ -619,7 +620,7 @@ def addTruthEstimatedSeeding(
         level=logLevel,
         inputParticles=inputParticles,
         inputParticleMeasurementsMap="particle_measurements_map",
-        inputSpacePoints=[spacePoints],
+        inputSpacePoints=spacePoints,
         outputParticles="truth_seeded_particles",
         outputProtoTracks="truth_particle_tracks",
         outputSeeds="seeds",
@@ -791,7 +792,7 @@ def addStandardSeeding(
 
     seedingAlg = acts.examples.SeedingAlgorithm(
         level=logLevel,
-        inputSpacePoints=[spacePoints],
+        inputSpacePoints=spacePoints,
         outputSeeds=outputSeeds,
         **acts.examples.defaultKWArgs(
             allowSeparateRMax=seedingAlgorithmConfigArg.allowSeparateRMax,
@@ -902,7 +903,7 @@ def addOrthogonalSeeding(
     )
     seedingAlg = acts.examples.SeedingOrthogonalAlgorithm(
         level=logLevel,
-        inputSpacePoints=[spacePoints],
+        inputSpacePoints=spacePoints,
         outputSeeds="seeds",
         seedFilterConfig=seedFilterConfig,
         seedFinderConfig=seedFinderConfig,
@@ -1068,7 +1069,7 @@ def addHashingSeeding(
     # Seeding algorithm
     seedingAlg = SeedingAlgorithmHashing(
         level=logLevel,
-        inputSpacePoints=[spacePoints],
+        inputSpacePoints=spacePoints,
         outputSeeds="seeds",
         outputBuckets="buckets",
         **acts.examples.defaultKWArgs(
@@ -1092,7 +1093,7 @@ def addHashingSeeding(
 
 def addHoughTransformSeeding(
     sequence: acts.examples.Sequencer,
-    config: acts.examples.HoughTransformSeeder.Config,
+    # config: acts.examples.HoughTransformSeeder.Config,
     logLevel: acts.logging.Level = None,
 ):
     """
@@ -1146,7 +1147,7 @@ def addGbtsSeeding(
 
     seedingAlg = acts.examples.GbtsSeedingAlgorithm(
         level=logLevel,
-        inputSpacePoints=[spacePoints],
+        inputSpacePoints=spacePoints,
         outputSeeds="seeds",
         seedFinderConfig=seedFinderConfig,
         seedFinderOptions=seedFinderOptions,
@@ -1232,10 +1233,10 @@ def addSeedFilterML(
     filterML = SeedFilterMLAlgorithm(
         level=customLogLevel,
         inputTrackParameters="estimatedparameters",
-        inputSimSeeds="seeds",
+        inputSeedProxys="seeds",
         inputSeedFilterNN=onnxModelFile,
         outputTrackParameters="filtered-parameters",
-        outputSimSeeds="filtered-seeds",
+        outputSeedProxys="filtered-seeds",
         **acts.examples.defaultKWArgs(
             epsilonDBScan=config.epsilonDBScan,
             minPointsDBScan=config.minPointsDBScan,
@@ -1296,7 +1297,7 @@ def addSeedFilterML(
         csvSeedWriter = acts.examples.CsvSeedWriter(
             level=customLogLevel,
             inputTrackParameters=estParams,
-            inputSimSeeds=seeds,
+            inputSeedProxys=seeds,
             inputSimHits="simhits",
             inputMeasurementParticlesMap="measurement_particles_map",
             inputMeasurementSimHitsMap="measurement_simhits_map",
@@ -1529,6 +1530,7 @@ def addCKFTracks(
             if ckfConfig.seedDeduplication or ckfConfig.stayOnSeed
             else ""
         ),
+        inputSpacePoints="spacepoints",
         outputTracks="ckf_tracks",
         findTracks=acts.examples.TrackFindingAlgorithm.makeTrackFinderFunction(
             trackingGeometry, field, customLogLevel()

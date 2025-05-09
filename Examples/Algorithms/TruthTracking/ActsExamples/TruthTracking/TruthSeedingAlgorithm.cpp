@@ -45,7 +45,7 @@ TruthSeedingAlgorithm::TruthSeedingAlgorithm(Config cfg,
     }
 
     auto& handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
+        std::make_unique<ReadDataHandle<SpacePointContainer>>(
             this,
             "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
     handle->initialize(spName);
@@ -92,7 +92,7 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
   }
 
   SimParticleContainer seededParticles;
-  SimSeedContainer seeds;
+  SeedContainer seeds;
   ProtoTrackContainer tracks;
 
   seededParticles.reserve(particles.size());
@@ -174,9 +174,9 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
     }
 
     if (seedFound) {
-      SimSeed seed{*spacePointsOnTrack[bestSPIndices[0]],
-                   *spacePointsOnTrack[bestSPIndices[1]],
-                   *spacePointsOnTrack[bestSPIndices[2]]};
+      SeedProxy seed{*spacePointsOnTrack[bestSPIndices[0]],
+                     *spacePointsOnTrack[bestSPIndices[1]],
+                     *spacePointsOnTrack[bestSPIndices[2]]};
       seed.setVertexZ(
           static_cast<float>(spacePointsOnTrack[bestSPIndices[1]]->z()));
 

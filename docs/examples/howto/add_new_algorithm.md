@@ -95,8 +95,8 @@ object type and the name with which they are associated in the event store.
 To add an input and output to your algorithm, in the class declaration add handles like
 
 ```cpp
-ReadDataHandle<SimSpacePointContainer> m_inputSpacePoints{this, "InputSpacePoints"};
-WriteDataHandle<SimSeedContainer> m_outputSeeds{this, "OutputSeeds"};
+ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this, "InputSpacePoints"};
+WriteDataHandle<SeedContainer> m_outputSeeds{this, "OutputSeeds"};
 ```
 
 The first argument is needed to register the handles with the owning algorithm,

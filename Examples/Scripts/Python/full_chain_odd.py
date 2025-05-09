@@ -133,13 +133,13 @@ parser.add_argument(
 parser.add_argument(
     "--output-csv",
     help="Switch csv output on/off",
-    default=True,
+    default=False,
     action=argparse.BooleanOptionalAction,
 )
 parser.add_argument(
     "--output-obj",
     help="Switch obj output on/off",
-    default=True,
+    default=False,
     action=argparse.BooleanOptionalAction,
 )
 
@@ -337,6 +337,7 @@ if args.reco:
         geoSelectionConfigFile=oddSeedingSel,
         outputDirRoot=outputDir if args.output_root else None,
         outputDirCsv=outputDir if args.output_csv else None,
+        logLevel=acts.logging.VERBOSE,
     )
 
     if seedFilter_ML:

@@ -10,14 +10,12 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/EventData/Seed.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Seeding/EstimateTrackParamsFromSeed.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 
@@ -36,6 +34,9 @@ TrackParamsEstimationAlgorithm::TrackParamsEstimationAlgorithm(
   if (m_cfg.inputSeeds.empty()) {
     throw std::invalid_argument("Missing seeds input collection");
   }
+  if (m_cfg.inputSpacePoints.empty()) {
+    throw std::invalid_argument("Missing space points input collection");
+  }
   if (m_cfg.outputTrackParameters.empty()) {
     throw std::invalid_argument("Missing track parameters output collection");
   }
@@ -47,6 +48,7 @@ TrackParamsEstimationAlgorithm::TrackParamsEstimationAlgorithm(
   }
 
   m_inputSeeds.initialize(m_cfg.inputSeeds);
+  m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
   m_inputTracks.maybeInitialize(m_cfg.inputProtoTracks);
 
   m_outputTrackParameters.initialize(m_cfg.outputTrackParameters);
@@ -57,12 +59,14 @@ TrackParamsEstimationAlgorithm::TrackParamsEstimationAlgorithm(
 ProcessCode TrackParamsEstimationAlgorithm::execute(
     const AlgorithmContext& ctx) const {
   auto const& seeds = m_inputSeeds(ctx);
+  auto const& spacePointContainer = m_inputSpacePoints(ctx);
+
   ACTS_VERBOSE("Read " << seeds.size() << " seeds");
 
   TrackParametersContainer trackParameters;
   trackParameters.reserve(seeds.size());
 
-  SimSeedContainer outputSeeds;
+  SeedContainer outputSeeds;
   if (m_outputSeeds.isInitialized()) {
     outputSeeds.reserve(seeds.size());
   }
@@ -85,14 +89,14 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
   // Loop over all found seeds to estimate track parameters
   for (std::size_t iseed = 0; iseed < seeds.size(); ++iseed) {
-    const auto& seed = seeds[iseed];
+    const auto& seed = seeds.at(iseed);
     // Get the bottom space point and its reference surface
-    const auto& bottomSP = seed.sp().front();
-    if (bottomSP->sourceLinks().empty()) {
+    const auto& bottomSp = *seed.spacePoints(spacePointContainer).begin();
+    if (bottomSp.sourceLinks().begin() == bottomSp.sourceLinks().end()) {
       ACTS_WARNING("Missing source link in the space point");
       continue;
     }
-    const auto& sourceLink = bottomSP->sourceLinks()[0];
+    const auto& sourceLink = *bottomSp.sourceLinks().begin();
     const Acts::Surface* surface = surfaceAccessor(sourceLink);
 
     if (surface == nullptr) {
@@ -103,7 +107,7 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
     // Get the magnetic field at the bottom space point
     auto fieldRes = m_cfg.magneticField->getField(
-        {bottomSP->x(), bottomSP->y(), bottomSP->z()}, bCache);
+        {bottomSp.x(), bottomSp.y(), bottomSp.z()}, bCache);
     if (!fieldRes.ok()) {
       ACTS_ERROR("Field lookup error: " << fieldRes.error());
       return ProcessCode::ABORT;
@@ -118,7 +122,7 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
     // Estimate the track parameters from seed
     const auto paramsResult = Acts::estimateTrackParamsFromSeed(
-        ctx.geoContext, seed.sp(), *surface, field);
+        ctx.geoContext, seed.spacePoints(spacePointContainer), *surface, field);
     if (!paramsResult.ok()) {
       ACTS_WARNING("Skip track because param estimation failed "
                    << paramsResult.error());
@@ -135,12 +139,13 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
             m_cfg.initialVarInflation.data()}};
 
     Acts::BoundSquareMatrix cov = Acts::estimateTrackParamCovariance(
-        config, params, bottomSP->t().has_value());
+        config, params, bottomSp.t().has_value());
 
     trackParameters.emplace_back(surface->getSharedPtr(), params, cov,
                                  m_cfg.particleHypothesis);
     if (m_outputSeeds.isInitialized()) {
-      outputSeeds.push_back(seed);
+      // TODO
+      // outputSeeds.copySeed(seed);
     }
     if (m_outputTracks.isInitialized() && inputTracks != nullptr) {
       outputTracks.push_back(inputTracks->at(iseed));

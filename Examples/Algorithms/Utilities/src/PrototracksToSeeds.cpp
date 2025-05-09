@@ -8,10 +8,7 @@
 
 #include "ActsExamples/Utilities/PrototracksToSeeds.hpp"
 
-#include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/Framework/WhiteBoard.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 #include "ActsExamples/Utilities/EventDataTransforms.hpp"
 
 #include <algorithm>
@@ -28,6 +25,7 @@ PrototracksToSeeds::PrototracksToSeeds(Config cfg, Acts::Logging::Level lvl)
 
 ProcessCode PrototracksToSeeds::execute(const AlgorithmContext& ctx) const {
   auto prototracks = m_inputProtoTracks(ctx);
+  const auto& spacePointContainer = m_inputSpacePoints(ctx);
 
   const auto nBefore = prototracks.size();
   prototracks.erase(std::remove_if(prototracks.begin(), prototracks.end(),
@@ -36,13 +34,12 @@ ProcessCode PrototracksToSeeds::execute(const AlgorithmContext& ctx) const {
   ACTS_DEBUG("Discarded " << prototracks.size() - nBefore
                           << " prototracks with less then 3 hits");
 
-  SimSeedContainer seeds;
+  SeedContainer seeds;
   seeds.reserve(prototracks.size());
 
-  const auto& sps = m_inputSpacePoints(ctx);
-  std::transform(prototracks.begin(), prototracks.end(),
-                 std::back_inserter(seeds),
-                 [&](const auto& pt) { return prototrackToSeed(pt, sps); });
+  for (const auto& pt : prototracks) {
+    prototrackToSeed(pt, spacePointContainer, seeds);
+  }
 
   m_outputSeeds(ctx, std::move(seeds));
   m_outputProtoTracks(ctx, std::move(prototracks));

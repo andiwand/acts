@@ -18,7 +18,7 @@
 #include "ActsExamples/EventData/ProtoTrack.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/TrackFindingExaTrkX/TruthGraphBuilder.hpp"
@@ -166,8 +166,8 @@ class TrackFindingAlgorithmExaTrkX final : public IAlgorithm {
     Accumulator postprocessingTime;
   } m_timing;
 
-  ReadDataHandle<SimSpacePointContainer> m_inputSpacePoints{this,
-                                                            "InputSpacePoints"};
+  ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
+                                                         "InputSpacePoints"};
   ReadDataHandle<ClusterContainer> m_inputClusters{this, "InputClusters"};
 
   ReadDataHandle<Graph> m_inputTruthGraph{this, "InputTruthGraph"};

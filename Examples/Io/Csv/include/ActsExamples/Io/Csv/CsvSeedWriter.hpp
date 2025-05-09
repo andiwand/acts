@@ -10,9 +10,10 @@
 
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
@@ -41,7 +42,9 @@ class CsvSeedWriter : public WriterT<TrackParametersContainer> {
     /// Input estimated track parameters collection.
     std::string inputTrackParameters;
     /// Input seed collection.
-    std::string inputSimSeeds;
+    std::string inputSeedProxys;
+    /// Input space points collection.
+    std::string inputSpacePoints;
     /// Input collection of simulated hits.
     std::string inputSimHits;
     /// Input hit-particles map collection.
@@ -75,7 +78,9 @@ class CsvSeedWriter : public WriterT<TrackParametersContainer> {
   Config m_cfg;  ///< The config class
 
   ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
-  ReadDataHandle<SimSeedContainer> m_inputSimSeeds{this, "InputSimSeeds"};
+  ReadDataHandle<SeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
+                                                         "InputSpacePoints"};
   ReadDataHandle<SimHitContainer> m_inputSimHits{this, "InputSimHits"};
   ReadDataHandle<MeasurementParticlesMap> m_inputMeasurementParticlesMap{
       this, "InputMeasurementParticlesMap"};

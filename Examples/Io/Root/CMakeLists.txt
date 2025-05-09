@@ -22,7 +22,7 @@ add_library(
     src/RootAthenaNTupleReader.cpp
     src/RootVertexReader.cpp
     src/RootVertexWriter.cpp
-    src/RootAthenaDumpReader.cpp
+    #src/RootAthenaDumpReader.cpp
     src/RootNuclearInteractionParametersWriter.cpp
     src/detail/NuclearInteractionParametrisation.cpp
     src/TrackFinderPerformanceWriter.cpp

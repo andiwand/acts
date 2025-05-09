@@ -10,16 +10,12 @@
 
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
-#include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/Framework/WhiteBoard.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <numbers>
-#include <random>
 #include <sstream>
 #include <vector>
 
@@ -38,12 +34,10 @@ ActsExamples::GbtsSeedingAlgorithm::GbtsSeedingAlgorithm(
   // fill config struct
   m_cfg.layerMappingFile = m_cfg.layerMappingFile;
 
-  m_cfg.seedFinderConfig =
-      m_cfg.seedFinderConfig.toInternalUnits().calculateDerivedQuantities();
+  m_cfg.seedFinderConfig = m_cfg.seedFinderConfig.calculateDerivedQuantities();
 
-  m_cfg.seedFinderOptions =
-      m_cfg.seedFinderOptions.toInternalUnits().calculateDerivedQuantities(
-          m_cfg.seedFinderConfig);
+  m_cfg.seedFinderOptions = m_cfg.seedFinderOptions.calculateDerivedQuantities(
+      m_cfg.seedFinderConfig);
 
   for (const auto &spName : m_cfg.inputSpacePoints) {
     if (spName.empty()) {
@@ -51,7 +45,7 @@ ActsExamples::GbtsSeedingAlgorithm::GbtsSeedingAlgorithm(
     }
 
     auto &handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
+        std::make_unique<ReadDataHandle<SpacePointContainer>>(
             this,
             "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
     handle->initialize(spName);
@@ -111,7 +105,7 @@ ActsExamples::ProcessCode ActsExamples::GbtsSeedingAlgorithm::execute(
   //  -std::numbers::pi, std::numbers::pi, 0, -225., 225.);
 
   // new version returns seeds
-  SimSeedContainer seeds = finder.createSeeds(internalRoi, *m_gbtsGeo);
+  SeedContainer seeds = finder.createSeeds(internalRoi, *m_gbtsGeo);
 
   m_outputSeeds(ctx, std::move(seeds));
 

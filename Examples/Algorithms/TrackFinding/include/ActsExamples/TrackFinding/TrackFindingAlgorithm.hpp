@@ -10,17 +10,15 @@
 
 #include "Acts/EventData/TrackContainer.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
-#include "Acts/Geometry/TrackingGeometry.hpp"
-#include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
 #include "Acts/TrackFinding/MeasurementSelector.hpp"
 #include "Acts/TrackFinding/TrackSelector.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
 #include "Acts/Utilities/TrackHelpers.hpp"
-#include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
@@ -46,7 +44,6 @@ class TrackingGeometry;
 }  // namespace Acts
 
 namespace ActsExamples {
-struct AlgorithmContext;
 
 class TrackFindingAlgorithm final : public IAlgorithm {
  public:
@@ -85,6 +82,8 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     /// Input seeds. These are optional and allow for seed deduplication.
     /// The seeds must match the initial track parameters.
     std::string inputSeeds;
+    /// Input spacepoints. These are optional and allow for seed deduplication.
+    std::string inputSpacePoints;
     /// Output find trajectories collection.
     std::string outputTracks;
 
@@ -167,7 +166,9 @@ class TrackFindingAlgorithm final : public IAlgorithm {
                                                            "InputMeasurements"};
   ReadDataHandle<TrackParametersContainer> m_inputInitialTrackParameters{
       this, "InputInitialTrackParameters"};
-  ReadDataHandle<SimSeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SeedContainer> m_inputSeeds{this, "InputSeeds"};
+  ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
+                                                         "InputSpacePoints"};
 
   WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 

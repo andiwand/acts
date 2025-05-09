@@ -7,23 +7,20 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/EventData/SpacePointContainer.hpp"
 
 namespace Acts {
 
-template <typename spacepoint_t>
-SpacePointBuilder<spacepoint_t>::SpacePointBuilder(
-    const SpacePointBuilderConfig& cfg, BuilderFunction func,
-    std::unique_ptr<const Logger> logger)
-    : m_config(cfg), m_spConstructor(func), m_logger(std::move(logger)) {
+SpacePointBuilder::SpacePointBuilder(const SpacePointBuilderConfig& cfg,
+                                     std::unique_ptr<const Logger> logger)
+    : m_config(cfg), m_logger(std::move(logger)) {
   m_spUtility = std::make_shared<SpacePointUtility>(cfg);
 }
 
-template <typename spacepoint_t>
-template <template <typename...> typename container_t>
-void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
+Result<MutableSpacePointProxy> SpacePointBuilder::buildSpacePoint(
     const GeometryContext& gctx, const std::vector<SourceLink>& sourceLinks,
     const SpacePointBuilderOptions& opt,
-    std::back_insert_iterator<container_t<spacepoint_t>> spacePointIt) const {
+    SpacePointContainer& spacePointContainer) const {
   const unsigned int num_slinks = sourceLinks.size();
 
   Acts::Vector3 gPos = Acts::Vector3::Zero();
@@ -54,7 +51,7 @@ void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
       }
 
       if (!spFound.ok()) {
-        return;
+        return spFound.error();
       }
 
       gPos = 0.5 *
@@ -66,7 +63,7 @@ void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
           m_spUtility->calcPerpendicularProjection(ends1, ends2, spParams);
 
       if (!resultPerpProj.ok()) {
-        return;
+        return resultPerpProj.error();
       }
       gPos = ends1.first + resultPerpProj.value() * spParams.firstBtmToTop;
     }
@@ -82,14 +79,14 @@ void SpacePointBuilder<spacepoint_t>::buildSpacePoint(
   } else {
     ACTS_ERROR("More than 2 sourceLinks are given for a space point.");
   }
-  boost::container::static_vector<SourceLink, 2> slinks(sourceLinks.begin(),
-                                                        sourceLinks.end());
 
-  spacePointIt = m_spConstructor(gPos, gTime, gCov, gCovT, std::move(slinks));
+  // TODO sl2, cov
+  auto spacePoint = spacePointContainer.makeSpacePoint(
+      sourceLinks.at(0), gPos.x(), gPos.y(), gPos.z());
+  return Result<MutableSpacePointProxy>::success(spacePoint);
 }
 
-template <typename spacepoint_t>
-void SpacePointBuilder<spacepoint_t>::makeSourceLinkPairs(
+void SpacePointBuilder::makeSourceLinkPairs(
     const GeometryContext& gctx, const std::vector<SourceLink>& slinksFront,
     const std::vector<SourceLink>& slinksBack,
     std::vector<std::pair<SourceLink, SourceLink>>& slinkPairs,

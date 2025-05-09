@@ -32,8 +32,8 @@ void addOnnx(Context& ctx) {
 
   ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::SeedFilterMLAlgorithm, onnx,
                                 "SeedFilterMLAlgorithm", inputTrackParameters,
-                                inputSimSeeds, inputSeedFilterNN,
-                                outputTrackParameters, outputSimSeeds,
+                                inputSeedProxys, inputSeedFilterNN,
+                                outputTrackParameters, outputSeedProxys,
                                 epsilonDBScan, minPointsDBScan, minSeedScore);
 }
 }  // namespace Acts::Python

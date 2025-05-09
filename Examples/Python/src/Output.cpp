@@ -153,8 +153,8 @@ void addOutput(Context& ctx) {
                              nMeasurementsMin, truthMatchProbMin, ptMin);
 
   ACTS_PYTHON_DECLARE_WRITER(ActsExamples::CsvSeedWriter, mex, "CsvSeedWriter",
-                             inputTrackParameters, inputSimSeeds, inputSimHits,
-                             inputMeasurementParticlesMap,
+                             inputTrackParameters, inputSeedProxys,
+                             inputSimHits, inputMeasurementParticlesMap,
                              inputMeasurementSimHitsMap, fileName, outputDir);
 
   ACTS_PYTHON_DECLARE_WRITER(

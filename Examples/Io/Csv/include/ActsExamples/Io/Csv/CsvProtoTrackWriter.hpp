@@ -16,7 +16,7 @@
 #include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
 #include <string>
@@ -64,8 +64,8 @@ class CsvProtoTrackWriter final : public WriterT<ProtoTrackContainer> {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimSpacePointContainer> m_inputSpacepoints{this,
-                                                            "inputSpacepoints"};
+  ReadDataHandle<SpacePointContainer> m_inputSpacepoints{this,
+                                                         "inputSpacepoints"};
 };
 
 }  // namespace ActsExamples

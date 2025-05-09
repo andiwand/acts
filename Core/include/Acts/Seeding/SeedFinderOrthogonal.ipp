@@ -246,13 +246,7 @@ template <typename external_spacepoint_t>
 SeedFinderOrthogonal<external_spacepoint_t>::SeedFinderOrthogonal(
     const SeedFinderOrthogonalConfig<external_spacepoint_t> &config,
     std::unique_ptr<const Acts::Logger> logger)
-    : m_config(config), m_logger(std::move(logger)) {
-  if (!config.isInInternalUnits) {
-    throw std::runtime_error(
-        "SeedFinderOrthogonalConfig not in ACTS internal units in "
-        "SeedFinderOrthogonal");
-  }
-}
+    : m_config(config), m_logger(std::move(logger)) {}
 
 template <typename external_spacepoint_t>
 void SeedFinderOrthogonal<external_spacepoint_t>::filterCandidates(
@@ -260,7 +254,7 @@ void SeedFinderOrthogonal<external_spacepoint_t>::filterCandidates(
     const external_spacepoint_t &middle,
     const std::vector<const external_spacepoint_t *> &bottom,
     const std::vector<const external_spacepoint_t *> &top,
-    SeedFilterState seedFilterState,
+    SeedFilter::State seedFilterState,
     CandidatesForMiddleSp<const external_spacepoint_t> &candidates_collector)
     const {
   float rM = middle.radius();
@@ -604,7 +598,7 @@ void SeedFinderOrthogonal<external_spacepoint_t>::processFromMiddleSP(
   }
 
   // apply cut on the number of top SP if seedConfirmation is true
-  SeedFilterState seedFilterState;
+  SeedFilter::State seedFilterState;
   bool search_bot_hl = true;
   bool search_bot_lh = true;
   if (m_config.seedConfirmation) {
@@ -716,11 +710,6 @@ void SeedFinderOrthogonal<external_spacepoint_t>::createSeeds(
     const Acts::SeedFinderOptions &options,
     const input_container_t &spacePoints, output_container_t &out_cont) const {
   ACTS_VERBOSE("Creating seeds with Orthogonal strategy");
-  if (!options.isInInternalUnits) {
-    throw std::runtime_error(
-        "SeedFinderOptions not in ACTS internal units in "
-        "SeedFinderOrthogonal");
-  }
   /*
    * The template parameters we accept are a little too generic, so we want to
    * run some basic checks to make sure the containers have the correct value

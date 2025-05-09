@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "Acts/Utilities/Grid.hpp"
+#include "Acts/EventData/SpacePointContainer.hpp"
 
 namespace Acts {
 
@@ -26,17 +26,14 @@ namespace Acts {
 /// the mad deltaR defined by the user). The subsequent middle space point will
 /// have a higher radius. That means that there is no point in looking at
 /// neighbour space point before itr, since we know they will be out of range.
-
 template <typename grid_t>
 struct Neighbour {
-  /// @brief default constructor
-  Neighbour() = delete;
-
   /// @brief Constructor
   /// @param grid The grid containing the space points
   /// @param idx The global index of the bin in the grid
   /// @param lowerBound The lower bound of the allowed space point
-  Neighbour(const grid_t& grid, std::size_t idx, const float lowerBound);
+  Neighbour(const SpacePointContainer& spacePointContainer, const grid_t& grid,
+            std::size_t idx, const float lowerBound);
 
   /// The global bin index on the grid
   std::size_t index;
@@ -46,7 +43,8 @@ struct Neighbour {
 };
 
 template <typename grid_t>
-Neighbour<grid_t>::Neighbour(const grid_t& grid, std::size_t idx,
+Neighbour<grid_t>::Neighbour(const SpacePointContainer& spacePointContainer,
+                             const grid_t& grid, std::size_t idx,
                              const float lowerBound)
     : index(idx) {
   /// Get the space points in this specific global bin
@@ -60,14 +58,14 @@ Neighbour<grid_t>::Neighbour(const grid_t& grid, std::size_t idx,
 
   /// First check that the first element is not already above the lower bound
   /// If so, avoid any computation and set the iterator to begin()
-  if (collection.front()->radius() > lowerBound) {
+  if (spacePointContainer.at(collection.front()).radius() > lowerBound) {
     itr = collection.begin();
   }
   /// In case the last element is below the lower bound, that means that there
   /// can't be any element in that collection that can be considered a valuable
   /// candidate.
   /// Set the iterator to end() so that we do not run on this collection
-  else if (collection.back()->radius() < lowerBound) {
+  else if (spacePointContainer.at(collection.back()).radius() < lowerBound) {
     itr = collection.end();
   }
   /// Cannot decide a priori. We need to find the first element such that it's
@@ -79,18 +77,20 @@ Neighbour<grid_t>::Neighbour(const grid_t& grid, std::size_t idx,
     std::size_t stop = collection.size() - 1;
     while (start <= stop) {
       std::size_t mid = (start + stop) / 2;
-      if (collection[mid]->radius() == lowerBound) {
+      if (spacePointContainer.at(collection[mid]).radius() == lowerBound) {
         itr = collection.begin() + mid;
         return;
-      } else if (collection[mid]->radius() > lowerBound) {
-        if (mid > 0 && collection[mid - 1]->radius() < lowerBound) {
+      } else if (spacePointContainer.at(collection[mid]).radius() >
+                 lowerBound) {
+        if (mid > 0 &&
+            spacePointContainer.at(collection[mid - 1]).radius() < lowerBound) {
           itr = collection.begin() + mid;
           return;
         }
         stop = mid - 1;
       } else {
         if (mid + 1 < collection.size() &&
-            collection[mid + 1]->radius() > lowerBound) {
+            spacePointContainer.at(collection[mid + 1]).radius() > lowerBound) {
           itr = collection.begin() + mid + 1;
           return;
         }

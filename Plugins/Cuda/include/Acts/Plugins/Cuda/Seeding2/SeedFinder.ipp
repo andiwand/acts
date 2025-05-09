@@ -42,18 +42,6 @@ SeedFinder<external_spacepoint_t>::SeedFinder(
       m_tripletFilterConfig(tripletFilterConfig),
       m_device(device),
       m_logger(std::move(incomingLogger)) {
-  if (not m_commonConfig.isInInternalUnits)
-    throw std::runtime_error(
-        "SeedFinderConfig not in ACTS internal units in "
-        "Cuda/Seeding2/SeedFinder");
-  if (not m_seedFinderOptions.isInInternalUnits)
-    throw std::runtime_error(
-        "SeedFinderConfig not in ACTS internal units in "
-        "Cuda/Seeding2/SeedFinder");
-  if (not m_seedFilterConfig.isInInternalUnits)
-    throw std::runtime_error(
-        "SeedFilterConfig not in ACTS internal units in "
-        "Cuda/Seeding2/SeedFinder");
   if (std::isnan(m_commonConfig.deltaRMaxTopSP)) {
     throw std::runtime_error("Value of deltaRMaxTopSP was not initialised");
   }

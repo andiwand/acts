@@ -11,9 +11,9 @@
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -72,14 +72,14 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
   ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<InverseMultimap<SimBarcode>> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
-  std::vector<std::unique_ptr<ReadDataHandle<SimSpacePointContainer>>>
+  std::vector<std::unique_ptr<ReadDataHandle<SpacePointContainer>>>
       m_inputSpacePoints{};
 
   WriteDataHandle<SimParticleContainer> m_outputParticles{this,
                                                           "OutputParticles"};
   WriteDataHandle<ProtoTrackContainer> m_outputProtoTracks{this,
                                                            "OutputProtoTracks"};
-  WriteDataHandle<SimSeedContainer> m_outputSeeds{this, "OutputSeeds"};
+  WriteDataHandle<SeedContainer> m_outputSeeds{this, "OutputSeeds"};
 };
 
 }  // namespace ActsExamples

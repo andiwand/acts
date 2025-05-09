@@ -11,7 +11,7 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/Seed.hpp"
 #include "Acts/Seeding/SeedFilter.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
+#include "ActsExamples/EventData/Seed.hpp"
 
 #include <cmath>
 #include <functional>
@@ -48,7 +48,7 @@ ActsExamples::SeedingOrthogonalAlgorithm::SeedingOrthogonalAlgorithm(
     }
 
     auto &handle = m_inputSpacePoints.emplace_back(
-        std::make_unique<ReadDataHandle<SimSpacePointContainer>>(
+        std::make_unique<ReadDataHandle<SpacePointContainer>>(
             this,
             "InputSpacePoints#" + std::to_string(m_inputSpacePoints.size())));
     handle->initialize(spName);
@@ -104,7 +104,7 @@ ActsExamples::ProcessCode ActsExamples::SeedingOrthogonalAlgorithm::execute(
                        << spacePoints.size() << " space points");
 
   // need to convert here from seed of proxies to seed of sps
-  SimSeedContainer seedsToAdd;
+  SeedContainer seedsToAdd;
   seedsToAdd.reserve(seeds.size());
 
   for (const auto &seed : seeds) {

@@ -8,18 +8,15 @@
 
 #include "ActsExamples/Io/Csv/CsvSpacePointsBucketWriter.hpp"
 
-#include "Acts/Definitions/Units.hpp"
-#include "ActsExamples/EventData/SimSeed.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 
 #include <cstddef>
-#include <ios>
-#include <optional>
-#include <stdexcept>
 
 #include "CsvOutputData.hpp"
+
+namespace ActsExamples {
 
 ActsExamples::CsvSpacePointsBucketWriter::CsvSpacePointsBucketWriter(
     const ActsExamples::CsvSpacePointsBucketWriter::Config& config,
@@ -37,7 +34,7 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointsBucketWriter::finalize() {
 
 ActsExamples::ProcessCode ActsExamples::CsvSpacePointsBucketWriter::writeT(
     const AlgorithmContext& ctx,
-    const std::vector<SimSpacePointContainer>& buckets) {
+    const std::vector<SpacePointContainer>& buckets) {
   // Open per-event file for all components
   std::string pathBucket =
       perEventFilepath(m_cfg.outputDir, "buckets.csv", ctx.eventNumber);
@@ -62,7 +59,7 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointsBucketWriter::writeT(
       int maxSPIdx =
           std::min(20, static_cast<int>(bucket.size() - nLines * 20));
       for (int SPIdx = 0; SPIdx < maxSPIdx; SPIdx++) {
-        bucketData.measurement_id[SPIdx] = (bucket[nLines * 20 + SPIdx])
+        bucketData.measurement_id[SPIdx] = (bucket.at(nLines * 20 + SPIdx))
                                                .sourceLinks()[0]
                                                .get<IndexSourceLink>()
                                                .index();
@@ -74,3 +71,5 @@ ActsExamples::ProcessCode ActsExamples::CsvSpacePointsBucketWriter::writeT(
 
   return ActsExamples::ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

@@ -10,24 +10,20 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
+#include "Acts/EventData/SpacePointContainer.hpp"
 #include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
+#include "Acts/Seeding/SeedFilter.hpp"
 #include "Acts/Utilities/Delegate.hpp"
 
 #include <limits>
-#include <memory>
 #include <numbers>
 #include <vector>
 
 namespace Acts {
 
-// forward declaration to avoid cyclic dependence
-template <typename T>
-class SeedFilter;
-
 /// @brief Structure that holds configuration parameters for the seed finder algorithm
-template <typename SpacePoint>
 struct SeedFinderConfig {
-  std::shared_ptr<Acts::SeedFilter<SpacePoint>> seedFilter;
+  std::shared_ptr<Acts::SeedFilter> seedFilter;
 
   /// Seeding parameters used in the space-point grid creation and bin finding
 
@@ -178,10 +174,12 @@ struct SeedFinderConfig {
   /// Enables setting of the following delegates.
   bool useDetailedDoubleMeasurementInfo = false;
 
-  Delegate<bool(const SpacePoint&)> spacePointSelector{
+  Delegate<bool(const ConstSpacePointProxy&)> spacePointSelector{
       DelegateFuncTag<voidSpacePointSelector>{}};
 
-  static bool voidSpacePointSelector(const SpacePoint& /*sp*/) { return true; }
+  static bool voidSpacePointSelector(const ConstSpacePointProxy& /*sp*/) {
+    return true;
+  }
 
   /// Tolerance parameter used to check the compatibility of space-point
   /// coordinates in xyz. This is only used in a detector specific check for
@@ -206,7 +204,7 @@ struct SeedFinderConfig {
           "Invalid values for the seed filter inside the seed filter config: "
           "nullptr");
     }
-    if (!seedFilter->getSeedFilterConfig().isInInternalUnits) {
+    if (!seedFilter->getConfig().isInInternalUnits) {
       throw std::runtime_error(
           "The internal Seed Filter configuration, contained in the seed "
           "finder config, is not in internal units.");
@@ -270,7 +268,6 @@ struct SeedFinderOptions {
   float multipleScattering2 = std::numeric_limits<float>::quiet_NaN();
 
   bool isInInternalUnits = false;
-
   SeedFinderOptions toInternalUnits() const {
     if (isInInternalUnits) {
       throw std::runtime_error(
@@ -290,11 +287,6 @@ struct SeedFinderOptions {
   SeedFinderOptions calculateDerivedQuantities(const Config& config) const {
     using namespace Acts::UnitLiterals;
 
-    if (!isInInternalUnits) {
-      throw std::runtime_error(
-          "Derived quantities in SeedFinderOptions can only be calculated from "
-          "Acts internal units");
-    }
     SeedFinderOptions options = *this;
     // helix radius in homogeneous magnetic field. Units are Kilotesla, MeV and
     // millimeter

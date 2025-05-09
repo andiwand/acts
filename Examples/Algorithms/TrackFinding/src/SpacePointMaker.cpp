@@ -8,14 +8,13 @@
 
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 
-#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderConfig.hpp"
 #include "Acts/SpacePointFormation/SpacePointBuilderOptions.hpp"
 #include "ActsExamples/EventData/GeometryContainers.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/SimSpacePoint.hpp"
+#include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Utilities/GroupBy.hpp"
 
@@ -26,8 +25,9 @@
 #include <stdexcept>
 #include <utility>
 
-ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
-                                               Acts::Logging::Level lvl)
+namespace ActsExamples {
+
+SpacePointMaker::SpacePointMaker(Config cfg, Acts::Logging::Level lvl)
     : IAlgorithm("SpacePointMaker", lvl), m_cfg(std::move(cfg)) {
   if (m_cfg.inputMeasurements.empty()) {
     throw std::invalid_argument("Missing measurement input collection");
@@ -97,21 +97,11 @@ ActsExamples::SpacePointMaker::SpacePointMaker(Config cfg,
       .connect<&IndexSourceLink::SurfaceAccessor::operator()>(
           &m_slSurfaceAccessor.value());
 
-  auto spConstructor =
-      [](const Acts::Vector3& pos, std::optional<double> t,
-         const Acts::Vector2& cov, std::optional<double> varT,
-         boost::container::static_vector<Acts::SourceLink, 2> slinks)
-      -> SimSpacePoint {
-    return SimSpacePoint(pos, t, cov[0], cov[1], varT, std::move(slinks));
-  };
-
-  m_spacePointBuilder = Acts::SpacePointBuilder<SimSpacePoint>(
-      spBuilderConfig, spConstructor,
-      Acts::getDefaultLogger("SpacePointBuilder", lvl));
+  m_spacePointBuilder = Acts::SpacePointBuilder(
+      spBuilderConfig, Acts::getDefaultLogger("SpacePointBuilder", lvl));
 }
 
-ActsExamples::ProcessCode ActsExamples::SpacePointMaker::execute(
-    const AlgorithmContext& ctx) const {
+ProcessCode SpacePointMaker::execute(const AlgorithmContext& ctx) const {
   const auto& measurements = m_inputMeasurements(ctx);
 
   // TODO Support strip measurements
@@ -125,7 +115,8 @@ ActsExamples::ProcessCode ActsExamples::SpacePointMaker::execute(
     return std::make_pair(meas.fullParameters(), meas.fullCovariance());
   };
 
-  SimSpacePointContainer spacePoints;
+  SpacePointContainer spacePointContainer;
+
   for (Acts::GeometryIdentifier geoId : m_cfg.geometrySelection) {
     // select volume/layer depending on what is set in the geometry id
     auto range =
@@ -136,17 +127,17 @@ ActsExamples::ProcessCode ActsExamples::SpacePointMaker::execute(
 
     for (const auto& [moduleGeoId, moduleSourceLinks] : groupedByModule) {
       for (const auto& sourceLink : moduleSourceLinks) {
-        m_spacePointBuilder.buildSpacePoint(
-            ctx.geoContext, {Acts::SourceLink{sourceLink}}, spOpt,
-            std::back_inserter(spacePoints));
+        m_spacePointBuilder->buildSpacePoint(ctx.geoContext,
+                                             {Acts::SourceLink{sourceLink}},
+                                             spOpt, spacePointContainer);
       }
     }
   }
 
-  spacePoints.shrink_to_fit();
+  ACTS_DEBUG("Created " << spacePointContainer.size() << " space points");
+  m_outputSpacePoints(ctx, std::move(spacePointContainer));
 
-  ACTS_DEBUG("Created " << spacePoints.size() << " space points");
-  m_outputSpacePoints(ctx, std::move(spacePoints));
-
-  return ActsExamples::ProcessCode::SUCCESS;
+  return ProcessCode::SUCCESS;
 }
+
+}  // namespace ActsExamples

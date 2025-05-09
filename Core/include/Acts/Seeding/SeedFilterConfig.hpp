@@ -9,11 +9,10 @@
 #pragma once
 
 #include "Acts/Definitions/Units.hpp"
+#include "Acts/Seeding/IExperimentCuts.hpp"
 #include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
 
 #include <cstddef>
-#include <cstdint>
-#include <stdexcept>
 
 namespace Acts {
 
@@ -99,6 +98,8 @@ struct SeedFilterConfig {
 
     return config;
   }
+
+  const IExperimentCuts* experimentCuts{nullptr};
 };
 
 }  // namespace Acts
