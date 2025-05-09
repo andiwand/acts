@@ -50,7 +50,7 @@ class SeedFilter final {
   /// @param invHelixDiameters vector containing 1/(2*r) values where r is the helix radius
   /// @param impactParameters vector containing the impact parameters
   /// @param seedFilterState holds quantities used in seed filter
-  /// @param candidates_collector container for the seed candidates
+  /// @param candidatesCollector container for the seed candidates
   void filterSeeds_2SpFixed(const SpacePointContainer& spacePointContainer,
                             const SpacePointMutableData& mutableData,
                             SpacePointIndex bottomSpIndex,
@@ -59,11 +59,11 @@ class SeedFilter final {
                             const std::vector<float>& invHelixDiameters,
                             const std::vector<float>& impactParameters,
                             State& seedFilterState,
-                            CandidatesForMiddleSp& candidates_collector) const;
+                            CandidatesForMiddleSp& candidatesCollector) const;
 
   /// Filter seeds once all seeds for one middle space point have been created
   /// @param mutableData Container for mutable variables used in the seeding
-  /// @param candidates_collector collection of seed candidates
+  /// @param candidatesCollector collection of seed candidates
   /// @param outputCollection Output container for the seeds
   /// for all seeds with the same middle space point
   void filterSeeds_1SpFixed(const SpacePointContainer& spacePointContainer,

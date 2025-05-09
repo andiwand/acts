@@ -255,7 +255,7 @@ void SeedFinderOrthogonal<external_spacepoint_t>::filterCandidates(
     const std::vector<const external_spacepoint_t *> &bottom,
     const std::vector<const external_spacepoint_t *> &top,
     SeedFilter::State seedFilterState,
-    CandidatesForMiddleSp<const external_spacepoint_t> &candidates_collector)
+    CandidatesForMiddleSp<const external_spacepoint_t> &candidatesCollector)
     const {
   float rM = middle.radius();
   float zM = middle.z();
@@ -359,7 +359,7 @@ void SeedFinderOrthogonal<external_spacepoint_t>::filterCandidates(
       minCompatibleTopSPs = 1;
     }
     if (m_config.seedConfirmation &&
-        candidates_collector.nHighQualityCandidates()) {
+        candidatesCollector.nHighQualityCandidates()) {
       minCompatibleTopSPs++;
     }
 
@@ -469,7 +469,7 @@ void SeedFinderOrthogonal<external_spacepoint_t>::filterCandidates(
 
     m_config.seedFilter->filterSeeds_2SpFixed(
         mutableData, *bottom[b], middle, top_valid, curvatures,
-        impactParameters, seedFilterState, candidates_collector);
+        impactParameters, seedFilterState, candidatesCollector);
 
   }  // loop on bottoms
 }
@@ -504,9 +504,9 @@ void SeedFinderOrthogonal<external_spacepoint_t>::processFromMiddleSP(
   std::size_t max_num_seeds_per_spm =
       m_config.seedFilter->getSeedFilterConfig().maxSeedsPerSpMConf;
 
-  CandidatesForMiddleSp<const external_spacepoint_t> candidates_collector;
-  candidates_collector.setMaxElements(max_num_seeds_per_spm,
-                                      max_num_quality_seeds_per_spm);
+  CandidatesForMiddleSp<const external_spacepoint_t> candidatesCollector;
+  candidatesCollector.setMaxElements(max_num_seeds_per_spm,
+                                     max_num_quality_seeds_per_spm);
 
   /*
    * Calculate the search ranges for bottom and top candidates for this middle
@@ -658,21 +658,21 @@ void SeedFinderOrthogonal<external_spacepoint_t>::processFromMiddleSP(
    */
   if (!bottom_lh_v.empty() && !top_lh_v.empty()) {
     filterCandidates(options, mutableData, middle, bottom_lh_v, top_lh_v,
-                     seedFilterState, candidates_collector);
+                     seedFilterState, candidatesCollector);
   }
   /*
    * Try to combine candidates for decreasing z tracks.
    */
   if (!bottom_hl_v.empty() && !top_hl_v.empty()) {
     filterCandidates(options, mutableData, middle, bottom_hl_v, top_hl_v,
-                     seedFilterState, candidates_collector);
+                     seedFilterState, candidatesCollector);
   }
   /*
    * Run a seed filter, just like in other seeding algorithms.
    */
   if ((!bottom_lh_v.empty() && !top_lh_v.empty()) ||
       (!bottom_hl_v.empty() && !top_hl_v.empty())) {
-    m_config.seedFilter->filterSeeds_1SpFixed(mutableData, candidates_collector,
+    m_config.seedFilter->filterSeeds_1SpFixed(mutableData, candidatesCollector,
                                               out_cont);
   }
 }

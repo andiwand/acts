@@ -11,6 +11,7 @@
 #include "Acts/EventData/SpacePointContainer.hpp"
 
 #include <limits>
+#include <span>
 
 namespace Acts {
 
@@ -43,7 +44,9 @@ class SeedProxy {
   const SeedContainer &container() const { return *m_container; }
   IndexType index() const { return m_index; }
 
-  std::size_t size() const { return m_container->seedSize(m_index); }
+  std::size_t size() const {
+    return m_container->spacePointIndices(m_index).size();
+  }
   bool empty() const { return size() == 0; }
 
   float &quality()
@@ -65,11 +68,12 @@ class SeedProxy {
 
     SpacePointIterator() = default;
     SpacePointIterator(const SpacePointContainer &spacePointContainer,
-                       SpacePointIndex index)
-        : m_spacePointContainer{&spacePointContainer}, m_index{index} {}
+                       const std::size_t *indexPointer)
+        : m_spacePointContainer{&spacePointContainer},
+          m_indexPointer{indexPointer} {}
 
     SpacePointIterator &operator++() {
-      ++m_index;
+      ++m_indexPointer;
       return *this;
     }
 
@@ -80,53 +84,54 @@ class SeedProxy {
     }
 
     bool operator==(const SpacePointIterator &other) const {
-      return m_index == other.m_index;
+      return m_indexPointer == other.m_indexPointer;
     }
     bool operator!=(const SpacePointIterator &other) const {
       return !(*this == other);
     }
 
-    value_type operator*() const { return m_spacePointContainer->at(m_index); }
+    value_type operator*() const {
+      return m_spacePointContainer->at(*m_indexPointer);
+    }
 
    private:
     const SpacePointContainer *m_spacePointContainer{nullptr};
-    SpacePointIndex m_index{0};
+    const std::size_t *m_indexPointer{nullptr};
   };
 
   class SpacePointRange {
    public:
     SpacePointRange(const SpacePointContainer &spacePointContainer,
-                    SpacePointIndex begin, SpacePointIndex end)
+                    std::span<const std::size_t> spacePointIndices)
         : m_spacePointContainer{&spacePointContainer},
-          m_begin{begin},
-          m_end{end} {}
+          m_spacePointIndices{spacePointIndices} {}
 
-    std::size_t size() const { return m_end - m_begin; }
+    std::size_t size() const { return m_spacePointIndices.size(); }
     bool empty() const { return size() == 0; }
 
     ConstSpacePointProxy operator[](std::size_t index) const {
-      return m_spacePointContainer->at(m_begin + index);
+      return m_spacePointContainer->at(m_spacePointIndices[index]);
     }
 
     SpacePointIterator begin() const {
-      return SpacePointIterator(*m_spacePointContainer, m_begin);
+      return SpacePointIterator(*m_spacePointContainer,
+                                m_spacePointIndices.data());
     }
     SpacePointIterator end() const {
-      return SpacePointIterator(*m_spacePointContainer, m_end);
+      return SpacePointIterator(
+          *m_spacePointContainer,
+          m_spacePointIndices.data() + m_spacePointIndices.size());
     }
 
    private:
     const SpacePointContainer *m_spacePointContainer{nullptr};
-    SpacePointIndex m_begin;
-    SpacePointIndex m_end;
+    std::span<const std::size_t> m_spacePointIndices;
   };
 
   SpacePointRange spacePoints(
       const SpacePointContainer &spacePointContainer) const {
     return SpacePointRange(spacePointContainer,
-                           m_container->spacePointOffset(m_index),
-                           m_container->spacePointOffset(m_index) +
-                               m_container->seedSize(m_index));
+                           m_container->spacePointIndices(m_index));
   }
 
   float quality() const { return m_container->quality(m_index); }
@@ -165,7 +170,7 @@ class SeedContainer {
     m_spacePoints.push_back(bottom);
     m_spacePoints.push_back(middle);
     m_spacePoints.push_back(top);
-    return m_entries.size() - 1;
+    return size() - 1;
   }
 
   MutableSeedProxy makeSeed(SpacePointIndex bottom, SpacePointIndex middle,
@@ -184,11 +189,11 @@ class SeedContainer {
     return ConstProxyType(*this, index);
   }
 
-  std::size_t seedSize(IndexType index) const {
-    return m_entries[index].seedSize;
-  }
-  std::size_t spacePointOffset(IndexType index) const {
-    return m_entries[index].spacePointOffset;
+  std::span<const std::size_t> spacePointIndices(IndexType index) const {
+    return std::span<const std::size_t>(
+        m_spacePoints.data() + m_entries[index].spacePointOffset,
+        m_spacePoints.data() + m_entries[index].spacePointOffset +
+            m_entries[index].seedSize);
   }
   float quality(IndexType index) const { return m_entries[index].quality; }
   float vertexZ(IndexType index) const { return m_entries[index].vertexZ; }

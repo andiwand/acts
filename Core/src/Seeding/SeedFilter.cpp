@@ -59,8 +59,7 @@ void SeedFilter::filterSeeds_2SpFixed(
   float zOrigin = seedFilterState.zOrigin;
 
   // initialize original index locations
-  std::vector<SpacePointIndex> topSpIndicesIndices;
-  topSpIndicesIndices.reserve(topSpIndices.size());
+  std::vector<SpacePointIndex> topSpIndicesIndices(topSpIndices.size());
   std::iota(topSpIndicesIndices.begin(), topSpIndicesIndices.end(), 0);
 
   if (topSpIndicesIndices.size() > 2) {

@@ -10,6 +10,7 @@
 
 #include "Acts/EventData/SpacePointContainer.hpp"
 
+#include <cstddef>
 #include <vector>
 
 namespace Acts {

@@ -205,7 +205,7 @@ class SeedFinderOrthogonal {
    * @param bottom The (vector of) candidate bottom spacepoints.
    * @param top The (vector of) candidate top spacepoints.
    * @param seedFilterState  holds quantities used in seed filter
-   * @param candidates_collector The container to write the resulting
+   * @param candidatesCollector The container to write the resulting
    * seed candidates to.
    */
   void filterCandidates(
@@ -215,7 +215,7 @@ class SeedFinderOrthogonal {
       const std::vector<const external_spacepoint_t *> &bottom,
       const std::vector<const external_spacepoint_t *> &top,
       SeedFilter::State seedFilterState,
-      CandidatesForMiddleSp<const external_spacepoint_t> &candidates_collector)
+      CandidatesForMiddleSp<const external_spacepoint_t> &candidatesCollector)
       const;
 
   /**

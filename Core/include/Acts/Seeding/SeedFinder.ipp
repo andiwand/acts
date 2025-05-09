@@ -57,8 +57,8 @@ void SeedFinder<grid_t>::createSeedsForGroup(
   const std::size_t max_num_quality_seeds_per_spm =
       m_config.seedFilter->getConfig().maxQualitySeedsPerSpMConf;
 
-  state.candidates_collector.setMaxElements(max_num_seeds_per_spm,
-                                            max_num_quality_seeds_per_spm);
+  state.candidatesCollector.setMaxElements(max_num_seeds_per_spm,
+                                           max_num_quality_seeds_per_spm);
 
   // If there are no bottom or top bins, just return and waste no time
   if (bottomSPsIdx.size() == 0 || topSPsIdx.size() == 0) {
@@ -208,7 +208,7 @@ void SeedFinder<grid_t>::createSeedsForGroup(
 
     m_config.seedFilter->filterSeeds_1SpFixed(
         spacePointContainer, state.spacePointMutableData,
-        state.candidates_collector, outputCollection);
+        state.candidatesCollector, outputCollection);
 
   }  // loop on mediums
 }
@@ -528,7 +528,7 @@ inline void SeedFinder<grid_t>::filterCandidates(
   std::size_t t0 = 0;
 
   // clear previous results and then loop on bottoms and tops
-  state.candidates_collector.clear();
+  state.candidatesCollector.clear();
 
   for (const std::size_t b : sorted_bottoms) {
     // break if we reached the last top SP
@@ -583,7 +583,7 @@ inline void SeedFinder<grid_t>::filterCandidates(
       minCompatibleTopSPs = 1;
     }
     if (m_config.seedConfirmation &&
-        state.candidates_collector.nHighQualityCandidates()) {
+        state.candidatesCollector.nHighQualityCandidates()) {
       minCompatibleTopSPs++;
     }
 
@@ -831,7 +831,7 @@ inline void SeedFinder<grid_t>::filterCandidates(
     m_config.seedFilter->filterSeeds_2SpFixed(
         spacePointContainer, state.spacePointMutableData,
         state.compatBottomSP[b], spM.index(), state.topSpVec, state.curvatures,
-        state.impactParameters, seedFilterState, state.candidates_collector);
+        state.impactParameters, seedFilterState, state.candidatesCollector);
   }  // loop on bottoms
 }
 

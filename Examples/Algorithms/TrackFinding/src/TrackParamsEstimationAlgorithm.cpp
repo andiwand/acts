@@ -91,12 +91,12 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
   for (std::size_t iseed = 0; iseed < seeds.size(); ++iseed) {
     const auto& seed = seeds.at(iseed);
     // Get the bottom space point and its reference surface
-    const auto& bottomSp = *seed.spacePoints(spacePointContainer).begin();
-    if (bottomSp.sourceLinks().begin() == bottomSp.sourceLinks().end()) {
+    auto bottomSp = seed.spacePoints(spacePointContainer)[0];
+    if (bottomSp.sourceLinks().empty()) {
       ACTS_WARNING("Missing source link in the space point");
       continue;
     }
-    const auto& sourceLink = *bottomSp.sourceLinks().begin();
+    const auto& sourceLink = bottomSp.sourceLinks()[0];
     const Acts::Surface* surface = surfaceAccessor(sourceLink);
 
     if (surface == nullptr) {
