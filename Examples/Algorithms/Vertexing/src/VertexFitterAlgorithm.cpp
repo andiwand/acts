@@ -9,21 +9,17 @@
 #include "ActsExamples/Vertexing/VertexFitterAlgorithm.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Propagator/VoidNavigator.hpp"
 #include "Acts/Utilities/Result.hpp"
 #include "Acts/Vertexing/TrackAtVertex.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
-#include "ActsExamples/EventData/ProtoVertex.hpp"
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 
 #include <ostream>
 #include <stdexcept>
 #include <system_error>
-
-#include "VertexingHelpers.hpp"
 
 ActsExamples::VertexFitterAlgorithm::VertexFitterAlgorithm(
     const Config& cfg, Acts::Logging::Level lvl)
