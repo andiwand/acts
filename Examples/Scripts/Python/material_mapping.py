@@ -57,14 +57,7 @@ def runMaterialMapping(
             level=acts.logging.INFO,
             outputMaterialTracks="material-tracks",
             fileList=[
-                os.path.join(
-                    inputDir,
-                    (
-                        mapName + "_tracks.root"
-                        if readCachedSurfaceInformation
-                        else "geant4_material_tracks.root"
-                    ),
-                )
+                "/Users/andreas/cern/source/acts/acts/dev3/odd-geometry/material_tracks.root"
             ],
             readCachedSurfaceInformation=readCachedSurfaceInformation,
         )
@@ -155,7 +148,12 @@ if "__main__" == __name__:
 
     mapName = args.outFile.split(".")[0]
 
-    detector = getOpenDataDetector(None)
+    matDeco = acts.IMaterialDecorator.fromFile(
+        "/Users/andreas/cern/source/acts/acts/dev3/odd-geometry/mapping.json",
+        level=acts.logging.INFO,
+    )
+
+    detector = getOpenDataDetector(mdecorator=matDeco)
     trackingGeometry = detector.trackingGeometry()
     decorators = detector.contextDecorators()
 

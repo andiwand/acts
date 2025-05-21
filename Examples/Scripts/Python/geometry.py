@@ -2,6 +2,7 @@
 
 import os
 import json
+from pathlib import Path
 
 import acts
 from acts import MaterialMapJsonConverter
@@ -94,7 +95,11 @@ if "__main__" == __name__:
     trackingGeometry = detector.trackingGeometry()
     decorators = detector.contextDecorators()
 
-    runGeometry(trackingGeometry, decorators, outputDir=os.getcwd())
+    outputDir = Path(os.getcwd()) / "odd-geometry"
+    outputDir.mkdir(parents=True, exist_ok=True)
+    (outputDir / "csv").mkdir(parents=True, exist_ok=True)
+
+    runGeometry(trackingGeometry, decorators, outputDir=outputDir)
 
     # Uncomment if you want to create the geometry id mapping for DD4hep
     # dd4hepIdGeoIdMap = acts.examples.dd4hep.createDD4hepIdGeoIdMap(trackingGeometry)

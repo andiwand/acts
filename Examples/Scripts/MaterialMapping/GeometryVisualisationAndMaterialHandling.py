@@ -112,8 +112,9 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
             #     inner radius, outer radius, z position, approach index, layer index
 
             z_shift = 0.0
-            if entry["value"]["transform"]["translation"] != None:
-                z_shift = entry["value"]["transform"]["translation"][2]
+            if "transform" in entry["value"]:
+                if entry["value"]["transform"]["translation"] != None:
+                    z_shift = entry["value"]["transform"]["translation"][2]
 
             approach_index = -1
             if "approach" in entry:
@@ -141,7 +142,7 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
                 index_to_extends_layers_discs[vol - 1].append(extends)
             else:
                 print(
-                    f"WARNING: Processing surface with unknown type '{entry["value"]["type"]}'. Only CylinderSurface and DiscSurface are considered."
+                    "WARNING: Processing surface with unknown type. Only CylinderSurface and DiscSurface are considered."
                 )
 
         if "boundary" in entry:
@@ -176,7 +177,7 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
                 index_to_extends_layers_bounds_discs[vol - 1].append(extends)
             else:
                 print(
-                    f"WARNING: Processing surface with unknown type '{entry["value"]["type"]}'. Only CylinderSurface and DiscSurface are considered."
+                    "WARNING: Processing surface with unknown type. Only CylinderSurface and DiscSurface are considered."
                 )
 
     # Steering the information and collect it into an output file if needed
@@ -249,9 +250,19 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
 
         plt.rcParams.update({"figure.max_open_warning": 0})
         from matplotlib.pyplot import cm
+        from itertools import cycle
         import numpy as np
 
-        color = cm.rainbow(np.linspace(0, 1, len(index_to_extends_layers_cylinders)))
+        color = cm.rainbow(
+            np.linspace(
+                0,
+                1,
+                max(
+                    len(index_to_extends_layers_cylinders),
+                    len(index_to_extends_layers_discs),
+                ),
+            )
+        )
 
         is_in_legend = []
 
@@ -308,12 +319,16 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
         v_index = 0
         is_disc = False
         approach_colors = ["black", "blue", "red", "green", "orange", "purple", "pink"]
+
         for elements in chain(
             index_to_extends_layers_cylinders, index_to_extends_layers_discs
         ):
             l_index = 0
             if not elements:
                 v_index = v_index + 1
+                if not is_disc and v_index == len(index_to_extends_layers_cylinders):
+                    v_index = 0
+                    is_disc = True
                 continue
             plt.figure(figsize=(20, 10))
             color_layers = cm.rainbow(np.linspace(0, 1, len(elements)))
@@ -333,10 +348,21 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
 
                 a_is_disc = False
                 count = 0
-                for a_coords in chain(
-                    index_to_extends_layers_cylinders[v_index],
-                    index_to_extends_layers_discs[v_index],
-                ):
+                a_chain_of_elements = []
+                if len(index_to_extends_layers_cylinders) > v_index:
+                    for a_element in index_to_extends_layers_cylinders[v_index]:
+                        if a_element:
+                            a_chain_of_elements.append(a_element)
+
+                if len(a_chain_of_elements) == 0:
+                    a_is_disc = True
+
+                if len(index_to_extends_layers_discs) > v_index:
+                    for a_element in index_to_extends_layers_discs[v_index]:
+                        if a_element:
+                            a_chain_of_elements.append(a_element)
+
+                for a_coords in a_chain_of_elements:
                     if a_coords[4] == coords[4] and a_coords[3] > 0:
                         ax_values, ay_values = extract_coords(a_coords, a_is_disc)
                         plt.plot(
@@ -347,7 +373,9 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
                             label="l: " + str(coords[4]) + ", a: " + str(a_coords[3]),
                         )
                     count = count + 1
-                    if count == len(index_to_extends_layers_cylinders[v_index]):
+                    if not a_is_disc and count == len(
+                        index_to_extends_layers_cylinders[v_index]
+                    ):
                         a_is_disc = True
 
             v_index = v_index + 1
@@ -405,6 +433,9 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
         ):
             if not elements:
                 v_index = v_index + 1
+                if not is_disc and v_index == len(index_to_extends_layers_cylinders):
+                    v_index = 0
+                    is_disc = True
                 continue
             for coords in elements:
                 if coords[3] == -1:
@@ -424,7 +455,7 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
                         x_values, y_values, c=approach_colors[coords[3]], linestyle="--"
                     )
             v_index = v_index + 1
-            if not is_disc and v_index == len(index_to_extends_layers_bounds_cylinders):
+            if not is_disc and v_index == len(index_to_extends_layers_cylinders):
                 v_index = 0
                 is_disc = True
 
@@ -436,12 +467,10 @@ def dump_geo(filename, plot, output_folder, dump_steering, steering_file):
 
 
 def read_and_modify(filename, plot, output_folder, steering_file, output_file):
-    with open(filename) as f:
-        data = json.load(f)
-
-    with open(steering_file) as f:
-        full_data = json.load(f)
-
+    f = open(filename)
+    layers = open(steering_file)
+    data = json.load(f)
+    full_data = json.load(layers)
     layer_data = full_data["SteeringField"]
 
     index_to_names = []
@@ -486,21 +515,32 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
                         entry["value"]["material"]["mapMaterial"] = True
 
                 if entry["value"]["material"]["mapMaterial"]:
-                    for val in entry["value"]["material"]["binUtility"]["binningdata"]:
-                        if val["value"] == "binZ" or val["value"] == "binR":
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "activeBinningRorZ"
-                            ]
-                        else:
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "activeBinningPhi"
-                            ]
-                        if val["bins"] == 0:
-                            print(
-                                "ERROR!!! Using binning value == 0! Check you input for",
-                                index_to_names[vol - 1],
-                            )
-                            return
+                    if entry["value"]["type"] == "CylinderSurface":
+                        entry["value"]["material"]["binUtility"]["binningdata"][0][
+                            "bins"
+                        ] = layer_data[index_to_names[vol - 1]]["activeBinningPhi"]
+                        entry["value"]["material"]["binUtility"]["binningdata"][1][
+                            "bins"
+                        ] = layer_data[index_to_names[vol - 1]]["activeBinningRorZ"]
+                        entry["value"]["material"]["binUtility"]["binningdata"][0][
+                            "value"
+                        ] = "AxisPhi"
+                        entry["value"]["material"]["binUtility"]["binningdata"][1][
+                            "value"
+                        ] = "AxisZ"
+                    if entry["value"]["type"] == "DiscSurface":
+                        entry["value"]["material"]["binUtility"]["binningdata"][0][
+                            "bins"
+                        ] = layer_data[index_to_names[vol - 1]]["activeBinningPhi"]
+                        entry["value"]["material"]["binUtility"]["binningdata"][1][
+                            "bins"
+                        ] = layer_data[index_to_names[vol - 1]]["activeBinningRorZ"]
+                        entry["value"]["material"]["binUtility"]["binningdata"][0][
+                            "value"
+                        ] = "AxisPhi"
+                        entry["value"]["material"]["binUtility"]["binningdata"][1][
+                            "value"
+                        ] = "AxisR"
 
             approach_index = "None"
             if "approach" in entry:
@@ -529,35 +569,33 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
                 in layer_data[index_to_names[vol - 1]]["boundaries"]
             ):
                 entry["value"]["material"]["mapMaterial"] = True
-                for val in entry["value"]["material"]["binUtility"]["binningdata"]:
-                    if entry["value"]["type"] == "CylinderSurface":
-                        if val["value"] == "binZ":
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "passiveCylinderBinningZ"
-                            ]
-                        else:
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "passiveCylinderBinningPhi"
-                            ]
-                    elif entry["value"]["type"] == "DiscSurface":
-                        if val["value"] == "binR":
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "passiveDiscBinningR"
-                            ]
-                        else:
-                            val["bins"] = layer_data[index_to_names[vol - 1]][
-                                "passiveDiscBinningPhi"
-                            ]
-                    else:
-                        print(
-                            f"WARNING: Processing surface with unknown type '{entry["value"]["type"]}. Only CylinderSurface and DiscSurface are considered."
-                        )
-                    if val["bins"] == 0:
-                        print(
-                            "ERROR!!! Using binning value == 0! Check you input for",
-                            index_to_names[vol - 1],
-                        )
-                        return
+
+                if entry["value"]["type"] == "CylinderSurface":
+                    entry["value"]["material"]["binUtility"]["binningdata"][0][
+                        "bins"
+                    ] = layer_data[index_to_names[vol - 1]]["activeBinningPhi"]
+                    entry["value"]["material"]["binUtility"]["binningdata"][1][
+                        "bins"
+                    ] = layer_data[index_to_names[vol - 1]]["activeBinningRorZ"]
+                    entry["value"]["material"]["binUtility"]["binningdata"][0][
+                        "value"
+                    ] = "AxisPhi"
+                    entry["value"]["material"]["binUtility"]["binningdata"][1][
+                        "value"
+                    ] = "AxisZ"
+                if entry["value"]["type"] == "DiscSurface":
+                    entry["value"]["material"]["binUtility"]["binningdata"][0][
+                        "bins"
+                    ] = layer_data[index_to_names[vol - 1]]["activeBinningPhi"]
+                    entry["value"]["material"]["binUtility"]["binningdata"][1][
+                        "bins"
+                    ] = layer_data[index_to_names[vol - 1]]["activeBinningRorZ"]
+                    entry["value"]["material"]["binUtility"]["binningdata"][0][
+                        "value"
+                    ] = "AxisPhi"
+                    entry["value"]["material"]["binUtility"]["binningdata"][1][
+                        "value"
+                    ] = "AxisR"
 
             if dump_binning_for_material and entry["value"]["material"]["mapMaterial"]:
                 print(
@@ -578,6 +616,7 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
     if plot and check_material_layers:
         import matplotlib.pyplot as plt
         from matplotlib.pyplot import cm
+        from itertools import cycle
         import numpy as np
 
         plt.figure(figsize=(20, 10))
@@ -592,6 +631,7 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
         material_boundary_discs = [[] for _ in range(len(index_to_names))]
 
         for entry in data["Surfaces"]["entries"]:
+
             if not entry["value"]["material"]["mapMaterial"]:
                 continue
 
@@ -626,7 +666,7 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
                         material_layer_discs[vol - 1].append(extends)
                 else:
                     print(
-                        f"WARNING: Processing surface with unknown type '{entry["value"]["type"]}'. Only CylinderSurface and DiscSurface are considered."
+                        "WARNING: Processing surface with unknown type. Only CylinderSurface and DiscSurface are considered."
                     )
 
             if "boundary" in entry:
@@ -699,10 +739,12 @@ def read_and_modify(filename, plot, output_folder, steering_file, output_file):
             for coords in elements:
                 x_values, y_values = extract_coords(coords, is_disc)
                 if is_first:
-                    plt.plot(x_values, y_values, c="blue", label="boundary")
+                    plt.plot(
+                        x_values, y_values, c="blue", label="boundary", linestyle="--"
+                    )
                     is_first = False
                 else:
-                    plt.plot(x_values, y_values, c="blue")
+                    plt.plot(x_values, y_values, c="blue", linestyle="--")
                 l_index = l_index + 1
             v_index = v_index + 1
             if not is_disc and v_index == len(material_boundary_cylinders):
