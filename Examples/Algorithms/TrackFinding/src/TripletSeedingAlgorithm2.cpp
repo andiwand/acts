@@ -11,18 +11,65 @@
 #include "Acts/EventData/SeedContainer2.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/EventData/SpacePointContainer2.hpp"
+#include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Seeding2/TripletSeedFinder2.hpp"
 #include "Acts/Utilities/Delegate.hpp"
+#include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/SimSeed.hpp"
 #include "ActsExamples/EventData/SimSpacePoint.hpp"
 
 #include <cmath>
 #include <csignal>
 #include <cstddef>
+#include <fstream>
 #include <limits>
 #include <stdexcept>
 
 namespace ActsExamples {
+
+namespace {
+
+std::vector<std::array<Acts::GeometryIdentifier, 3>> readTriplets(
+    const std::string& path) {
+  std::vector<std::array<Acts::GeometryIdentifier, 3>> result;
+
+  std::ifstream in(path);
+
+  std::string line;
+  std::getline(in, line);
+  while (in) {
+    std::getline(in, line);
+
+    std::stringstream lineIn(line);
+    std::vector<std::string> row;
+
+    std::string cell;
+    while (std::getline(lineIn, cell, ',')) {
+      row.push_back(cell);
+    }
+
+    if (row.empty()) {
+      continue;
+    }
+    if (row.size() != 3) {
+      throw std::runtime_error(
+          "TripletSeedingAlgorithm2: Invalid triplet line: " + line);
+    }
+    if (row[0].empty() || row[1].empty() || row[2].empty()) {
+      throw std::runtime_error(
+          "TripletSeedingAlgorithm2: Empty triplet line: " + line);
+    }
+    result.push_back({Acts::GeometryIdentifier(std::stoul(row[0])),
+                      Acts::GeometryIdentifier(std::stoul(row[1])),
+                      Acts::GeometryIdentifier(std::stoul(row[2]))});
+  }
+
+  return result;
+}
+
+}  // namespace
+
+static std::vector<std::array<Acts::GeometryIdentifier, 3>> module_triplets;
 
 TripletSeedingAlgorithm2::TripletSeedingAlgorithm2(const Config& cfg,
                                                    Acts::Logging::Level lvl)
@@ -103,6 +150,11 @@ TripletSeedingAlgorithm2::TripletSeedingAlgorithm2(const Config& cfg,
 
   m_seedFinder = Acts::TripletSeedFinder2(m_cfg.finderConfig.derive(),
                                           logger().cloneWithSuffix("Finder"));
+
+  module_triplets =
+      readTriplets("/Users/andreas/cern/scripts/notebooks/module_triplets.csv");
+  std::cout << module_triplets.size()
+            << " triplets read from module_triplets.csv" << std::endl;
 }
 
 ProcessCode TripletSeedingAlgorithm2::execute(
@@ -129,6 +181,31 @@ ProcessCode TripletSeedingAlgorithm2::execute(
       newSp.extra(varianceZColumn) = sp.varianceZ();
     }
   }
+
+  std::vector<Acts::SpacePointIndex2> sortedCoreSpacePoints;
+  sortedCoreSpacePoints.resize(coreSpacePoints.size());
+  std::iota(sortedCoreSpacePoints.begin(), sortedCoreSpacePoints.end(), 0);
+  std::ranges::sort(
+      sortedCoreSpacePoints,
+      [&](const Acts::SpacePointIndex2& a, const Acts::SpacePointIndex2& b) {
+        auto spA = coreSpacePoints.at(a);
+        auto spB = coreSpacePoints.at(b);
+        auto sourceLinkA = spA.sourceLinks()[0]
+                               .get<const SimSpacePoint*>()
+                               ->sourceLinks()[0]
+                               .get<IndexSourceLink>();
+        auto sourceLinkB = spB.sourceLinks()[0]
+                               .get<const SimSpacePoint*>()
+                               ->sourceLinks()[0]
+                               .get<IndexSourceLink>();
+        if (sourceLinkA.geometryId() == sourceLinkB.geometryId()) {
+          // float cotThetaA = spA.z() / spA.extra(rColumn);
+          // float cotThetaB = spB.z() / spB.extra(rColumn);
+          // return cotThetaA < cotThetaB;
+          return spA.extra(rColumn) < spB.extra(rColumn);
+        }
+        return sourceLinkA.geometryId() < sourceLinkB.geometryId();
+      });
 
   Acts::CylindricalSpacePointGrid2 grid(m_cfg.gridConfig.derive(),
                                         logger().cloneWithSuffix("Grid"));
@@ -160,19 +237,78 @@ ProcessCode TripletSeedingAlgorithm2::execute(
   std::vector<Acts::SpacePointIndex2> middleSp;
   std::vector<Acts::SpacePointIndex2> topSp;
 
-  for (const auto [bottom, middle, top] : grid.binnedGround()) {
-    ACTS_VERBOSE("Process middle " << middle);
+  // for (const auto [bottom, middle, top] : grid.binnedGround()) {
+  //   ACTS_VERBOSE("Process middle " << middle);
+
+  //   bottomSp.clear();
+  //   for (const auto b : bottom) {
+  //     bottomSp.insert(bottomSp.end(), grid.at(b).begin(), grid.at(b).end());
+  //   }
+  //   middleSp.clear();
+  //   middleSp = grid.at(middle);
+  //   topSp.clear();
+  //   for (const auto t : top) {
+  //     topSp.insert(topSp.end(), grid.at(t).begin(), grid.at(t).end());
+  //   }
+
+  //   m_seedFinder->createSeeds(
+  //       state, cache,
+  //       Acts::TripletSeedFinder2::ContainerPointers(
+  //           coreSpacePoints, rColumn, varianceRColumn, varianceZColumn),
+  //       bottomSp, middleSp, topSp, seeds);
+  // }
+
+  for (const auto& triplet : module_triplets) {
+    auto bottomSpRange = std::ranges::equal_range(
+        sortedCoreSpacePoints, triplet[0].value(), {},
+        [&](Acts::SpacePointIndex2 i) {
+          auto sp = coreSpacePoints.at(i);
+          auto sourceLink = sp.sourceLinks()[0]
+                                .get<const SimSpacePoint*>()
+                                ->sourceLinks()[0]
+                                .get<IndexSourceLink>();
+          return sourceLink.geometryId().value();
+        });
+    auto middleSpRange = std::ranges::equal_range(
+        sortedCoreSpacePoints, triplet[1].value(), {},
+        [&](Acts::SpacePointIndex2 i) {
+          auto sp = coreSpacePoints.at(i);
+          auto sourceLink = sp.sourceLinks()[0]
+                                .get<const SimSpacePoint*>()
+                                ->sourceLinks()[0]
+                                .get<IndexSourceLink>();
+          return sourceLink.geometryId().value();
+        });
+    auto topSpRange = std::ranges::equal_range(
+        sortedCoreSpacePoints, triplet[2].value(), {},
+        [&](Acts::SpacePointIndex2 i) {
+          auto sp = coreSpacePoints.at(i);
+          auto sourceLink = sp.sourceLinks()[0]
+                                .get<const SimSpacePoint*>()
+                                ->sourceLinks()[0]
+                                .get<IndexSourceLink>();
+          return sourceLink.geometryId().value();
+        });
+
+    if (bottomSpRange.empty() || middleSpRange.empty() || topSpRange.empty()) {
+      continue;
+    }
 
     bottomSp.clear();
-    for (const auto b : bottom) {
-      bottomSp.insert(bottomSp.end(), grid.at(b).begin(), grid.at(b).end());
-    }
     middleSp.clear();
-    middleSp = grid.at(middle);
     topSp.clear();
-    for (const auto t : top) {
-      topSp.insert(topSp.end(), grid.at(t).begin(), grid.at(t).end());
-    }
+
+    std::ranges::transform(
+        bottomSpRange.begin(), bottomSpRange.end(),
+        std::back_inserter(bottomSp),
+        [&](Acts::SpacePointIndex2 i) { return sortedCoreSpacePoints[i]; });
+    std::ranges::transform(
+        middleSpRange.begin(), middleSpRange.end(),
+        std::back_inserter(middleSp),
+        [&](Acts::SpacePointIndex2 i) { return sortedCoreSpacePoints[i]; });
+    std::ranges::transform(
+        topSpRange.begin(), topSpRange.end(), std::back_inserter(topSp),
+        [&](Acts::SpacePointIndex2 i) { return sortedCoreSpacePoints[i]; });
 
     m_seedFinder->createSeeds(
         state, cache,
