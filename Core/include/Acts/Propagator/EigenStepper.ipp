@@ -6,13 +6,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#pragma once
+
+#include "Acts/Propagator/EigenStepper.hpp"
+
 #include "Acts/Definitions/Direction.hpp"
 #include "Acts/EventData/TransformationHelpers.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/EigenStepperError.hpp"
 #include "Acts/Propagator/detail/CovarianceEngine.hpp"
-
-#include <limits>
 
 template <typename E>
 Acts::EigenStepper<E>::EigenStepper(
@@ -74,10 +76,9 @@ auto Acts::EigenStepper<E>::boundState(
     -> Result<BoundState> {
   return detail::boundState(
       state.options.geoContext, surface, state.cov, state.jacobian,
-      state.jacTransport, state.derivative, state.jacToGlobal,
-      state.additionalFreeCovariance, state.pars, state.particleHypothesis,
-      state.covTransport && transportCov, state.pathAccumulated,
-      freeToBoundCorrection);
+      state.jacTransport, state.derivative, state.jacToGlobal, std::nullopt,
+      state.pars, state.particleHypothesis, state.covTransport && transportCov,
+      state.pathAccumulated, freeToBoundCorrection);
 }
 
 template <typename E>
@@ -119,9 +120,8 @@ auto Acts::EigenStepper<E>::curvilinearState(
     State& state, bool transportCov) const -> BoundState {
   return detail::curvilinearState(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
-      state.jacToGlobal, state.additionalFreeCovariance, state.pars,
-      state.particleHypothesis, state.covTransport && transportCov,
-      state.pathAccumulated);
+      state.jacToGlobal, std::nullopt, state.pars, state.particleHypothesis,
+      state.covTransport && transportCov, state.pathAccumulated);
 }
 
 template <typename E>
@@ -151,7 +151,7 @@ void Acts::EigenStepper<E>::transportCovarianceToCurvilinear(
     State& state) const {
   detail::transportCovarianceToCurvilinear(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
-      state.jacToGlobal, state.additionalFreeCovariance, direction(state));
+      state.jacToGlobal, std::nullopt, direction(state));
 }
 
 template <typename E>
@@ -160,8 +160,8 @@ void Acts::EigenStepper<E>::transportCovarianceToBound(
     const FreeToBoundCorrection& freeToBoundCorrection) const {
   detail::transportCovarianceToBound(
       state.options.geoContext, surface, state.cov, state.jacobian,
-      state.jacTransport, state.derivative, state.jacToGlobal,
-      state.additionalFreeCovariance, state.pars, freeToBoundCorrection);
+      state.jacTransport, state.derivative, state.jacToGlobal, std::nullopt,
+      state.pars, freeToBoundCorrection);
 }
 
 template <typename E>

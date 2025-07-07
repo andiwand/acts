@@ -13,6 +13,7 @@
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Result.hpp"
 
+#include <optional>
 #include <type_traits>
 
 namespace Acts::detail {
@@ -139,12 +140,11 @@ struct LoopComponentProxy
   Result<typename SingleStepper::BoundState> boundState(
       const Surface& surface, bool transportCov,
       const FreeToBoundCorrection& freeToBoundCorrection) {
-    return detail::boundState(all_state.options.geoContext, surface, cov(),
-                              jacobian(), jacTransport(), derivative(),
-                              jacToGlobal(), additionalFreeCovariance(), pars(),
-                              all_state.particleHypothesis,
-                              all_state.covTransport && transportCov,
-                              cmp.state.pathAccumulated, freeToBoundCorrection);
+    return detail::boundState(
+        all_state.options.geoContext, surface, cov(), jacobian(),
+        jacTransport(), derivative(), jacToGlobal(), std::nullopt, pars(),
+        all_state.particleHypothesis, all_state.covTransport && transportCov,
+        cmp.state.pathAccumulated, freeToBoundCorrection);
   }
 
   void update(const FreeVector& freeParams, const BoundVector& boundParams,

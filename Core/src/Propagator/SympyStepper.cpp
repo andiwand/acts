@@ -10,6 +10,7 @@
 
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Material/IVolumeMaterial.hpp"
+#include "Acts/Material/Interactions.hpp"
 #include "Acts/Propagator/EigenStepperError.hpp"
 #include "Acts/Propagator/detail/SympyCovarianceEngine.hpp"
 #include "Acts/Propagator/detail/SympyJacobianEngine.hpp"
@@ -75,9 +76,9 @@ SympyStepper::boundState(
     State& state, const Surface& surface, bool transportCov,
     const FreeToBoundCorrection& freeToBoundCorrection) const {
   std::optional<FreeMatrix> additionalFreeCovariance =
-      state.materialAccumulator.computeAdditionalFreeCovariance(
+      state.materialEffectsAccumulator.computeAdditionalFreeCovariance(
           direction(state));
-  state.materialAccumulator.reset();
+  state.materialEffectsAccumulator.reset();
   return detail::sympy::boundState(
       state.options.geoContext, surface, state.cov, state.jacobian,
       state.jacTransport, state.derivative, state.jacToGlobal,
@@ -95,9 +96,9 @@ bool SympyStepper::prepareCurvilinearState(State& state) const {
 std::tuple<BoundTrackParameters, BoundMatrix, double>
 SympyStepper::curvilinearState(State& state, bool transportCov) const {
   std::optional<FreeMatrix> additionalFreeCovariance =
-      state.materialAccumulator.computeAdditionalFreeCovariance(
+      state.materialEffectsAccumulator.computeAdditionalFreeCovariance(
           direction(state));
-  state.materialAccumulator.reset();
+  state.materialEffectsAccumulator.reset();
   return detail::sympy::curvilinearState(
       state.cov, state.jacobian, state.jacTransport, state.derivative,
       state.jacToGlobal, additionalFreeCovariance, state.pars,
@@ -143,16 +144,20 @@ void SympyStepper::transportCovarianceToBound(
 
 Result<double> SympyStepper::step(State& state, Direction propDir,
                                   const IVolumeMaterial* material) const {
-  (void)material;
+  double h = state.stepSize.value() * propDir;
 
-  auto pos = position(state);
-  auto dir = direction(state);
-  double t = time(state);
-  double qop = qOverP(state);
-  double pabs = absoluteMomentum(state);
-  double m = particleHypothesis(state).mass();
-  PdgParticle absPdg = particleHypothesis(state).absolutePdg();
-  double q = charge(state);
+  const double initialH = h;
+  const Direction timeDirection = Direction::fromScalarZeroAsPositive(h);
+
+  const Vector3 pos = position(state);
+  const Vector3 dir = direction(state);
+  const double t = time(state);
+  const double qop = qOverP(state);
+  const double pabs = absoluteMomentum(state);
+  const double m = particleHypothesis(state).mass();
+  const PdgParticle absPdg = particleHypothesis(state).absolutePdg();
+  const double q = charge(state);
+  const double absQ = std::abs(q);
 
   if (state.options.doDense && material != nullptr &&
       pabs < state.options.dense.momentumCutOff) {
@@ -170,15 +175,17 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
     }
 
     if (state.options.dense.meanEnergyLoss) {
-      return computeEnergyLossMean(
-          MaterialSlab(material->material({p[0], p[1], p[2]}),
-                       1.0f * UnitConstants::mm),
-          absPdg, m, l, q);
+      return timeDirection *
+             computeEnergyLossMean(
+                 MaterialSlab(material->material({p[0], p[1], p[2]}),
+                              1.0f * UnitConstants::mm),
+                 absPdg, m, l, absQ);
     } else {
-      return computeEnergyLossMode(
-          MaterialSlab(material->material({p[0], p[1], p[2]}),
-                       1.0f * UnitConstants::mm),
-          absPdg, m, l, q);
+      return timeDirection *
+             computeEnergyLossMode(
+                 MaterialSlab(material->material({p[0], p[1], p[2]}),
+                              1.0f * UnitConstants::mm),
+                 absPdg, m, l, absQ);
     }
   };
 
@@ -201,8 +208,6 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
     return std::clamp(x, lower, upper);
   };
 
-  double h = state.stepSize.value() * propDir;
-  double initialH = h;
   std::size_t nStepTrials = 0;
   double errorEstimate = 0.;
 
@@ -281,17 +286,17 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
   }
 
   if (state.options.doDense &&
-      (material != nullptr || !state.materialAccumulator.isVacuum())) {
-    if (state.materialAccumulator.isVacuum()) {
-      state.materialAccumulator.initialize(state.options.maxXOverX0Step,
-                                           particleHypothesis(state), pabs);
+      (material != nullptr || !state.materialEffectsAccumulator.isVacuum())) {
+    if (state.materialEffectsAccumulator.isVacuum()) {
+      state.materialEffectsAccumulator.initialize(
+          state.options.maxXOverX0Step, particleHypothesis(state), pabs);
     }
 
     Material mat =
         material != nullptr ? material->material(pos) : Material::Vacuum();
-    MaterialSlab slab(mat, h);
 
-    state.materialAccumulator.accumulate(slab, qop, qOverP(state));
+    state.materialEffectsAccumulator.accumulate(mat, propDir * h, qop,
+                                                qOverP(state));
   }
 
   return h;

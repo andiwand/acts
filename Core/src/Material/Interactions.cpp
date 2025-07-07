@@ -125,7 +125,8 @@ inline float computeDeltaHalf(float meanExcitationEnergy,
   }
   // pre-factor according to RPP2019 table 33.1
   const float plasmaEnergy =
-      PlasmaEnergyScale * std::sqrt(molarElectronDensity / (1 / 1_cm3));
+      PlasmaEnergyScale *
+      std::sqrt(molarElectronDensity / static_cast<float>(1 / 1_cm3));
   return std::log(rq.betaGamma) +
          std::log(plasmaEnergy / meanExcitationEnergy) - 0.5f;
 }
@@ -182,7 +183,7 @@ float Acts::computeEnergyLossBethe(const MaterialSlab& slab, float m,
   const float Ne = slab.material().molarElectronDensity();
   const float thickness = slab.thickness();
   const float eps = computeEpsilon(Ne, thickness, rq);
-  // TODO calculation of dhalf is not necessary
+  // TODO calculation of dhalf is not always necessary
   const float dhalf = computeDeltaHalf(I, Ne, rq);
   const float u = computeMassTerm(Me, rq);
   const float wmax = computeWMax(m, rq);
@@ -524,4 +525,15 @@ float Acts::computeMultipleScatteringTheta0(const MaterialSlab& slab,
   } else {
     return theta0Highland(xOverX0, momentumInv, q2OverBeta2);
   }
+}
+
+float Acts::approximateHighlandScattering(float xOverX0) {
+  // similar to `theta0Highland` but without momentum and charge
+
+  const float q2OverBeta2 = 1;  // q^2=1, beta^2~1
+  // RPP2018 eq. 33.15 (treats beta and q² consistently)
+  const float t = std::sqrt(xOverX0 * q2OverBeta2);
+  // log((x/X0) * (q²/beta²)) = log((sqrt(x/X0) * (q/beta))²)
+  //                          = 2 * log(sqrt(x/X0) * (q/beta))
+  return 13.6 * UnitConstants::MeV * t * (1.0f + 0.038f * 2 * std::log(t));
 }
