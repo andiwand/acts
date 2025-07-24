@@ -14,7 +14,6 @@
 #include "Acts/EventData/detail/SpacePointContainer2Column.hpp"
 #include "Acts/Utilities/EnumBitwiseOperators.hpp"
 #include "Acts/Utilities/TypeTraits.hpp"
-#include "Acts/Utilities/Zip.hpp"
 
 #include <cassert>
 #include <limits>
@@ -819,11 +818,6 @@ class SpacePointContainer2 {
       return RangeIterator(container(), m_range.second);
     }
 
-    template <typename... Ts>
-    auto zip(const ConstSpacePointColumnProxy<Ts> &...columns) const noexcept {
-      return m_container->zip(m_range, columns...);
-    }
-
    private:
     Container *m_container{};
     IndexRange m_range{};
@@ -968,11 +962,6 @@ class SpacePointContainer2 {
       return iterator(*m_container, m_subset.end());
     }
 
-    template <typename... Ts>
-    auto zip(const ConstSpacePointColumnProxy<Ts> &...columns) const noexcept {
-      return m_container->zip(m_subset, columns...);
-    }
-
    private:
     Container *m_container{};
     IndexSubset m_subset{};
@@ -1081,55 +1070,6 @@ class SpacePointContainer2 {
    private:
     IndexRange m_range{};
   };
-
-  /// Creates a zipped mutable range of space point data from the given columns.
-  /// @param columns The columns to zip.
-  /// @return A zipped mutable range of space point data.
-  template <typename... Ts>
-  auto zip(const MutableSpacePointColumnProxy<Ts> &...columns) noexcept {
-    return Acts::zip(IndexIteratorRange({0, size()}), columns.data()...);
-  }
-  /// Creates a zipped const range of space point data from the given columns.
-  /// @param columns The columns to zip.
-  /// @return A zipped const range of space point data.
-  template <typename... Ts>
-  auto zip(const ConstSpacePointColumnProxy<Ts> &...columns) const noexcept {
-    return Acts::zip(IndexIteratorRange({0, size()}), columns.data()...);
-  }
-
-  /// Creates a zipped mutable range of space point data from the given columns.
-  /// @param range The index range to zip.
-  /// @param columns The columns to zip.
-  /// @return A zipped mutable range of space point data.
-  template <typename... Ts>
-  auto zip(const IndexRange &range,
-           const MutableSpacePointColumnProxy<Ts> &...columns) noexcept {
-    return Acts::zip(
-        IndexIteratorRange(range),
-        columns.data().subspan(range.first, range.second - range.first)...);
-  }
-  /// Creates a zipped const range of space point data from the given columns.
-  /// @param range The index range to create the zipped range from.
-  /// @param columns The columns to zip.
-  /// @return A zipped const range of space point data.
-  template <typename... Ts>
-  auto zip(const IndexRange &range,
-           const ConstSpacePointColumnProxy<Ts> &...columns) const noexcept {
-    return Acts::zip(
-        IndexIteratorRange(range),
-        columns.data().subspan(range.first, range.second - range.first)...);
-  }
-
-  template <typename... Ts>
-  auto zip(const IndexSubset &subset,
-           const MutableSpacePointColumnProxy<Ts> &...columns) noexcept {
-    return Acts::zip(subset, columns.subset(subset)...);
-  }
-  template <typename... Ts>
-  auto zip(const IndexSubset &subset,
-           const ConstSpacePointColumnProxy<Ts> &...columns) const noexcept {
-    return Acts::zip(subset, columns.subset(subset)...);
-  }
 
  private:
   using ColumnHolderBase = detail::sp::ColumnHolderBase;

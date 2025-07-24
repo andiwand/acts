@@ -10,7 +10,6 @@
 
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/EventData/SpacePointContainer2.hpp"
-#include "Acts/EventData/Types.hpp"
 
 #include <stdexcept>
 
@@ -185,17 +184,6 @@ BOOST_AUTO_TEST_CASE(ZipIterate) {
   sp3.z() = 9;
 
   BOOST_CHECK_EQUAL(container.size(), 3u);
-
-  SpacePointIndex2 checkIndex = 0;
-  for (auto [i, x, y, z] : container.zip(
-           container.xColumn(), container.yColumn(), container.zColumn())) {
-    BOOST_CHECK_EQUAL(i, checkIndex);
-    BOOST_CHECK_NE(x, 0);
-    BOOST_CHECK_NE(y, 0);
-    BOOST_CHECK_NE(z, 0);
-
-    ++checkIndex;
-  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

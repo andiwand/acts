@@ -70,14 +70,9 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
                          (cotTheta * cotTheta) * (varianceRM + varianceRO));
     };
 
-    const SpacePointContainer2& container = candidateSps.container();
-    for (auto [indexO, xO, yO, zO, rO, varianceZO, varianceRO] :
-         candidateSps.zip(container.xColumn(), container.yColumn(),
-                          container.zColumn(), container.rColumn(),
-                          container.varianceZColumn(),
-                          container.varianceRColumn())) {
+    for (auto otherSp : candidateSps) {
       if constexpr (isBottomCandidate) {
-        deltaR = rM - rO;
+        deltaR = rM - otherSp.r();
 
         if constexpr (sortedByR) {
           // if r-distance is too small we are done
@@ -86,7 +81,7 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
           }
         }
       } else {
-        deltaR = rO - rM;
+        deltaR = otherSp.r() - rM;
 
         if constexpr (sortedByR) {
           // if r-distance is too big we are done
@@ -103,9 +98,9 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
       }
 
       if constexpr (isBottomCandidate) {
-        deltaZ = zM - zO;
+        deltaZ = zM - otherSp.z();
       } else {
-        deltaZ = zO - zM;
+        deltaZ = otherSp.z() - zM;
       }
 
       if (outsideRangeCheck(deltaZ, m_cfg.deltaZMin, m_cfg.deltaZMax)) {
@@ -138,8 +133,8 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
         }
 
         // transform SP coordinates to the u-v reference frame
-        const float deltaX = xO - xM;
-        const float deltaY = yO - yM;
+        const float deltaX = otherSp.x() - xM;
+        const float deltaY = otherSp.y() - yM;
 
         const float xNewFrame =
             deltaX * middleSpInfo.cosPhiM + deltaY * middleSpInfo.sinPhiM;
@@ -155,18 +150,19 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
         const float iDeltaR = std::sqrt(iDeltaR2);
         const float cotTheta = deltaZ * iDeltaR;
 
-        const float er =
-            calculateError(varianceZO, varianceRO, iDeltaR2, cotTheta);
+        const float er = calculateError(
+            otherSp.varianceZ(), otherSp.varianceR(), iDeltaR2, cotTheta);
 
         // fill output vectors
         compatibleDoublets.emplace_back(
-            indexO, {cotTheta, iDeltaR, er, uT, vT, xNewFrame, yNewFrame});
+            otherSp.index(),
+            {cotTheta, iDeltaR, er, uT, vT, xNewFrame, yNewFrame});
         continue;
       }
 
       // transform SP coordinates to the u-v reference frame
-      const float deltaX = xO - xM;
-      const float deltaY = yO - yM;
+      const float deltaX = otherSp.x() - xM;
+      const float deltaY = otherSp.y() - yM;
 
       const float xNewFrame =
           deltaX * middleSpInfo.cosPhiM + deltaY * middleSpInfo.sinPhiM;
@@ -221,17 +217,18 @@ class DoubletSeedFinder::Impl final : public DoubletSeedFinder::ImplBase {
       // to detector specific cuts
       if constexpr (isBottomCandidate) {
         if (m_cfg.experimentCuts.connected() &&
-            !m_cfg.experimentCuts(rO, cotTheta)) {
+            !m_cfg.experimentCuts(otherSp.r(), cotTheta)) {
           continue;
         }
       }
 
-      const float er =
-          calculateError(varianceZO, varianceRO, iDeltaR2, cotTheta);
+      const float er = calculateError(otherSp.varianceZ(), otherSp.varianceR(),
+                                      iDeltaR2, cotTheta);
 
       // fill output vectors
       compatibleDoublets.emplace_back(
-          indexO, {cotTheta, iDeltaR, er, uT, vT, xNewFrame, yNewFrame});
+          otherSp.index(),
+          {cotTheta, iDeltaR, er, uT, vT, xNewFrame, yNewFrame});
     }
   }
 
