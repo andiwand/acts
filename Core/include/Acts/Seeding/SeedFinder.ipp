@@ -41,7 +41,9 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
     const SeedFinderOptions& options, SeedingState& state, const grid_t& grid,
     container_t& outputCollection, const sp_range_t& bottomSPsIdx,
     const std::size_t middleSPsIdx, const sp_range_t& topSPsIdx,
-    const Range1D<float>& rMiddleSPRange) const {
+    const Range1D<float>& rMiddleSPRange,
+    std::chrono::nanoseconds& totalDoubletTime,
+    std::chrono::nanoseconds& totalFilterTime) const {
   // This is used for seed filtering later
   const std::size_t max_num_seeds_per_spm =
       m_config.seedFilter->getSeedFilterConfig().maxSeedsPerSpMConf;
@@ -108,7 +110,21 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
                << minRadiusRangeForMiddle << ", " << maxRadiusRangeForMiddle
                << "]");
 
+  int compatible_tops = 0;
+  int compatible_tops_passing = 0;
+  int compatible_bottoms = 0;
+
+  ACTS_VERBOSE("MIDDLE = " << middleSPs.size() );
+  ACTS_VERBOSE("TOP NEIGHBOURS    = " << state.topNeighbours.size());
+  ACTS_VERBOSE("BOTTOM NEIGHBOURS = " << state.bottomNeighbours.size());
+
+  std::chrono::nanoseconds doubletTime{};
+  std::chrono::nanoseconds filterTime{};
+  std::chrono::nanoseconds totalTime{};
+
   for (const external_spacepoint_t* spM : middleSPs) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     const float rM = spM->radius();
 
     // check if spM is outside our radial region of interest
@@ -132,6 +148,7 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
         state.linCircleTop, state.compatTopSP, m_config.deltaRMinTopSP,
         m_config.deltaRMaxTopSP, uIP, uIP2, cosPhiM, sinPhiM);
 
+    compatible_tops += state.compatTopSP.size();
     // no top SP found -> try next spM
     if (state.compatTopSP.empty()) {
       ACTS_VERBOSE("No compatible Tops, moving to next middle candidate");
@@ -164,6 +181,8 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
       }
     }
 
+    compatible_tops_passing += state.compatTopSP.size();
+
     // Iterate over middle-bottom dublets
     getCompatibleDoublets<SpacePointCandidateType::eBottom>(
         options, grid, state.spacePointMutableData, state.bottomNeighbours,
@@ -177,10 +196,21 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
       continue;
     }
 
+    compatible_bottoms += state.compatBottomSP.size();
+
     ACTS_VERBOSE("Candidates: " << state.compatBottomSP.size()
                                 << " bottoms and " << state.compatTopSP.size()
                                 << " tops for middle candidate indexed "
                                 << spM->index());
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    doubletTime += duration;
+    totalTime += duration;
+    totalDoubletTime += duration;
+
+    start = std::chrono::high_resolution_clock::now();
+
     // filter candidates
     if (m_config.useDetailedDoubleMeasurementInfo) {
       filterCandidates<DetectorMeasurementInfo::eDetailed>(
@@ -194,7 +224,23 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
                                               state.candidatesCollector,
                                               outputCollection);
 
+    stop = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    filterTime += duration;
+    totalTime += duration;
+    totalFilterTime += duration;
+
   }  // loop on mediums
+
+  // std::cout << " ======================================================================== " << std::endl;
+  // std::cout << "  (ACTS) Time for doublet finding: " << doubletTime.count() << " nanoseconds " << std::endl;
+  // std::cout << "  (ACTS) Time for filtering      : " << filterTime.count() << " nanoseconds " << std::endl;
+  // std::cout << "  (ACTS) Total time              : " << totalTime.count() << " nanoseconds " << std::endl;
+  // std::cout << " ======================================================================== " << std::endl;
+
+
+  // ACTS_VERBOSE("==== FOUND: TOPs = " << compatible_tops << " - TOPs passing = " << compatible_tops_passing << " - BOTTOMs =" << compatible_bottoms);
+  // std::cout << "==== FOUND: TOPs = " << compatible_tops << " - TOPs passing = " << compatible_tops_passing << " - BOTTOMs =" << compatible_bottoms << std::endl;
 }
 
 template <typename external_spacepoint_t, typename grid_t, typename platform_t>
@@ -225,6 +271,12 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::getCompatibleDoublets(
   std::size_t nsp = 0;
   for (const auto& otherSPCol : otherSPsNeighbours) {
     nsp += grid.at(otherSPCol.index).size();
+  }
+
+  if constexpr (isBottomCandidate) {
+    ACTS_VERBOSE("BOTTOM CANDIDATES = " << nsp);
+  } else {
+    ACTS_VERBOSE("TOP CANDIDATES = " << nsp);
   }
 
   linCircleVec.reserve(nsp);
@@ -485,6 +537,7 @@ inline void
 SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
     const external_spacepoint_t& spM, const SeedFinderOptions& options,
     SeedFilterState& seedFilterState, SeedingState& state) const {
+
   const float rM = spM.radius();
   const float cosPhiM = spM.x() / rM;
   const float sinPhiM = spM.y() / rM;
@@ -530,9 +583,16 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
   // clear previous results and then loop on bottoms and tops
   state.candidatesCollector.clear();
 
+  ACTS_VERBOSE("    ...       middle: " << spM.z() << ", " << spM.radius());
+
+  ACTS_VERBOSE("Looping on candidates...");
+
   for (const std::size_t b : sortedBottoms) {
+    ACTS_VERBOSE("    ... bottom index: " << state.compatBottomSP[b]->index());
+    ACTS_VERBOSE("    ...       bottom: " << state.compatBottomSP[b]->z() << ", " << state.compatBottomSP[b]->radius());
     // break if we reached the last top SP
     if (t0 == numTopSp) {
+      ACTS_VERBOSE("reaching last top space point... breaking");
       break;
     }
 
@@ -586,8 +646,12 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       minCompatibleTopSPs++;
     }
 
+    ACTS_VERBOSE("expected " << minCompatibleTopSPs << " compatible top space points");
+
     for (std::size_t index_t = t0; index_t < numTopSp; index_t++) {
       const std::size_t t = sortedTops[index_t];
+      ACTS_VERBOSE("    ... top index: " << state.compatTopSP[t]->index());
+      ACTS_VERBOSE("    ...       top: " << state.compatTopSP[t]->z() << ", " << state.compatTopSP[t]->radius());
 
       auto lt = state.linCircleTop[t];
 
@@ -679,6 +743,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         float averageCotTheta = 0.5 * (cotThetaB + cotThetaT);
         cotThetaAvg2 = averageCotTheta * averageCotTheta;
       } else if (cotThetaAvg2 <= 0) {
+        ACTS_VERBOSE("    ... cotThetaAvg2<=0! skipping..." );
         continue;
       }
 
@@ -702,6 +767,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       // allows just adding the two errors if they are uncorrelated (which is
       // fair for scattering and measurement uncertainties)
       if (deltaCotTheta2 > (error2 + scatteringInRegion2)) {
+        ACTS_VERBOSE("    (1) deltaCotTheta2 > (error2 + scatteringInRegion2) ... " );
         // skip top SPs based on cotTheta sorting when producing triplets
         if constexpr (detailedMeasurement ==
                       DetectorMeasurementInfo::eDetailed) {
@@ -710,9 +776,11 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         // break if cotTheta from bottom SP < cotTheta from top SP because
         // the SP are sorted by cotTheta
         if (cotThetaB - cotThetaT < 0) {
+          ACTS_VERBOSE("    ... (1) cotThetaB - cotThetaT<0 ... breaking" );
           break;
         }
         t0 = index_t + 1;
+        ACTS_VERBOSE("     ... (1) continue" );
         continue;
       }
 
@@ -748,6 +816,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         dU = lt.U - Ub;
         // protects against division by 0
         if (dU == 0.) {
+          ACTS_VERBOSE("    dU == 0. ... continue" );
           continue;
         }
         // A and B are evaluated as a function of the circumference parameters
@@ -761,6 +830,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       // sqrt(S2)/B = 2 * helixradius
       // calculated radius must not be smaller than minimum radius
       if (S2 < B2 * options.minHelixDiameter2) {
+        ACTS_VERBOSE("    S2 < B2 * options.minHelixDiameter2 ... continue" );
         continue;
       }
 
@@ -787,14 +857,17 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
 
       // if deltaTheta larger than allowed scattering for calculated pT, skip
       if (deltaCotTheta2 > (error2 + p2scatterSigma)) {
+        ACTS_VERBOSE("    (2) deltaCotTheta2 > (error2 + p2scatterSigma) ..." );
         if constexpr (detailedMeasurement ==
                       DetectorMeasurementInfo::eDetailed) {
           continue;
         }
         if (cotThetaB - cotThetaT < 0) {
+          ACTS_VERBOSE("    ... (2) cotThetaB - cotThetaT<0 ... breaking" );
           break;
         }
         t0 = index_t;
+        ACTS_VERBOSE("     ... (2) continue" );
         continue;
       }
       // A and B allow calculation of impact params in U/V plane with linear
@@ -808,6 +881,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       }
 
       if (Im > m_config.impactMax) {
+        ACTS_VERBOSE("     ... Im > m_config.impactMax --> " << Im << " > " << m_config.impactMax <<  " ... continue" );
         continue;
       }
 
@@ -820,8 +894,11 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
 
     // continue if number of top SPs is smaller than minimum required for filter
     if (state.topSpVec.size() < minCompatibleTopSPs) {
+      ACTS_VERBOSE("     ... state.topSpVec.size() < minCompatibleTopSPs --> " << state.topSpVec.size() << " > " << minCompatibleTopSPs <<  " ... continue" );
       continue;
     }
+
+    ACTS_VERBOSE("     ===>>> (bottom - middle - top) combination found... go to next stage of filtering" );
 
     seedFilterState.zOrigin = spM.z() - rM * lb.cotTheta;
 

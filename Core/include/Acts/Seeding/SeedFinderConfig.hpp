@@ -192,6 +192,11 @@ struct SeedFinderConfig {
   Delegate<bool(float /*bottomRadius*/, float /*cotTheta*/)> experimentCuts{
       DelegateFuncTag<&noopExperimentCuts>{}};
 
+  // Delegate<bool(const SpacePoint& /*middle*/, const SpacePoint& /*other*/, float /*cotTheta*/)> experimentCuts{
+  //     DelegateFuncTag<&voidExperimentCuts>{}};
+  //
+  // static bool voidExperimentCuts(const SpacePoint& /*middle*/, const SpacePoint& /*other*/, float /*cotTheta*/) { return true; }
+
   bool isInInternalUnits = true;
   //[[deprecated("SeedFinderConfig uses internal units")]]
   SeedFinderConfig toInternalUnits() const { return *this; }
