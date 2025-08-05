@@ -15,6 +15,11 @@
 
 namespace Acts {
 
+static std::chrono::nanoseconds s_totalDoubletSortingTime{};
+
+static std::size_t s_totalTripletCandidates1 = 0;
+static std::size_t s_totalTripletCandidates2 = 0;
+
 template <typename external_spacepoint_t, typename grid_t, typename platform_t>
 SeedFinder<external_spacepoint_t, grid_t, platform_t>::SeedFinder(
     const SeedFinderConfig<external_spacepoint_t>& config,
@@ -43,7 +48,12 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
     const std::size_t middleSPsIdx, const sp_range_t& topSPsIdx,
     const Range1D<float>& rMiddleSPRange,
     std::chrono::nanoseconds& totalDoubletTime,
-    std::chrono::nanoseconds& totalFilterTime) const {
+    std::chrono::nanoseconds& totalFilterTime,
+    std::chrono::nanoseconds& totalDoubletSortingTime,
+    std::size_t& totalTopDoublets,
+    std::size_t& totalBottomDoublets,
+    std::size_t& totalTripletCandidates1,
+    std::size_t& totalTripletCandidates2) const {
   // This is used for seed filtering later
   const std::size_t max_num_seeds_per_spm =
       m_config.seedFilter->getSeedFilterConfig().maxSeedsPerSpMConf;
@@ -149,6 +159,7 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
         m_config.deltaRMaxTopSP, uIP, uIP2, cosPhiM, sinPhiM);
 
     compatible_tops += state.compatTopSP.size();
+    totalTopDoublets += state.compatTopSP.size();
     // no top SP found -> try next spM
     if (state.compatTopSP.empty()) {
       ACTS_VERBOSE("No compatible Tops, moving to next middle candidate");
@@ -197,6 +208,7 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
     }
 
     compatible_bottoms += state.compatBottomSP.size();
+    totalBottomDoublets += state.compatBottomSP.size();
 
     ACTS_VERBOSE("Candidates: " << state.compatBottomSP.size()
                                 << " bottoms and " << state.compatTopSP.size()
@@ -205,8 +217,6 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-    doubletTime += duration;
-    totalTime += duration;
     totalDoubletTime += duration;
 
     start = std::chrono::high_resolution_clock::now();
@@ -220,24 +230,19 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
           *spM, options, seedFilterState, state);
     }
 
+    totalDoubletSortingTime = s_totalDoubletSortingTime;
+    totalTripletCandidates1 = s_totalTripletCandidates1;
+    totalTripletCandidates2 = s_totalTripletCandidates2;
+
     m_config.seedFilter->filterSeeds_1SpFixed(state.spacePointMutableData,
                                               state.candidatesCollector,
                                               outputCollection);
 
     stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-    filterTime += duration;
-    totalTime += duration;
     totalFilterTime += duration;
 
   }  // loop on mediums
-
-  // std::cout << " ======================================================================== " << std::endl;
-  // std::cout << "  (ACTS) Time for doublet finding: " << doubletTime.count() << " nanoseconds " << std::endl;
-  // std::cout << "  (ACTS) Time for filtering      : " << filterTime.count() << " nanoseconds " << std::endl;
-  // std::cout << "  (ACTS) Total time              : " << totalTime.count() << " nanoseconds " << std::endl;
-  // std::cout << " ======================================================================== " << std::endl;
-
 
   // ACTS_VERBOSE("==== FOUND: TOPs = " << compatible_tops << " - TOPs passing = " << compatible_tops_passing << " - BOTTOMs =" << compatible_bottoms);
   // std::cout << "==== FOUND: TOPs = " << compatible_tops << " - TOPs passing = " << compatible_tops_passing << " - BOTTOMs =" << compatible_bottoms << std::endl;
@@ -557,6 +562,8 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
   }
 
   if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDefault) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::vector<float> cotThetaBottoms(state.compatBottomSP.size());
     for (std::uint32_t i = 0; i < sortedBottoms.size(); ++i) {
       cotThetaBottoms[i] = state.linCircleBottom[i].cotTheta;
@@ -571,6 +578,10 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
     }
     std::ranges::sort(sortedTops, {},
                       [&](const std::uint32_t s) { return cotThetaTops[s]; });
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    s_totalDoubletSortingTime += duration;
   }
 
   // Reserve enough space, in case current capacity is too little
@@ -892,11 +903,15 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       state.impactParameters.push_back(Im);
     }  // loop on tops
 
+    s_totalTripletCandidates1 += state.topSpVec.size();
+
     // continue if number of top SPs is smaller than minimum required for filter
     if (state.topSpVec.size() < minCompatibleTopSPs) {
       ACTS_VERBOSE("     ... state.topSpVec.size() < minCompatibleTopSPs --> " << state.topSpVec.size() << " > " << minCompatibleTopSPs <<  " ... continue" );
       continue;
     }
+
+    s_totalTripletCandidates2 += state.topSpVec.size();
 
     ACTS_VERBOSE("     ===>>> (bottom - middle - top) combination found... go to next stage of filtering" );
 

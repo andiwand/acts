@@ -107,7 +107,12 @@ class SeedFinder {
                            const sp_range_t& topSPs,
                            const Range1D<float>& rMiddleSPRange,
                            std::chrono::nanoseconds& totalDoubletTime,
-                           std::chrono::nanoseconds& totalFilterTime) const;
+                           std::chrono::nanoseconds& totalFilterTime,
+                           std::chrono::nanoseconds& totalDoubletSortingTime,
+                           std::size_t& totalTopDoublets,
+                           std::size_t& totalBottomDoublets,
+                           std::size_t& totalTripletCandidates1,
+                           std::size_t& totalTripletCandidates2) const;
 
  private:
   /// Given a middle space point candidate, get the proper radius validity range
