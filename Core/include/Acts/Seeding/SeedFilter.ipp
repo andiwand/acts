@@ -18,6 +18,13 @@
 
 namespace Acts {
 
+static std::size_t s_filterCounter1 = 0;
+static std::size_t s_filterCounter2 = 0;
+static std::size_t s_filterCounter3 = 0;
+static std::size_t s_filterCounter4 = 0;
+static std::size_t s_filterCounter5 = 0;
+static std::size_t s_filterCounter6 = 0;
+
 template <typename external_spacepoint_t>
 SeedFilter<external_spacepoint_t>::SeedFilter(
     const SeedFilterConfig& config,
@@ -77,9 +84,17 @@ void SeedFilter<external_spacepoint_t>::filterSeeds_2SpFixed(
                       });
   }
 
+  // vector containing the radius of all compatible seeds
+  std::vector<float> compatibleSeedR;
+  compatibleSeedR.reserve(m_cfg.compatSeedLimit);
+
   std::size_t beginCompTopIndex = 0;
   // loop over top SPs and other compatible top SP candidates
   for (const std::size_t topSpIndex : topSpIndexVec) {
+    // if two compatible seeds with high distance in r are found, compatible
+    // seeds span 5 layers
+    compatibleSeedR.clear();
+
     float invHelixDiameter = invHelixDiameterVec[topSpIndex];
     float lowerLimitCurv = invHelixDiameter - m_cfg.deltaInvHelixDiameter;
     float upperLimitCurv = invHelixDiameter + m_cfg.deltaInvHelixDiameter;
@@ -119,8 +134,24 @@ void SeedFilter<external_spacepoint_t>::filterSeeds_2SpFixed(
       if (std::abs(deltaR) < m_cfg.deltaRMin) {
         continue;
       }
-      weight += m_cfg.compatSeedWeight;
-      break;
+      bool newCompSeed = true;
+      for (const float previousDiameter : compatibleSeedR) {
+        // original ATLAS code uses higher min distance for 2nd found compatible
+        // seed (20mm instead of 5mm)
+        // add new compatible seed only if distance larger than rmin to all
+        // other compatible seeds
+        if (std::abs(previousDiameter - otherTopR) < m_cfg.deltaRMin) {
+          newCompSeed = false;
+          break;
+        }
+      }
+      if (newCompSeed) {
+        compatibleSeedR.push_back(otherTopR);
+        weight += m_cfg.compatSeedWeight;
+      }
+      if (compatibleSeedR.size() >= m_cfg.compatSeedLimit) {
+        break;
+      }
     }
 
     if (m_experimentCuts != nullptr) {
@@ -134,17 +165,79 @@ void SeedFilter<external_spacepoint_t>::filterSeeds_2SpFixed(
       }
     }
 
-    // keep the normal behavior without seed quality confirmation
-    // if we have not yet reached our max number of seeds we add the new seed
-    // to outCont
+    // increment in seed weight if number of compatible seeds is larger than
+    // numSeedIncrement
+    if (compatibleSeedR.size() > m_cfg.numSeedIncrement) {
+      weight += m_cfg.seedWeightIncrement;
+    }
 
-    candidatesCollector.push(bottomSp, middleSp, *topSpVec[topSpIndex],
-                              weight, zOrigin, false);
+    if (m_cfg.seedConfirmation) {
+      ++s_filterCounter1;
+
+      // seed confirmation cuts - keep seeds if they have specific values of
+      // impact parameter, z-origin and number of compatible seeds inside a
+      // pre-defined range that also depends on the region of the detector (i.e.
+      // forward or central region) defined by SeedConfirmationRange
+      int deltaSeedConf =
+          compatibleSeedR.size() + 1 - seedFilterState.nTopSeedConf;
+      if (deltaSeedConf < 0 ||
+          (candidatesCollector.nHighQualityCandidates() != 0 &&
+           deltaSeedConf == 0)) {
+        ++s_filterCounter2;
+        continue;
+      }
+      bool seedRangeCuts =
+          bottomSp.radius() < seedConfRange.seedConfMinBottomRadius ||
+          std::abs(zOrigin) > seedConfRange.seedConfMaxZOrigin;
+      if (seedRangeCuts && deltaSeedConf == 0 &&
+          impact > seedConfRange.minImpactSeedConf) {
+        ++s_filterCounter3;
+        continue;
+      }
+
+      // term on the weight that depends on the value of zOrigin
+      weight += -(std::abs(zOrigin) * m_cfg.zOriginWeightFactor) +
+                m_cfg.compatSeedWeight;
+
+      // skip a bad quality seed if any of its constituents has a weight larger
+      // than the seed weight
+      if (weight < mutableData.quality(bottomSp.index()) &&
+          weight < mutableData.quality(middleSp.index()) &&
+          weight < mutableData.quality(topSpVec[topSpIndex]->index())) {
+        ++s_filterCounter4;
+        continue;
+      }
+
+      if (deltaSeedConf > 0) {
+        ++s_filterCounter5;
+        // if we have not yet reached our max number of quality seeds we add the
+        // new seed to outCont
+
+        // Internally, "push" will also check the max number of quality seeds
+        // for a middle sp.
+        // If this is reached, we remove the seed with the lowest weight.
+        candidatesCollector.push(bottomSp, middleSp, *topSpVec[topSpIndex],
+                                 weight, zOrigin, true);
+      } else if (weight > weightMax) {
+        // store weight and index of the best "lower quality" seed
+        weightMax = weight;
+        maxWeightSeedIndex = topSpIndex;
+        maxWeightSeed = true;
+      }
+    } else {
+      // keep the normal behavior without seed quality confirmation
+      // if we have not yet reached our max number of seeds we add the new seed
+      // to outCont
+
+      candidatesCollector.push(bottomSp, middleSp, *topSpVec[topSpIndex],
+                               weight, zOrigin, false);
+    }
   }  // loop on tops
   // if no high quality seed was found for a certain middle+bottom SP pair,
   // lower quality seeds can be accepted
   if (m_cfg.seedConfirmation && maxWeightSeed &&
       candidatesCollector.nHighQualityCandidates() == 0) {
+    ++s_filterCounter6;
     // if we have not yet reached our max number of seeds we add the new seed to
     // outCont
 

@@ -19,6 +19,17 @@ static std::chrono::nanoseconds s_totalDoubletSortingTime{};
 
 static std::size_t s_totalTripletCandidates1 = 0;
 static std::size_t s_totalTripletCandidates2 = 0;
+static std::size_t s_totalTripletCandidates3 = 0;
+
+static std::size_t s_totalTripletCounter1 = 0;
+static std::size_t s_totalTripletCounter2 = 0;
+static std::size_t s_totalTripletCounter3 = 0;
+static std::size_t s_totalTripletCounter4 = 0;
+static std::size_t s_totalTripletCounter5 = 0;
+static std::size_t s_totalTripletCounter6 = 0;
+static std::size_t s_totalTripletCounter7 = 0;
+
+static std::chrono::nanoseconds s_totalFilterTime3{};
 
 template <typename external_spacepoint_t, typename grid_t, typename platform_t>
 SeedFinder<external_spacepoint_t, grid_t, platform_t>::SeedFinder(
@@ -48,12 +59,14 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
     const std::size_t middleSPsIdx, const sp_range_t& topSPsIdx,
     const Range1D<float>& rMiddleSPRange,
     std::chrono::nanoseconds& totalDoubletTime,
-    std::chrono::nanoseconds& totalFilterTime,
     std::chrono::nanoseconds& totalDoubletSortingTime,
+    std::chrono::nanoseconds& totalFilterTime1,
+    std::chrono::nanoseconds& totalFilterTime2,
     std::size_t& totalTopDoublets,
     std::size_t& totalBottomDoublets,
     std::size_t& totalTripletCandidates1,
-    std::size_t& totalTripletCandidates2) const {
+    std::size_t& totalTripletCandidates2,
+    std::size_t& totalTripletCandidates3) const {
   // This is used for seed filtering later
   const std::size_t max_num_seeds_per_spm =
       m_config.seedFilter->getSeedFilterConfig().maxSeedsPerSpMConf;
@@ -127,10 +140,6 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
   ACTS_VERBOSE("MIDDLE = " << middleSPs.size() );
   ACTS_VERBOSE("TOP NEIGHBOURS    = " << state.topNeighbours.size());
   ACTS_VERBOSE("BOTTOM NEIGHBOURS = " << state.bottomNeighbours.size());
-
-  std::chrono::nanoseconds doubletTime{};
-  std::chrono::nanoseconds filterTime{};
-  std::chrono::nanoseconds totalTime{};
 
   for (const external_spacepoint_t* spM : middleSPs) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -230,9 +239,16 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
           *spM, options, seedFilterState, state);
     }
 
+    stop = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    totalFilterTime1 += duration;
+
+    start = std::chrono::high_resolution_clock::now();
+
     totalDoubletSortingTime = s_totalDoubletSortingTime;
     totalTripletCandidates1 = s_totalTripletCandidates1;
     totalTripletCandidates2 = s_totalTripletCandidates2;
+    totalTripletCandidates3 = s_totalTripletCandidates3;
 
     m_config.seedFilter->filterSeeds_1SpFixed(state.spacePointMutableData,
                                               state.candidatesCollector,
@@ -240,7 +256,7 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
 
     stop = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-    totalFilterTime += duration;
+    totalFilterTime2 += duration;
 
   }  // loop on mediums
 
@@ -256,7 +272,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::getCompatibleDoublets(
     SpacePointMutableData& mutableData,
     boost::container::small_vector<
         Neighbour<grid_t>, detail::ipow(3, grid_t::DIM)>& otherSPsNeighbours,
-    const external_spacepoint_t& mediumSP, std::vector<LinCircle>& linCircleVec,
+    const external_spacepoint_t& mediumSP, LinCircleVector& linCircleVec,
     out_range_t& outVec, const float deltaRMinSP, const float deltaRMaxSP,
     const float uIP, const float uIP2, const float cosPhiM,
     const float sinPhiM) const {
@@ -564,20 +580,11 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
   if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDefault) {
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::vector<float> cotThetaBottoms(state.compatBottomSP.size());
-    for (std::uint32_t i = 0; i < sortedBottoms.size(); ++i) {
-      cotThetaBottoms[i] = state.linCircleBottom[i].cotTheta;
-    }
     std::ranges::sort(sortedBottoms, {}, [&](const std::uint32_t s) {
-      return cotThetaBottoms[s];
+      return state.linCircleBottom.cotTheta[s];
     });
-
-    std::vector<float> cotThetaTops(state.linCircleTop.size());
-    for (std::uint32_t i = 0; i < sortedTops.size(); ++i) {
-      cotThetaTops[i] = state.linCircleTop[i].cotTheta;
-    }
     std::ranges::sort(sortedTops, {},
-                      [&](const std::uint32_t s) { return cotThetaTops[s]; });
+                      [&](const std::uint32_t s) { return state.linCircleTop.cotTheta[s]; });
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -607,12 +614,11 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       break;
     }
 
-    auto lb = state.linCircleBottom[b];
-    float cotThetaB = lb.cotTheta;
-    float Vb = lb.V;
-    float Ub = lb.U;
-    float ErB = lb.Er;
-    float iDeltaRB = lb.iDeltaR;
+    float cotThetaB = state.linCircleBottom.cotTheta[b];
+    float Vb = state.linCircleBottom.V[b];
+    float Ub = state.linCircleBottom.U[b];
+    float ErB = state.linCircleBottom.Er[b];
+    float iDeltaRB = state.linCircleBottom.iDeltaR[b];
 
     // 1+(cot^2(theta)) = 1/sin^2(theta)
     float iSinTheta2 = (1. + cotThetaB * cotThetaB);
@@ -636,14 +642,6 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
     state.curvatures.clear();
     state.impactParameters.clear();
 
-    // coordinate transformation and checks for middle spacepoint
-    // x and y terms for the rotation from UV to XY plane
-    float rotationTermsUVtoXY[2] = {0, 0};
-    if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-      rotationTermsUVtoXY[0] = cosPhiM * sinTheta;
-      rotationTermsUVtoXY[1] = sinPhiM * sinTheta;
-    }
-
     // minimum number of compatible top SPs to trigger the filter for a certain
     // middle bottom pair if seedConfirmation is false we always ask for at
     // least one compatible top to trigger the filter
@@ -657,112 +655,21 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       minCompatibleTopSPs++;
     }
 
-    ACTS_VERBOSE("expected " << minCompatibleTopSPs << " compatible top space points");
-
     for (std::size_t index_t = t0; index_t < numTopSp; index_t++) {
+      ++s_totalTripletCounter1;
+
       const std::size_t t = sortedTops[index_t];
-      ACTS_VERBOSE("    ... top index: " << state.compatTopSP[t]->index());
-      ACTS_VERBOSE("    ...       top: " << state.compatTopSP[t]->z() << ", " << state.compatTopSP[t]->radius());
 
-      auto lt = state.linCircleTop[t];
-
-      float cotThetaT = lt.cotTheta;
-      float rMxy = 0.;
-      float ub = 0.;
-      float vb = 0.;
-      float ut = 0.;
-      float vt = 0.;
-      double rMTransf[3];
-      float xB = 0.;
-      float yB = 0.;
-      float xT = 0.;
-      float yT = 0.;
-      float iDeltaRB2 = 0.;
-      float iDeltaRT2 = 0.;
-
-      if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-        // protects against division by 0
-        float dU = lt.U - Ub;
-        if (dU == 0.) {
-          continue;
-        }
-        // A and B are evaluated as a function of the circumference parameters
-        // x_0 and y_0
-        float A0 = (lt.V - Vb) / dU;
-
-        float zPositionMiddle = cosTheta * std::sqrt(1 + A0 * A0);
-
-        // position of Middle SP converted from UV to XY assuming cotTheta
-        // evaluated from the Bottom and Middle SPs double
-        double positionMiddle[3] = {
-            rotationTermsUVtoXY[0] - rotationTermsUVtoXY[1] * A0,
-            rotationTermsUVtoXY[0] * A0 + rotationTermsUVtoXY[1],
-            zPositionMiddle};
-
-        if (!xyzCoordinateCheck(m_config, spM, positionMiddle, rMTransf)) {
-          continue;
-        }
-
-        // coordinate transformation and checks for bottom spacepoint
-        float B0 = 2. * (Vb - A0 * Ub);
-        float Cb = 1. - B0 * lb.y;
-        float Sb = A0 + B0 * lb.x;
-        double positionBottom[3] = {
-            rotationTermsUVtoXY[0] * Cb - rotationTermsUVtoXY[1] * Sb,
-            rotationTermsUVtoXY[0] * Sb + rotationTermsUVtoXY[1] * Cb,
-            zPositionMiddle};
-
-        auto spB = state.compatBottomSP[b];
-        double rBTransf[3];
-        if (!xyzCoordinateCheck(m_config, *spB, positionBottom, rBTransf)) {
-          continue;
-        }
-
-        // coordinate transformation and checks for top spacepoint
-        float Ct = 1. - B0 * lt.y;
-        float St = A0 + B0 * lt.x;
-        double positionTop[3] = {
-            rotationTermsUVtoXY[0] * Ct - rotationTermsUVtoXY[1] * St,
-            rotationTermsUVtoXY[0] * St + rotationTermsUVtoXY[1] * Ct,
-            zPositionMiddle};
-
-        auto spT = state.compatTopSP[t];
-        double rTTransf[3];
-        if (!xyzCoordinateCheck(m_config, *spT, positionTop, rTTransf)) {
-          continue;
-        }
-
-        // bottom and top coordinates in the spM reference frame
-        xB = rBTransf[0] - rMTransf[0];
-        yB = rBTransf[1] - rMTransf[1];
-        float zB = rBTransf[2] - rMTransf[2];
-        xT = rTTransf[0] - rMTransf[0];
-        yT = rTTransf[1] - rMTransf[1];
-        float zT = rTTransf[2] - rMTransf[2];
-
-        iDeltaRB2 = 1. / (xB * xB + yB * yB);
-        iDeltaRT2 = 1. / (xT * xT + yT * yT);
-
-        cotThetaB = -zB * std::sqrt(iDeltaRB2);
-        cotThetaT = zT * std::sqrt(iDeltaRT2);
-      }
+      float cotThetaT = state.linCircleTop.cotTheta[t];
 
       // use geometric average
       float cotThetaAvg2 = cotThetaB * cotThetaT;
-      if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-        // use arithmetic average
-        float averageCotTheta = 0.5 * (cotThetaB + cotThetaT);
-        cotThetaAvg2 = averageCotTheta * averageCotTheta;
-      } else if (cotThetaAvg2 <= 0) {
-        ACTS_VERBOSE("    ... cotThetaAvg2<=0! skipping..." );
-        continue;
-      }
 
       // add errors of spB-spM and spM-spT pairs and add the correlation term
       // for errors on spM
       float error2 =
-          lt.Er + ErB +
-          2 * (cotThetaAvg2 * varianceRM + varianceZM) * iDeltaRB * lt.iDeltaR;
+          state.linCircleTop.Er[t] + ErB +
+          2 * (cotThetaAvg2 * varianceRM + varianceZM) * iDeltaRB * state.linCircleTop.iDeltaR[t];
 
       float deltaCotTheta = cotThetaB - cotThetaT;
       float deltaCotTheta2 = deltaCotTheta * deltaCotTheta;
@@ -778,33 +685,16 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       // allows just adding the two errors if they are uncorrelated (which is
       // fair for scattering and measurement uncertainties)
       if (deltaCotTheta2 > (error2 + scatteringInRegion2)) {
-        ACTS_VERBOSE("    (1) deltaCotTheta2 > (error2 + scatteringInRegion2) ... " );
+        ++s_totalTripletCounter2;
         // skip top SPs based on cotTheta sorting when producing triplets
-        if constexpr (detailedMeasurement ==
-                      DetectorMeasurementInfo::eDetailed) {
-          continue;
-        }
         // break if cotTheta from bottom SP < cotTheta from top SP because
         // the SP are sorted by cotTheta
         if (cotThetaB - cotThetaT < 0) {
-          ACTS_VERBOSE("    ... (1) cotThetaB - cotThetaT<0 ... breaking" );
+          ++s_totalTripletCounter3;
           break;
         }
         t0 = index_t + 1;
-        ACTS_VERBOSE("     ... (1) continue" );
         continue;
-      }
-
-      if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-        rMxy = std::sqrt(rMTransf[0] * rMTransf[0] + rMTransf[1] * rMTransf[1]);
-        float irMxy = 1 / rMxy;
-        float Ax = rMTransf[0] * irMxy;
-        float Ay = rMTransf[1] * irMxy;
-
-        ub = (xB * Ax + yB * Ay) * iDeltaRB2;
-        vb = (yB * Ax - xB * Ay) * iDeltaRB2;
-        ut = (xT * Ax + yT * Ay) * iDeltaRT2;
-        vt = (yT * Ax - xT * Ay) * iDeltaRT2;
       }
 
       float dU = 0;
@@ -813,35 +703,22 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       float B = 0;
       float B2 = 0;
 
-      if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-        dU = ut - ub;
+        dU = state.linCircleTop.U[t] - state.linCircleBottom.U[b];
         // protects against division by 0
-        if (dU == 0.) {
-          continue;
-        }
-        A = (vt - vb) / dU;
-        S2 = 1. + A * A;
-        B = vb - A * ub;
-        B2 = B * B;
-      } else {
-        dU = lt.U - Ub;
-        // protects against division by 0
-        if (dU == 0.) {
-          ACTS_VERBOSE("    dU == 0. ... continue" );
+        if (dU == 0) {
           continue;
         }
         // A and B are evaluated as a function of the circumference parameters
         // x_0 and y_0
-        A = (lt.V - Vb) / dU;
-        S2 = 1. + A * A;
+        A = (state.linCircleTop.V[t] - Vb) / dU;
+        S2 = 1 + A * A;
         B = Vb - A * Ub;
         B2 = B * B;
-      }
-
+        
       // sqrt(S2)/B = 2 * helixradius
       // calculated radius must not be smaller than minimum radius
       if (S2 < B2 * options.minHelixDiameter2) {
-        ACTS_VERBOSE("    S2 < B2 * options.minHelixDiameter2 ... continue" );
+        ++s_totalTripletCounter4;
         continue;
       }
 
@@ -868,31 +745,22 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
 
       // if deltaTheta larger than allowed scattering for calculated pT, skip
       if (deltaCotTheta2 > (error2 + p2scatterSigma)) {
-        ACTS_VERBOSE("    (2) deltaCotTheta2 > (error2 + p2scatterSigma) ..." );
-        if constexpr (detailedMeasurement ==
-                      DetectorMeasurementInfo::eDetailed) {
-          continue;
-        }
+        ++s_totalTripletCounter5;
         if (cotThetaB - cotThetaT < 0) {
-          ACTS_VERBOSE("    ... (2) cotThetaB - cotThetaT<0 ... breaking" );
+          ++s_totalTripletCounter6;
           break;
         }
         t0 = index_t;
-        ACTS_VERBOSE("     ... (2) continue" );
         continue;
       }
       // A and B allow calculation of impact params in U/V plane with linear
       // function
       // (in contrast to having to solve a quadratic function in x/y plane)
       float Im = 0;
-      if constexpr (detailedMeasurement == DetectorMeasurementInfo::eDetailed) {
-        Im = std::abs((A - B * rMxy) * rMxy);
-      } else {
-        Im = std::abs((A - B * rM) * rM);
-      }
+      Im = std::abs((A - B * rM) * rM);
 
       if (Im > m_config.impactMax) {
-        ACTS_VERBOSE("     ... Im > m_config.impactMax --> " << Im << " > " << m_config.impactMax <<  " ... continue" );
+        ++s_totalTripletCounter7;
         continue;
       }
 
@@ -907,20 +775,23 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
 
     // continue if number of top SPs is smaller than minimum required for filter
     if (state.topSpVec.size() < minCompatibleTopSPs) {
-      ACTS_VERBOSE("     ... state.topSpVec.size() < minCompatibleTopSPs --> " << state.topSpVec.size() << " > " << minCompatibleTopSPs <<  " ... continue" );
       continue;
     }
 
     s_totalTripletCandidates2 += state.topSpVec.size();
 
-    ACTS_VERBOSE("     ===>>> (bottom - middle - top) combination found... go to next stage of filtering" );
+    seedFilterState.zOrigin = spM.z() - rM * state.linCircleBottom.cotTheta[b];
 
-    seedFilterState.zOrigin = spM.z() - rM * lb.cotTheta;
+    auto start = std::chrono::high_resolution_clock::now();
 
     m_config.seedFilter->filterSeeds_2SpFixed(
         state.spacePointMutableData, *state.compatBottomSP[b], spM,
         state.topSpVec, state.curvatures, state.impactParameters,
         seedFilterState, state.candidatesCollector);
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    s_totalFilterTime3 += duration;
   }  // loop on bottoms
 }
 

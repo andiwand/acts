@@ -72,12 +72,15 @@ inline void CandidatesForMiddleSp<external_space_point_t>::clear() {
   m_storage.clear();
   m_indicesHigh.clear();
   m_indicesLow.clear();
+
+  m_sizePushed = 0;
 }
 
 template <SatisfyCandidateConcept external_space_point_t>
 bool CandidatesForMiddleSp<external_space_point_t>::push(
     external_space_point_t& spB, external_space_point_t& spM,
     external_space_point_t& spT, float weight, float zOrigin, bool isQuality) {
+  ++m_sizePushed;
   // Decide in which collection this candidate may be added to according to the
   // isQuality boolean
   if (isQuality) {

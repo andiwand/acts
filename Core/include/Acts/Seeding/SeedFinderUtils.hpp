@@ -28,6 +28,51 @@ struct LinCircle {
   float y{0.};
 };
 
+struct LinCircleVector {
+  std::vector<float> cotTheta;
+  std::vector<float> iDeltaR;
+  std::vector<float> Er;
+  std::vector<float> U;
+  std::vector<float> V;
+  std::vector<float> x;
+  std::vector<float> y;
+
+  void emplace_back(float ct, float idr, float er, float u, float v,
+                     float X, float Y) {
+    cotTheta.emplace_back(ct);
+    iDeltaR.emplace_back(idr);
+    Er.emplace_back(er);
+    U.emplace_back(u);
+    V.emplace_back(v);
+    x.emplace_back(X);
+    y.emplace_back(Y);
+  }
+
+  void clear() {
+    cotTheta.clear();
+    iDeltaR.clear();
+    Er.clear();
+    U.clear();
+    V.clear();
+    x.clear();
+    y.clear();
+  }
+  
+  std::size_t size() const {
+    return cotTheta.size();
+  }
+
+  void reserve(std::size_t size) {
+    cotTheta.reserve(size);
+    iDeltaR.reserve(size);
+    Er.reserve(size);
+    U.reserve(size);
+    V.reserve(size);
+    x.reserve(size);
+    y.reserve(size);
+  }
+};
+
 template <typename external_spacepoint_t, typename callable_t>
 LinCircle transformCoordinates(Acts::SpacePointMutableData& mutableData,
                                const external_spacepoint_t& sp,

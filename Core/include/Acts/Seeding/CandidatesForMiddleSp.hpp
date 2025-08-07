@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <map>
 #include <vector>
 
 namespace Acts {
@@ -60,12 +62,26 @@ class CandidatesForMiddleSp {
   /// @brief Setting maximum number of candidates to keep
   /// @param nLow Maximum number of candidates in the low-quality collection
   /// @param nHigh Maximum number of candidates in the high-quality collection
-  void setMaxElements(std::size_t nLow, std::size_t nHigh);
+  void setMaxElements(std::size_t nLow, std::size_t nHigh) {
+    m_maxSizeLow = nLow;
+    m_maxSizeHigh = nHigh;
+  }
 
   /// @brief Retrieve the triplet candidates, the resulting vector is already sorted,
   /// elements with higher quality first
   /// @returns Vector of triplet candidates
-  std::vector<value_type> storage();
+  std::vector<value_type> storage() {
+    std::vector<value_type> result;
+    result.reserve(m_storage.size());
+    for (const auto& [weight, index] : m_weightIndexHigh) {
+      result.push_back(m_storage[index]);
+    }
+    for (const auto& [weight, index] : m_weightIndexLow) {
+      result.push_back(m_storage[index]);
+    }
+    clear();
+    return result;
+  }
 
   /// @brief Adding a new triplet candidate to the collection, should it satisfy the
   /// selection criteria
@@ -78,126 +94,72 @@ class CandidatesForMiddleSp {
   /// @returns whether the triplet candidate has been added or not to the collection
   bool push(external_space_point_t& spB, external_space_point_t& spM,
             external_space_point_t& spT, float weight, float zOrigin,
-            bool isQuality);
+            bool isQuality) {
+    if (isQuality) {
+      return push(spB, spM, spT, weight, zOrigin, isQuality, m_weightIndexHigh);
+    }
+    return push(spB, spM, spT, weight, zOrigin, isQuality, m_weightIndexLow);
+  }
 
   /// @brief Clear the internal storage
-  void clear();
-
-  /// @brief A function for sorting the triplet candidates from higher to lower quality
-  /// @param i1 First triplet candidate
-  /// @param i2 Second triplet candidate
-  /// @returns The comparison result
-  static bool descendingByQuality(const value_type& i1, const value_type& i2);
-
-  /// @brief A function for sorting the triplet candidates from lower to higher quality
-  /// @param i1 First triplet candidate
-  /// @param i2 Second triplet candidate
-  /// @returns The comparison result
-  static bool ascendingByQuality(const value_type& i1, const value_type& i2);
+  void clear() {
+    m_storage.clear();
+    m_weightIndexHigh.clear();
+    m_weightIndexLow.clear();
+  }
 
   /// @brief Retrieve the number of Low quality candidates
   /// @returns The number of Low quality candidates
-  std::size_t nLowQualityCandidates() const;
+  std::size_t nLowQualityCandidates() const { return m_weightIndexLow.size(); }
 
   /// @brief Retrieve the number of High quality candidates
   /// @returns The number of High quality candidates
-  std::size_t nHighQualityCandidates() const;
+  std::size_t nHighQualityCandidates() const {
+    return m_weightIndexHigh.size();
+  }
+
+  const std::multimap<float, std::uint32_t, std::greater<float>>&
+  weightIndexHigh() const {
+    return m_weightIndexHigh;
+  }
+
+  const std::multimap<float, std::uint32_t, std::greater<float>>&
+  weightIndexLow() const {
+    return m_weightIndexLow;
+  }
 
  private:
-  /// @brief Adding a new triplet candidate to the collection, should it satisfy the
-  /// selection criteria
-  /// @param indices The collection into which the candidate should be stored
-  /// @param n The current number of stored elements in the container
-  /// @param nMax The maximum number of elements that can be stored in the container
-  /// @param spB The bottom space point
-  /// @param spM The middle space point
-  /// @param spT The top space point
-  /// @param weight The quality of the triplet candidate
-  /// @param zOrigin The z-coordinate of the origin
-  /// @param isQuality Whether the triplet candidate is high or low quality
-  /// @returns whether the triplet candidate has been added or not to the collection
-  bool push(std::vector<std::size_t>& indices, std::size_t& n,
-            const std::size_t nMax, external_space_point_t& spB,
-            external_space_point_t& spM, external_space_point_t& spT,
-            float weight, float zOrigin, bool isQuality);
+  bool push(
+      external_space_point_t& spB, external_space_point_t& spM,
+      external_space_point_t& spT, float weight, float zOrigin, bool isQuality,
+      std::multimap<float, std::uint32_t, std::greater<float>>& weightIndex) {
+    if (weightIndex.size() < m_maxSizeLow) {
+      m_storage.emplace_back(spB, spM, spT, weight, zOrigin, isQuality);
+      weightIndex.emplace(weight, m_storage.size() - 1);
+      return true;
+    }
+    auto it = weightIndex.begin();
+    if (weight < it->first) {
+      return false;
+    }
+    m_storage[it->second] =
+        value_type(spB, spM, spT, weight, zOrigin, isQuality);
+    weightIndex.erase(it);
+    weightIndex.emplace(weight, m_storage.size() - 1);
+    return true;
+  }
 
-  /// @brief Check if an element exists in the collection. The element to be checked
-  /// is supposed to be in the n position of the collection.
-  /// @param n Index of the requested element
-  /// @param maxSize Number of elements currently stored in the collection
-  /// @returns Whether the element exists
-  bool exists(const std::size_t n, const std::size_t maxSize) const;
-
-  /// @brief Pop an element from a collection. The removal of the element from the collection
-  /// does not imply its destruction. In fact, the number of stored elements is
-  /// simply diminished by 1. The popped element is technically still available
-  /// at the end of the collection.
-  /// @param indices The collection
-  /// @param currentSize The current number of element stored in the collection. The function will
-  /// diminish this value by 1
-  void pop(std::vector<std::size_t>& indices, std::size_t& currentSize);
-
-  /// @brief Return the weight for a candidate
-  /// @param indices The collection in which the element is stored
-  /// @param n Index of the element in the collection
-  /// @returns The weight of the candidate
-  float weight(const std::vector<std::size_t>& indices, std::size_t n) const;
-
-  /// @brief Move an element up in the min heap tree. The function checks whether the element's
-  /// weight is lower of its parent's weight. If so, it swaps them. Reiterate
-  /// the process until the element is in the correct position on the tree
-  /// @param indices The collection
-  /// @param n The index of the element to place in the correct position
-  void bubbleup(std::vector<std::size_t>& indices, std::size_t n);
-
-  /// @brief Move an element down in the min heap tree. The function checks whether the elements's
-  /// weight is lower of its child's weights. If so, it swaps the element with
-  /// the child with the lowest weight. Reiterate the process until the element
-  /// is in the correct position on the tree
-  /// @param indices The collection
-  /// @param n The index of the element to place in the correct position
-  /// @param actualSize The current number of elements stored in the collection
-  void bubbledw(std::vector<std::size_t>& indices, std::size_t n,
-                std::size_t actualSize);
-
-  /// @brief Adding a new triplet candidate to the collection. The function is called after the candidate has satisfied
-  /// all the selection criteria
-  /// @param indices The collection
-  /// @param n Current number of stored elements in the collection
-  /// @param nMax The maximum number of elements that can be stored in the collection
-  /// @param element The element that must be added to the collection
-  void addToCollection(std::vector<std::size_t>& indices, std::size_t& n,
-                       const std::size_t nMax, value_type&& element);
-
- private:
   // sizes
   // m_maxSize* is the maximum size of the indices collections. These values
   // are set by the user once
   std::size_t m_maxSizeHigh{0};
   std::size_t m_maxSizeLow{0};
-  // m_n_* is the current size of the indices collections [0, m_maxSize*).
-  // These values are set internally by the class
-  std::size_t m_nHigh{0};
-  std::size_t m_nLow{0};
 
   // storage contains the collection of the candidates
-  std::vector<value_type> m_storage{};
+  std::vector<value_type> m_storage;
 
-  // The following vectors store indexes to elements in the storage
-  // They are sorted as a min heap tree, in which
-  // Each node is lower than its children
-  // Thus, it is guaranteed that the lower elements is at the front
-  // Sorting criteria is the seed quality
-  //
-  // This is in effect faster sorted container - implementation with std::set
-  // and std::priority_queue were tried and were found to be slower.
-
-  // list of indexes of candidates with high quality in the storage
-  std::vector<std::size_t> m_indicesHigh{};
-  // list of indexes of candidates with low quality in the storage
-  std::vector<std::size_t> m_indicesLow{};
+  std::multimap<float, std::uint32_t, std::greater<float>> m_weightIndexHigh;
+  std::multimap<float, std::uint32_t, std::greater<float>> m_weightIndexLow;
 };
 
 }  // namespace Acts
-
-#include "Acts/Seeding/CandidatesForMiddleSp.ipp"
