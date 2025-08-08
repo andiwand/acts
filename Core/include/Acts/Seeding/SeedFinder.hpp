@@ -52,9 +52,9 @@ class SeedFinder {
     std::vector<const external_spacepoint_t*> compatTopSP;
     // contains parameters required to calculate circle with linear equation
     // ...for bottom-middle
-    LinCircleVector linCircleBottom;
+    std::vector<LinCircle> linCircleBottom;
     // ...for middle-top
-    LinCircleVector linCircleTop;
+    std::vector<LinCircle> linCircleTop;
 
     // create vectors here to avoid reallocation in each loop
     std::vector<const external_spacepoint_t*> topSpVec;
@@ -148,10 +148,10 @@ class SeedFinder {
       SpacePointMutableData& mutableData,
       boost::container::small_vector<
           Neighbour<grid_t>, detail::ipow(3, grid_t::DIM)>& otherSPsNeighbours,
-      const external_spacepoint_t& mediumSP, LinCircleVector& linCircleVec,
-      out_range_t& outVec, const float deltaRMinSP, const float deltaRMaxSP,
-      const float uIP, const float uIP2, const float cosPhiM,
-      const float sinPhiM) const;
+      const external_spacepoint_t& mediumSP,
+      std::vector<LinCircle>& linCircleVec, out_range_t& outVec,
+      const float deltaRMinSP, const float deltaRMaxSP, const float uIP,
+      const float uIP2, const float cosPhiM, const float sinPhiM) const;
 
   /// Iterates over the seed candidates tests the compatibility between three
   /// SPs and calls for the seed confirmation

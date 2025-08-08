@@ -19,16 +19,15 @@ struct LinCircle {
   LinCircle(float ct, float idr, float er, float u, float v, float X, float Y)
       : cotTheta(ct), iDeltaR(idr), Er(er), U(u), V(v), x(X), y(Y) {}
 
-  float cotTheta{};
-  float iDeltaR{};
-  float Er{};
-  float U{};
-  float V{};
-  float x{};
-  float y{};
+  float cotTheta{0.};
+  float iDeltaR{0.};
+  float Er{0.};
+  float U{0.};
+  float V{0.};
+  float x{0.};
+  float y{0.};
 };
 
-/// @brief Struct-of-array for LinCircle objects
 struct LinCircleVector {
   std::vector<float> cotTheta;
   std::vector<float> iDeltaR;
@@ -38,8 +37,8 @@ struct LinCircleVector {
   std::vector<float> x;
   std::vector<float> y;
 
-  void emplace_back(float ct, float idr, float er, float u, float v, float X,
-                    float Y) {
+  void emplace_back(float ct, float idr, float er, float u, float v,
+                     float X, float Y) {
     cotTheta.emplace_back(ct);
     iDeltaR.emplace_back(idr);
     Er.emplace_back(er);
@@ -58,8 +57,10 @@ struct LinCircleVector {
     x.clear();
     y.clear();
   }
-
-  std::size_t size() const { return cotTheta.size(); }
+  
+  std::size_t size() const {
+    return cotTheta.size();
+  }
 
   void reserve(std::size_t size) {
     cotTheta.reserve(size);
