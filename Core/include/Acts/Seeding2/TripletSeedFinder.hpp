@@ -21,6 +21,18 @@ class TripletTopCandidates {
  public:
   using Index = std::uint32_t;
 
+  std::size_t counterTriplet0 = 0;
+  std::size_t counterTriplet1 = 0;
+  std::size_t counterTriplet2 = 0;
+  std::size_t counterTriplet3 = 0;
+  std::size_t counterTriplet4 = 0;
+  std::size_t counterTriplet5 = 0;
+  std::size_t counterTriplet6 = 0;
+  std::size_t counterTriplet7 = 0;
+  std::size_t counterTriplet8 = 0;
+  std::size_t counterTriplet9 = 0;
+  std::size_t counterTriplet10 = 0;
+
   Index size() const { return static_cast<Index>(m_topSpacePoints.size()); }
 
   void reserve(Index size) {
@@ -33,6 +45,18 @@ class TripletTopCandidates {
     m_topSpacePoints.clear();
     m_curvatures.clear();
     m_impactParameters.clear();
+
+    counterTriplet0 = 0;
+    counterTriplet1 = 0;
+    counterTriplet2 = 0;
+    counterTriplet3 = 0;
+    counterTriplet4 = 0;
+    counterTriplet5 = 0;
+    counterTriplet6 = 0;
+    counterTriplet7 = 0;
+    counterTriplet8 = 0;
+    counterTriplet9 = 0;
+    counterTriplet10 = 0;
   }
 
   void emplace_back(SpacePointIndex2 spT, float curvature,

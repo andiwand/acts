@@ -17,6 +17,21 @@
 
 namespace Acts::Experimental {
 
+/// @brief A partial description of a circle in u-v space.
+struct LinCircle {
+  LinCircle() = default;
+  LinCircle(float ct, float idr, float er, float u, float v, float X, float Y)
+      : cotTheta(ct), iDeltaR(idr), Er(er), U(u), V(v), x(X), y(Y) {}
+
+  float cotTheta{0.};
+  float iDeltaR{0.};
+  float Er{0.};
+  float U{0.};
+  float V{0.};
+  float x{0.};
+  float y{0.};
+};
+
 class DoubletsForMiddleSp {
  public:
   using Index = std::uint32_t;
@@ -31,18 +46,14 @@ class DoubletsForMiddleSp {
   void clear() {
     m_spacePoints.clear();
     m_cotTheta.clear();
-    m_er_iDeltaR.clear();
-    m_uv.clear();
-    m_xy.clear();
+    m_linCircles.clear();
   }
 
   void emplace_back(SpacePointIndex2 sp, float cotTheta, float iDeltaR,
                     float er, float u, float v, float x, float y) {
     m_spacePoints.push_back(sp);
     m_cotTheta.push_back(cotTheta);
-    m_er_iDeltaR.push_back({er, iDeltaR});
-    m_uv.push_back({u, v});
-    m_xy.push_back({x, y});
+    m_linCircles.emplace_back(cotTheta, iDeltaR, er, u, v, x, y);
   }
 
   const std::vector<SpacePointIndex2>& spacePoints() const {
@@ -81,13 +92,13 @@ class DoubletsForMiddleSp {
       return m_container->m_spacePoints[m_index];
     }
 
-    float cotTheta() const { return m_container->m_cotTheta[m_index]; }
-    float er() const { return m_container->m_er_iDeltaR[m_index][0]; }
-    float iDeltaR() const { return m_container->m_er_iDeltaR[m_index][1]; }
-    float u() const { return m_container->m_uv[m_index][0]; }
-    float v() const { return m_container->m_uv[m_index][1]; }
-    float x() const { return m_container->m_xy[m_index][0]; }
-    float y() const { return m_container->m_xy[m_index][1]; }
+    float cotTheta() const { return m_container->m_linCircles[m_index].cotTheta; }
+    float er() const { return m_container->m_linCircles[m_index].Er; }
+    float iDeltaR() const { return m_container->m_linCircles[m_index].iDeltaR; }
+    float u() const { return m_container->m_linCircles[m_index].U; }
+    float v() const { return m_container->m_linCircles[m_index].V; }
+    float x() const { return m_container->m_linCircles[m_index].x; }
+    float y() const { return m_container->m_linCircles[m_index].y; }
 
    private:
     const DoubletsForMiddleSp* m_container{};
@@ -159,9 +170,7 @@ class DoubletsForMiddleSp {
 
   // parameters required to calculate a circle with linear equation
   std::vector<float> m_cotTheta;
-  std::vector<std::array<float, 2>> m_er_iDeltaR;
-  std::vector<std::array<float, 2>> m_uv;
-  std::vector<std::array<float, 2>> m_xy;
+  std::vector<LinCircle> m_linCircles;
 };
 
 struct MiddleSpInfo {

@@ -25,44 +25,66 @@ namespace {
 /// Check the compatibility of strip space point coordinates in xyz assuming
 /// the Bottom-Middle direction with the strip measurement details
 bool stripCoordinateCheck(float tolerance, const ConstSpacePointProxy2& sp,
-                          const Eigen::Vector3f& spacePointPosition,
-                          Eigen::Vector3f& outputCoordinates) {
+                          const std::array<float, 3>& spacePointPosition,
+                          std::array<float, 3>& outputCoordinates) {
   const Eigen::Vector3f& topStripVector = sp.topStripVector();
   const Eigen::Vector3f& bottomStripVector = sp.bottomStripVector();
   const Eigen::Vector3f& stripCenterDistance = sp.stripCenterDistance();
 
-  // cross product between top strip vector and spacepointPosition
-  Eigen::Vector3f d1 = topStripVector.cross(spacePointPosition);
+  const float xTopStripVector = topStripVector[0];
+  const float yTopStripVector = topStripVector[1];
+  const float zTopStripVector = topStripVector[2];
+  const float xBottomStripVector = bottomStripVector[0];
+  const float yBottomStripVector = bottomStripVector[1];
+  const float zBottomStripVector = bottomStripVector[2];
+
+  // cross product between top strip vector and spacePointPosition
+  float d1[3] = {yTopStripVector * spacePointPosition[2] -
+                     zTopStripVector * spacePointPosition[1],
+                 zTopStripVector * spacePointPosition[0] -
+                     xTopStripVector * spacePointPosition[2],
+                 xTopStripVector * spacePointPosition[1] -
+                     yTopStripVector * spacePointPosition[0]};
 
   // scalar product between bottom strip vector and d1
-  float bd1 = bottomStripVector.dot(d1);
+  float bd1 = xBottomStripVector * d1[0] + yBottomStripVector * d1[1] +
+              zBottomStripVector * d1[2];
 
   // compatibility check using distance between strips to evaluate if
   // spacepointPosition is inside the bottom detector element
-  float s1 = stripCenterDistance.dot(d1);
+  float s1 = (stripCenterDistance[0] * d1[0] + stripCenterDistance[1] * d1[1] +
+              stripCenterDistance[2] * d1[2]);
   if (std::abs(s1) > std::abs(bd1) * tolerance) {
     return false;
   }
 
-  // cross product between bottom strip vector and spacepointPosition
-  Eigen::Vector3f d0 = bottomStripVector.cross(spacePointPosition);
+  // cross product between bottom strip vector and spacePointPosition
+  float d0[3] = {yBottomStripVector * spacePointPosition[2] -
+                     zBottomStripVector * spacePointPosition[1],
+                 zBottomStripVector * spacePointPosition[0] -
+                     xBottomStripVector * spacePointPosition[2],
+                 xBottomStripVector * spacePointPosition[1] -
+                     yBottomStripVector * spacePointPosition[0]};
 
   // compatibility check using distance between strips to evaluate if
-  // spacepointPosition is inside the top detector element
-  float s0 = stripCenterDistance.dot(d0);
+  // spacePointPosition is inside the top detector element
+  float s0 = (stripCenterDistance[0] * d0[0] + stripCenterDistance[1] * d0[1] +
+              stripCenterDistance[2] * d0[2]);
   if (std::abs(s0) > std::abs(bd1) * tolerance) {
     return false;
   }
 
-  // if arrive here spacepointPosition is compatible with strip directions and
+  // if arrive here spacePointPosition is compatible with strip directions and
   // detector elements
 
   const Eigen::Vector3f& topStripCenter = sp.topStripCenter();
 
-  // spacepointPosition corrected with respect to the top strip position and
+  // spacePointPosition corrected with respect to the top strip position and
   // direction and the distance between the strips
   s0 = s0 / bd1;
-  outputCoordinates = topStripCenter + topStripVector * s0;
+  outputCoordinates[0] = topStripCenter[0] + xTopStripVector * s0;
+  outputCoordinates[1] = topStripCenter[1] + yTopStripVector * s0;
+  outputCoordinates[2] = topStripCenter[2] + zTopStripVector * s0;
   return true;
 }
 
@@ -222,7 +244,8 @@ class Impl final : public TripletSeedFinder {
   template <typename TopDoublets>
   void createStripTripletTopCandidates(
       const SpacePointContainer2& spacePoints, const ConstSpacePointProxy2& spM,
-      const DoubletsForMiddleSp::Proxy& bottomDoublet, const TopDoublets& topDoublets,
+      const DoubletsForMiddleSp::Proxy& bottomDoublet,
+      const TopDoublets& topDoublets,
       TripletTopCandidates& tripletTopCandidates) const {
     const float rM = spM.zr()[1];
     const float cosPhiM = spM.xy()[0] / rM;
@@ -233,9 +256,6 @@ class Impl final : public TripletSeedFinder {
     // Reserve enough space, in case current capacity is too little
     tripletTopCandidates.reserve(tripletTopCandidates.size() +
                                  topDoublets.size());
-
-    const ConstSpacePointProxy2 spB =
-        spacePoints[bottomDoublet.spacePointIndex()];
 
     float cotThetaB = bottomDoublet.cotTheta();
     float erB = bottomDoublet.er();
@@ -261,15 +281,16 @@ class Impl final : public TripletSeedFinder {
 
     // coordinate transformation and checks for middle spacepoint
     // x and y terms for the rotation from UV to XY plane
-    Eigen::Vector2f rotationTermsUVtoXY = {cosPhiM * sinTheta,
-                                           sinPhiM * sinTheta};
+    std::array<float, 2> rotationTermsUVtoXY = {cosPhiM * sinTheta,
+                                                sinPhiM * sinTheta};
 
     for (auto topDoublet : topDoublets) {
-      const ConstSpacePointProxy2 spT =
-          spacePoints[topDoublet.spacePointIndex()];
+      ++tripletTopCandidates.counterTriplet0;
+
       // protects against division by 0
       float dU = topDoublet.u() - Ub;
       if (dU == 0) {
+        ++tripletTopCandidates.counterTriplet1;
         continue;
       }
       // A and B are evaluated as a function of the circumference parameters
@@ -280,14 +301,15 @@ class Impl final : public TripletSeedFinder {
 
       // position of Middle SP converted from UV to XY assuming cotTheta
       // evaluated from the Bottom and Middle SPs double
-      Eigen::Vector3f positionMiddle = {
+      std::array<float, 3> positionMiddle = {
           rotationTermsUVtoXY[0] - rotationTermsUVtoXY[1] * A0,
           rotationTermsUVtoXY[0] * A0 + rotationTermsUVtoXY[1],
           zPositionMiddle};
 
-      Eigen::Vector3f rMTransf;
+      std::array<float, 3> rMTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spM, positionMiddle,
                                 rMTransf)) {
+        ++tripletTopCandidates.counterTriplet2;
         continue;
       }
 
@@ -295,28 +317,34 @@ class Impl final : public TripletSeedFinder {
       float B0 = 2 * (Vb - A0 * Ub);
       float Cb = 1 - B0 * bottomDoublet.y();
       float Sb = A0 + B0 * bottomDoublet.x();
-      Eigen::Vector3f positionBottom = {
+      std::array<float, 3> positionBottom = {
           rotationTermsUVtoXY[0] * Cb - rotationTermsUVtoXY[1] * Sb,
           rotationTermsUVtoXY[0] * Sb + rotationTermsUVtoXY[1] * Cb,
           zPositionMiddle};
 
-      Eigen::Vector3f rBTransf;
+      const ConstSpacePointProxy2 spB =
+          spacePoints[bottomDoublet.spacePointIndex()];
+      std::array<float, 3> rBTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spB, positionBottom,
                                 rBTransf)) {
+        ++tripletTopCandidates.counterTriplet3;
         continue;
       }
 
       // coordinate transformation and checks for top spacepoint
       float Ct = 1 - B0 * topDoublet.y();
       float St = A0 + B0 * topDoublet.x();
-      Eigen::Vector3f positionTop = {
+      std::array<float, 3> positionTop = {
           rotationTermsUVtoXY[0] * Ct - rotationTermsUVtoXY[1] * St,
           rotationTermsUVtoXY[0] * St + rotationTermsUVtoXY[1] * Ct,
           zPositionMiddle};
 
-      Eigen::Vector3f rTTransf;
+      const ConstSpacePointProxy2 spT =
+          spacePoints[topDoublet.spacePointIndex()];
+      std::array<float, 3> rTTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spT, positionTop,
                                 rTTransf)) {
+        ++tripletTopCandidates.counterTriplet4;
         continue;
       }
 
@@ -359,6 +387,7 @@ class Impl final : public TripletSeedFinder {
       // fair for scattering and measurement uncertainties)
       if (deltaCotTheta2 > error2 + scatteringInRegion2) {
         // skip top SPs based on cotTheta sorting when producing triplets
+        ++tripletTopCandidates.counterTriplet5;
         continue;
       }
 
@@ -376,6 +405,7 @@ class Impl final : public TripletSeedFinder {
       dU = ut - ub;
       // protects against division by 0
       if (dU == 0) {
+        ++tripletTopCandidates.counterTriplet6;
         continue;
       }
       float A = (vt - vb) / dU;
@@ -386,6 +416,7 @@ class Impl final : public TripletSeedFinder {
       // sqrt(S2)/B = 2 * helixradius
       // calculated radius must not be smaller than minimum radius
       if (S2 < B2 * m_cfg.minHelixDiameter2) {
+        ++tripletTopCandidates.counterTriplet7;
         continue;
       }
 
@@ -412,20 +443,24 @@ class Impl final : public TripletSeedFinder {
 
       // if deltaTheta larger than allowed scattering for calculated pT, skip
       if (deltaCotTheta2 > error2 + p2scatterSigma) {
+        ++tripletTopCandidates.counterTriplet8;
         continue;
       }
 
       // A and B allow calculation of impact params in U/V plane with linear
       // function
       // (in contrast to having to solve a quadratic function in x/y plane)
-      float Im = std::abs((A - B * rMxy) * rMxy);
-      if (Im > m_cfg.impactMax) {
+      float im = std::abs((A - B * rMxy) * rMxy);
+      if (im > m_cfg.impactMax) {
+        ++tripletTopCandidates.counterTriplet9;
         continue;
       }
 
+      ++tripletTopCandidates.counterTriplet10;
+
       // inverse diameter is signed depending on if the curvature is
       // positive/negative in phi
-      tripletTopCandidates.emplace_back(spT.index(), B / std::sqrt(S2), Im);
+      tripletTopCandidates.emplace_back(spT.index(), B / std::sqrt(S2), im);
     }  // loop on tops
   }
 

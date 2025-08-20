@@ -608,6 +608,8 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
     }
 
     for (std::size_t index_t = t0; index_t < numTopSp; index_t++) {
+      ++state.counterTriplet0;
+
       const std::size_t t = sortedTops[index_t];
 
       auto lt = state.linCircleTop[t];
@@ -630,6 +632,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         // protects against division by 0
         float dU = lt.U - Ub;
         if (dU == 0) {
+          ++state.counterTriplet1;
           continue;
         }
         // A and B are evaluated as a function of the circumference parameters
@@ -646,6 +649,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
             zPositionMiddle};
 
         if (!xyzCoordinateCheck(m_config, spM, positionMiddle, rMTransf)) {
+          ++state.counterTriplet2;
           continue;
         }
 
@@ -661,6 +665,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         auto spB = state.compatBottomSP[b];
         double rBTransf[3];
         if (!xyzCoordinateCheck(m_config, *spB, positionBottom, rBTransf)) {
+          ++state.counterTriplet3;
           continue;
         }
 
@@ -675,6 +680,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         auto spT = state.compatTopSP[t];
         double rTTransf[3];
         if (!xyzCoordinateCheck(m_config, *spT, positionTop, rTTransf)) {
+          ++state.counterTriplet4;
           continue;
         }
 
@@ -726,6 +732,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         // skip top SPs based on cotTheta sorting when producing triplets
         if constexpr (detailedMeasurement ==
                       DetectorMeasurementInfo::eDetailed) {
+          ++state.counterTriplet5;
           continue;
         }
         // break if cotTheta from bottom SP < cotTheta from top SP because
@@ -759,6 +766,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
         dU = ut - ub;
         // protects against division by 0
         if (dU == 0) {
+          ++state.counterTriplet6;
           continue;
         }
         A = (vt - vb) / dU;
@@ -782,6 +790,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       // sqrt(S2)/B = 2 * helixradius
       // calculated radius must not be smaller than minimum radius
       if (S2 < B2 * options.minHelixDiameter2) {
+        ++state.counterTriplet7;
         continue;
       }
 
@@ -810,6 +819,7 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       if (deltaCotTheta2 > error2 + p2scatterSigma) {
         if constexpr (detailedMeasurement ==
                       DetectorMeasurementInfo::eDetailed) {
+          ++state.counterTriplet8;
           continue;
         }
         if (cotThetaB - cotThetaT < 0) {
@@ -829,8 +839,11 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
       }
 
       if (Im > m_config.impactMax) {
+        ++state.counterTriplet9;
         continue;
       }
+
+      ++state.counterTriplet10;
 
       state.topSpVec.push_back(state.compatTopSP[t]);
       // inverse diameter is signed depending on if the curvature is

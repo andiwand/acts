@@ -38,6 +38,18 @@ void createAndFilterTriplets(TripletSeeder::Cache& cache,
                                              topDoublets,
                                              cache.tripletTopCandidates);
 
+    cache.counterTriplet0 += cache.tripletTopCandidates.counterTriplet0;
+    cache.counterTriplet1 += cache.tripletTopCandidates.counterTriplet1;
+    cache.counterTriplet2 += cache.tripletTopCandidates.counterTriplet2;
+    cache.counterTriplet3 += cache.tripletTopCandidates.counterTriplet3;
+    cache.counterTriplet4 += cache.tripletTopCandidates.counterTriplet4;
+    cache.counterTriplet5 += cache.tripletTopCandidates.counterTriplet5;
+    cache.counterTriplet6 += cache.tripletTopCandidates.counterTriplet6;
+    cache.counterTriplet7 += cache.tripletTopCandidates.counterTriplet7;
+    cache.counterTriplet8 += cache.tripletTopCandidates.counterTriplet8;
+    cache.counterTriplet9 += cache.tripletTopCandidates.counterTriplet9;
+    cache.counterTriplet10 += cache.tripletTopCandidates.counterTriplet10;
+
     auto startTime1 = std::chrono::high_resolution_clock::now();
 
     filter.filterTripletTopCandidates(spacePoints, spM, bottomDoublet,
