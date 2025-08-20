@@ -66,7 +66,7 @@ bool stripCoordinateCheck(float tolerance, const ConstSpacePointProxy2& sp,
   return true;
 }
 
-template <bool useStripInfo, bool sortedInCotTheta>
+template <bool useStripInfo, bool sortedByCotTheta>
 class Impl final : public TripletSeedFinder {
  public:
   explicit Impl(const DerivedConfig& config) : m_cfg(config) {}
@@ -81,6 +81,10 @@ class Impl final : public TripletSeedFinder {
     const float rM = spM.zr()[1];
     const float varianceZM = spM.varianceZ();
     const float varianceRM = spM.varianceR();
+
+    // Reserve enough space, in case current capacity is too little
+    tripletTopCandidates.reserve(tripletTopCandidates.size() +
+                                 topDoublets.size());
 
     float cotThetaB = bottomDoublet.cotTheta();
     float erB = bottomDoublet.er();
@@ -100,10 +104,6 @@ class Impl final : public TripletSeedFinder {
     // max approximation error for allowed scattering angles of 0.04 rad at
     // eta=infinity: ~8.5%
     float scatteringInRegion2 = m_cfg.multipleScattering2 * iSinTheta2;
-
-    // Reserve enough space, in case current capacity is too little
-    tripletTopCandidates.reserve(tripletTopCandidates.size() +
-                                 topDoublets.size());
 
     std::size_t topDoubletOffset = 0;
     for (auto [topDoublet, topDoubletIndex] :
@@ -138,7 +138,7 @@ class Impl final : public TripletSeedFinder {
       // allows just adding the two errors if they are uncorrelated (which is
       // fair for scattering and measurement uncertainties)
       if (deltaCotTheta2 > error2 + scatteringInRegion2) {
-        if constexpr (sortedInCotTheta) {
+        if constexpr (sortedByCotTheta) {
           // skip top SPs based on cotTheta sorting when producing triplets
           // break if cotTheta from bottom SP < cotTheta from top SP because
           // the SP are sorted by cotTheta
@@ -191,7 +191,7 @@ class Impl final : public TripletSeedFinder {
 
       // if deltaTheta larger than allowed scattering for calculated pT, skip
       if (deltaCotTheta2 > error2 + p2scatterSigma) {
-        if constexpr (sortedInCotTheta) {
+        if constexpr (sortedByCotTheta) {
           if (cotThetaB < cotThetaT) {
             break;
           }
@@ -213,7 +213,7 @@ class Impl final : public TripletSeedFinder {
       tripletTopCandidates.emplace_back(spT, B / std::sqrt(S2), im);
     }  // loop on tops
 
-    if constexpr (sortedInCotTheta) {
+    if constexpr (sortedByCotTheta) {
       // remove the top doublets that were skipped due to cotTheta sorting
       topDoublets = topDoublets.subrange(topDoubletOffset);
     }
@@ -222,13 +222,13 @@ class Impl final : public TripletSeedFinder {
   template <typename TopDoublets>
   void createStripTripletTopCandidates(
       const SpacePointContainer2& spacePoints, const ConstSpacePointProxy2& spM,
-      const DoubletsForMiddleSp::Proxy& bottomDoublet, TopDoublets& topDoublets,
+      const DoubletsForMiddleSp::Proxy& bottomDoublet, const TopDoublets& topDoublets,
       TripletTopCandidates& tripletTopCandidates) const {
-    float rM = spM.zr()[1];
-    float cosPhiM = spM.xy()[0] / rM;
-    float sinPhiM = spM.xy()[1] / rM;
-    float varianceZM = spM.varianceZ();
-    float varianceRM = spM.varianceR();
+    const float rM = spM.zr()[1];
+    const float cosPhiM = spM.xy()[0] / rM;
+    const float sinPhiM = spM.xy()[1] / rM;
+    const float varianceZM = spM.varianceZ();
+    const float varianceRM = spM.varianceR();
 
     // Reserve enough space, in case current capacity is too little
     tripletTopCandidates.reserve(tripletTopCandidates.size() +
@@ -511,21 +511,21 @@ std::unique_ptr<TripletSeedFinder> TripletSeedFinder::create(
       boost::mp11::mp_list<std::bool_constant<false>, std::bool_constant<true>>;
 
   using UseStripInfoOptions = BooleanOptions;
-  using SortedInCotThetaOptions = BooleanOptions;
+  using SortedByCotThetaOptions = BooleanOptions;
 
   using TripletOptions =
       boost::mp11::mp_product<boost::mp11::mp_list, UseStripInfoOptions,
-                              SortedInCotThetaOptions>;
+                              SortedByCotThetaOptions>;
 
   std::unique_ptr<TripletSeedFinder> result;
   boost::mp11::mp_for_each<TripletOptions>([&](auto option) {
     using OptionType = decltype(option);
 
     using UseStripInfo = boost::mp11::mp_at_c<OptionType, 0>;
-    using SortedInCotTheta = boost::mp11::mp_at_c<OptionType, 1>;
+    using SortedByCotTheta = boost::mp11::mp_at_c<OptionType, 1>;
 
     if (config.useStripInfo != UseStripInfo::value ||
-        config.sortedByCotTheta != SortedInCotTheta::value) {
+        config.sortedByCotTheta != SortedByCotTheta::value) {
       return;  // skip if the configuration does not match
     }
 
@@ -538,7 +538,7 @@ std::unique_ptr<TripletSeedFinder> TripletSeedFinder::create(
 
     // create the implementation for the given configuration
     result =
-        std::make_unique<Impl<UseStripInfo::value, SortedInCotTheta::value>>(
+        std::make_unique<Impl<UseStripInfo::value, SortedByCotTheta::value>>(
             config);
   });
   if (result == nullptr) {

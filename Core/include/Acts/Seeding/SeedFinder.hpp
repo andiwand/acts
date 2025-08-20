@@ -74,6 +74,12 @@ class SeedFinder {
 
     // Mutable variables for Space points used in the seeding
     SpacePointMutableData spacePointMutableData{};
+
+    double totalTopDoubletTime = 0;
+    double totalBottomDoubletTime = 0;
+    double totalTripletTime = 0;
+    double totalFilter1Time = 0;
+    double totalFilter2Time = 0;
   };
 
   SeedFinder() = default;

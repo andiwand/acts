@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include <chrono>
+
 namespace Acts {
 
 template <typename external_spacepoint_t, typename grid_t, typename platform_t>
@@ -126,11 +128,16 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
     const float sinPhiM = -spM->y() * uIP;
     const float uIP2 = uIP * uIP;
 
+    auto startTime1 = std::chrono::high_resolution_clock::now();
+
     // Iterate over middle-top dublets
     getCompatibleDoublets<SpacePointCandidateType::eTop>(
         options, grid, state.spacePointMutableData, state.topNeighbours, *spM,
         state.linCircleTop, state.compatTopSP, m_config.deltaRMinTopSP,
         m_config.deltaRMaxTopSP, uIP, uIP2, cosPhiM, sinPhiM);
+
+    auto endTime1 = std::chrono::high_resolution_clock::now();
+    state.totalTopDoubletTime += std::chrono::duration<double, std::nano>(endTime1 - startTime1).count() * 1e-9;
 
     // no top SP found -> try next spM
     if (state.compatTopSP.empty()) {
@@ -164,12 +171,17 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
       }
     }
 
+    auto startTime2 = std::chrono::high_resolution_clock::now();
+
     // Iterate over middle-bottom dublets
     getCompatibleDoublets<SpacePointCandidateType::eBottom>(
         options, grid, state.spacePointMutableData, state.bottomNeighbours,
         *spM, state.linCircleBottom, state.compatBottomSP,
         m_config.deltaRMinBottomSP, m_config.deltaRMaxBottomSP, uIP, uIP2,
         cosPhiM, sinPhiM);
+
+    auto endTime2 = std::chrono::high_resolution_clock::now();
+    state.totalBottomDoubletTime += std::chrono::duration<double, std::nano>(endTime2 - startTime2).count() * 1e-9;
 
     // no bottom SP found -> try next spM
     if (state.compatBottomSP.empty()) {
@@ -181,6 +193,9 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
                                 << " bottoms and " << state.compatTopSP.size()
                                 << " tops for middle candidate indexed "
                                 << spM->index());
+
+    auto startTime3 = std::chrono::high_resolution_clock::now();
+
     // filter candidates
     if (m_config.useDetailedDoubleMeasurementInfo) {
       filterCandidates<DetectorMeasurementInfo::eDetailed>(
@@ -190,9 +205,17 @@ void SeedFinder<external_spacepoint_t, grid_t, platform_t>::createSeedsForGroup(
           *spM, options, seedFilterState, state);
     }
 
+    auto endTime3 = std::chrono::high_resolution_clock::now();
+    state.totalTripletTime += std::chrono::duration<double, std::nano>(endTime3 - startTime3).count() * 1e-9;
+
+    auto startTime4 = std::chrono::high_resolution_clock::now();
+
     m_config.seedFilter->filterSeeds_1SpFixed(state.spacePointMutableData,
                                               state.candidatesCollector,
                                               outputCollection);
+
+   auto endTime4 = std::chrono::high_resolution_clock::now();
+   state.totalFilter2Time += std::chrono::duration<double, std::nano>(endTime4 - startTime4).count() * 1e-9;
 
   }  // loop on mediums
 }
@@ -823,10 +846,15 @@ SeedFinder<external_spacepoint_t, grid_t, platform_t>::filterCandidates(
 
     seedFilterState.zOrigin = spM.z() - rM * lb.cotTheta;
 
+    auto startTime1 = std::chrono::high_resolution_clock::now();
+
     m_config.seedFilter->filterSeeds_2SpFixed(
         state.spacePointMutableData, *state.compatBottomSP[b], spM,
         state.topSpVec, state.curvatures, state.impactParameters,
         seedFilterState, state.candidatesCollector);
+
+    auto endTime1 = std::chrono::high_resolution_clock::now();
+    state.totalFilter1Time += std::chrono::duration<double, std::nano>(endTime1 - startTime1).count() * 1e-9;
   }  // loop on bottoms
 }
 
