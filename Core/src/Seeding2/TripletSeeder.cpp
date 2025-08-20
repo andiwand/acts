@@ -38,25 +38,8 @@ void createAndFilterTriplets(TripletSeeder::Cache& cache,
                                              topDoublets,
                                              cache.tripletTopCandidates);
 
-    cache.counterTriplet0 += cache.tripletTopCandidates.counterTriplet0;
-    cache.counterTriplet1 += cache.tripletTopCandidates.counterTriplet1;
-    cache.counterTriplet2 += cache.tripletTopCandidates.counterTriplet2;
-    cache.counterTriplet3 += cache.tripletTopCandidates.counterTriplet3;
-    cache.counterTriplet4 += cache.tripletTopCandidates.counterTriplet4;
-    cache.counterTriplet5 += cache.tripletTopCandidates.counterTriplet5;
-    cache.counterTriplet6 += cache.tripletTopCandidates.counterTriplet6;
-    cache.counterTriplet7 += cache.tripletTopCandidates.counterTriplet7;
-    cache.counterTriplet8 += cache.tripletTopCandidates.counterTriplet8;
-    cache.counterTriplet9 += cache.tripletTopCandidates.counterTriplet9;
-    cache.counterTriplet10 += cache.tripletTopCandidates.counterTriplet10;
-
-    auto startTime1 = std::chrono::high_resolution_clock::now();
-
     filter.filterTripletTopCandidates(spacePoints, spM, bottomDoublet,
                                       cache.tripletTopCandidates);
-
-    auto endTime1 = std::chrono::high_resolution_clock::now();
-    cache.totalFilter1Time += std::chrono::duration<double, std::nano>(endTime1 - startTime1).count() * 1e-9;
   }
 }
 
@@ -71,17 +54,12 @@ void createSeedsFromGroupsImpl(
     SeedContainer2& outputSeeds) {
   MiddleSpInfo middleSpInfo = DoubletSeedFinder::computeMiddleSpInfo(middleSp);
 
-  auto startTime1 = std::chrono::high_resolution_clock::now();
-
   // create middle-top doublets
   cache.topDoublets.clear();
   for (auto& topSpGroup : topSpGroups) {
     topFinder.createDoublets(middleSp, middleSpInfo, topSpGroup,
                              cache.topDoublets);
   }
-
-  auto endTime1 = std::chrono::high_resolution_clock::now();
-  cache.totalTopDoubletTime += std::chrono::duration<double, std::nano>(endTime1 - startTime1).count() * 1e-9;
 
   // no top SP found -> cannot form any triplet
   if (cache.topDoublets.empty()) {
@@ -93,17 +71,12 @@ void createSeedsFromGroupsImpl(
     return;
   }
 
-  auto startTime2 = std::chrono::high_resolution_clock::now();
-
   // create middle-bottom doublets
   cache.bottomDoublets.clear();
   for (auto& bottomSpGroup : bottomSpGroups) {
     bottomFinder.createDoublets(middleSp, middleSpInfo, bottomSpGroup,
                                 cache.bottomDoublets);
   }
-
-  auto endTime2 = std::chrono::high_resolution_clock::now();
-  cache.totalBottomDoubletTime += std::chrono::duration<double, std::nano>(endTime2 - startTime2).count() * 1e-9;
 
   // no bottom SP found -> cannot form any triplet
   if (cache.bottomDoublets.empty()) {
@@ -115,8 +88,6 @@ void createSeedsFromGroupsImpl(
                               << cache.topDoublets.size()
                               << " tops for middle candidate indexed "
                               << middleSp.index());
-
-  auto startTime3 = std::chrono::high_resolution_clock::now();
 
   // combine doublets to triplets
   if (tripletFinder.config().sortedByCotTheta) {
@@ -135,15 +106,7 @@ void createSeedsFromGroupsImpl(
                             cache.topDoublets.range());
   }
 
-  auto endTime3 = std::chrono::high_resolution_clock::now();
-  cache.totalTripletTime += std::chrono::duration<double, std::nano>(endTime3 - startTime3).count() * 1e-9;
-
-  auto startTime4 = std::chrono::high_resolution_clock::now();
-
   filter.filterTripletsMiddleFixed(spacePoints, outputSeeds);
-
-  auto endTime4 = std::chrono::high_resolution_clock::now();
-  cache.totalFilter2Time += std::chrono::duration<double, std::nano>(endTime4 - startTime4).count() * 1e-9;
 }
 
 }  // namespace

@@ -74,23 +74,6 @@ class SeedFinder {
 
     // Mutable variables for Space points used in the seeding
     SpacePointMutableData spacePointMutableData{};
-
-    double totalTopDoubletTime = 0;
-    double totalBottomDoubletTime = 0;
-    double totalTripletTime = 0;
-    double totalFilter1Time = 0;
-    double totalFilter2Time = 0;
-    std::size_t counterTriplet0 = 0;
-    std::size_t counterTriplet1 = 0;
-    std::size_t counterTriplet2 = 0;
-    std::size_t counterTriplet3 = 0;
-    std::size_t counterTriplet4 = 0;
-    std::size_t counterTriplet5 = 0;
-    std::size_t counterTriplet6 = 0;
-    std::size_t counterTriplet7 = 0;
-    std::size_t counterTriplet8 = 0;
-    std::size_t counterTriplet9 = 0;
-    std::size_t counterTriplet10 = 0;
   };
 
   SeedFinder() = default;

@@ -31,45 +31,38 @@ bool stripCoordinateCheck(float tolerance, const ConstSpacePointProxy2& sp,
   const Eigen::Vector3f& bottomStripVector = sp.bottomStripVector();
   const Eigen::Vector3f& stripCenterDistance = sp.stripCenterDistance();
 
-  const float xTopStripVector = topStripVector[0];
-  const float yTopStripVector = topStripVector[1];
-  const float zTopStripVector = topStripVector[2];
-  const float xBottomStripVector = bottomStripVector[0];
-  const float yBottomStripVector = bottomStripVector[1];
-  const float zBottomStripVector = bottomStripVector[2];
-
   // cross product between top strip vector and spacePointPosition
-  float d1[3] = {yTopStripVector * spacePointPosition[2] -
-                     zTopStripVector * spacePointPosition[1],
-                 zTopStripVector * spacePointPosition[0] -
-                     xTopStripVector * spacePointPosition[2],
-                 xTopStripVector * spacePointPosition[1] -
-                     yTopStripVector * spacePointPosition[0]};
+  std::array<float, 3> d1 = {topStripVector[1] * spacePointPosition[2] -
+                                 topStripVector[2] * spacePointPosition[1],
+                             topStripVector[2] * spacePointPosition[0] -
+                                 topStripVector[0] * spacePointPosition[2],
+                             topStripVector[0] * spacePointPosition[1] -
+                                 topStripVector[1] * spacePointPosition[0]};
 
   // scalar product between bottom strip vector and d1
-  float bd1 = xBottomStripVector * d1[0] + yBottomStripVector * d1[1] +
-              zBottomStripVector * d1[2];
+  float bd1 = bottomStripVector[0] * d1[0] + bottomStripVector[1] * d1[1] +
+              bottomStripVector[2] * d1[2];
 
   // compatibility check using distance between strips to evaluate if
   // spacepointPosition is inside the bottom detector element
-  float s1 = (stripCenterDistance[0] * d1[0] + stripCenterDistance[1] * d1[1] +
-              stripCenterDistance[2] * d1[2]);
+  float s1 = stripCenterDistance[0] * d1[0] + stripCenterDistance[1] * d1[1] +
+             stripCenterDistance[2] * d1[2];
   if (std::abs(s1) > std::abs(bd1) * tolerance) {
     return false;
   }
 
   // cross product between bottom strip vector and spacePointPosition
-  float d0[3] = {yBottomStripVector * spacePointPosition[2] -
-                     zBottomStripVector * spacePointPosition[1],
-                 zBottomStripVector * spacePointPosition[0] -
-                     xBottomStripVector * spacePointPosition[2],
-                 xBottomStripVector * spacePointPosition[1] -
-                     yBottomStripVector * spacePointPosition[0]};
+  std::array<float, 3> d0 = {bottomStripVector[1] * spacePointPosition[2] -
+                                 bottomStripVector[2] * spacePointPosition[1],
+                             bottomStripVector[2] * spacePointPosition[0] -
+                                 bottomStripVector[0] * spacePointPosition[2],
+                             bottomStripVector[0] * spacePointPosition[1] -
+                                 bottomStripVector[1] * spacePointPosition[0]};
 
   // compatibility check using distance between strips to evaluate if
   // spacePointPosition is inside the top detector element
-  float s0 = (stripCenterDistance[0] * d0[0] + stripCenterDistance[1] * d0[1] +
-              stripCenterDistance[2] * d0[2]);
+  float s0 = stripCenterDistance[0] * d0[0] + stripCenterDistance[1] * d0[1] +
+             stripCenterDistance[2] * d0[2];
   if (std::abs(s0) > std::abs(bd1) * tolerance) {
     return false;
   }
@@ -82,9 +75,9 @@ bool stripCoordinateCheck(float tolerance, const ConstSpacePointProxy2& sp,
   // spacePointPosition corrected with respect to the top strip position and
   // direction and the distance between the strips
   s0 = s0 / bd1;
-  outputCoordinates[0] = topStripCenter[0] + xTopStripVector * s0;
-  outputCoordinates[1] = topStripCenter[1] + yTopStripVector * s0;
-  outputCoordinates[2] = topStripCenter[2] + zTopStripVector * s0;
+  outputCoordinates[0] = topStripCenter[0] + topStripVector[0] * s0;
+  outputCoordinates[1] = topStripCenter[1] + topStripVector[1] * s0;
+  outputCoordinates[2] = topStripCenter[2] + topStripVector[2] * s0;
   return true;
 }
 
@@ -116,6 +109,7 @@ class Impl final : public TripletSeedFinder {
 
     // 1+(cot^2(theta)) = 1/sin^2(theta)
     float iSinTheta2 = 1 + cotThetaB * cotThetaB;
+    float sigmaSquaredPtDependent = iSinTheta2 * m_cfg.sigmapT2perRadius;
     // calculate max scattering for min momentum at the seed's theta angle
     // scaling scatteringAngle^2 by sin^2(theta) to convert pT^2 to p^2
     // accurate would be taking 1/atan(thetaBottom)-1/atan(thetaTop) <
@@ -194,7 +188,6 @@ class Impl final : public TripletSeedFinder {
       // the two seed segments using a scattering term scaled by the actual
       // measured pT (p2scatterSigma)
       float iHelixDiameter2 = B2 / S2;
-      float sigmaSquaredPtDependent = iSinTheta2 * m_cfg.sigmapT2perRadius;
       // convert p(T) to p scaling by sin^2(theta) AND scale by 1/sin^4(theta)
       // from rad to deltaCotTheta
       float p2scatterSigma = iHelixDiameter2 * sigmaSquaredPtDependent;
@@ -204,7 +197,7 @@ class Impl final : public TripletSeedFinder {
         // To avoid 0-divison the pT check is skipped in case of B2==0, and
         // p2scatterSigma is calculated directly from maxPtScattering
         if (B2 == 0 || m_cfg.pTPerHelixRadius * std::sqrt(S2 / B2) >
-                           2. * m_cfg.maxPtScattering) {
+                           2 * m_cfg.maxPtScattering) {
           float pTscatterSigma =
               (m_cfg.highland / m_cfg.maxPtScattering) * m_cfg.sigmaScattering;
           p2scatterSigma = pTscatterSigma * pTscatterSigma * iSinTheta2;
@@ -265,6 +258,7 @@ class Impl final : public TripletSeedFinder {
 
     // 1+(cot^2(theta)) = 1/sin^2(theta)
     float iSinTheta2 = 1 + cotThetaB * cotThetaB;
+    float sigmaSquaredPtDependent = iSinTheta2 * m_cfg.sigmapT2perRadius;
     // calculate max scattering for min momentum at the seed's theta angle
     // scaling scatteringAngle^2 by sin^2(theta) to convert pT^2 to p^2
     // accurate would be taking 1/atan(thetaBottom)-1/atan(thetaTop) <
@@ -285,12 +279,9 @@ class Impl final : public TripletSeedFinder {
                                                 sinPhiM * sinTheta};
 
     for (auto topDoublet : topDoublets) {
-      ++tripletTopCandidates.counterTriplet0;
-
       // protects against division by 0
       float dU = topDoublet.u() - Ub;
       if (dU == 0) {
-        ++tripletTopCandidates.counterTriplet1;
         continue;
       }
       // A and B are evaluated as a function of the circumference parameters
@@ -309,7 +300,6 @@ class Impl final : public TripletSeedFinder {
       std::array<float, 3> rMTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spM, positionMiddle,
                                 rMTransf)) {
-        ++tripletTopCandidates.counterTriplet2;
         continue;
       }
 
@@ -327,7 +317,6 @@ class Impl final : public TripletSeedFinder {
       std::array<float, 3> rBTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spB, positionBottom,
                                 rBTransf)) {
-        ++tripletTopCandidates.counterTriplet3;
         continue;
       }
 
@@ -344,7 +333,6 @@ class Impl final : public TripletSeedFinder {
       std::array<float, 3> rTTransf;
       if (!stripCoordinateCheck(m_cfg.toleranceParam, spT, positionTop,
                                 rTTransf)) {
-        ++tripletTopCandidates.counterTriplet4;
         continue;
       }
 
@@ -387,7 +375,6 @@ class Impl final : public TripletSeedFinder {
       // fair for scattering and measurement uncertainties)
       if (deltaCotTheta2 > error2 + scatteringInRegion2) {
         // skip top SPs based on cotTheta sorting when producing triplets
-        ++tripletTopCandidates.counterTriplet5;
         continue;
       }
 
@@ -405,7 +392,6 @@ class Impl final : public TripletSeedFinder {
       dU = ut - ub;
       // protects against division by 0
       if (dU == 0) {
-        ++tripletTopCandidates.counterTriplet6;
         continue;
       }
       float A = (vt - vb) / dU;
@@ -416,7 +402,6 @@ class Impl final : public TripletSeedFinder {
       // sqrt(S2)/B = 2 * helixradius
       // calculated radius must not be smaller than minimum radius
       if (S2 < B2 * m_cfg.minHelixDiameter2) {
-        ++tripletTopCandidates.counterTriplet7;
         continue;
       }
 
@@ -424,7 +409,6 @@ class Impl final : public TripletSeedFinder {
       // the two seed segments using a scattering term scaled by the actual
       // measured pT (p2scatterSigma)
       float iHelixDiameter2 = B2 / S2;
-      float sigmaSquaredPtDependent = iSinTheta2 * m_cfg.sigmapT2perRadius;
       // convert p(T) to p scaling by sin^2(theta) AND scale by 1/sin^4(theta)
       // from rad to deltaCotTheta
       float p2scatterSigma = iHelixDiameter2 * sigmaSquaredPtDependent;
@@ -434,7 +418,7 @@ class Impl final : public TripletSeedFinder {
         // To avoid 0-divison the pT check is skipped in case of B2==0, and
         // p2scatterSigma is calculated directly from maxPtScattering
         if (B2 == 0 || m_cfg.pTPerHelixRadius * std::sqrt(S2 / B2) >
-                           2. * m_cfg.maxPtScattering) {
+                           2 * m_cfg.maxPtScattering) {
           float pTscatterSigma =
               (m_cfg.highland / m_cfg.maxPtScattering) * m_cfg.sigmaScattering;
           p2scatterSigma = pTscatterSigma * pTscatterSigma * iSinTheta2;
@@ -443,7 +427,6 @@ class Impl final : public TripletSeedFinder {
 
       // if deltaTheta larger than allowed scattering for calculated pT, skip
       if (deltaCotTheta2 > error2 + p2scatterSigma) {
-        ++tripletTopCandidates.counterTriplet8;
         continue;
       }
 
@@ -452,11 +435,8 @@ class Impl final : public TripletSeedFinder {
       // (in contrast to having to solve a quadratic function in x/y plane)
       float im = std::abs((A - B * rMxy) * rMxy);
       if (im > m_cfg.impactMax) {
-        ++tripletTopCandidates.counterTriplet9;
         continue;
       }
-
-      ++tripletTopCandidates.counterTriplet10;
 
       // inverse diameter is signed depending on if the curvature is
       // positive/negative in phi
