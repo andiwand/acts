@@ -10,6 +10,7 @@
 
 #include "Acts/EventData/SpacePointContainer2.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
+#include "Acts/Utilities/detail/periodic.hpp"
 
 #include <stdexcept>
 
@@ -103,6 +104,15 @@ class Impl final : public DoubletSeedFinder {
       float yO = xyO[1];
       float zO = zrO[0];
       float rO = zrO[1];
+
+      if (m_cfg.useDeltaPhiCuts) {
+        float deltaPhi = Acts::detail::difference_periodic(
+            container[indexO].phi(), middleSp.phi(),
+            2 * std::numbers::pi_v<float>);
+        if (outsideRangeCheck(deltaPhi, m_cfg.deltaPhiMin, m_cfg.deltaPhiMax)) {
+          continue;
+        }
+      }
 
       if constexpr (isBottomCandidate) {
         deltaR = rM - rO;

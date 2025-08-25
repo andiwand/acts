@@ -58,6 +58,7 @@ void createSeedsFromGroupsImpl(
     topFinder.createDoublets(middleSp, middleSpInfo, topSpGroup,
                              cache.topDoublets);
   }
+  cache.totalTopDoublets += cache.topDoublets.size();
 
   // no top SP found -> cannot form any triplet
   if (cache.topDoublets.empty()) {
@@ -75,6 +76,7 @@ void createSeedsFromGroupsImpl(
     bottomFinder.createDoublets(middleSp, middleSpInfo, bottomSpGroup,
                                 cache.bottomDoublets);
   }
+  cache.totalBottomDoublets += cache.bottomDoublets.size();
 
   // no bottom SP found -> cannot form any triplet
   if (cache.bottomDoublets.empty()) {

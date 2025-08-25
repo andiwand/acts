@@ -181,6 +181,10 @@ class DoubletSeedFinder {
     /// Whether the input space points are sorted by radius
     bool spacePointsSortedByRadius = false;
 
+    bool useDeltaPhiCuts = false;
+    float deltaPhiMin = -(2 * std::numbers::pi) / 200;
+    float deltaPhiMax = (2 * std::numbers::pi) / 200;
+
     /// Direction of the doublet candidate space points. Either forward, also
     /// called top doublet, or backward, also called bottom doublet.
     Direction candidateDirection = Direction::Forward();

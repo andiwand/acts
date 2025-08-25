@@ -29,6 +29,9 @@ class TripletSeeder {
     std::vector<DoubletsForMiddleSp::IndexAndCotTheta> sortedTops;
 
     TripletTopCandidates tripletTopCandidates;
+
+    std::size_t totalTopDoublets = 0;
+    std::size_t totalBottomDoublets = 0;
   };
 
   explicit TripletSeeder(std::unique_ptr<const Logger> logger =
