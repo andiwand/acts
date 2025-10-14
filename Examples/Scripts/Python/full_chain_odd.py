@@ -92,7 +92,7 @@ parser.add_argument(
     nargs=2,
     help="Pt range of the particle gun (GeV)",
     type=float,
-    default=[1.0 * u.GeV, 10.0 * u.GeV],
+    default=[1.0 * u.GeV, 100.0 * u.GeV],
 )
 parser.add_argument(
     "--digi-config", help="Digitization configuration file", type=pathlib.Path
@@ -369,41 +369,21 @@ if args.reco:
         trackingGeometry,
         field,
         TrackSelectorConfig(
-            pt=(1.0 * u.GeV if args.ttbar else 0.0, None),
-            absEta=(None, 3.0),
-            loc0=(-4.0 * u.mm, 4.0 * u.mm),
-            nMeasurementsMin=7,
-            maxHoles=2,
-            maxOutliers=2,
+            pt=(0.7 * u.GeV, None),
+            absEta=(None, 3.5),
+            nMeasurementsMin=6,
+            # nMeasurementsGroupMin=measurementCounter,
+            maxHolesAndOutliers=3,
         ),
         CkfConfig(
-            chi2CutOffMeasurement=15.0,
-            chi2CutOffOutlier=25.0,
-            numMeasurementsCutOff=2,
+            chi2CutOffMeasurement=15,
+            chi2CutOffOutlier=30,
+            numMeasurementsCutOff=1,
             seedDeduplication=True,
             stayOnSeed=True,
-            pixelVolumes=[16, 17, 18],
-            stripVolumes=[23, 24, 25],
-            maxPixelHoles=1,
-            maxStripHoles=2,
-            constrainToVolumes=[
-                2,  # beam pipe
-                32,
-                4,  # beam pip gap
-                16,
-                17,
-                18,  # pixel
-                20,  # PST
-                23,
-                24,
-                25,  # short strip
-                26,
-                8,  # long strip gap
-                28,
-                29,
-                30,  # long strip
-            ],
         ),
+        twoWay=True,
+        enableElectronMode=False,
         outputDirRoot=outputDir if args.output_root else None,
         outputDirCsv=outputDir if args.output_csv else None,
         writeCovMat=True,
