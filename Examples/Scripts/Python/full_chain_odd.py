@@ -22,6 +22,7 @@ from acts.examples.simulation import (
     addDigiParticleSelection,
 )
 from acts.examples.reconstruction import (
+    SeedingAlgorithm,
     addSeeding,
     CkfConfig,
     addCKFTracks,
@@ -133,13 +134,13 @@ parser.add_argument(
 parser.add_argument(
     "--output-csv",
     help="Switch csv output on/off",
-    default=True,
+    default=False,
     action=argparse.BooleanOptionalAction,
 )
 parser.add_argument(
     "--output-obj",
     help="Switch obj output on/off",
-    default=True,
+    default=False,
     action=argparse.BooleanOptionalAction,
 )
 
@@ -178,7 +179,7 @@ rnd = acts.examples.RandomNumbers(seed=42)
 s = acts.examples.Sequencer(
     events=args.events,
     skip=args.skip,
-    numThreads=1 if args.geant4 else -1,
+    numThreads=1,
     outputDir=str(outputDir),
 )
 
@@ -239,18 +240,16 @@ else:
                 args.gun_pt_range[1] * u.GeV,
                 transverse=True,
             ),
-            EtaConfig(args.gun_eta_range[0], args.gun_eta_range[1]),
+            EtaConfig(args.gun_eta_range[0], args.gun_eta_range[1], uniform=True),
             PhiConfig(0.0, 360.0 * u.degree),
-            ParticleConfig(
-                args.gun_particles, acts.PdgParticle.eMuon, randomizeCharge=True
-            ),
+            ParticleConfig(1, acts.PdgParticle.eElectron, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
                     0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
                 ),
             ),
-            multiplicity=args.gun_multiplicity,
+            multiplicity=1,
             rnd=rnd,
         )
     else:
@@ -335,6 +334,8 @@ if args.reco:
         s,
         trackingGeometry,
         field,
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        particleHypothesis=acts.ParticleHypothesis.electron,
         initialSigmas=[
             1 * u.mm,
             1 * u.mm,
@@ -406,6 +407,7 @@ if args.reco:
         outputDirRoot=outputDir if args.output_root else None,
         outputDirCsv=outputDir if args.output_csv else None,
         writeCovMat=True,
+        # logLevel=acts.logging.VERBOSE,
     )
 
     if ambi_ML:

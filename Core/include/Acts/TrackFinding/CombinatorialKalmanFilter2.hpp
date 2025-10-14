@@ -9,38 +9,49 @@
 #pragma once
 
 #include "Acts/Definitions/Common.hpp"
+#include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/EventData/MultiComponentTrackParameters.hpp"
 #include "Acts/EventData/MultiTrajectory.hpp"
-#include "Acts/EventData/MultiTrajectoryHelpers.hpp"
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
 #include "Acts/EventData/Types.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Propagator/ActorList.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/PropagatorState.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
 #include "Acts/Propagator/detail/LoopProtection.hpp"
 #include "Acts/Propagator/detail/PointwiseMaterialInteraction.hpp"
+#include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterError.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
+#include "Acts/TrackFitting/GsfOptions.hpp"
+#include "Acts/TrackFitting/detail/GsfComponentMerging.hpp"
+#include "Acts/TrackFitting/detail/GsfUtils.hpp"
 #include "Acts/Utilities/CalibrationContext.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
+#include "Acts/Utilities/Zip.hpp"
 
-#include <functional>
 #include <limits>
 #include <memory>
 #include <type_traits>
 
 namespace Acts {
 
+/// Type alias for component reducer delegate function
+using ComponentReducer =
+    Delegate<void(std::vector<GsfComponent>&, std::size_t, const Surface&)>;
+
+using BetheHeitlerApprox = AtlasBetheHeitlerApprox<6, 5>;
+
 /// Combined options for the combinatorial Kalman filter.
 ///
 /// @tparam source_link_iterator_t Type of the source link iterator
 /// @tparam track_container_t Type of the track container
 template <typename track_container_t>
-struct CombinatorialKalmanFilterOptions {
+struct CombinatorialKalmanFilter2Options {
   /// Type alias for track state container backend
   using TrackStateContainerBackend =
       typename track_container_t::TrackStateContainerBackend;
@@ -56,7 +67,7 @@ struct CombinatorialKalmanFilterOptions {
   /// @param pOptions The plain propagator options
   /// @param mScattering Whether to include multiple scattering
   /// @param eLoss Whether to include energy loss
-  CombinatorialKalmanFilterOptions(
+  CombinatorialKalmanFilter2Options(
       const GeometryContext& gctx, const MagneticFieldContext& mctx,
       std::reference_wrapper<const CalibrationContext> cctx,
       CombinatorialKalmanFilterExtensions<track_container_t> extensions_,
@@ -69,9 +80,6 @@ struct CombinatorialKalmanFilterOptions {
         propagatorPlainOptions(pOptions),
         multipleScattering(mScattering),
         energyLoss(eLoss) {}
-
-  /// Contexts are required and the options must not be default-constructible.
-  CombinatorialKalmanFilterOptions() = delete;
 
   /// Context object for the geometry
   std::reference_wrapper<const GeometryContext> geoContext;
@@ -100,38 +108,20 @@ struct CombinatorialKalmanFilterOptions {
   /// Skip the pre propagation call. This effectively skips the first surface
   /// @note This is useful if the first surface should not be considered in a second reverse pass
   bool skipPrePropagationUpdate = false;
-};
 
-template <typename track_container_t>
-struct CombinatorialKalmanFilterResult {
-  using TrackStateContainerBackend =
-      typename track_container_t::TrackStateContainerBackend;
-  using TrackProxy = typename track_container_t::TrackProxy;
-  using TrackStateProxy = typename track_container_t::TrackStateProxy;
+  /// Maximum number of components which the GSF should handle
+  std::size_t maxComponents = 16;
 
-  /// The track container to store the found tracks
-  track_container_t* tracks{nullptr};
+  /// When to discard components
+  double weightCutoff = 1.0e-4;
 
-  /// Fitted states that the actor has handled.
-  TrackStateContainerBackend* trackStates{nullptr};
+  /// Takes a vector of components and reduces its number
+  ComponentReducer mixtureReducer;
 
-  /// Indices into `tracks` which mark active branches
-  std::vector<TrackProxy> activeBranches;
+  /// How to reduce the states that are stored in the multi trajectory
+  ComponentMergeMethod mergeMethod = ComponentMergeMethod::eMaxWeight;
 
-  /// Indices into `tracks` which mark active branches
-  std::vector<TrackProxy> collectedTracks;
-
-  /// Track state candidates buffer which can be used by the track state creator
-  std::vector<TrackStateProxy> trackStateCandidates;
-
-  /// Indicator if track finding has been done
-  bool finished = false;
-
-  /// Last encountered error
-  Result<void> lastError{Result<void>::success()};
-
-  /// Path limit aborter
-  PathLimitReached pathLimitReached;
+  BetheHeitlerApprox betheHeitlerApprox = makeDefaultBetheHeitlerApprox();
 };
 
 /// Combinatorial Kalman filter to find tracks.
@@ -154,25 +144,37 @@ struct CombinatorialKalmanFilterResult {
 /// The void components are provided mainly for unit testing.
 ///
 template <typename propagator_t, typename track_container_t>
-class CombinatorialKalmanFilter {
+class CombinatorialKalmanFilter2 {
  public:
   /// Constructor with propagator and logging level
   /// @param pPropagator The propagator used for the track finding
   /// @param _logger The logger for messages
-  explicit CombinatorialKalmanFilter(propagator_t pPropagator,
-                                     std::unique_ptr<const Logger> _logger =
-                                         getDefaultLogger("CKF", Logging::INFO))
+  explicit CombinatorialKalmanFilter2(
+      propagator_t pPropagator,
+      std::unique_ptr<const Logger> _logger = getDefaultLogger("CKF",
+                                                               Logging::INFO))
       : m_propagator(std::move(pPropagator)),
         m_logger(std::move(_logger)),
         m_actorLogger{m_logger->cloneWithSuffix("Actor")},
         m_updaterLogger{m_logger->cloneWithSuffix("Updater")} {}
 
  private:
-  using BoundState = std::tuple<BoundTrackParameters, BoundMatrix, double>;
   using TrackStateContainerBackend =
       typename track_container_t::TrackStateContainerBackend;
   using TrackProxy = typename track_container_t::TrackProxy;
   using TrackStateProxy = typename track_container_t::TrackStateProxy;
+
+  struct TemporaryStates {
+    TrackStateContainerBackend traj;
+    std::vector<MultiTrajectoryTraits::IndexType> tips;
+    std::map<MultiTrajectoryTraits::IndexType, double> weights;
+  };
+
+  using FiltProjector =
+      detail::MultiTrajectoryProjector<detail::StatesType::eFiltered,
+                                       TrackStateContainerBackend>;
+
+  using ComponentCache = GsfComponent;
 
   /// The propagator for the transport and material update
   propagator_t m_propagator;
@@ -189,7 +191,10 @@ class CombinatorialKalmanFilter {
   /// be sorted along the track.
   class Actor {
    public:
-    using BoundState = std::tuple<BoundTrackParameters, BoundMatrix, double>;
+    using SingleBoundState =
+        std::tuple<BoundTrackParameters, BoundMatrix, double>;
+    using MultieBoundState =
+        std::tuple<MultiComponentBoundTrackParameters, BoundMatrix, double>;
     /// Broadcast the result_type
     using result_type = CombinatorialKalmanFilterResult<track_container_t>;
 
@@ -209,6 +214,20 @@ class CombinatorialKalmanFilter {
 
     /// Calibration context for the finding run
     const CalibrationContext* calibrationContextPtr{nullptr};
+
+    /// Maximum number of components which the GSF should handle
+    std::size_t maxComponents = 16;
+
+    /// When to discard components
+    double weightCutoff = 1.0e-4;
+
+    /// Takes a vector of components and reduces its number
+    ComponentReducer mixtureReducer;
+
+    /// How to reduce the states that are stored in the multi trajectory
+    ComponentMergeMethod mergeMethod = ComponentMergeMethod::eMaxWeight;
+
+    BetheHeitlerApprox betheHeitlerApprox = makeDefaultBetheHeitlerApprox();
 
     /// @brief CombinatorialKalmanFilter actor operation
     ///
@@ -360,18 +379,22 @@ class CombinatorialKalmanFilter {
       auto currentBranch = result.activeBranches.back();
       auto currentState = currentBranch.outermostTrackState();
 
+      const auto& surface = currentState.referenceSurface();
+
       ACTS_VERBOSE("Propagation jumps to branch with tip = "
                    << currentBranch.tipIndex());
 
+      MultiComponentBoundTrackParameters multiParams(
+          surface.getSharedPtr(), currentState.filtered(),
+          currentState.filteredCovariance(),
+          stepper.particleHypothesis(state.stepping));
+
       // Reset the stepping state
-      stepper.initialize(state.stepping, currentState.filtered(),
-                         currentState.filteredCovariance(),
-                         stepper.particleHypothesis(state.stepping),
-                         currentState.referenceSurface());
+      stepper.initialize(state.stepping, multiParams);
 
       // Reset the navigation state
       // Set targetSurface to nullptr for forward filtering
-      state.navigation.options.startSurface = &currentState.referenceSurface();
+      state.navigation.options.startSurface = &surface;
       state.navigation.options.targetSurface = nullptr;
       auto navInitRes = navigator.initialize(
           state.navigation, stepper.position(state.stepping),
@@ -383,8 +406,9 @@ class CombinatorialKalmanFilter {
 
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
-      materialInteractor(navigator.currentSurface(state.navigation), state,
-                         stepper, navigator, MaterialUpdateStage::PostUpdate);
+      applyMultipleScattering(navigator.currentSurface(state.navigation), state,
+                              stepper, navigator,
+                              MaterialUpdateStage::PostUpdate);
 
       // Set path limit based on loop protection
       detail::setupLoopProtection(state, stepper, result.pathLimitReached, true,
@@ -432,47 +456,94 @@ class CombinatorialKalmanFilter {
         return Result<void>::success();
       }
 
+      // TODO GSF does an early exit here if no material and no measurement is
+      // found
+
       // Transport the covariance to the surface
-      if (isMaterialOnly) {
-        stepper.transportCovarianceToCurvilinear(state.stepping);
-      } else {
-        stepper.transportCovarianceToBound(state.stepping, *surface);
+      for (auto cmp : stepper.componentIterable(state.stepping)) {
+        if (isMaterialOnly) {
+          cmp.singleStepper(stepper).transportCovarianceToCurvilinear(
+              cmp.state());
+        } else {
+          cmp.singleStepper(stepper).transportCovarianceToBound(cmp.state(),
+                                                                *surface);
+        }
       }
 
-      // Update state and stepper with pre material effects
-      materialInteractor(surface, state, stepper, navigator,
-                         MaterialUpdateStage::PreUpdate);
+      if (isMaterialOnly) {
+        applyMultipleScattering(surface, state, stepper, navigator,
+                                MaterialUpdateStage::FullUpdate);
+
+        TemporaryStates tmpStates;
+
+        std::vector<ComponentCache> componentCache;
+
+        convoluteComponents(*surface, state, stepper, componentCache);
+
+        if (componentCache.empty()) {
+          ACTS_WARNING(
+              "No components left after applying energy loss. "
+              "Is the weight cutoff "
+              << weightCutoff << " too high?");
+          ACTS_WARNING("Return to propagator without applying energy loss");
+          return Result<void>::success();
+        }
+
+        // reduce component number
+        const auto finalCmpNumber = std::min(
+            static_cast<std::size_t>(stepper.maxComponents), maxComponents);
+        mixtureReducer(componentCache, finalCmpNumber, *surface);
+
+        removeLowWeightComponents(componentCache);
+
+        updateStepper(state, stepper, navigator, componentCache);
+
+        return Result<void>::success();
+      }
+
+      applyMultipleScattering(surface, state, stepper, navigator,
+                              MaterialUpdateStage::PreUpdate);
 
       // Bind the transported state to the current surface
-      auto boundStateRes = stepper.boundState(state.stepping, *surface, false);
+      auto boundStateRes = stepper.boundState(state.stepping, *surface);
       if (!boundStateRes.ok()) {
         return boundStateRes.error();
       }
       auto& boundState = *boundStateRes;
       auto& [boundParams, jacobian, pathLength] = boundState;
-      boundParams.covariance() = state.stepping.cov;
+
+      auto [singleParams, singleCov] = detail::gaussianMixtureMeanCov(
+          boundParams.components(),
+          [](const auto& cmp) -> std::tuple<double, BoundVector, BoundMatrix> {
+            return {std::get<0>(cmp), std::get<1>(cmp), *std::get<2>(cmp)};
+          });
+      BoundTrackParameters singleBoundParams(
+          boundParams.referenceSurface().getSharedPtr(), singleParams,
+          singleCov, stepper.particleHypothesis(state.stepping));
+      SingleBoundState singleState(singleBoundParams, jacobian, pathLength);
 
       auto currentBranch = result.activeBranches.back();
       TrackIndexType prevTip = currentBranch.tipIndex();
 
-      using TrackStatesResult =
-          Acts::Result<CkfTypes::BranchVector<TrackIndexType>>;
+      using TrackStatesResult = Result<CkfTypes::BranchVector<TrackIndexType>>;
       TrackStatesResult tsRes = TrackStatesResult::success({});
       if (isSensitive) {
         // extend trajectory with measurements associated to the current surface
         // which may create extra trajectory branches if more than one
         // measurement is selected.
         tsRes = m_extensions.createTrackStates(
-            state.geoContext, *calibrationContextPtr, *surface, boundState,
+            state.geoContext, *calibrationContextPtr, *surface, singleState,
             prevTip, result.trackStateCandidates, *result.trackStates,
             logger());
       }
 
+      TemporaryStates tmpStates;
+
       if (tsRes.ok() && !(*tsRes).empty()) {
         const CkfTypes::BranchVector<TrackIndexType>& newTrackStateList =
             *tsRes;
-        Result<unsigned int> procRes =
-            processNewTrackStates(state.geoContext, newTrackStateList, result);
+        Result<unsigned int> procRes = processNewTrackStates(
+            state, stepper, newTrackStateList, result, tmpStates);
         if (!procRes.ok()) {
           ACTS_ERROR("Processing of selected track states failed: "
                      << procRes.error());
@@ -515,7 +586,7 @@ class CombinatorialKalmanFilter {
 
         // Add a hole or material track state to the multitrajectory
         TrackIndexType currentTip =
-            addNonSourcelinkState(stateMask, boundState, result, isSensitive,
+            addNonSourcelinkState(stateMask, singleState, result, isSensitive,
                                   expectMeasurements, prevTip);
         currentBranch.tipIndex() = currentTip;
         auto currentState = currentBranch.outermostTrackState();
@@ -558,22 +629,221 @@ class CombinatorialKalmanFilter {
         // If there are measurement track states on this surface
         // Update stepping state using filtered parameters of last track
         // state on this surface
-        stepper.update(state.stepping,
-                       MultiTrajectoryHelpers::freeFiltered(
-                           state.options.geoContext, currentState),
-                       currentState.filtered(),
-                       currentState.filteredCovariance(), *surface);
+        updateStepper(state, stepper, tmpStates);
         ACTS_VERBOSE("Stepping state is updated with filtered parameter:");
         ACTS_VERBOSE("-> " << currentState.filtered().transpose()
                            << " of track state with tip = "
                            << currentState.index());
       }
 
-      // Update state and stepper with post material effects
-      materialInteractor(surface, state, stepper, navigator,
-                         MaterialUpdateStage::PostUpdate);
+      applyMultipleScattering(surface, state, stepper, navigator,
+                              MaterialUpdateStage::PostUpdate);
 
       return Result<void>::success();
+    }
+
+    /// Remove components with low weights and renormalize from the component
+    /// cache
+    /// TODO This function does not expect normalized components, but this
+    /// could be redundant work...
+    void removeLowWeightComponents(std::vector<ComponentCache>& cmps) const {
+      auto proj = [](auto& cmp) -> double& { return cmp.weight; };
+
+      detail::normalizeWeights(cmps, proj);
+
+      auto new_end = std::remove_if(cmps.begin(), cmps.end(), [&](auto& cmp) {
+        return proj(cmp) < weightCutoff;
+      });
+
+      // In case we would remove all components, keep only the largest
+      if (std::distance(cmps.begin(), new_end) == 0) {
+        cmps = {*std::max_element(
+            cmps.begin(), cmps.end(),
+            [&](auto& a, auto& b) { return proj(a) < proj(b); })};
+        cmps.front().weight = 1.0;
+      } else {
+        cmps.erase(new_end, cmps.end());
+        detail::normalizeWeights(cmps, proj);
+      }
+    }
+
+    /// Function that updates the stepper from the MultiTrajectory
+    template <typename propagator_state_t, typename stepper_t>
+    void updateStepper(propagator_state_t& state, const stepper_t& stepper,
+                       const TemporaryStates& tmpStates) const {
+      auto cmps = stepper.componentIterable(state.stepping);
+
+      for (auto [idx, cmp] : zip(tmpStates.tips, cmps)) {
+        // we set ignored components to missed, so we can remove them after
+        // the loop
+        if (tmpStates.weights.at(idx) < weightCutoff) {
+          cmp.status() = IntersectionStatus::unreachable;
+          continue;
+        }
+
+        auto proxy = tmpStates.traj.getTrackState(idx);
+
+        cmp.pars() =
+            MultiTrajectoryHelpers::freeFiltered(state.geoContext, proxy);
+        cmp.cov() = proxy.filteredCovariance();
+        cmp.weight() = tmpStates.weights.at(idx);
+      }
+
+      stepper.removeMissedComponents(state.stepping);
+
+      // TODO we have two normalization passes here now, this can probably be
+      // optimized
+      detail::normalizeWeights(
+          cmps, [&](auto cmp) -> double& { return cmp.weight(); });
+    }
+
+    /// Function that updates the stepper from the ComponentCache
+    template <typename propagator_state_t, typename stepper_t,
+              typename navigator_t>
+    void updateStepper(
+        propagator_state_t& state, const stepper_t& stepper,
+        const navigator_t& navigator,
+        const std::vector<ComponentCache>& componentCache) const {
+      const auto& surface = *navigator.currentSurface(state.navigation);
+
+      // Clear components before adding new ones
+      stepper.clearComponents(state.stepping);
+
+      // Finally loop over components
+      for (const auto& [weight, pars, cov] : componentCache) {
+        // Add the component to the stepper
+        BoundTrackParameters bound(surface.getSharedPtr(), pars, cov,
+                                   stepper.particleHypothesis(state.stepping));
+
+        auto res =
+            stepper.addComponent(state.stepping, std::move(bound), weight);
+
+        if (!res.ok()) {
+          ACTS_ERROR("Error adding component to MultiStepper");
+          continue;
+        }
+
+        auto& cmp = *res;
+        auto freeParams = cmp.pars();
+        cmp.jacToGlobal() = surface.boundToFreeJacobian(
+            state.geoContext, freeParams.template segment<3>(eFreePos0),
+            freeParams.template segment<3>(eFreeDir0));
+        cmp.pathAccumulated() = state.stepping.pathAccumulated;
+        cmp.jacobian() = BoundMatrix::Identity();
+        cmp.derivative() = FreeVector::Zero();
+        cmp.jacTransport() = FreeMatrix::Identity();
+      }
+    }
+
+    template <typename propagator_state_t, typename stepper_t>
+    void convoluteComponents(
+        const Surface& surface, propagator_state_t& state,
+        const stepper_t& stepper,
+        std::vector<ComponentCache>& componentCache) const {
+      for (auto cmp : stepper.componentIterable(state.stepping)) {
+        auto& singleState = cmp.singleState(state).stepping;
+        const auto& singleStepper = cmp.singleStepper(stepper);
+
+        auto res = singleStepper.boundState(singleState, surface);
+        if (!res.ok()) {
+          ACTS_ERROR("Propagate to surface " << surface.geometryId()
+                                             << " failed: " << res.error());
+          return;
+        }
+        const auto& [boundParams, jacobian, pathLength] = *res;
+
+        BoundTrackParameters bound(surface.getSharedPtr(),
+                                   boundParams.parameters(),
+                                   *boundParams.covariance(),
+                                   stepper.particleHypothesis(state.stepping));
+
+        applyBetheHeitler(surface, state, bound, cmp.weight(), componentCache);
+      }
+    }
+
+    template <typename propagator_state_t>
+    double applyBetheHeitler(
+        const Surface& surface, const propagator_state_t& state,
+        const BoundTrackParameters& old_bound, const double old_weight,
+        std::vector<ComponentCache>& componentCaches) const {
+      const auto p_prev = old_bound.absoluteMomentum();
+      const auto& particleHypothesis = old_bound.particleHypothesis();
+
+      // Evaluate material slab
+      auto slab = surface.surfaceMaterial()->materialSlab(
+          old_bound.position(state.geoContext), state.options.direction,
+          MaterialUpdateStage::FullUpdate);
+
+      const auto pathCorrection = surface.pathCorrection(
+          state.geoContext, old_bound.position(state.geoContext),
+          old_bound.direction());
+      slab.scaleThickness(pathCorrection);
+
+      const double pathXOverX0 = slab.thicknessInX0();
+
+      // Emit a warning if the approximation is not valid for this x/x0
+      if (!betheHeitlerApprox.validXOverX0(pathXOverX0)) {
+        ACTS_DEBUG(
+            "Bethe-Heitler approximation encountered invalid value for x/x0="
+            << pathXOverX0 << " at surface " << surface.geometryId());
+      }
+
+      // Get the mixture
+      const auto mixture = betheHeitlerApprox.mixture(pathXOverX0);
+
+      // Create all possible new components
+      for (const auto& gaussian : mixture) {
+        // Here we combine the new child weight with the parent weight.
+        // However, this must be later re-adjusted
+        const auto new_weight = gaussian.weight * old_weight;
+
+        if (new_weight < weightCutoff) {
+          ACTS_VERBOSE("Skip component with weight " << new_weight);
+          continue;
+        }
+
+        if (gaussian.mean < 1.e-8) {
+          ACTS_WARNING("Skip component with gaussian "
+                       << gaussian.mean << " +- " << gaussian.var);
+          continue;
+        }
+
+        // compute delta p from mixture and update parameters
+        auto new_pars = old_bound.parameters();
+
+        const auto delta_p = [&]() {
+          if (state.options.direction == Direction::Forward()) {
+            return p_prev * (gaussian.mean - 1.);
+          } else {
+            return p_prev * (1. / gaussian.mean - 1.);
+          }
+        }();
+
+        assert(p_prev + delta_p > 0. && "new momentum must be > 0");
+        new_pars[eBoundQOverP] =
+            particleHypothesis.qOverP(p_prev + delta_p, old_bound.charge());
+
+        // compute inverse variance of p from mixture and update covariance
+        auto new_cov = old_bound.covariance().value();
+
+        const auto varInvP = [&]() {
+          if (state.options.direction == Direction::Forward()) {
+            const auto f = 1. / (p_prev * gaussian.mean);
+            return f * f * gaussian.var;
+          } else {
+            return gaussian.var / (p_prev * p_prev);
+          }
+        }();
+
+        new_cov(eBoundQOverP, eBoundQOverP) += varInvP;
+        assert(std::isfinite(new_cov(eBoundQOverP, eBoundQOverP)) &&
+               "new cov not finite");
+
+        // Set the remaining things and push to vector
+        componentCaches.push_back({new_weight, new_pars, new_cov});
+      }
+
+      return pathXOverX0;
     }
 
     /// Process new, incompomplete track states and set the filtered state
@@ -582,14 +852,14 @@ class CombinatorialKalmanFilter {
     ///     or share the predicted state for states flagged as outliers
     ///     and add them to the list of active branches
     ///
-    /// @param gctx The geometry context for this track finding/fitting
     /// @param newTrackStateList index list of new track states
     /// @param result which contains among others the new states, and the list of active branches
     /// @return the number of newly added branches or an error
+    template <typename propagator_state_t, typename stepper_t>
     Result<unsigned int> processNewTrackStates(
-        const Acts::GeometryContext& gctx,
+        propagator_state_t& state, const stepper_t& stepper,
         const CkfTypes::BranchVector<TrackIndexType>& newTrackStateList,
-        result_type& result) const {
+        result_type& result, TemporaryStates& tmpStates) const {
       using PM = TrackStatePropMask;
 
       unsigned int nBranchesOnSurface = 0;
@@ -631,11 +901,13 @@ class CombinatorialKalmanFilter {
           newBranch.nOutliers()++;
         } else if (typeFlags.test(TrackStateFlag::MeasurementFlag)) {
           // Kalman update
-          auto updateRes =
-              m_extensions.updater(gctx, trackState, *updaterLogger);
+          auto updateRes = kalmanUpdate(trackState, state, stepper);
           if (!updateRes.ok()) {
             ACTS_ERROR("Update step failed: " << updateRes.error());
             return updateRes.error();
+          }
+          if (nBranchesOnSurface == 0) {
+            tmpStates = *updateRes;
           }
           ACTS_VERBOSE("Appended measurement track state with tip = "
                        << newBranch.tipIndex());
@@ -683,7 +955,7 @@ class CombinatorialKalmanFilter {
     ///
     /// @return The tip of added state
     TrackIndexType addNonSourcelinkState(TrackStatePropMask stateMask,
-                                         const BoundState& boundState,
+                                         const SingleBoundState& boundState,
                                          result_type& result, bool isSensitive,
                                          bool expectMeasurements,
                                          TrackIndexType prevTip) const {
@@ -728,64 +1000,149 @@ class CombinatorialKalmanFilter {
       return trackStateProxy.index();
     }
 
-    /// @brief CombinatorialKalmanFilter actor operation: material interaction
-    ///
-    /// @tparam propagator_state_t is the type of Propagator state
-    /// @tparam stepper_t Type of the stepper
-    /// @tparam navigator_t Type of the navigator
-    ///
-    /// @param surface The surface where the material interaction happens
-    /// @param state The mutable propagator state object
-    /// @param stepper The stepper in use
-    /// @param navigator The navigator in use
-    /// @param updateStage The material update stage
+    /// This function performs the kalman update, computes the new posterior
+    /// weights, renormalizes all components, and does some statistics.
+    template <typename propagator_state_t, typename stepper_t>
+    Result<TemporaryStates> kalmanUpdate(TrackStateProxy& trackState,
+                                         propagator_state_t& state,
+                                         const stepper_t& stepper) const {
+      const auto& surface = trackState.referenceSurface();
+
+      TemporaryStates tmpStates;
+
+      auto cmps = stepper.componentIterable(state.stepping);
+      for (auto cmp : cmps) {
+        auto& singleState = cmp.singleState(state).stepping;
+        const auto& singleStepper = cmp.singleStepper(stepper);
+
+        TrackStatePropMask mask =
+            TrackStatePropMask::Predicted | TrackStatePropMask::Filtered |
+            TrackStatePropMask::Jacobian | TrackStatePropMask::Calibrated;
+        TrackStateProxy trackStateProxy =
+            tmpStates.traj.makeTrackState(mask, kTrackIndexInvalid);
+
+        // TODO call calibrator again?
+
+        trackStateProxy.setReferenceSurface(surface.getSharedPtr());
+        // Bind the transported state to the current surface
+        auto res = singleStepper.boundState(singleState, surface);
+        if (!res.ok()) {
+          ACTS_ERROR("Propagate to surface " << surface.geometryId()
+                                             << " failed: " << res.error());
+          return res.error();
+        }
+        const auto& [boundParams, jacobian, pathLength] = *res;
+
+        // Fill the track state
+        trackStateProxy.predicted() = boundParams.parameters();
+        trackStateProxy.predictedCovariance() = *boundParams.covariance();
+        trackStateProxy.allocateCalibrated(trackState.calibratedSize());
+        trackStateProxy.setProjectorSubspaceIndices(
+            trackState.projectorSubspaceIndices());
+        trackStateProxy.effectiveCalibrated() =
+            trackState.effectiveCalibrated();
+        trackStateProxy.effectiveCalibratedCovariance() =
+            trackState.effectiveCalibratedCovariance();
+
+        auto updateRes = m_extensions.updater(state.geoContext, trackStateProxy,
+                                              *updaterLogger);
+
+        if (!updateRes.ok()) {
+          return updateRes.error();
+        }
+
+        tmpStates.tips.push_back(trackStateProxy.index());
+        tmpStates.weights[tmpStates.tips.back()] = cmp.weight();
+      }
+
+      detail::computePosteriorWeights(tmpStates.traj, tmpStates.tips,
+                                      tmpStates.weights);
+
+      detail::normalizeWeights(tmpStates.tips, [&](auto idx) -> double& {
+        return tmpStates.weights.at(idx);
+      });
+
+      updateMultiTrajectory(trackState, tmpStates, surface);
+
+      // Return success
+      return Result<TemporaryStates>::success(tmpStates);
+    }
+
+    void updateMultiTrajectory(TrackStateProxy& state,
+                               const TemporaryStates& tmpStates,
+                               const Surface& surface) const {
+      using PrtProjector =
+          detail::MultiTrajectoryProjector<detail::StatesType::ePredicted,
+                                           TrackStateContainerBackend>;
+      using FltProjector =
+          detail::MultiTrajectoryProjector<detail::StatesType::eFiltered,
+                                           TrackStateContainerBackend>;
+
+      const auto isMeasurement = state.typeFlags().test(MeasurementFlag);
+
+      auto [prtMean, prtCov] =
+          mergeGaussianMixture(tmpStates.tips, surface, mergeMethod,
+                               PrtProjector{tmpStates.traj, tmpStates.weights});
+      state.predicted() = prtMean;
+      state.predictedCovariance() = prtCov;
+
+      if (isMeasurement) {
+        auto [fltMean, fltCov] = mergeGaussianMixture(
+            tmpStates.tips, surface, mergeMethod,
+            FltProjector{tmpStates.traj, tmpStates.weights});
+        state.filtered() = fltMean;
+        state.filteredCovariance() = fltCov;
+      } else {
+        state.shareFrom(TrackStatePropMask::Predicted,
+                        TrackStatePropMask::Filtered);
+      }
+    }
+
+    /// Apply the multiple scattering to the state
     template <typename propagator_state_t, typename stepper_t,
               typename navigator_t>
-    void materialInteractor(const Surface* surface, propagator_state_t& state,
-                            const stepper_t& stepper,
-                            const navigator_t& navigator,
-                            const MaterialUpdateStage& updateStage) const {
-      if (surface == nullptr) {
+    void applyMultipleScattering(const Surface* surface,
+                                 propagator_state_t& state,
+                                 const stepper_t& stepper,
+                                 const navigator_t& navigator,
+                                 const MaterialUpdateStage& updateStage =
+                                     MaterialUpdateStage::FullUpdate) const {
+      if (!multipleScattering) {
+        return;
+      }
+      if (surface->surfaceMaterial() == nullptr) {
         return;
       }
 
-      // Indicator if having material
-      bool hasMaterial = false;
+      for (auto cmp : stepper.componentIterable(state.stepping)) {
+        auto singleState = cmp.singleState(state);
+        const auto& singleStepper = cmp.singleStepper(stepper);
 
-      if (surface->surfaceMaterial() != nullptr) {
-        // Prepare relevant input particle properties
-        detail::PointwiseMaterialInteraction interaction(surface, state,
-                                                         stepper);
-        // Evaluate the material properties
-        if (interaction.evaluateMaterialSlab(state, navigator, updateStage)) {
-          // Surface has material at this stage
-          hasMaterial = true;
-
-          // Evaluate the material effects
+        detail::PointwiseMaterialInteraction interaction(surface, singleState,
+                                                         singleStepper);
+        if (interaction.evaluateMaterialSlab(singleState, navigator,
+                                             updateStage)) {
+          // In the Gsf we only need to handle the multiple scattering
           interaction.evaluatePointwiseMaterialInteraction(multipleScattering,
-                                                           energyLoss);
+                                                           false);
 
           // Screen out material effects info
           ACTS_VERBOSE("Material effects on surface: "
                        << surface->geometryId()
                        << " at update stage: " << updateStage << " are :");
           ACTS_VERBOSE("eLoss = "
-                       << interaction.Eloss * interaction.navDir << ", "
+                       << interaction.Eloss << ", "
                        << "variancePhi = " << interaction.variancePhi << ", "
                        << "varianceTheta = " << interaction.varianceTheta
                        << ", "
                        << "varianceQoverP = " << interaction.varianceQoverP);
 
           // Update the state and stepper with material effects
-          interaction.updateState(state, stepper, addNoise);
-        }
-      }
+          interaction.updateState(singleState, singleStepper, addNoise);
 
-      if (!hasMaterial) {
-        // Screen out message
-        ACTS_VERBOSE("No material effects on surface: " << surface->geometryId()
-                                                        << " at update stage: "
-                                                        << updateStage);
+          assert(singleState.stepping.cov.array().isFinite().all() &&
+                 "covariance not finite after multi scattering");
+        }
       }
     }
 
@@ -839,7 +1196,7 @@ class CombinatorialKalmanFilter {
   /// @tparam parameters_t Type of parameters used for local parameters
   ///
   /// @param initialParameters The initial track parameters
-  /// @param tfOptions CombinatorialKalmanFilterOptions steering the track
+  /// @param tfOptions CombinatorialKalmanFilter2Options steering the track
   ///                  finding
   /// @param trackContainer Track container in which to store the results
   /// @param rootBranch The track to be used as the root branch
@@ -850,17 +1207,15 @@ class CombinatorialKalmanFilter {
   ///
   /// @return a container of track finding result for all the initial track
   /// parameters
-  template <typename start_parameters_t>
   auto findTracks(
-      const start_parameters_t& initialParameters,
-      const CombinatorialKalmanFilterOptions<track_container_t>& tfOptions,
+      const BoundTrackParameters& initialParameters,
+      const CombinatorialKalmanFilter2Options<track_container_t>& tfOptions,
       track_container_t& trackContainer,
       typename track_container_t::TrackProxy rootBranch) const
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {
     // Create the ActorList
-    using CombinatorialKalmanFilterActor = Actor;
-    using Actors = ActorList<CombinatorialKalmanFilterActor>;
+    using Actors = ActorList<Actor>;
 
     // Create relevant options for the propagation options
     using PropagatorOptions = typename propagator_t::template Options<Actors>;
@@ -871,8 +1226,7 @@ class CombinatorialKalmanFilter {
     propOptions.setPlainOptions(tfOptions.propagatorPlainOptions);
 
     // Catch the actor
-    auto& combKalmanActor =
-        propOptions.actorList.template get<CombinatorialKalmanFilterActor>();
+    auto& combKalmanActor = propOptions.actorList.template get<Actor>();
     combKalmanActor.targetReached.surface = tfOptions.targetSurface;
     combKalmanActor.multipleScattering = tfOptions.multipleScattering;
     combKalmanActor.energyLoss = tfOptions.energyLoss;
@@ -885,14 +1239,27 @@ class CombinatorialKalmanFilter {
     // copy delegates to calibrator, updater, branch stopper
     combKalmanActor.m_extensions = tfOptions.extensions;
 
+    combKalmanActor.maxComponents = tfOptions.maxComponents;
+    combKalmanActor.weightCutoff = tfOptions.weightCutoff;
+    combKalmanActor.mixtureReducer = tfOptions.mixtureReducer;
+    combKalmanActor.mergeMethod = tfOptions.mergeMethod;
+    combKalmanActor.betheHeitlerApprox = tfOptions.betheHeitlerApprox;
+
     auto propState =
         m_propagator
             .template makeState<PropagatorOptions, StubPathLimitReached>(
                 propOptions);
 
-    auto initResult = m_propagator.template initialize<
-        decltype(propState), start_parameters_t, StubPathLimitReached>(
-        propState, initialParameters);
+    MultiComponentBoundTrackParameters multiInitialParameters(
+        initialParameters.referenceSurface().getSharedPtr(),
+        initialParameters.parameters(), initialParameters.covariance(),
+        initialParameters.particleHypothesis());
+
+    auto initResult =
+        m_propagator.template initialize<decltype(propState),
+                                         MultiComponentBoundTrackParameters,
+                                         StubPathLimitReached>(
+            propState, multiInitialParameters);
     if (!initResult.ok()) {
       ACTS_ERROR("Propagation initialization failed: " << initResult.error());
       return initResult.error();
@@ -949,7 +1316,7 @@ class CombinatorialKalmanFilter {
   /// @tparam parameters_t Type of parameters used for local parameters
   ///
   /// @param initialParameters The initial track parameters
-  /// @param tfOptions CombinatorialKalmanFilterOptions steering the track
+  /// @param tfOptions CombinatorialKalmanFilter2Options steering the track
   ///                  finding
   /// @param trackContainer Track container in which to store the results
   /// @note The input measurements are given in the form of @c SourceLinks.
@@ -958,11 +1325,9 @@ class CombinatorialKalmanFilter {
   ///
   /// @return a container of track finding result for all the initial track
   /// parameters
-  template <typename start_parameters_t,
-            typename parameters_t = BoundTrackParameters>
   auto findTracks(
-      const start_parameters_t& initialParameters,
-      const CombinatorialKalmanFilterOptions<track_container_t>& tfOptions,
+      const BoundTrackParameters& initialParameters,
+      const CombinatorialKalmanFilter2Options<track_container_t>& tfOptions,
       track_container_t& trackContainer) const
       -> Result<std::vector<
           typename std::decay_t<decltype(trackContainer)>::TrackProxy>> {

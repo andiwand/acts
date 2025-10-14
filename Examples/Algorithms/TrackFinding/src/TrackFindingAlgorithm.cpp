@@ -12,6 +12,7 @@
 #include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/EventData/MultiTrajectory.hpp"
+#include "Acts/EventData/ParticleHypothesis.hpp"
 #include "Acts/EventData/ProxyAccessor.hpp"
 #include "Acts/EventData/SourceLink.hpp"
 #include "Acts/EventData/TrackContainer.hpp"
@@ -427,6 +428,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
     Acts::calculateTrackQuantities(track);
 
     if (m_trackSelector.has_value() && !m_trackSelector->isValidTrack(track)) {
+      ACTS_VERBOSE("Discarding track " << track.index()
+                                       << " due to track selection.");
       return;
     }
 
@@ -481,9 +484,17 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
     const Acts::BoundTrackParameters& firstInitialParameters =
         initialParameters.at(iSeed);
 
+    const TrackFinderFunction* findTracks = m_cfg.findTracks.get();
+    if (firstInitialParameters.particleHypothesis() ==
+        Acts::ParticleHypothesis::electron()) {
+      findTracks = m_cfg.findTracks2.get();
+    }
+    // findTracks = m_cfg.findTracks.get();
+    // findTracks = m_cfg.findTracks2.get();
+
     auto firstRootBranch = tracksTemp.makeTrack();
-    auto firstResult = (*m_cfg.findTracks)(firstInitialParameters, firstOptions,
-                                           tracksTemp, firstRootBranch);
+    auto firstResult = (*findTracks)(firstInitialParameters, firstOptions,
+                                     tracksTemp, firstRootBranch);
     nSeed++;
 
     if (!firstResult.ok()) {
@@ -556,8 +567,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
           auto secondRootBranch = tracksTemp.makeTrack();
           secondRootBranch.copyFromWithoutStates(trackCandidate);
           auto secondResult =
-              (*m_cfg.findTracks)(secondInitialParameters, secondOptions,
-                                  tracksTemp, secondRootBranch);
+              (*findTracks)(secondInitialParameters, secondOptions, tracksTemp,
+                            secondRootBranch);
 
           if (!secondResult.ok()) {
             ACTS_WARNING("Second track finding failed for seed "
@@ -644,6 +655,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
           }
         }
       }
+
+      ACTS_VERBOSE("Found " << nSecond << " second tracks for seed " << iSeed);
 
       // if no second track was found, we will use only the first track
       if (nSecond == 0) {

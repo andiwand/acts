@@ -216,6 +216,34 @@ class VectorMultiTrajectoryBase {
 
   VectorMultiTrajectoryBase(VectorMultiTrajectoryBase&& other) = default;
 
+  VectorMultiTrajectoryBase& operator=(const VectorMultiTrajectoryBase& other) {
+    if (this != &other) {
+      m_index = other.m_index;
+      m_previous = other.m_previous;
+      m_next = other.m_next;
+      m_params = other.m_params;
+      m_cov = other.m_cov;
+      m_meas = other.m_meas;
+      m_measOffset = other.m_measOffset;
+      m_measCov = other.m_measCov;
+      m_measCovOffset = other.m_measCovOffset;
+      m_jac = other.m_jac;
+      m_sourceLinks = other.m_sourceLinks;
+      m_projectors = other.m_projectors;
+      m_referenceSurfaces = other.m_referenceSurfaces;
+
+      m_dynamic.clear();
+      for (const auto& [key, value] : other.m_dynamic) {
+        m_dynamic.insert({key, value->clone()});
+      }
+      m_dynamicKeys = other.m_dynamicKeys;
+    }
+    return *this;
+  };
+
+  VectorMultiTrajectoryBase& operator=(VectorMultiTrajectoryBase&& other) =
+      default;
+
   // BEGIN INTERFACE HELPER
   template <typename T>
   static constexpr bool has_impl(T& instance, HashedString key,
@@ -390,6 +418,19 @@ class VectorMultiTrajectory final
 
   VectorMultiTrajectory(VectorMultiTrajectory&& other) noexcept
       : VectorMultiTrajectoryBase{std::move(other)} {}
+
+  VectorMultiTrajectory& operator=(const VectorMultiTrajectory& other) {
+    if (this != &other) {
+      VectorMultiTrajectoryBase::operator=(other);
+    }
+    return *this;
+  }
+  VectorMultiTrajectory& operator=(VectorMultiTrajectory&& other) noexcept {
+    if (this != &other) {
+      VectorMultiTrajectoryBase::operator=(std::move(other));
+    }
+    return *this;
+  }
 
   Statistics statistics() const {
     return detail_vmt::VectorMultiTrajectoryBase::statistics(*this);

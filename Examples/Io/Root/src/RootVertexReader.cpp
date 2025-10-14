@@ -14,7 +14,6 @@
 #include "ActsExamples/Io/Root/RootUtility.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 
-#include <cstdint>
 #include <iostream>
 #include <stdexcept>
 

@@ -13,6 +13,7 @@
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
+#include "Acts/TrackFinding/CombinatorialKalmanFilter2.hpp"
 #include "Acts/TrackFinding/MeasurementSelector.hpp"
 #include "Acts/TrackFinding/TrackSelector.hpp"
 #include "Acts/Utilities/Logger.hpp"
@@ -77,6 +78,15 @@ class TrackFindingAlgorithm final : public IAlgorithm {
       std::shared_ptr<const Acts::MagneticFieldProvider> magneticField,
       const Acts::Logger& logger);
 
+  /// Create the track finder function implementation.
+  ///
+  /// The magnetic field is intentionally given by-value since the variant
+  /// contains shared_ptr anyway.
+  static std::shared_ptr<TrackFinderFunction> makeTrackFinderFunction2(
+      std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry,
+      std::shared_ptr<const Acts::MagneticFieldProvider> magneticField,
+      const Acts::Logger& logger);
+
   struct Config {
     /// Input measurements collection.
     std::string inputMeasurements;
@@ -95,6 +105,8 @@ class TrackFindingAlgorithm final : public IAlgorithm {
 
     /// Type erased track finder function.
     std::shared_ptr<TrackFinderFunction> findTracks;
+    /// Type erased track finder function.
+    std::shared_ptr<TrackFinderFunction> findTracks2;
     /// CKF measurement selector config
     Acts::MeasurementSelector::Config measurementSelectorCfg;
     /// Track selector config

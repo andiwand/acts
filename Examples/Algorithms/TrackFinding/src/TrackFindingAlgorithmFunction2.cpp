@@ -7,10 +7,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/EventData/TrackContainer.hpp"
+#include "Acts/Propagator/MultiStepperLoop.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/SympyStepper.hpp"
-#include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
+#include "Acts/TrackFinding/CombinatorialKalmanFilter2.hpp"
+#include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
+#include "Acts/TrackFitting/GsfMixtureReduction.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
@@ -20,24 +23,33 @@
 
 namespace {
 
-using Stepper = Acts::SympyStepper;
+using Stepper = Acts::MultiStepperLoop<Acts::SympyStepper>;
 using Navigator = Acts::Navigator;
 using Propagator = Acts::Propagator<Stepper, Navigator>;
 using CKF =
-    Acts::CombinatorialKalmanFilter<Propagator, ActsExamples::TrackContainer>;
+    Acts::CombinatorialKalmanFilter2<Propagator, ActsExamples::TrackContainer>;
 
-struct TrackFinderFunctionImpl
+struct TrackFinderFunction2Impl
     : public ActsExamples::TrackFindingAlgorithm::TrackFinderFunction {
   CKF trackFinder;
 
-  explicit TrackFinderFunctionImpl(CKF&& f) : trackFinder(std::move(f)) {}
+  explicit TrackFinderFunction2Impl(CKF&& f) : trackFinder(std::move(f)) {}
 
   ActsExamples::TrackFindingAlgorithm::TrackFinderResult operator()(
       const ActsExamples::TrackParameters& initialParameters,
       const ActsExamples::TrackFindingAlgorithm::TrackFinderOptions& options,
       ActsExamples::TrackContainer& tracks,
       ActsExamples::TrackProxy rootBranch) const override {
-    return trackFinder.findTracks(initialParameters, options, tracks,
+    Acts::CombinatorialKalmanFilter2Options<ActsExamples::TrackContainer>
+        options2(options.geoContext, options.magFieldContext,
+                 options.calibrationContext, options.extensions,
+                 options.propagatorPlainOptions, options.multipleScattering,
+                 options.energyLoss);
+
+    options2.mixtureReducer.connect<&Acts::reduceMixtureWithKLDistance>();
+    options2.betheHeitlerApprox = Acts::makeDefaultBetheHeitlerApprox();
+
+    return trackFinder.findTracks(initialParameters, options2, tracks,
                                   rootBranch);
   }
 };
@@ -45,7 +57,7 @@ struct TrackFinderFunctionImpl
 }  // namespace
 
 std::shared_ptr<ActsExamples::TrackFindingAlgorithm::TrackFinderFunction>
-ActsExamples::TrackFindingAlgorithm::makeTrackFinderFunction(
+ActsExamples::TrackFindingAlgorithm::makeTrackFinderFunction2(
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry,
     std::shared_ptr<const Acts::MagneticFieldProvider> magneticField,
     const Acts::Logger& logger) {
@@ -54,11 +66,11 @@ ActsExamples::TrackFindingAlgorithm::makeTrackFinderFunction(
   cfg.resolvePassive = false;
   cfg.resolveMaterial = true;
   cfg.resolveSensitive = true;
-  Navigator navigator(cfg, logger.cloneWithSuffix("Navigator"));
+  Navigator navigator(cfg, logger.cloneWithSuffix("Navigator2"));
   Propagator propagator(std::move(stepper), std::move(navigator),
-                        logger.cloneWithSuffix("Propagator"));
-  CKF trackFinder(std::move(propagator), logger.cloneWithSuffix("Finder"));
+                        logger.cloneWithSuffix("Propagator2"));
+  CKF trackFinder(std::move(propagator), logger.cloneWithSuffix("Finder2"));
 
   // build the track finder functions. owns the track finder object.
-  return std::make_shared<TrackFinderFunctionImpl>(std::move(trackFinder));
+  return std::make_shared<TrackFinderFunction2Impl>(std::move(trackFinder));
 }

@@ -199,6 +199,17 @@ void addTrackFinding(Context& ctx) {
                               std::move(trackingGeometry),
                               std::move(magneticField),
                               *Acts::getDefaultLogger("TrackFinding", level));
+                        })
+            .def_static("makeTrackFinderFunction2",
+                        [](std::shared_ptr<const Acts::TrackingGeometry>
+                               trackingGeometry,
+                           std::shared_ptr<const Acts::MagneticFieldProvider>
+                               magneticField,
+                           Acts::Logging::Level level) {
+                          return Alg::makeTrackFinderFunction2(
+                              std::move(trackingGeometry),
+                              std::move(magneticField),
+                              *Acts::getDefaultLogger("TrackFinding", level));
                         });
 
     py::class_<Alg::TrackFinderFunction,
@@ -206,13 +217,13 @@ void addTrackFinding(Context& ctx) {
         alg, "TrackFinderFunction");
 
     auto c = py::class_<Config>(alg, "Config").def(py::init<>());
-    ACTS_PYTHON_STRUCT(c, inputMeasurements, inputInitialTrackParameters,
-                       inputSeeds, outputTracks, trackingGeometry,
-                       magneticField, findTracks, measurementSelectorCfg,
-                       trackSelectorCfg, maxSteps, twoWay, reverseSearch,
-                       seedDeduplication, stayOnSeed, pixelVolumeIds,
-                       stripVolumeIds, maxPixelHoles, maxStripHoles, trimTracks,
-                       constrainToVolumeIds, endOfWorldVolumeIds);
+    ACTS_PYTHON_STRUCT(
+        c, inputMeasurements, inputInitialTrackParameters, inputSeeds,
+        outputTracks, trackingGeometry, magneticField, findTracks, findTracks2,
+        measurementSelectorCfg, trackSelectorCfg, maxSteps, twoWay,
+        reverseSearch, seedDeduplication, stayOnSeed, pixelVolumeIds,
+        stripVolumeIds, maxPixelHoles, maxStripHoles, trimTracks,
+        constrainToVolumeIds, endOfWorldVolumeIds);
   }
 }
 
