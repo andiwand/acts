@@ -27,7 +27,6 @@
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Surfaces/PerigeeSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/TrackFinding/CombinatorialKalmanFilter.hpp"
 #include "Acts/TrackFinding/TrackStateCreator.hpp"
 #include "Acts/TrackFitting/GainMatrixUpdater.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
@@ -41,13 +40,11 @@
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
-#include <cmath>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <stdexcept>
-#include <system_error>
 #include <unordered_map>
 #include <utility>
 
@@ -485,12 +482,11 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
         initialParameters.at(iSeed);
 
     const TrackFinderFunction* findTracks = m_cfg.findTracks.get();
-    if (firstInitialParameters.particleHypothesis() ==
-        Acts::ParticleHypothesis::electron()) {
+    if (m_cfg.enableElectronMode &&
+        firstInitialParameters.particleHypothesis() ==
+            Acts::ParticleHypothesis::electron()) {
       findTracks = m_cfg.findTracks2.get();
     }
-    // findTracks = m_cfg.findTracks.get();
-    // findTracks = m_cfg.findTracks2.get();
 
     auto firstRootBranch = tracksTemp.makeTrack();
     auto firstResult = (*findTracks)(firstInitialParameters, firstOptions,

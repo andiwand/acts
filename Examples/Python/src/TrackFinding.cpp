@@ -7,8 +7,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #include "Acts/EventData/SpacePointContainer.hpp"
-#include "Acts/Geometry/GeometryIdentifier.hpp"
-#include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
 #include "Acts/Seeding/SeedFinderConfig.hpp"
 #include "Acts/Seeding/SeedFinderGbtsConfig.hpp"
 #include "Acts/Seeding/SeedFinderOrthogonalConfig.hpp"
@@ -31,7 +29,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -221,9 +218,9 @@ void addTrackFinding(Context& ctx) {
         c, inputMeasurements, inputInitialTrackParameters, inputSeeds,
         outputTracks, trackingGeometry, magneticField, findTracks, findTracks2,
         measurementSelectorCfg, trackSelectorCfg, maxSteps, twoWay,
-        reverseSearch, seedDeduplication, stayOnSeed, pixelVolumeIds,
-        stripVolumeIds, maxPixelHoles, maxStripHoles, trimTracks,
-        constrainToVolumeIds, endOfWorldVolumeIds);
+        reverseSearch, seedDeduplication, stayOnSeed, enableElectronMode,
+        pixelVolumeIds, stripVolumeIds, maxPixelHoles, maxStripHoles,
+        trimTracks, constrainToVolumeIds, endOfWorldVolumeIds);
   }
 }
 

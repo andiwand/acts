@@ -119,6 +119,7 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     /// Extrapolation strategy
     Acts::TrackExtrapolationStrategy extrapolationStrategy =
         Acts::TrackExtrapolationStrategy::firstOrLast;
+
     /// Run finding in two directions
     bool twoWay = true;
     /// Whether to run the finding in seed parameter direction or reverse
@@ -130,6 +131,9 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     /// Whether to stick on the seed measurements during track finding.
     /// This is only available if `inputSeeds` is set.
     bool stayOnSeed = false;
+    /// Whether to enable electron mode (Bremsstrahlung)
+    bool enableElectronMode = false;
+
     /// Compute shared hit information
     bool computeSharedHits = false;
     /// Whether to trim the tracks
