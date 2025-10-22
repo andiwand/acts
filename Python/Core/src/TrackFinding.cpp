@@ -71,11 +71,12 @@ void addTrackFinding(py::module_& m) {
                     .def(py::init<const EtaBinnedConfig&>(), py::arg("config"));
 
     {
-      auto mc = py::class_<TrackSelector::MeasurementCounter>(
-                    tool, "MeasurementCounter")
-                    .def(py::init<>())
-                    .def("addCounter",
-                         &TrackSelector::MeasurementCounter::addCounter);
+      auto mc =
+          py::class_<TrackSelector::MeasurementCounter>(tool,
+                                                        "MeasurementCounter")
+              .def(py::init<>())
+              .def("addCounter", &TrackSelector::MeasurementCounter::addCounter,
+                   py::arg("identifiers"));
     }
 
     {

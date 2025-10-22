@@ -65,7 +65,10 @@ void addTruthTracking(Context& ctx) {
     {
       auto mc = py::class_<Alg::MeasurementCounter>(alg, "MeasurementCounter")
                     .def(py::init<>())
-                    .def("addCounter", &Alg::MeasurementCounter::addCounter);
+                    .def("addCounter", &Alg::MeasurementCounter::addCounter,
+                         py::arg("identifiers"), py::arg("threshold"),
+                         py::arg("perLayerCap") =
+                             Alg::MeasurementCounter::perLayerCapMax);
     }
 
     auto c = py::class_<Config>(alg, "Config").def(py::init<>());
