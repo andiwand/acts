@@ -531,7 +531,7 @@ def addSeeding(
         s.addAlgorithm(
             acts.examples.SeedsToPrototracks(
                 level=logLevel,
-                inputSeeds=seeds,
+                inputSeeds="estimatedseeds",
                 outputProtoTracks=prototracks,
             )
         )
