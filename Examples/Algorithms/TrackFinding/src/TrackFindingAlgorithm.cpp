@@ -365,14 +365,17 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   TrackFinderOptions firstOptions(ctx.geoContext, ctx.magFieldContext,
                                   ctx.calibContext, extensions,
                                   firstPropOptions);
-
   firstOptions.targetSurface = m_cfg.reverseSearch ? pSurface.get() : nullptr;
+  firstOptions.maxComponents = m_cfg.maxComponents;
+  firstOptions.weightCutoff = m_cfg.weightCutoff;
 
   TrackFinderOptions secondOptions(ctx.geoContext, ctx.magFieldContext,
                                    ctx.calibContext, extensions,
                                    secondPropOptions);
   secondOptions.targetSurface = m_cfg.reverseSearch ? nullptr : pSurface.get();
   secondOptions.skipPrePropagationUpdate = true;
+  secondOptions.maxComponents = m_cfg.maxComponents;
+  secondOptions.weightCutoff = m_cfg.weightCutoff;
 
   using Extrapolator = Acts::Propagator<Acts::SympyStepper, Acts::Navigator>;
   using ExtrapolatorOptions = Extrapolator::template Options<
@@ -416,6 +419,30 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   std::unordered_map<SeedIdentifier, bool> discoveredSeeds;
 
   auto addTrack = [&](const TrackProxy& track) {
+    ACTS_VERBOSE("Collected track "
+                 << track.index()
+                 << ". nMeasurements = " << track.nMeasurements()
+                 << ", nOutliers = " << track.nOutliers()
+                 << ", nHoles = " << track.nHoles()
+                 << ", chi2 = " << track.chi2() << ", nDoF = " << track.nDoF());
+    std::vector<std::size_t> measurementIndices;
+    std::set<std::size_t> uniqueMeasurementIndices;
+    for (const auto& state : track.trackStatesReversed()) {
+      if (state.typeFlags().test(Acts::TrackStateFlag::MeasurementFlag)) {
+        std::size_t hitIndex = state.getUncalibratedSourceLink()
+                                   .template get<IndexSourceLink>()
+                                   .index();
+        measurementIndices.push_back(hitIndex);
+        uniqueMeasurementIndices.insert(hitIndex);
+      }
+    }
+    if (measurementIndices.size() != uniqueMeasurementIndices.size()) {
+      ACTS_WARNING("Track " << track.index()
+                            << " has duplicate measurements. Total: "
+                            << measurementIndices.size()
+                            << ", Unique: " << uniqueMeasurementIndices.size());
+    }
+
     ++m_nFoundTracks;
 
     // trim the track if requested

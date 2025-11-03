@@ -45,6 +45,8 @@ struct TrackFinderFunction2Impl
                  options.calibrationContext, options.extensions,
                  options.propagatorPlainOptions, options.multipleScattering,
                  options.energyLoss);
+    options2.maxComponents = options.maxComponents;
+    options2.weightCutoff = options.weightCutoff;
 
     options2.mixtureReducer.connect<&Acts::reduceMixtureWithKLDistance>();
     options2.betheHeitlerApprox = Acts::makeDefaultBetheHeitlerApprox();

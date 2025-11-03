@@ -221,7 +221,8 @@ void addTrackFinding(Context& ctx) {
         measurementSelectorCfg, trackSelectorCfg, maxSteps, twoWay,
         reverseSearch, seedDeduplication, stayOnSeed, enableElectronMode,
         pixelVolumeIds, stripVolumeIds, maxPixelHoles, maxStripHoles,
-        trimTracks, constrainToVolumeIds, endOfWorldVolumeIds);
+        trimTracks, constrainToVolumeIds, endOfWorldVolumeIds, maxComponents,
+        weightCutoff);
   }
 }
 

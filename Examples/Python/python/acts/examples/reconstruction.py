@@ -186,11 +186,15 @@ CkfConfig = namedtuple(
         "trimTracks",
         "constrainToVolumes",
         "endOfWorldVolumes",
+        "maxComponents",
+        "weightCutoff",
     ],
     defaults=[
         15.0,
         25.0,
         10,
+        None,
+        None,
         None,
         None,
         None,
@@ -1832,6 +1836,8 @@ def addCKFTracks(
             trimTracks=ckfConfig.trimTracks,
             constrainToVolumeIds=ckfConfig.constrainToVolumes,
             endOfWorldVolumeIds=ckfConfig.endOfWorldVolumes,
+            maxComponents=ckfConfig.maxComponents,
+            weightCutoff=ckfConfig.weightCutoff,
         ),
     )
     s.addAlgorithm(trackFinder)

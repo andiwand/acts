@@ -76,7 +76,7 @@ void addTrackFinding(py::module_& m) {
                                                         "MeasurementCounter")
               .def(py::init<>())
               .def("addCounter", &TrackSelector::MeasurementCounter::addCounter,
-                   py::arg("identifiers"));
+                   py::arg("identifiers"), py::arg("threshold"));
     }
 
     {

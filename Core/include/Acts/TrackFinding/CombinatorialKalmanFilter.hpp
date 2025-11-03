@@ -100,6 +100,9 @@ struct CombinatorialKalmanFilterOptions {
   /// Skip the pre propagation call. This effectively skips the first surface
   /// @note This is useful if the first surface should not be considered in a second reverse pass
   bool skipPrePropagationUpdate = false;
+
+  std::size_t maxComponents = 16;
+  double weightCutoff = 1e-4;
 };
 
 template <typename track_container_t>
