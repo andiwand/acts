@@ -19,7 +19,6 @@
 #include "Acts/Surfaces/detail/FacesHelper.hpp"
 #include "Acts/Surfaces/detail/MergeHelper.hpp"
 #include "Acts/Utilities/Intersection.hpp"
-#include "Acts/Utilities/ThrowAssert.hpp"
 #include "Acts/Utilities/detail/periodic.hpp"
 
 #include <algorithm>
@@ -50,21 +49,15 @@ CylinderSurface::CylinderSurface(const Transform3& transform, double radius,
                                  double halfz, double halfphi, double avphi,
                                  double bevelMinZ, double bevelMaxZ)
     : RegularSurface(transform),
-      m_bounds(std::make_shared<const CylinderBounds>(
-          radius, halfz, halfphi, avphi, bevelMinZ, bevelMaxZ)) {}
+      m_bounds(radius, halfz, halfphi, avphi, bevelMinZ, bevelMaxZ) {}
 
 CylinderSurface::CylinderSurface(std::shared_ptr<const CylinderBounds> cbounds,
                                  const DetectorElementBase& detelement)
-    : RegularSurface(detelement), m_bounds(std::move(cbounds)) {
-  // surfaces representing a detector element must have bounds
-  throw_assert(m_bounds, "CylinderBounds must not be nullptr");
-}
+    : RegularSurface(detelement), m_bounds(*cbounds) {}
 
 CylinderSurface::CylinderSurface(const Transform3& transform,
                                  std::shared_ptr<const CylinderBounds> cbounds)
-    : RegularSurface(transform), m_bounds(std::move(cbounds)) {
-  throw_assert(m_bounds, "CylinderBounds must not be nullptr");
-}
+    : RegularSurface(transform), m_bounds(*cbounds) {}
 
 CylinderSurface& CylinderSurface::operator=(const CylinderSurface& other) {
   if (this != &other) {
@@ -151,7 +144,7 @@ std::string CylinderSurface::name() const {
 
 Vector3 CylinderSurface::normal(const GeometryContext& gctx,
                                 const Vector2& lposition) const {
-  double phi = lposition[0] / m_bounds->get(CylinderBounds::eR);
+  double phi = lposition[0] / m_bounds.get(CylinderBounds::eR);
   Vector3 localNormal(std::cos(phi), std::sin(phi), 0.);
   return transform(gctx).linear() * localNormal;
 }
@@ -176,7 +169,7 @@ double CylinderSurface::pathCorrection(const GeometryContext& gctx,
 }
 
 const CylinderBounds& CylinderSurface::bounds() const {
-  return *m_bounds;
+  return m_bounds;
 }
 
 Polyhedron CylinderSurface::polyhedronRepresentation(
@@ -558,11 +551,14 @@ std::pair<std::shared_ptr<CylinderSurface>, bool> CylinderSurface::mergedWith(
 
 const std::shared_ptr<const CylinderBounds>& CylinderSurface::boundsPtr()
     const {
-  return m_bounds;
+  static thread_local std::shared_ptr<const CylinderBounds> bounds =
+      std::make_shared<const CylinderBounds>(m_bounds);
+  return bounds;
 }
+
 void CylinderSurface::assignSurfaceBounds(
     std::shared_ptr<const CylinderBounds> newBounds) {
-  m_bounds = std::move(newBounds);
+  m_bounds = *newBounds;
 }
 
 }  // namespace Acts

@@ -275,7 +275,7 @@ class CylinderSurface : public RegularSurface {
       bool externalRotation, const Logger& logger = getDummyLogger()) const;
 
  protected:
-  std::shared_ptr<const CylinderBounds> m_bounds;  //!< bounds (shared)
+  CylinderBounds m_bounds;
 
  private:
   /// Implementation of the intersection solver
