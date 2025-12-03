@@ -19,6 +19,7 @@ target_sources(
         PlaneSurface.cpp
         RadialBounds.cpp
         RectangleBounds.cpp
+        RectangleSurface.cpp
         StrawSurface.cpp
         Surface.cpp
         SurfaceArray.cpp
