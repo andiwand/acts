@@ -12,28 +12,28 @@
 
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/EventData/VectorTrackContainer.hpp"
+#include "Acts/TrackFitting/detail/KalmanGlobalCovariance.hpp"
 #include "Acts/Utilities/detail/EigenCompat.hpp"
+#include "ActsAlignment/Kernel/AlignmentError.hpp"
 
 template <typename fitter_t>
-template <typename source_link_t, typename start_parameters_t,
-          typename fit_options_t>
+template <typename source_link_t, typename fit_options_t>
 Acts::Result<ActsAlignment::detail::TrackAlignmentState>
 ActsAlignment::Alignment<fitter_t>::evaluateTrackAlignmentState(
     const Acts::GeometryContext& gctx,
     const std::vector<source_link_t>& sourceLinks,
-    const start_parameters_t& sParameters, const fit_options_t& fitOptions,
+    const Acts::BoundTrackParameters& sParameters,
+    const fit_options_t& fitOptions,
     const std::unordered_map<const Acts::Surface*, std::size_t>&
         idxedAlignSurfaces,
-    const ActsAlignment::AlignmentMask& alignMask) const {
-  Acts::TrackContainer tracks{Acts::VectorTrackContainer{},
-                              Acts::VectorMultiTrajectory{}};
-
+    AlignmentMask alignMask, TrackContainer& temporaryTrackCollection) const {
   // Convert to Acts::SourceLink during iteration
   Acts::SourceLinkAdapterIterator begin{sourceLinks.begin()};
   Acts::SourceLinkAdapterIterator end{sourceLinks.end()};
 
   // Perform the fit
-  auto fitRes = m_fitter.fit(begin, end, sParameters, fitOptions, tracks);
+  auto fitRes = m_fitter.fit(begin, end, sParameters, fitOptions,
+                             temporaryTrackCollection);
 
   if (!fitRes.ok()) {
     ACTS_WARNING("Fit failure");
@@ -44,10 +44,10 @@ ActsAlignment::Alignment<fitter_t>::evaluateTrackAlignmentState(
   // Calculate the global track parameters covariance with the fitted track
   const auto& globalTrackParamsCov =
       Acts::detail::globalTrackParametersCovariance(
-          tracks.trackStateContainer(), track.tipIndex());
+          temporaryTrackCollection.trackStateContainer(), track.tipIndex());
   // Calculate the alignment state
   const auto alignState = detail::trackAlignmentState(
-      gctx, tracks.trackStateContainer(), track.tipIndex(),
+      gctx, temporaryTrackCollection.trackStateContainer(), track.tipIndex(),
       globalTrackParamsCov, idxedAlignSurfaces, alignMask);
   if (alignState.alignmentDof == 0) {
     ACTS_VERBOSE("No alignment dof on track!");
@@ -57,18 +57,11 @@ ActsAlignment::Alignment<fitter_t>::evaluateTrackAlignmentState(
 }
 
 template <typename fitter_t>
-template <typename trajectory_container_t,
-          typename start_parameters_container_t, typename fit_options_t>
+template <typename fit_options_t>
 void ActsAlignment::Alignment<fitter_t>::calculateAlignmentParameters(
-    const trajectory_container_t& trajectoryCollection,
-    const start_parameters_container_t& startParametersCollection,
-    const fit_options_t& fitOptions,
-    ActsAlignment::AlignmentResult& alignResult,
-    const ActsAlignment::AlignmentMask& alignMask) const {
-  // The number of trajectories must be equal to the number of starting
-  // parameters
-  assert(trajectoryCollection.size() == startParametersCollection.size());
-
+    const TrackContainer& trackCollection, const fit_options_t& fitOptions,
+    AlignmentResult& alignResult, AlignmentMask alignMask,
+    TrackContainer& temporaryTrackCollection) const {
   // The total alignment degree of freedom
   alignResult.alignmentDof =
       alignResult.idxedAlignSurfaces.size() * Acts::eAlignmentSize;
@@ -84,19 +77,20 @@ void ActsAlignment::Alignment<fitter_t>::calculateAlignmentParameters(
   // @Todo: How to update the source link error iteratively?
   alignResult.chi2 = 0;
   alignResult.measurementDim = 0;
-  alignResult.numTracks = trajectoryCollection.size();
+  alignResult.numTracks = trackCollection.size();
   double sumChi2ONdf = 0;
-  for (unsigned int iTraj = 0; iTraj < trajectoryCollection.size(); iTraj++) {
-    const auto& sourceLinks = trajectoryCollection.at(iTraj);
-    const auto& sParameters = startParametersCollection.at(iTraj);
+  for (unsigned int iTrack = 0; iTrack < trackCollection.size(); iTrack++) {
+    const auto& sourceLinks = trackCollection.at(iTrack).sourceLinks();
+    const auto& sParameters = trackCollection.at(iTrack).parameters();
     // Set the target surface
     fitOptionsWithRefSurface.referenceSurface = &sParameters.referenceSurface();
     // The result for one single track
     auto evaluateRes = evaluateTrackAlignmentState(
         fitOptions.geoContext, sourceLinks, sParameters,
-        fitOptionsWithRefSurface, alignResult.idxedAlignSurfaces, alignMask);
+        fitOptionsWithRefSurface, alignResult.idxedAlignSurfaces, alignMask,
+        temporaryTrackCollection);
     if (!evaluateRes.ok()) {
-      ACTS_DEBUG("Evaluation of alignment state for track " << iTraj
+      ACTS_DEBUG("Evaluation of alignment state for track " << iTrack
                                                             << " failed");
       continue;
     }
@@ -161,8 +155,8 @@ Acts::Result<void>
 ActsAlignment::Alignment<fitter_t>::updateAlignmentParameters(
     const Acts::GeometryContext& gctx,
     const std::vector<Acts::DetectorElementBase*>& alignedDetElements,
-    const ActsAlignment::AlignedTransformUpdater& alignedTransformUpdater,
-    ActsAlignment::AlignmentResult& alignResult) const {
+    const AlignedTransformUpdater& alignedTransformUpdater,
+    AlignmentResult& alignResult) const {
   // Update the aligned transform
   Acts::AlignmentVector deltaAlignmentParam = Acts::AlignmentVector::Zero();
   for (const auto& [surface, index] : alignResult.idxedAlignSurfaces) {
@@ -212,13 +206,12 @@ ActsAlignment::Alignment<fitter_t>::updateAlignmentParameters(
 }
 
 template <typename fitter_t>
-template <typename trajectory_container_t,
-          typename start_parameters_container_t, typename fit_options_t>
+template <typename fit_options_t>
 Acts::Result<ActsAlignment::AlignmentResult>
 ActsAlignment::Alignment<fitter_t>::align(
-    const trajectory_container_t& trajectoryCollection,
-    const start_parameters_container_t& startParametersCollection,
-    const ActsAlignment::AlignmentOptions<fit_options_t>& alignOptions) const {
+    const TrackContainer& trackCollection,
+    const AlignmentOptions<fit_options_t>& alignOptions,
+    TrackContainer& temporaryTrackCollection) const {
   // Construct an AlignmentResult object
   AlignmentResult alignResult;
 
@@ -247,9 +240,9 @@ ActsAlignment::Alignment<fitter_t>::align(
       alignMask = iter_it->second;
     }
     // Calculate the alignment parameters delta etc.
-    calculateAlignmentParameters(
-        trajectoryCollection, startParametersCollection,
-        alignOptions.fitOptions, alignResult, alignMask);
+    calculateAlignmentParameters(trackCollection, alignOptions.fitOptions,
+                                 alignResult, alignMask,
+                                 temporaryTrackCollection);
     // Screen out the information
     ACTS_INFO("iIter = " << iIter << ", total chi2 = " << alignResult.chi2
                          << ", total measurementDim = "

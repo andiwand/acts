@@ -37,15 +37,14 @@ namespace {
 
 using Stepper = Acts::SympyStepper;
 using Propagator = Acts::Propagator<Stepper, Acts::Navigator>;
-using Fitter =
-    Acts::Experimental::Gx2Fitter<Propagator, Acts::VectorMultiTrajectory>;
 using DirectPropagator = Acts::Propagator<Stepper, Acts::DirectNavigator>;
-using DirectFitter =
-    Acts::KalmanFitter<DirectPropagator, Acts::VectorMultiTrajectory>;
 
 using TrackContainer =
     Acts::TrackContainer<Acts::VectorTrackContainer,
                          Acts::VectorMultiTrajectory, std::shared_ptr>;
+
+using Fitter = Acts::Experimental::Gx2Fitter<Propagator, TrackContainer>;
+using DirectFitter = Acts::KalmanFitter<DirectPropagator, TrackContainer>;
 
 using namespace ActsExamples;
 

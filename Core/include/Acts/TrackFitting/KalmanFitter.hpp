@@ -259,7 +259,7 @@ struct KalmanFitterResult {
 /// the propagator.
 ///
 /// The void components are provided mainly for unit testing.
-template <typename propagator_t, typename traj_t>
+template <typename propagator_t, TrackContainerFrontend track_container_t>
 class KalmanFitter {
   /// The navigator type
   using KalmanNavigator = typename propagator_t::Navigator;
@@ -268,15 +268,21 @@ class KalmanFitter {
   static constexpr bool isDirectNavigator =
       std::is_same_v<KalmanNavigator, DirectNavigator>;
 
+  using traj_t = typename track_container_t::TrackStateContainerBackend;
+  using TrackProxy = typename track_container_t::TrackProxy;
+  using TrackStateProxy = typename track_container_t::TrackStateProxy;
+
  public:
+  using TrackContainer = track_container_t;
+
   /// Constructor with propagator and logger
-  /// @param pPropagator Propagator instance for track propagation
-  /// @param _logger Logger for diagnostic output
-  explicit KalmanFitter(propagator_t pPropagator,
-                        std::unique_ptr<const Logger> _logger =
+  /// @param propagator Propagator instance for track propagation
+  /// @param logger Logger for diagnostic output
+  explicit KalmanFitter(propagator_t propagator,
+                        std::unique_ptr<const Logger> logger =
                             getDefaultLogger("KalmanFitter", Logging::INFO))
-      : m_propagator(std::move(pPropagator)),
-        m_logger{std::move(_logger)},
+      : m_propagator(std::move(propagator)),
+        m_logger{std::move(logger)},
         m_actorLogger{m_logger->cloneWithSuffix("Actor")} {}
 
  private:
@@ -610,9 +616,7 @@ class KalmanFitter {
   /// the filter and smoother/reversed filter
   ///
   /// @tparam source_link_iterator_t Iterator type used to pass source links
-  /// @tparam start_parameters_t Type of the initial parameters
   /// @tparam parameters_t Type of parameters used for local parameters
-  /// @tparam track_container_t Type of the track container
   ///
   /// @param it Begin iterator for the fittable uncalibrated measurements
   /// @param end End iterator for the fittable uncalibrated measurements
@@ -624,13 +628,11 @@ class KalmanFitter {
   /// the fit.
   ///
   /// @return the output as an output track
-  template <typename source_link_iterator_t, typename start_parameters_t,
-            TrackContainerFrontend track_container_t>
-  Result<typename track_container_t::TrackProxy> fit(
-      source_link_iterator_t it, source_link_iterator_t end,
-      const start_parameters_t& sParameters,
-      const KalmanFitterOptions<traj_t>& kfOptions,
-      track_container_t& trackContainer) const {
+  template <typename source_link_iterator_t>
+  Result<TrackProxy> fit(source_link_iterator_t it, source_link_iterator_t end,
+                         const BoundTrackParameters& sParameters,
+                         const KalmanFitterOptions<traj_t>& kfOptions,
+                         track_container_t& trackContainer) const {
     return fit_impl(it, end, sParameters, kfOptions, nullptr, trackContainer);
   }
 
@@ -638,9 +640,7 @@ class KalmanFitter {
   /// the filter and smoother/reversed filter
   ///
   /// @tparam source_link_iterator_t Iterator type used to pass source links
-  /// @tparam start_parameters_t Type of the initial parameters
   /// @tparam parameters_t Type of parameters used for local parameters
-  /// @tparam track_container_t Type of the track container
   ///
   /// @param it Begin iterator for the fittable uncalibrated measurements
   /// @param end End iterator for the fittable uncalibrated measurements
@@ -654,14 +654,12 @@ class KalmanFitter {
   /// the fit.
   ///
   /// @return the output as an output track
-  template <typename source_link_iterator_t, typename start_parameters_t,
-            TrackContainerFrontend track_container_t>
-  Result<typename track_container_t::TrackProxy> fit(
-      source_link_iterator_t it, source_link_iterator_t end,
-      const start_parameters_t& sParameters,
-      const KalmanFitterOptions<traj_t>& kfOptions,
-      const std::vector<const Surface*>& sSequence,
-      track_container_t& trackContainer) const
+  template <typename source_link_iterator_t>
+  Result<TrackProxy> fit(source_link_iterator_t it, source_link_iterator_t end,
+                         const BoundTrackParameters& sParameters,
+                         const KalmanFitterOptions<traj_t>& kfOptions,
+                         const std::vector<const Surface*>& sSequence,
+                         track_container_t& trackContainer) const
     requires(isDirectNavigator)
   {
     return fit_impl(it, end, sParameters, kfOptions, &sSequence,
@@ -732,12 +730,11 @@ class KalmanFitter {
     return propagatorOptions;
   }
 
-  template <typename start_parameters_t, typename propagator_options_t,
-            TrackContainerFrontend track_container_t>
-  auto filter_impl(const start_parameters_t& sParameters,
+  template <typename propagator_options_t>
+  auto filter_impl(const BoundTrackParameters& sParameters,
                    const propagator_options_t& propagatorOptions,
                    track_container_t& trackContainer) const
-      -> Result<typename track_container_t::TrackProxy> {
+      -> Result<TrackProxy> {
     auto propagatorState = m_propagator.makeState(propagatorOptions);
 
     auto propagatorInitResult =
@@ -784,8 +781,6 @@ class KalmanFitter {
   /// Common fit implementation
   ///
   /// @tparam source_link_iterator_t Iterator type used to pass source links
-  /// @tparam start_parameters_t Type of the initial parameters
-  /// @tparam track_container_t Type of the track container
   ///
   /// @param it Begin iterator for the fittable uncalibrated measurements
   /// @param end End iterator for the fittable uncalibrated measurements
@@ -795,14 +790,12 @@ class KalmanFitter {
   /// @param trackContainer Input track container storage to append into
   ///
   /// @return the output as an output track
-  template <typename source_link_iterator_t, typename start_parameters_t,
-            TrackContainerFrontend track_container_t>
+  template <typename source_link_iterator_t>
   auto fit_impl(source_link_iterator_t it, source_link_iterator_t end,
-                const start_parameters_t& sParameters,
+                const BoundTrackParameters& sParameters,
                 const KalmanFitterOptions<traj_t>& kfOptions,
                 const std::vector<const Surface*>* sSequence,
-                track_container_t& trackContainer) const
-      -> Result<typename track_container_t::TrackProxy> {
+                track_container_t& trackContainer) const -> Result<TrackProxy> {
     auto forwardPropagatorOptions =
         make_propagator_options(it, end, kfOptions, sSequence, nullptr, false);
 
@@ -816,20 +809,19 @@ class KalmanFitter {
       return forwardFilterResult.error();
     }
 
-    typename track_container_t::TrackProxy forwardTrack =
-        forwardFilterResult.value();
+    TrackProxy forwardTrack = forwardFilterResult.value();
 
-    typename track_container_t::TrackStateProxy firstMeasurementState =
+    TrackStateProxy firstMeasurementState =
         trackContainer.trackStateContainer().getTrackState(
             findFirstMeasurementState(forwardTrack).value().index());
-    typename track_container_t::TrackStateProxy lastMeasurementState =
+    TrackStateProxy lastMeasurementState =
         trackContainer.trackStateContainer().getTrackState(
             findLastMeasurementState(forwardTrack).value().index());
     lastMeasurementState.shareFrom(lastMeasurementState,
                                    TrackStatePropMask::Filtered,
                                    TrackStatePropMask::Smoothed);
 
-    typename track_container_t::TrackProxy track = forwardTrack;
+    TrackProxy track = forwardTrack;
 
     const bool doReverseFilter =
         kfOptions.reverseFiltering ||
@@ -854,10 +846,9 @@ class KalmanFitter {
         return reverseFilterResult.error();
       }
 
-      typename track_container_t::TrackProxy reverseTrack =
-          reverseFilterResult.value();
+      TrackProxy reverseTrack = reverseFilterResult.value();
 
-      typename track_container_t::TrackStateProxy reverseLastMeasurementState =
+      TrackStateProxy reverseLastMeasurementState =
           trackContainer.trackStateContainer().getTrackState(
               findLastMeasurementState(reverseTrack).value().index());
 
@@ -866,7 +857,7 @@ class KalmanFitter {
         ACTS_ERROR(
             "Inconsistent reference surfaces between forward and "
             "reversed filtered tracks");
-        return Result<typename track_container_t::TrackProxy>::failure(
+        return Result<TrackProxy>::failure(
             KalmanFitterError::InconsistentTrackStates);
       }
       firstMeasurementState.shareFrom(reverseLastMeasurementState,

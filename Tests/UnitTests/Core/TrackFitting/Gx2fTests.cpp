@@ -252,6 +252,9 @@ BOOST_AUTO_TEST_CASE(NoFit) {
 
   ACTS_DEBUG("Create the measurements");
   using SimPropagator = Propagator<StraightLineStepper, Navigator>;
+  using TrackContainer =
+      TrackContainer<VectorTrackContainer, VectorMultiTrajectory,
+                     detail::ValueHolder>;
   const SimPropagator simPropagator = makeStraightPropagator(detector.geometry);
   const auto measurements =
       createMeasurements(simPropagator, geoCtx, magCtx, parametersMeasurements,
@@ -261,7 +264,7 @@ BOOST_AUTO_TEST_CASE(NoFit) {
 
   ACTS_DEBUG("Set up the fitter");
   // Reuse the SimPropagator, since we will not actually use it
-  using Gx2Fitter = Gx2Fitter<SimPropagator, VectorMultiTrajectory>;
+  using Gx2Fitter = Gx2Fitter<SimPropagator, TrackContainer>;
   const Gx2Fitter fitter(simPropagator, gx2fLogger->clone());
 
   const Surface* rSurface = &parametersMeasurements.referenceSurface();
@@ -346,8 +349,11 @@ BOOST_AUTO_TEST_CASE(Fit5Iterations) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -361,8 +367,6 @@ BOOST_AUTO_TEST_CASE(Fit5Iterations) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 5, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -449,8 +453,11 @@ BOOST_AUTO_TEST_CASE(MixedDetector) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -464,8 +471,6 @@ BOOST_AUTO_TEST_CASE(MixedDetector) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 5, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -530,6 +535,8 @@ BOOST_AUTO_TEST_CASE(FitWithBfield) {
   const auto simPropagator =
       makeConstantFieldPropagator<SimStepper>(detector.geometry, 0.3_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   const auto measurements =
       createMeasurements(simPropagator, geoCtx, magCtx, parametersMeasurements,
                          resMapAllPixel, rng);
@@ -544,7 +551,8 @@ BOOST_AUTO_TEST_CASE(FitWithBfield) {
 
   // Reuse the SimPropagator, since it already uses the EigenStepper<>
   using SimPropagator = decltype(simPropagator);
-  using Gx2Fitter = Gx2Fitter<SimPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<SimPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(simPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -558,8 +566,6 @@ BOOST_AUTO_TEST_CASE(FitWithBfield) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 5, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -638,8 +644,11 @@ BOOST_AUTO_TEST_CASE(relChi2changeCutOff) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -653,8 +662,6 @@ BOOST_AUTO_TEST_CASE(relChi2changeCutOff) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 500, 1e-5);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -732,8 +739,11 @@ BOOST_AUTO_TEST_CASE(DidNotConverge) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -751,8 +761,6 @@ BOOST_AUTO_TEST_CASE(DidNotConverge) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 6, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -800,8 +808,11 @@ BOOST_AUTO_TEST_CASE(NotEnoughMeasurements) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -815,8 +826,6 @@ BOOST_AUTO_TEST_CASE(NotEnoughMeasurements) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 6, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -885,8 +894,11 @@ BOOST_AUTO_TEST_CASE(FindHoles) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -900,8 +912,6 @@ BOOST_AUTO_TEST_CASE(FindHoles) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, false, false,
                                      FreeToBoundCorrection(false), 20, 1e-5);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
@@ -989,8 +999,11 @@ BOOST_AUTO_TEST_CASE(Material) {
   const auto recoPropagator =
       makeConstantFieldPropagator<RecoStepper>(detector.geometry, 0_T);
 
+  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+
   using RecoPropagator = decltype(recoPropagator);
-  using Gx2Fitter = Gx2Fitter<RecoPropagator, VectorMultiTrajectory>;
+  using RecoTrackContainer = decltype(tracks);
+  using Gx2Fitter = Gx2Fitter<RecoPropagator, RecoTrackContainer>;
   const Gx2Fitter fitter(recoPropagator, gx2fLogger->clone());
 
   Gx2FitterExtensions<VectorMultiTrajectory> extensions;
@@ -1004,8 +1017,6 @@ BOOST_AUTO_TEST_CASE(Material) {
                                      PropagatorPlainOptions(geoCtx, magCtx),
                                      rSurface, true, false,
                                      FreeToBoundCorrection(false), 5, 0);
-
-  TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);

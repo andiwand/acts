@@ -9,24 +9,19 @@
 #pragma once
 
 #include "Acts/Definitions/Alignment.hpp"
-#include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Surfaces/Surface.hpp"
-#include "Acts/TrackFitting/KalmanFitter.hpp"
-#include "Acts/TrackFitting/detail/KalmanGlobalCovariance.hpp"
-#include "Acts/Utilities/CalibrationContext.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
-#include "ActsAlignment/Kernel/AlignmentError.hpp"
 #include "ActsAlignment/Kernel/detail/AlignmentEngine.hpp"
 
 #include <limits>
 #include <map>
-#include <queue>
 #include <vector>
 
 namespace ActsAlignment {
+
 using AlignedTransformUpdater =
     std::function<bool(Acts::DetectorElementBase*, const Acts::GeometryContext&,
                        const Acts::Transform3&)>;
@@ -132,8 +127,7 @@ template <typename fitter_t>
 struct Alignment {
   // @TODO: Redefine in terms of Track object
 
-  /// Default constructor is deleted
-  Alignment() = delete;
+  using TrackContainer = typename fitter_t::TrackContainer;
 
   /// Constructor from arguments
   explicit Alignment(fitter_t fitter,
@@ -146,7 +140,6 @@ struct Alignment {
   ///
   /// @tparam source_link_t Source link type identifying uncalibrated input
   /// measurements.
-  /// @tparam start_parameters_t Type of the initial parameters
   /// @tparam fit_options_t The fit options type
   ///
   /// @param gctx The current geometry context object
@@ -156,38 +149,33 @@ struct Alignment {
   /// @param idxedAlignSurfaces The idxed surfaces to be aligned
   /// @param alignMask The alignment mask (same for all detector element for the
   /// moment)
+  /// @param temporaryTrackCollection Temporary track container for fitting
   ///
   /// @result The alignment state for a single track
-  template <typename source_link_t, typename start_parameters_t,
-            typename fit_options_t>
+  template <typename source_link_t, typename fit_options_t>
   Acts::Result<detail::TrackAlignmentState> evaluateTrackAlignmentState(
       const Acts::GeometryContext& gctx,
       const std::vector<source_link_t>& sourceLinks,
-      const start_parameters_t& sParameters, const fit_options_t& fitOptions,
+      const Acts::BoundTrackParameters& sParameters,
+      const fit_options_t& fitOptions,
       const std::unordered_map<const Acts::Surface*, std::size_t>&
           idxedAlignSurfaces,
-      const AlignmentMask& alignMask) const;
+      AlignmentMask alignMask, TrackContainer& temporaryTrackCollection) const;
 
   /// @brief calculate the alignment parameters delta
   ///
-  /// @tparam trajectory_container_t The trajectories container type
-  /// @tparam start_parameters_t The initial parameters container type
   /// @tparam fit_options_t The fit options type
   ///
-  /// @param trajectoryCollection The collection of trajectories as input of
-  /// fitting
-  /// @param startParametersCollection The collection of starting parameters as
-  /// input of fitting
+  /// @param trackCollection The collection of tracks as input of fitting
   /// @param fitOptions The fit Options steering the fit
   /// @param alignResult [in, out] The aligned result
   /// @param alignMask The alignment mask (same for all measurements now)
-  template <typename trajectory_container_t,
-            typename start_parameters_container_t, typename fit_options_t>
+  /// @param temporaryTrackCollection Temporary track container for fitting
+  template <typename fit_options_t>
   void calculateAlignmentParameters(
-      const trajectory_container_t& trajectoryCollection,
-      const start_parameters_container_t& startParametersCollection,
-      const fit_options_t& fitOptions, AlignmentResult& alignResult,
-      const AlignmentMask& alignMask = AlignmentMask::All) const;
+      const TrackContainer& trackCollection, const fit_options_t& fitOptions,
+      AlignmentResult& alignResult, AlignmentMask alignMask,
+      TrackContainer& temporaryTrackCollection) const;
 
   /// @brief update the detector element alignment parameters
   ///
@@ -203,23 +191,18 @@ struct Alignment {
 
   /// @brief Alignment implementation
   ///
-  /// @tparam trajectory_container_t The trajectories container type
-  /// @tparam start_parameters_t The initial parameters container type
   /// @tparam fit_options_t The fit options type
   ///
-  /// @param trajectoryCollection The collection of trajectories as input of
-  /// fitting
-  /// @param startParametersCollection The collection of starting parameters as
-  /// input of fitting
+  /// @param trackCollection The collection of tracks as input of fitting
   /// @param alignOptions The alignment options
+  /// @param temporaryTrackCollection Temporary track container for fitting
   ///
   /// @result The alignment result
-  template <typename trajectory_container_t,
-            typename start_parameters_container_t, typename fit_options_t>
+  template <typename fit_options_t>
   Acts::Result<AlignmentResult> align(
-      const trajectory_container_t& trajectoryCollection,
-      const start_parameters_container_t& startParametersCollection,
-      const AlignmentOptions<fit_options_t>& alignOptions) const;
+      const TrackContainer& trackCollection,
+      const AlignmentOptions<fit_options_t>& alignOptions,
+      TrackContainer& temporaryTrackCollection) const;
 
  private:
   // The fitter

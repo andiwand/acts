@@ -50,8 +50,10 @@ struct IsMultiComponentBoundParameters<MultiComponentBoundTrackParameters>
 /// individual components from the GSF, the only information returned in the
 /// MultiTrajectory are the means of the states. Therefore, also NO dedicated
 /// component smoothing is performed as described e.g. by R. Fruewirth.
-template <typename propagator_t, typename traj_t>
+template <typename propagator_t, TrackContainerFrontend track_container_t>
 struct GaussianSumFitter {
+  using traj_t = typename track_container_t::TrackStateContainerBackend;
+
   /// Constructor with propagator, Bethe-Heitler approximation, and logger
   /// @param propagator Propagator for track propagation
   /// @param bha Bethe-Heitler approximation for energy loss modeling
@@ -94,8 +96,7 @@ struct GaussianSumFitter {
   /// @param sSequence Sequence of surfaces to navigate through
   /// @param trackContainer Container to store the fitted track
   /// @return Result containing fitted track proxy or error
-  template <typename source_link_it_t, typename start_parameters_t,
-            TrackContainerFrontend track_container_t>
+  template <typename source_link_it_t, typename start_parameters_t>
   auto fit(source_link_it_t begin, source_link_it_t end,
            const start_parameters_t& sParameters,
            const GsfOptions<traj_t>& options,
@@ -148,8 +149,7 @@ struct GaussianSumFitter {
   /// @param options Options for the GSF fit
   /// @param trackContainer Container to store the fitted track
   /// @return Result containing fitted track proxy or error
-  template <typename source_link_it_t, typename start_parameters_t,
-            TrackContainerFrontend track_container_t>
+  template <typename source_link_it_t, typename start_parameters_t>
   auto fit(source_link_it_t begin, source_link_it_t end,
            const start_parameters_t& sParameters,
            const GsfOptions<traj_t>& options,
@@ -219,8 +219,7 @@ struct GaussianSumFitter {
   /// @param trackContainer Container to store the fitted track
   /// @return Result containing fitted track proxy with forward and backward propagation results
   template <typename source_link_it_t, typename start_parameters_t,
-            typename fwd_prop_initializer_t, typename bwd_prop_initializer_t,
-            TrackContainerFrontend track_container_t>
+            typename fwd_prop_initializer_t, typename bwd_prop_initializer_t>
   Acts::Result<typename track_container_t::TrackProxy> fit_impl(
       source_link_it_t begin, source_link_it_t end,
       const start_parameters_t& sParameters, const GsfOptions<traj_t>& options,

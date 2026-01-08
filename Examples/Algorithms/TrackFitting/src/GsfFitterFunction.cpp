@@ -45,12 +45,12 @@ using MultiStepper =
 using Propagator = Acts::Propagator<MultiStepper, Acts::Navigator>;
 using DirectPropagator = Acts::Propagator<MultiStepper, Acts::DirectNavigator>;
 
-using Fitter = Acts::GaussianSumFitter<Propagator, Acts::VectorMultiTrajectory>;
-using DirectFitter =
-    Acts::GaussianSumFitter<DirectPropagator, Acts::VectorMultiTrajectory>;
 using TrackContainer =
     Acts::TrackContainer<Acts::VectorTrackContainer,
                          Acts::VectorMultiTrajectory, std::shared_ptr>;
+
+using Fitter = Acts::GaussianSumFitter<Propagator, TrackContainer>;
+using DirectFitter = Acts::GaussianSumFitter<DirectPropagator, TrackContainer>;
 
 struct GsfFitterFunctionImpl final : public ActsExamples::TrackFitterFunction {
   Fitter fitter;

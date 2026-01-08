@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
+#include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/TrackFitting/KalmanFitter.hpp"
 #include "ActsAlignment/Kernel/Alignment.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
@@ -16,9 +17,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
-#include "ActsExamples/MagneticField/MagneticField.hpp"
 
-#include <functional>
 #include <memory>
 #include <vector>
 

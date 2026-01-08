@@ -56,10 +56,12 @@ using StraightPropagator = Propagator<StraightLineStepper, Navigator>;
 using ConstantFieldStepper = EigenStepper<>;
 using ConstantFieldPropagator = Propagator<ConstantFieldStepper, Navigator>;
 
+using TrackContainer = Acts::TrackContainer<Acts::VectorTrackContainer,
+                                            Acts::VectorMultiTrajectory>;
+
 using KalmanUpdater = GainMatrixUpdater;
 using KalmanSmoother = GainMatrixSmoother;
-using KalmanFitterType =
-    KalmanFitter<ConstantFieldPropagator, VectorMultiTrajectory>;
+using KalmanFitterType = KalmanFitter<ConstantFieldPropagator, TrackContainer>;
 
 KalmanUpdater kfUpdater;
 KalmanSmoother kfSmoother;

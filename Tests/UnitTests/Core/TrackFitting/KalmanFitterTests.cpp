@@ -43,10 +43,14 @@ using ConstantFieldStepper = Acts::EigenStepper<>;
 using ConstantFieldPropagator =
     Acts::Propagator<ConstantFieldStepper, Acts::Navigator>;
 
+using TrackContainer =
+    Acts::TrackContainer<Acts::VectorTrackContainer,
+                         Acts::VectorMultiTrajectory, detail::ValueHolder>;
+
 using KalmanUpdater = Acts::GainMatrixUpdater;
 using KalmanSmoother = Acts::GainMatrixSmoother;
 using KalmanFitter =
-    Acts::KalmanFitter<ConstantFieldPropagator, VectorMultiTrajectory>;
+    Acts::KalmanFitter<ConstantFieldPropagator, TrackContainer>;
 
 static const auto pion = Acts::ParticleHypothesis::pion();
 

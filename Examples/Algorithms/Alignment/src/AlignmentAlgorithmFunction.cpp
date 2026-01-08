@@ -6,17 +6,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "Acts/Definitions/TrackParametrization.hpp"
-#include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Navigator.hpp"
 #include "Acts/Propagator/Propagator.hpp"
-#include "Acts/Surfaces/Surface.hpp"
 #include "Acts/TrackFitting/GainMatrixSmoother.hpp"
 #include "Acts/TrackFitting/GainMatrixUpdater.hpp"
 #include "ActsAlignment/Kernel/Alignment.hpp"
 #include "ActsExamples/Alignment/AlignmentAlgorithm.hpp"
-#include "ActsExamples/MagneticField/MagneticField.hpp"
+#include "ActsExamples/EventData/Track.hpp"
 
 namespace {
 
@@ -24,7 +21,7 @@ using Updater = Acts::GainMatrixUpdater;
 using Smoother = Acts::GainMatrixSmoother;
 using Stepper = Acts::EigenStepper<>;
 using Propagator = Acts::Propagator<Stepper, Acts::Navigator>;
-using Fitter = Acts::KalmanFitter<Propagator, Acts::VectorMultiTrajectory>;
+using Fitter = Acts::KalmanFitter<Propagator, ActsExamples::TrackContainer>;
 using Alignment = ActsAlignment::Alignment<Fitter>;
 
 struct AlignmentFunctionImpl

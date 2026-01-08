@@ -696,7 +696,7 @@ void updateGx2fCovarianceParams(BoundMatrix& fullCovariancePredicted,
 /// @tparam propagator_t Type of the propagation class
 ///
 /// TODO Write description
-template <typename propagator_t, typename traj_t>
+template <typename propagator_t, TrackContainerFrontend track_container_t>
 class Gx2Fitter {
   /// The navigator type
   using Gx2fNavigator = typename propagator_t::Navigator;
@@ -706,6 +706,8 @@ class Gx2Fitter {
       std::is_same_v<Gx2fNavigator, DirectNavigator>;
 
   static constexpr auto kInvalid = kTrackIndexInvalid;
+
+  using traj_t = typename track_container_t::TrackStateContainerBackend;
 
  public:
   /// @brief Constructor for the Global Chi-Square Fitter
@@ -743,7 +745,6 @@ class Gx2Fitter {
   ///
   /// The GX2F Actor does not rely on the measurements to be sorted along the
   /// track.
-  template <typename parameters_t>
   class Actor {
    public:
     /// Broadcast the result_type
@@ -783,7 +784,7 @@ class Gx2Fitter {
     const CalibrationContext* calibrationContext{nullptr};
 
     /// The particle hypothesis is needed for estimating scattering angles
-    const parameters_t* parametersWithHypothesis = nullptr;
+    const BoundTrackParameters* parametersWithHypothesis = nullptr;
 
     /// The scatteringMap stores for each visited surface their scattering
     /// properties
@@ -1172,9 +1173,6 @@ class Gx2Fitter {
   /// Fit implementation
   ///
   /// @tparam source_link_iterator_t Iterator type used to pass source links
-  /// @tparam start_parameters_t Type of the initial parameters
-  /// @tparam parameters_t Type of parameters used for local parameters
-  /// @tparam track_container_t Type of the track container backend
   /// @tparam holder_t Type defining track container backend ownership
   ///
   /// @param it Begin iterator for the fittable uncalibrated measurements
@@ -1187,12 +1185,10 @@ class Gx2Fitter {
   /// the fit.
   ///
   /// @return the output as an output track
-  template <typename source_link_iterator_t, typename start_parameters_t,
-            typename parameters_t = BoundTrackParameters,
-            TrackContainerFrontend track_container_t>
+  template <typename source_link_iterator_t>
   Result<typename track_container_t::TrackProxy> fit(
       source_link_iterator_t it, source_link_iterator_t end,
-      const start_parameters_t& sParameters,
+      const BoundTrackParameters& sParameters,
       const Gx2FitterOptions<traj_t>& gx2fOptions,
       track_container_t& trackContainer) const
     requires(!isDirectNavigator)
@@ -1215,14 +1211,14 @@ class Gx2Fitter {
     const bool multipleScattering = gx2fOptions.multipleScattering;
 
     // Create the ActorList
-    using GX2FActor = Actor<parameters_t>;
+    using GX2FActor = Actor;
 
     using GX2FResult = typename GX2FActor::result_type;
     using Actors = Acts::ActorList<GX2FActor>;
 
     using PropagatorOptions = typename propagator_t::template Options<Actors>;
 
-    start_parameters_t params = sParameters;
+    BoundTrackParameters params = sParameters;
     double chi2sum = 0;
     double oldChi2sum = std::numeric_limits<double>::max();
 

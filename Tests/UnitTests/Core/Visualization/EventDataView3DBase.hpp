@@ -317,6 +317,10 @@ static inline std::string testMultiTrajectory(IVisualization3D& helper) {
   using RecoPropagator = Propagator<RecoStepper, Navigator>;
   RecoPropagator rPropagator(rStepper, rNavigator);
 
+  Acts::TrackContainer tracks{Acts::VectorTrackContainer{},
+                              Acts::VectorMultiTrajectory{}};
+  using TrackContainer = decltype(tracks);
+
   // Set initial parameters for the particle track
   Covariance cov;
   cov << std::pow(100_um, 2), 0., 0., 0., 0., 0., 0., std::pow(100_um, 2), 0.,
@@ -330,7 +334,7 @@ static inline std::string testMultiTrajectory(IVisualization3D& helper) {
 
   const Surface* rSurface = &rStart.referenceSurface();
 
-  using KalmanFitter = KalmanFitter<RecoPropagator, VectorMultiTrajectory>;
+  using KalmanFitter = KalmanFitter<RecoPropagator, TrackContainer>;
 
   KalmanFitter kFitter(rPropagator);
 
@@ -357,9 +361,6 @@ static inline std::string testMultiTrajectory(IVisualization3D& helper) {
   KalmanFitterOptions kfOptions(tgContext, mfContext, calContext, extensions,
                                 PropagatorPlainOptions(tgContext, mfContext),
                                 rSurface);
-
-  Acts::TrackContainer tracks{Acts::VectorTrackContainer{},
-                              Acts::VectorMultiTrajectory{}};
 
   // Fit the track
   auto fitRes = kFitter.fit(sourceLinks.begin(), sourceLinks.end(), rStart,
