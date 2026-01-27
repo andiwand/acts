@@ -52,7 +52,7 @@ namespace ActsTests {
 using Covariance = BoundSquareMatrix;
 
 // Create a test context
-GeometryContext geoContext = GeometryContext();
+GeometryContext geoContext = GeometryContext::dangerouslyDefaultConstruct();
 MagneticFieldContext magFieldContext = MagneticFieldContext();
 
 // 4D vertex distributions
@@ -223,7 +223,7 @@ BOOST_AUTO_TEST_CASE(billoir_vertex_fitter_defaulttrack_test) {
     // Calculate random track emerging from vicinity of vertex position
     for (std::uint32_t iTrack = 0; iTrack < nTracks; iTrack++) {
       // Charge
-      double q = qDist(gen) < 0 ? -1. : 1.;
+      double q = std::copysign(1., qDist(gen));
 
       // Track parameters
       BoundVector paramVec;

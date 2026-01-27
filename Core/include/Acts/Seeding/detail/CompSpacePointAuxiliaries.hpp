@@ -15,6 +15,15 @@
 
 #include <cstdint>
 
+namespace Acts {
+template <Experimental::CompositeSpacePoint SpacePoint_t>
+/// @brief Print the position, the drift radius & the sensor directions of a space point.
+///        If the space point is shipped with an ostream operator, this oone is
+///        used
+/// @param measurement: Reference to the space point to print
+std::string toString(const SpacePoint_t& measurement);
+}
+
 namespace Acts::Experimental::detail {
 /// @brief Helper class to calculate the residual between a straight line and
 ///        a CompositeSpacePoint measurement as well as the partial derivatives.
@@ -311,7 +320,7 @@ class CompSpacePointAuxiliaries {
                            const Vector& sensorN, const Vector& sensorD,
                            const Vector& stripPos, const bool isBending,
                            const bool isNonBending);
-  /// @brief Calculates the reidual of a strip measurement w.r.t. the time offset parameter
+  /// @brief Calculates the residual of a strip measurement w.r.t. the time offset parameter
   /// @param sensorN: Reference to the first basis vector inside the strip measruement plane,
   ///            which is given by the sensor normal
   /// @param sensorD: Reference to the second basis vector inside the strip measruement plane,
@@ -380,7 +389,7 @@ class CompSpacePointAuxiliaries {
   /// @brief Partial derivative of the actual distance of the closest approach
   std::array<double, s_nLinePars> m_partialApproachDist{
       filledArray<double, s_nLinePars>(0.)};
-  /// @brief Tansform matrix to treat stereo angles amongst the strips
+  /// @brief Transform matrix to treat stereo angles amongst the strips
   ActsSquareMatrix<2> m_stereoTrf{ActsSquareMatrix<2>::Identity()};
 };
 

@@ -65,7 +65,7 @@ using Propagator = Acts::Propagator<EigenStepper<>>;
 using Linearizer = HelicalTrackLinearizer;
 
 // Create a test context
-GeometryContext geoContext = GeometryContext();
+GeometryContext geoContext = GeometryContext::dangerouslyDefaultConstruct();
 MagneticFieldContext magFieldContext = MagneticFieldContext();
 
 const std::string toolString = "IVF";
@@ -215,7 +215,7 @@ BOOST_AUTO_TEST_CASE(iterative_finder_test) {
       // Vector to store track objects used for vertex fit
       for (unsigned int iTrack = 0; iTrack < nTracks; iTrack++) {
         // Construct positive or negative charge randomly
-        double q = qDist(gen) < 0 ? -1. : 1.;
+        double q = std::copysign(1., qDist(gen));
 
         // Construct random track parameters
         BoundVector paramVec;
@@ -435,7 +435,7 @@ BOOST_AUTO_TEST_CASE(iterative_finder_test_user_track_type) {
       // Vector to store track objects used for vertex fit
       for (std::uint32_t iTrack = 0; iTrack < nTracks; iTrack++) {
         // Construct positive or negative charge randomly
-        double q = qDist(gen) < 0 ? -1. : 1.;
+        double q = std::copysign(1., qDist(gen));
 
         // Construct random track parameters
         BoundVector paramVec;

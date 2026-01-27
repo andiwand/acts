@@ -1,12 +1,12 @@
 acts_add_library(
     ExamplesIoHepMC3
-    SHARED
     src/HepMC3Reader.cpp
     src/HepMC3Writer.cpp
     src/HepMC3InputConverter.cpp
     src/HepMC3OutputConverter.cpp
     src/HepMC3Util.cpp
     src/HepMC3FactoryWrappers.cpp
+    src/HepMC3Metadata.cpp
 )
 target_include_directories(
     ActsExamplesIoHepMC3
@@ -93,7 +93,7 @@ if(TARGET HepMC3::rootIO)
     target_link_libraries(ActsExamplesIoHepMC3 PRIVATE HepMC3::rootIO)
     target_compile_definitions(
         ActsExamplesIoHepMC3
-        PRIVATE ACTS_HEPMC3_ROOT_SUPPORT=1
+        PRIVATE HEPMC3_ROOT_SUPPORT=1
     )
 else()
     message(CHECK_PASS "not found")

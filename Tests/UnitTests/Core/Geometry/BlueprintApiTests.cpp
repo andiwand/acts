@@ -47,7 +47,7 @@ namespace ActsTests {
 
 auto logger = getDefaultLogger("UnitTests", Logging::DEBUG);
 
-GeometryContext gctx;
+auto gctx = GeometryContext::dangerouslyDefaultConstruct();
 
 inline std::vector<std::shared_ptr<Surface>> makeFanLayer(
     const Transform3& base,
@@ -145,7 +145,7 @@ void pseudoNavigation(const TrackingGeometry& trackingGeometry,
     AppendOnlyNavigationStream stream{main};
 
     currentVolume->initializeNavigationCandidates(
-        {.position = position, .direction = direction}, stream, logger);
+        gctx, {.position = position, .direction = direction}, stream, logger);
 
     ACTS_VERBOSE(main.candidates().size() << " candidates");
 

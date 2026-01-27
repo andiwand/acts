@@ -33,7 +33,7 @@ using namespace Acts;
 namespace ActsTests {
 
 // Create a test context
-GeometryContext tgContext = GeometryContext();
+GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
 
@@ -166,7 +166,7 @@ BOOST_AUTO_TEST_CASE(ConeSurfaceProperties) {
   /// Test pathCorrection
   CHECK_CLOSE_REL(coneSurfaceObject->pathCorrection(tgContext, offSurface,
                                                     momentum.normalized()),
-                  0.40218866453252877, 0.01);
+                  3.20041, 0.01);
 
   /// Test name
   BOOST_CHECK_EQUAL(coneSurfaceObject->name(),

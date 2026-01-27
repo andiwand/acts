@@ -30,7 +30,6 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Visualization/ObjVisualization3D.hpp"
 #include "ActsPlugins/Detray/DetrayConversionUtils.hpp"
-#include "ActsPlugins/Detray/DetrayGeometryConverter.hpp"
 #include "ActsPlugins/Detray/DetrayPayloadConverter.hpp"
 #include "ActsTests/CommonHelpers/CylindricalTrackingGeometry.hpp"
 #include "ActsTests/CommonHelpers/DetectorElementStub.hpp"
@@ -42,9 +41,12 @@
 #include <detray/io/backend/geometry_reader.hpp>
 #include <detray/io/backend/geometry_writer.hpp>
 #include <detray/io/backend/homogeneous_material_reader.hpp>
+#include <detray/io/backend/homogeneous_material_writer.hpp>
 #include <detray/io/backend/material_map_reader.hpp>
 #include <detray/io/backend/surface_grid_reader.hpp>
 #include <detray/io/frontend/definitions.hpp>
+#include <detray/io/frontend/detector_writer.hpp>
+#include <detray/io/frontend/detector_writer_config.hpp>
 #include <detray/io/frontend/payloads.hpp>
 #include <detray/io/json/json_io.hpp>
 #include <detray/plugins/svgtools/illustrator.hpp>
@@ -273,7 +275,7 @@ BOOST_AUTO_TEST_CASE(DetrayMaskConversionErrors) {
 }
 
 BOOST_AUTO_TEST_CASE(DetraySurfaceConversionTests) {
-  GeometryContext gctx;
+  auto gctx = GeometryContext::dangerouslyDefaultConstruct();
 
   // Create a transform with translation and rotation
   Transform3 transform = Transform3::Identity();
@@ -357,7 +359,7 @@ BOOST_AUTO_TEST_CASE(DetraySurfaceConversionTests) {
 }
 
 BOOST_AUTO_TEST_CASE(DetrayPortalConversionTests) {
-  GeometryContext gctx;
+  auto gctx = GeometryContext::dangerouslyDefaultConstruct();
 
   // Create a transform with translation and rotation
   Transform3 transform = Transform3::Identity();
@@ -400,6 +402,7 @@ BOOST_AUTO_TEST_CASE(DetrayPortalConversionTests) {
 }
 
 BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
+  const auto gctx = GeometryContext::dangerouslyDefaultConstruct();
   // Create a transform with translation and rotation
   Transform3 transform = Transform3::Identity();
   transform.pretranslate(Vector3(1., 2., 3.));
@@ -414,7 +417,7 @@ BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
     auto volume =
         std::make_shared<TrackingVolume>(transform, cvlBounds, "TestCylinder");
 
-    auto payload = converter.convertVolume(*volume);
+    auto payload = converter.convertVolume(gctx, *volume);
 
     // Check type
     BOOST_CHECK(payload.type == detray::volume_id::e_cylinder);
@@ -434,7 +437,7 @@ BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
     auto volume =
         std::make_shared<TrackingVolume>(transform, cuboidBounds, "TestCuboid");
 
-    auto payload = converter.convertVolume(*volume);
+    auto payload = converter.convertVolume(gctx, *volume);
 
     BOOST_CHECK(payload.type == detray::volume_id::e_cuboid);
     BOOST_CHECK_EQUAL(payload.name, "TestCuboid");
@@ -446,7 +449,7 @@ BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
     auto volume = std::make_shared<TrackingVolume>(transform, trapBounds,
                                                    "TestTrapezoid");
 
-    auto payload = converter.convertVolume(*volume);
+    auto payload = converter.convertVolume(gctx, *volume);
 
     BOOST_CHECK(payload.type == detray::volume_id::e_trapezoid);
     BOOST_CHECK_EQUAL(payload.name, "TestTrapezoid");
@@ -481,7 +484,7 @@ BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
     auto volume =
         std::make_shared<TrackingVolume>(transform, mockBounds, "TestUnknown");
 
-    auto payload = converter.convertVolume(*volume);
+    auto payload = converter.convertVolume(gctx, *volume);
 
     BOOST_CHECK(payload.type == detray::volume_id::e_unknown);
     BOOST_CHECK_EQUAL(payload.name, "TestUnknown");
@@ -573,7 +576,7 @@ BOOST_AUTO_TEST_CASE(DetrayVolumeConversionTests) {
 // }  // namespace
 
 BOOST_AUTO_TEST_CASE(DetrayTrackingGeometryConversionTests) {
-  GeometryContext gctx;
+  auto gctx = GeometryContext::dangerouslyDefaultConstruct();
   auto geoLogger = getDefaultLogger("Geo", Logging::VERBOSE);
 
   CylindricalTrackingGeometry cGeometry(gctx, true);

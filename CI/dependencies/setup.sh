@@ -62,6 +62,19 @@ while getopts "c:t:d:e:fh" opt; do
   esac
 done
 
+script_start=$(date +%s.%N)
+
+# Helper to print elapsed time since previous checkpoint
+checkpoint() {
+    local label=$1
+    local now
+    now=$(date +%s.%N)
+    local elapsed
+    elapsed=$(echo "$now - ${last_time:-$script_start}" | bc)
+    printf "[%s] %.3f s\n" "$label" "$elapsed"
+    last_time=$now
+}
+
 # Set defaults if not specified
 if [ -z "${compiler:-}" ]; then
   compiler="${CXX:-default}"
@@ -112,11 +125,12 @@ function set_env {
 
 
 
+checkpoint "Starting setup script"
 
 echo "Install tag: $tag"
 echo "Install destination: $destination"
 
-mkdir -p ${destination}
+mkdir -p "${destination}"
 
 if [ -n "${GITLAB_CI:-}" ]; then
     _spack_folder=${CI_PROJECT_DIR}/spack
@@ -129,6 +143,7 @@ if ! command -v spack &> /dev/null; then
   "${SCRIPT_DIR}/setup_spack.sh" "${_spack_folder}"
   source "${_spack_folder}/share/spack/setup-env.sh"
 fi
+checkpoint "Spack install complete"
 
 _spack_repo_version=${SPACK_REPO_VERSION:-develop}
 _spack_repo_directory="$(realpath "$(spack location --repo builtin)/../../../")"
@@ -137,6 +152,7 @@ echo "Ensure repo is synced with version ${_spack_repo_version}"
 
 git config --global --add safe.directory "${_spack_repo_directory}"
 spack repo update builtin --tag "${_spack_repo_version}"
+checkpoint "Spack repository updated"
 
 end_section
 
@@ -166,6 +182,7 @@ if [ -n "${CI:-}" ]; then
 
   start_section "Locate OpenGL"
   "${SCRIPT_DIR}/opengl.sh"
+  checkpoint "OpenGL location complete"
   end_section
 fi
 
@@ -191,23 +208,38 @@ fi
 
 "${cmd[@]}"
 
+checkpoint "Lock file prepared"
+
 end_section
 
 
 
 start_section "Create spack environment"
-time spack env create -d "${env_dir}" "${lock_file_path}" --with-view "$view_dir"
-time spack -e "${env_dir}" spec -l
-time spack -e "${env_dir}" find
+spack env create -d "${env_dir}" "${lock_file_path}" --with-view "$view_dir"
+checkpoint "Spack environment created"
+spack -e "${env_dir}" spec -l
+checkpoint "Spack spec complete"
+spack -e "${env_dir}" find
+checkpoint "Spack find complete"
 end_section
 
 start_section "Install spack packages"
-time spack -e "${env_dir}" install --fail-fast --use-buildcache only --concurrent-packages 10
+spack -e "${env_dir}" install --fail-fast --use-buildcache only --concurrent-packages 10
+checkpoint "Spack install complete"
 end_section
 
 start_section "Patch up Geant4 data directory"
 if [ "${full_install:-false}" == "true" ]; then
-  "${view_dir}/bin/geant4-config" --install-datasets
+  if ! which uv &> /dev/null ; then
+    echo "uv not found, installing uv"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    UV_EXE="/root/.local/bin/uv"
+    checkpoint "uv installation complete"
+  else
+    UV_EXE=$(which uv)
+  fi
+  $UV_EXE run "$SCRIPT_DIR/download_geant4_datasets.py" -j8 --config "${view_dir}/bin/geant4-config"
+  checkpoint "Geant4 datasets download complete"
 fi
 geant4_dir=$(spack -e "${env_dir}" location -i geant4)
 # Prepare the folder for G4 data, and symlink it to where G4 will look for it
@@ -219,10 +251,11 @@ start_section "Prepare python environment"
 "${view_dir}/bin/python3" -m venv --system-site-packages "$venv_dir"
 "${venv_dir}/bin/python3" -m pip install pyyaml jinja2
 if [ "${full_install:-false}" == "true" ]; then
-  "${venv_dir}/bin/python3" -m pip install -r "${SCRIPT_DIR}/../../Examples/Python/tests/requirements.txt"
+  "${venv_dir}/bin/python3" -m pip install -r "${SCRIPT_DIR}/../../Python/Examples/tests/requirements.txt"
   "${venv_dir}/bin/python3" -m pip install histcmp==0.8.1 matplotlib
   "${venv_dir}/bin/python3" -m pip install pytest-md-report
 fi
+checkpoint "Python environment prepared"
 end_section
 
 start_section "Set environment variables"
@@ -231,7 +264,8 @@ if [ -n "${GITHUB_ACTIONS:-}" ]; then
   echo "${venv_dir}/bin" >> "$GITHUB_PATH"
 fi
 set_env PATH "${venv_dir}/bin:${view_dir}/bin/:${PATH}"
-set_env LD_LIBRARY_PATH "${venv_dir}/lib:${view_dir}/lib"
+set_env LD_LIBRARY_PATH "${venv_dir}/lib:${view_dir}/lib:${view_dir}/lib/root"
+set_env DYLD_LIBRARY_PATH "${venv_dir}/lib:${view_dir}/lib:${view_dir}/lib/root"
 set_env CMAKE_PREFIX_PATH "${venv_dir}:${view_dir}"
 set_env ROOT_SETUP_SCRIPT "${view_dir}/bin/thisroot.sh"
 set_env ROOT_INCLUDE_PATH "${view_dir}/include"
@@ -242,3 +276,5 @@ set_env Python_ROOT_DIR ""
 set_env Python2_ROOT_DIR ""
 set_env Python3_ROOT_DIR ""
 end_section
+
+checkpoint "Setup script complete"

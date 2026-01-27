@@ -59,7 +59,7 @@ using Propagator = Acts::Propagator<Stepper>;
 using Estimator = ImpactPointEstimator;
 using StraightLineEstimator = ImpactPointEstimator;
 
-const GeometryContext geoContext;
+const auto geoContext = GeometryContext::dangerouslyDefaultConstruct();
 const MagneticFieldContext magFieldContext;
 
 MagneticFieldProvider::Cache magFieldCache() {
@@ -362,8 +362,8 @@ BOOST_DATA_TEST_CASE(VertexCompatibility4D, IPs* vertices, d0, l0, vx0, vy0,
   double timeDiffFar = timeDiffFactor * 0.11_ps;
 
   // Different random signs for the time offsets
-  double sgnClose = signDist(gen) < 0 ? -1. : 1.;
-  double sgnFar = signDist(gen) < 0 ? -1. : 1.;
+  double sgnClose = std::copysign(1., signDist(gen));
+  double sgnFar = std::copysign(1., signDist(gen));
 
   BoundVector paramVecClose = BoundVector::Zero();
   paramVecClose[eBoundLoc0] = d0;

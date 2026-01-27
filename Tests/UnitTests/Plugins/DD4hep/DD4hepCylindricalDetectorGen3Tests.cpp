@@ -9,7 +9,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/Detector/Detector.hpp"
 #include "Acts/Geometry/Blueprint.hpp"
 #include "Acts/Geometry/BlueprintNode.hpp"
 #include "Acts/Geometry/ContainerBlueprintNode.hpp"
@@ -48,7 +47,7 @@ using namespace ActsPlugins;
 
 namespace ActsTests {
 
-GeometryContext tContext;
+auto tContext = GeometryContext::dangerouslyDefaultConstruct();
 CylindricalTrackingGeometry cGeometry = CylindricalTrackingGeometry(tContext);
 
 const char* beampipe_head_xml =
@@ -602,7 +601,8 @@ BOOST_AUTO_TEST_CASE(DD4hepCylidricalDetectorExplicit) {
       std::vector<LayerData> protoLayers;
       protoLayers.reserve(initialLayers.size());
       for (const auto& [key, surfaces] : initialLayers) {
-        auto& layer = protoLayers.emplace_back(GeometryContext(), surfaces);
+        auto& layer = protoLayers.emplace_back(
+            GeometryContext::dangerouslyDefaultConstruct(), surfaces);
         layer.protoLayer.envelope[AxisR] = {2_mm, 2_mm};
         layer.protoLayer.envelope[AxisZ] = {1_mm, 1_mm};
       }
@@ -613,8 +613,8 @@ BOOST_AUTO_TEST_CASE(DD4hepCylidricalDetectorExplicit) {
                                  std::abs(b.protoLayer.medium(AxisZ));
                         });
 
-      std::vector<LayerData> mergedLayers =
-          mergeLayers(GeometryContext(), protoLayers);
+      std::vector<LayerData> mergedLayers = mergeLayers(
+          GeometryContext::dangerouslyDefaultConstruct(), protoLayers);
 
       // Create layers from proto layers
       for (const auto& [key, pl] : enumerate(mergedLayers)) {
@@ -659,7 +659,7 @@ BOOST_AUTO_TEST_CASE(DD4hepCylidricalDetectorExplicit) {
   blueprint->graphviz(dotOut);
 
   // Final step
-  GeometryContext gctx;
+  auto gctx = GeometryContext::dangerouslyDefaultConstruct();
   auto logger = getDefaultLogger("Geo", Logging::VERBOSE);
   auto trackingGeometry = blueprint->construct({}, gctx, *logger);
 

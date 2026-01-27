@@ -56,7 +56,7 @@ using NumericalLinearizer = NumericalTrackLinearizer;
 using StraightNumericalLinearizer = NumericalTrackLinearizer;
 
 // Create a test context
-GeometryContext geoContext = GeometryContext();
+GeometryContext geoContext = GeometryContext::dangerouslyDefaultConstruct();
 MagneticFieldContext magFieldContext = MagneticFieldContext();
 
 // Vertex x/y position distribution
@@ -144,7 +144,7 @@ BOOST_AUTO_TEST_CASE(linearized_track_factory_test) {
   // Construct random track emerging from vicinity of vertex position
   for (unsigned int iTrack = 0; iTrack < nTracks; iTrack++) {
     // Random charge
-    double q = qDist(gen) < 0 ? -1. : 1.;
+    double q = std::copysign(1., qDist(gen));
 
     // Random track parameters
     BoundVector paramVec;
