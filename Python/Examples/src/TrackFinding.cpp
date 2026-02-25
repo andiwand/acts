@@ -17,6 +17,7 @@
 #include "ActsExamples/TrackFinding/HoughTransformSeeder.hpp"
 #include "ActsExamples/TrackFinding/MuonHoughSeeder.hpp"
 #include "ActsExamples/TrackFinding/OrthogonalTripletSeedingAlgorithm.hpp"
+#include "ActsExamples/TrackFinding/SpacePointConverter.hpp"
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/TrackParamsEstimationAlgorithm.hpp"
@@ -43,6 +44,9 @@ void addTrackFinding(py::module& mex) {
                                 inputMeasurements, outputSpacePoints,
                                 trackingGeometry, geometrySelection,
                                 stripGeometrySelection);
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(SpacePointConverter, mex, "SpacePointConverter",
+                                inputSpacePoints, outputSpacePoints);
 
   {
     using Config = Acts::SeedFinderConfig<typename Acts::SpacePointContainer<
