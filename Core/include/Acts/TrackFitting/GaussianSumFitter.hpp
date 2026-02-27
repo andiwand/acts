@@ -505,25 +505,9 @@ struct GaussianSumFitter {
     if (options.referenceSurface) {
       const auto& params = *bwdResult->endParameters;
 
-      const auto [finalPars, finalCov] = detail::Gsf::mergeGaussianMixture(
-          params.components(),
-          [](const auto& cmp) {
-            auto&& [weight_l, pars_l, opt_cov_l] = cmp;
-            return std::tie(weight_l, pars_l, *opt_cov_l);
-          },
-          params.referenceSurface(), options.componentMergeMethod);
-
-      track.parameters() = finalPars;
-      track.covariance() = finalCov;
-
       track.setReferenceSurface(params.referenceSurface().getSharedPtr());
-
-      if (trackContainer.hasColumn(
-              hashString(GsfConstants::kFinalMultiComponentStateColumn))) {
-        ACTS_DEBUG("Add final multi-component state to track");
-        track.template component<GsfConstants::FinalMultiComponentState>(
-            GsfConstants::kFinalMultiComponentStateColumn) = std::move(params);
-      }
+      track.parameters() = params.parameters();
+      track.covariance() = params.covariance().value();
     }
 
     if (trackContainer.hasColumn(

@@ -14,17 +14,24 @@
 #include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/EventData/TrackStatePropMask.hpp"
 #include "Acts/EventData/Types.hpp"
+#include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Propagator/ActorList.hpp"
 #include "Acts/Propagator/ConstrainedStep.hpp"
 #include "Acts/Propagator/PropagatorState.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
+#include "Acts/Propagator/StepperConcept.hpp"
 #include "Acts/Propagator/detail/LoopProtection.hpp"
 #include "Acts/Propagator/detail/PointwiseMaterialInteraction.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterError.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
+#include "Acts/TrackFitting/GsfComponent.hpp"
+#include "Acts/TrackFitting/GsfOptions.hpp"
+#include "Acts/TrackFitting/detail/GsfUtils.hpp"
 #include "Acts/Utilities/CalibrationContext.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
 
@@ -34,6 +41,10 @@
 #include <type_traits>
 
 namespace Acts {
+
+/// Type alias for component reducer delegate function
+using ComponentReducer =
+    Delegate<void(std::vector<GsfComponent>&, std::size_t, const Surface&)>;
 
 /// @addtogroup track_finding
 /// @{
@@ -103,6 +114,21 @@ struct CombinatorialKalmanFilterOptions {
   /// Skip the pre propagation call. This effectively skips the first surface
   /// @note This is useful if the first surface should not be considered in a second reverse pass
   bool skipPrePropagationUpdate = false;
+
+  /// Maximum number of components which the GSF should handle
+  std::size_t maxComponents = 16;
+
+  /// When to discard components
+  double weightCutoff = 1.0e-4;
+
+  /// Takes a vector of components and reduces its number
+  ComponentReducer mixtureReducer;
+
+  /// How to reduce the states that are stored in the multi trajectory
+  ComponentMergeMethod mergeMethod = ComponentMergeMethod::eMaxWeight;
+
+  /// The Bethe-Heitler approximation for bremsstrahlung energy loss
+  std::shared_ptr<const BetheHeitlerApprox> betheHeitlerApprox;
 };
 
 /// Result container for the combinatorial Kalman filter actor.
@@ -177,11 +203,17 @@ class CombinatorialKalmanFilter {
         m_updaterLogger{m_logger->cloneWithSuffix("Updater")} {}
 
  private:
-  using BoundState = std::tuple<BoundTrackParameters, BoundMatrix, double>;
   using TrackStateContainerBackend =
       typename track_container_t::TrackStateContainerBackend;
   using TrackProxy = typename track_container_t::TrackProxy;
   using TrackStateProxy = typename track_container_t::TrackStateProxy;
+
+  static constexpr bool sIsMultiStepper =
+      Concepts::MultiStepper<typename propagator_t::Stepper>;
+  using TemporaryStates = detail::Gsf::TemporaryStates<VectorMultiTrajectory>;
+  using FiltProjector =
+      detail::Gsf::MultiTrajectoryProjector<detail::Gsf::StatesType::eFiltered,
+                                            VectorMultiTrajectory>;
 
   /// The propagator for the transport and material update
   propagator_t m_propagator;
@@ -221,11 +253,31 @@ class CombinatorialKalmanFilter {
 
     CombinatorialKalmanFilterExtensions<track_container_t> extensions;
 
+    /// Maximum number of components which the GSF should handle
+    std::size_t maxComponents = 16;
+
+    /// When to discard components
+    double weightCutoff = 1.0e-4;
+
+    /// Takes a vector of components and reduces its number
+    ComponentReducer mixtureReducer;
+
+    /// How to reduce the states that are stored in the multi trajectory
+    ComponentMergeMethod mergeMethod = ComponentMergeMethod::eMaxWeight;
+
+    /// The Bethe-Heitler approximation for bremsstrahlung energy loss
+    const BetheHeitlerApprox* betheHeitlerApprox{nullptr};
+
     /// End of world aborter
     EndOfWorldReached endOfWorldReached;
 
     /// Volume constraint aborter
     VolumeConstraintAborter volumeConstraintAborter;
+
+    ///
+    TemporaryStates* temporaryStates{nullptr};
+    std::vector<BetheHeitlerApprox::Component> betheHeitlerCache;
+    std::vector<GsfComponent> componentCache;
 
     /// Actor logger instance
     const Logger* actorLogger{nullptr};
@@ -417,11 +469,10 @@ class CombinatorialKalmanFilter {
 
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
-      detail::performMaterialInteraction(
+      performMaterialInteraction(
           state, stepper, currentState.referenceSurface(),
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate),
-          NoiseUpdateMode::addNoise, multipleScattering, energyLoss, logger());
+                                              MaterialUpdateMode::PostUpdate));
 
       // Set path limit based on loop protection
       detail::setupLoopProtection(state, stepper, result.pathLimitReached, true,
@@ -479,11 +530,10 @@ class CombinatorialKalmanFilter {
       }
 
       // Update state and stepper with pre material effects
-      detail::performMaterialInteraction(
+      performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PreUpdate),
-          NoiseUpdateMode::addNoise, multipleScattering, energyLoss, logger());
+                                              MaterialUpdateMode::PreUpdate));
 
       // Bind the transported state to the current surface
       auto boundStateRes = stepper.boundState(state.stepping, surface, false);
@@ -598,11 +648,7 @@ class CombinatorialKalmanFilter {
         // If there are measurement track states on this surface
         // Update stepping state using filtered parameters of last track
         // state on this surface
-        stepper.update(state.stepping,
-                       MultiTrajectoryHelpers::freeFiltered(
-                           state.options.geoContext, currentState),
-                       currentState.filtered(),
-                       currentState.filteredCovariance(), surface);
+        updateStepper(state, stepper, currentState);
         ACTS_VERBOSE("Stepping state is updated with filtered parameter:");
         ACTS_VERBOSE("-> " << currentState.filtered().transpose()
                            << " of track state with tip = "
@@ -610,11 +656,10 @@ class CombinatorialKalmanFilter {
       }
 
       // Update state and stepper with post material effects
-      detail::performMaterialInteraction(
+      performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate),
-          NoiseUpdateMode::addNoise, multipleScattering, energyLoss, logger());
+                                              MaterialUpdateMode::PostUpdate));
 
       return Result<void>::success();
     }
@@ -783,6 +828,70 @@ class CombinatorialKalmanFilter {
 
       result.collectedTracks.push_back(currentBranch);
     }
+
+    template <typename propagator_state_t, typename stepper_t>
+    void performMaterialInteraction(propagator_state_t& state,
+                                    const stepper_t& stepper,
+                                    const Surface& surface,
+                                    MaterialUpdateMode updateMode) const {
+      if constexpr (!sIsMultiStepper) {
+        detail::performMaterialInteraction(
+            state, stepper, surface, updateMode, NoiseUpdateMode::addNoise,
+            multipleScattering, energyLoss, logger());
+      } else {
+        if (ACTS_CHECK_BIT(updateMode, MaterialUpdateMode::PostUpdate)) {
+          temporaryStates->clear();
+          betheHeitlerCache.clear();
+          componentCache.clear();
+          std::size_t nInvalidBetheHeitler = 0;
+          double maxPathXOverX0 = 0;
+          double sumPathXOverX0 = 0;
+
+          detail::Gsf::convoluteComponents(
+              surface, state, temporaryStates, *betheHeitlerApprox,
+              betheHeitlerCache, weightCutoff, componentCache,
+              nInvalidBetheHeitler, maxPathXOverX0, sumPathXOverX0, logger());
+
+          if (componentCache.empty()) {
+            ACTS_WARNING(
+                "No components left after applying energy loss. "
+                "Is the weight cutoff "
+                << weightCutoff << " too high?");
+            ACTS_WARNING("Return to propagator without applying energy loss");
+            return;
+          }
+
+          // reduce component number
+          const auto finalCmpNumber = std::min(
+              static_cast<std::size_t>(stepper.maxComponents), maxComponents);
+          mixtureReducer(componentCache, finalCmpNumber, surface);
+
+          detail::Gsf::removeLowWeightComponents(componentCache, weightCutoff);
+
+          detail::Gsf::updateStepper(state, stepper, surface, componentCache,
+                                     logger());
+        }
+
+        detail::Gsf::applyMultipleScattering(state, stepper, surface,
+                                             updateMode, logger());
+      }
+    }
+
+    template <typename propagator_state_t, typename stepper_t>
+    void updateStepper(propagator_state_t& state, const stepper_t& stepper,
+                       const TrackStateProxy& currentState) const {
+      if constexpr (!sIsMultiStepper) {
+        stepper.update(state.stepping,
+                       MultiTrajectoryHelpers::freeFiltered(
+                           state.options.geoContext, currentState),
+                       currentState.filtered(),
+                       currentState.filteredCovariance(),
+                       currentState.referenceSurface());
+      } else {
+        detail::Gsf::updateStepper(state, stepper,
+                                   currentState.referenceSurface(), logger());
+      }
+    }
   };
 
   /// Void path limit reached aborter to replace the default since the path
@@ -847,6 +956,15 @@ class CombinatorialKalmanFilter {
 
     // copy delegates to calibrator, updater, branch stopper
     combKalmanActor.extensions = tfOptions.extensions;
+
+    combKalmanActor.maxComponents = tfOptions.maxComponents;
+    combKalmanActor.weightCutoff = tfOptions.weightCutoff;
+    combKalmanActor.mixtureReducer = tfOptions.mixtureReducer;
+    combKalmanActor.mergeMethod = tfOptions.mergeMethod;
+    combKalmanActor.betheHeitlerApprox = tfOptions.betheHeitlerApprox.get();
+
+    TemporaryStates temporaryStates;
+    combKalmanActor.temporaryStates = &temporaryStates;
 
     auto propState =
         m_propagator
