@@ -9,8 +9,12 @@
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Definitions/Common.hpp"
 #include "Acts/Definitions/PdgParticle.hpp"
+#include "Acts/EventData/ParticleHypothesis.hpp"
+#include "Acts/EventData/TrackParameters.hpp"
 #include "Acts/Utilities/EnumBitwiseOperators.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 #include "Acts/Utilities/TypeTraits.hpp"
 #include "Acts/Utilities/detail/ContainerIterator.hpp"
 #include "Acts/Utilities/detail/ContainerSubset.hpp"
@@ -164,7 +168,7 @@ class ParticleContainer final {
 
   /// Returns the number of particles in the container.
   /// @return The number of particles in the container.
-  std::uint32_t size() const noexcept { return m_size; }
+  [[nodiscard]] std::uint32_t size() const noexcept { return m_size; }
   /// Checks if the container is empty.
   /// @return True if the container is empty, false otherwise.
   [[nodiscard]] bool empty() const noexcept { return size() == 0; }
@@ -330,6 +334,9 @@ class ParticleContainer final {
   using ColumnHolderBase = detail::ColumnHolderBase;
   template <typename T>
   using ColumnHolder = detail::ColumnHolder<T>;
+
+  template <bool>
+  friend class ParticleProxy;
 
   std::size_t m_size{0};
 
@@ -555,6 +562,12 @@ class ParticleProxy {
             m_container->m_parentIndicesCountColumn->at(m_index)};
   }
 
+  Barcode &barcode() noexcept
+    requires(!ReadOnly)
+  {
+    return m_container->m_barcodeColumn[m_index];
+  }
+
   ProcessType &process() noexcept
     requires(!ReadOnly)
   {
@@ -621,10 +634,10 @@ class ParticleProxy {
     return m_container->m_numberOfHitsColumn[m_index];
   }
 
-  const Acts::Surface *&referenceSurface() noexcept
+  void setReferenceSurface(const Acts::Surface &surface) noexcept
     requires(!ReadOnly)
   {
-    return m_container->m_referenceSurfaceColumn[m_index];
+    m_container->m_referenceSurfaceColumn[m_index] = &surface;
   }
 
   ParticleOutcome &outcome() noexcept
@@ -639,27 +652,29 @@ class ParticleProxy {
             m_container->m_parentIndicesCountColumn[m_index]};
   }
 
-  const ProcessType &process() const noexcept {
+  const Barcode &barcode() const noexcept {
+    return m_container->m_barcodeColumn[m_index];
+  }
+
+  ProcessType process() const noexcept {
     return m_container->m_processColumn[m_index];
   }
 
-  const Acts::PdgParticle &pdg() const noexcept {
+  Acts::PdgParticle pdg() const noexcept {
     return m_container->m_pdgColumn[m_index];
   }
 
-  const double &charge() const noexcept {
+  double charge() const noexcept {
     return m_container->m_chargeColumn[m_index];
   }
 
-  const double &mass() const noexcept {
-    return m_container->m_massColumn[m_index];
-  }
+  double mass() const noexcept { return m_container->m_massColumn[m_index]; }
 
   const Acts::Vector3 &direction() const noexcept {
     return m_container->m_directionColumn[m_index];
   }
 
-  const double &absoluteMomentum() const noexcept {
+  double absoluteMomentum() const noexcept {
     return m_container->m_absMomentumColumn[m_index];
   }
 
@@ -667,24 +682,24 @@ class ParticleProxy {
     return m_container->m_position4Column[m_index];
   }
 
-  const double &properTime() const noexcept {
+  double properTime() const noexcept {
     return m_container->m_properTimeColumn[m_index];
   }
 
-  const double &pathInX0() const noexcept {
+  double pathInX0() const noexcept {
     return m_container->m_pathInX0Column[m_index];
   }
 
-  const double &pathInL0() const noexcept {
+  double pathInL0() const noexcept {
     return m_container->m_pathInL0Column[m_index];
   }
 
-  const std::uint32_t &numberOfHits() const noexcept {
+  std::uint32_t numberOfHits() const noexcept {
     return m_container->m_numberOfHitsColumn[m_index];
   }
 
-  const Acts::Surface *const &referenceSurface() const noexcept {
-    return m_container->m_referenceSurfaceColumn[m_index];
+  const Acts::Surface &referenceSurface() const noexcept {
+    return *m_container->m_referenceSurfaceColumn[m_index];
   }
 
   const ParticleOutcome &outcome() const noexcept {
@@ -697,6 +712,290 @@ class ParticleProxy {
   template <typename T>
   const T &extra(const ConstParticleColumnProxy<T> &column) const noexcept {
     return column[m_index];
+  }
+
+  /// Set the process type that generated this particle.
+  /// @param proc Process type that generated this particle
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setProcess(ProcessType proc)
+    requires(!ReadOnly)
+  {
+    process() = proc;
+    return *this;
+  }
+  /// Set the pdg.
+  /// @param pdg PDG particle identifier
+  /// @return Particle instance with updated PDG identifier
+  ParticleProxy &setPdg(Acts::PdgParticle pdg)
+    requires(!ReadOnly)
+  {
+    this->pdg() = pdg;
+    return *this;
+  }
+  /// Set the charge.
+  /// @param charge Particle charge in native units
+  /// @return Particle instance with updated charge
+  ParticleProxy &setCharge(double charge)
+    requires(!ReadOnly)
+  {
+    this->charge() = charge;
+    return *this;
+  }
+  /// Set the mass.
+  /// @param mass Particle mass in native units
+  /// @return Particle instance with updated mass
+  ParticleProxy &setMass(double mass)
+    requires(!ReadOnly)
+  {
+    this->mass() = mass;
+    return *this;
+  }
+  /// Set the particle ID.
+  /// @param barcode New particle identifier barcode
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setParticleId(Barcode barcode)
+    requires(!ReadOnly)
+  {
+    this->barcode() = barcode;
+    return *this;
+  }
+  /// Set the space-time position four-vector.
+  /// @param pos4 Four-vector containing spatial position and time
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setPosition4(const Acts::Vector4 &pos4)
+    requires(!ReadOnly)
+  {
+    this->position4() = pos4;
+    return *this;
+  }
+  /// Set the space-time position four-vector from three-position and time.
+  /// @param position Three-dimensional spatial position vector
+  /// @param time Time coordinate
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setPosition4(const Acts::Vector3 &position, double time)
+    requires(!ReadOnly)
+  {
+    this->position4().segment<3>(Acts::ePos0) = position;
+    this->position4()[Acts::eTime] = time;
+    return *this;
+  }
+  /// Set the space-time position four-vector from scalar components.
+  /// @param x X coordinate
+  /// @param y Y coordinate
+  /// @param z Z coordinate
+  /// @param time Time coordinate
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setPosition4(double x, double y, double z, double time)
+    requires(!ReadOnly)
+  {
+    this->position4()[Acts::ePos0] = x;
+    this->position4()[Acts::ePos1] = y;
+    this->position4()[Acts::ePos2] = z;
+    this->position4()[Acts::eTime] = time;
+    return *this;
+  }
+  /// Set the direction three-vector
+  /// @param direction Three-dimensional direction vector (will be normalized)
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setDirection(const Acts::Vector3 &direction)
+    requires(!ReadOnly)
+  {
+    this->direction() = direction;
+    this->direction().normalize();
+    return *this;
+  }
+  /// Set the direction three-vector from scalar components.
+  /// @param dx X component of direction
+  /// @param dy Y component of direction
+  /// @param dz Z component of direction
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setDirection(double dx, double dy, double dz)
+    requires(!ReadOnly)
+  {
+    this->direction()[Acts::ePos0] = dx;
+    this->direction()[Acts::ePos1] = dy;
+    this->direction()[Acts::ePos2] = dz;
+    this->direction().normalize();
+    return *this;
+  }
+  /// Set the absolute momentum.
+  /// @param absMomentum Absolute momentum magnitude
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setAbsoluteMomentum(double absMomentum)
+    requires(!ReadOnly)
+  {
+    absoluteMomentum() = absMomentum;
+    return *this;
+  }
+
+  /// Change the energy by the given amount.
+  ///
+  /// Energy loss corresponds to a negative change. If the updated energy
+  /// would result in an unphysical value, the particle is put to rest, i.e.
+  /// its absolute momentum is set to zero.
+  /// @param delta Energy change (negative for energy loss)
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &correctEnergy(double delta)
+    requires(!ReadOnly)
+  {
+    const auto newEnergy = Acts::fastHypot(mass(), absoluteMomentum()) + delta;
+    if (newEnergy <= mass()) {
+      absoluteMomentum() = 0;
+    } else {
+      absoluteMomentum() = std::sqrt(newEnergy * newEnergy - mass() * mass());
+    }
+    return *this;
+  }
+
+  /// Particle identifier within an event.
+  /// @return The unique particle identifier barcode
+  Barcode particleId() const { return barcode(); }
+  /// Absolute PDG particle number that identifies the type.
+  /// @return The absolute PDG particle identifier (positive value)
+  Acts::PdgParticle absolutePdg() const {
+    return Acts::makeAbsolutePdgParticle(pdg());
+  }
+  /// Particle absolute charge.
+  /// @return The absolute particle charge (positive value)
+  double absoluteCharge() const { return std::abs(charge()); }
+
+  /// Particle hypothesis.
+  /// @return Particle hypothesis containing PDG, mass, and charge information
+  Acts::ParticleHypothesis hypothesis() const {
+    return Acts::ParticleHypothesis(
+        absolutePdg(), static_cast<float>(mass()),
+        Acts::AnyCharge{static_cast<float>(absoluteCharge())});
+  }
+  /// Particl qOverP.
+  /// @return The charge over momentum ratio
+  double qOverP() const {
+    return hypothesis().qOverP(absoluteMomentum(), charge());
+  }
+
+  /// Space-time position four-vector.
+  /// @return Reference to the four-dimensional position vector (x, y, z, t)
+  const Acts::Vector4 &fourPosition() const { return position4(); }
+  /// Three-position, i.e. spatial coordinates without the time.
+  /// @return Three-dimensional position vector (x, y, z)
+  auto position() const { return position4().segment<3>(Acts::ePos0); }
+  /// Time coordinate.
+  /// @return The time coordinate value
+  double time() const { return position4()[Acts::eTime]; }
+  /// Energy-momentum four-vector.
+  /// @return Four-dimensional momentum vector (px, py, pz, E)
+  Acts::Vector4 fourMomentum() const {
+    Acts::Vector4 mom4;
+    // stored direction is always normalized
+    mom4[Acts::eMom0] = absoluteMomentum() * direction()[Acts::ePos0];
+    mom4[Acts::eMom1] = absoluteMomentum() * direction()[Acts::ePos1];
+    mom4[Acts::eMom2] = absoluteMomentum() * direction()[Acts::ePos2];
+    mom4[Acts::eEnergy] = energy();
+    return mom4;
+  }
+  /// Polar angle.
+  /// @return The polar angle (theta) in radians
+  double theta() const { return Acts::VectorHelpers::theta(direction()); }
+  /// Azimuthal angle.
+  /// @return The azimuthal angle (phi) in radians
+  double phi() const { return Acts::VectorHelpers::phi(direction()); }
+  /// Absolute momentum in the x-y plane.
+  /// @return The transverse momentum magnitude
+  double transverseMomentum() const {
+    return absoluteMomentum() *
+           direction().template segment<2>(Acts::eMom0).norm();
+  }
+  /// Absolute momentum.
+  /// @return Three-dimensional momentum vector
+  Acts::Vector3 momentum() const { return absoluteMomentum() * direction(); }
+  /// Total energy, i.e. norm of the four-momentum.
+  /// @return The total energy calculated from mass and momentum
+  double energy() const { return std::hypot(mass(), absoluteMomentum()); }
+
+  /// Check if the particle is alive, i.e. is not at rest.
+  /// @return True if particle has non-zero momentum, false otherwise
+  bool isAlive() const { return absoluteMomentum() > 0; }
+
+  /// Check if this is a secondary particle.
+  /// @return True if particle is a secondary (has non-zero vertex secondary, generation, or sub-particle), false otherwise
+  bool isSecondary() const {
+    return particleId().vertexSecondary() != 0 ||
+           particleId().generation() != 0 || particleId().subParticle() != 0;
+  }
+
+  // simulation specific properties
+
+  /// Set the proper time in the particle rest frame.
+  ///
+  /// @param properTime passed proper time in the rest frame
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setProperTime(double properTime)
+    requires(!ReadOnly)
+  {
+    this->properTime() = properTime;
+    return *this;
+  }
+
+  /// Set the accumulated material measured in radiation/interaction lengths.
+  ///
+  /// @param pathInX0 accumulated material measured in radiation lengths
+  /// @param pathInL0 accumulated material measured in interaction lengths
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setMaterialPassed(double pathInX0, double pathInL0)
+    requires(!ReadOnly)
+  {
+    this->pathInX0() = pathInX0;
+    this->pathInL0() = pathInL0;
+    return *this;
+  }
+
+  /// Check if the particle has a reference surface.
+  /// @return True if reference surface is set, false otherwise
+  bool hasReferenceSurface() const {
+    return m_container->m_referenceSurfaceColumn[m_index] != nullptr;
+  }
+
+  /// Bound track parameters.
+  /// @param gctx Geometry context for coordinate transformations
+  /// @return Result containing bound track parameters or error if no reference surface
+  Acts::Result<Acts::BoundTrackParameters> boundParameters(
+      const Acts::GeometryContext &gctx) const {
+    if (!hasReferenceSurface()) {
+      return Acts::Result<Acts::BoundTrackParameters>::failure(
+          std::error_code());
+    }
+    Acts::Result<Acts::Vector2> localResult =
+        referenceSurface().globalToLocal(gctx, position(), direction());
+    if (!localResult.ok()) {
+      return localResult.error();
+    }
+    Acts::BoundVector params;
+    params << localResult.value(), phi(), theta(), qOverP(), time();
+    return Acts::BoundTrackParameters(referenceSurface()->getSharedPtr(),
+                                      params, std::nullopt, hypothesis());
+  }
+
+  /// @return Curvilinear track parameters representation
+  Acts::BoundTrackParameters curvilinearParameters() const {
+    return Acts::BoundTrackParameters::createCurvilinear(
+        fourPosition(), direction(), qOverP(), std::nullopt, hypothesis());
+  }
+
+  /// Set the number of hits.
+  ///
+  /// @param nHits number of hits
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setNumberOfHits(std::uint32_t nHits) {
+    numberOfHits() = nHits;
+    return *this;
+  }
+
+  /// Set the outcome of particle.
+  ///
+  /// @param outcome outcome code
+  /// @return Reference to this particle for method chaining
+  ParticleProxy &setOutcome(ParticleOutcome outcome) {
+    this->outcome() = outcome;
+    return *this;
   }
 
  private:
@@ -864,8 +1163,6 @@ class ParticleColumnProxy {
   {
     return *m_column;
   }
-
-  friend class ParticleContainer;
 };
 
 }  // namespace ActsFatras

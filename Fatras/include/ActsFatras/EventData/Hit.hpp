@@ -11,7 +11,7 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Common.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <cstdint>
 
@@ -28,10 +28,11 @@ class Hit {
  public:
   /// Construct default hit with (mostly) invalid information.
   Hit() = default;
+
   /// Construct from four-position and four-momenta.
   ///
   /// @param geometryId      Geometry identifier of the surface
-  /// @param particleId Particle identifier of the particle that created the hit
+  /// @param particleId Particle index of the particle that created the hit
   /// @param pos4       Particle space-time four-vector on the surface
   /// @param before4    Particle four-momentum before the interaction
   /// @param after4     Particle four-momentum after the interaction
@@ -40,32 +41,22 @@ class Hit {
   /// All quantities are given in the global coordinate system. It is the
   /// users responsibility to ensure that the position correspond to a
   /// position on the given surface.
-  Hit(Acts::GeometryIdentifier geometryId, Barcode particleId,
+  Hit(Acts::GeometryIdentifier geometryId, ParticleIndex particleId,
       const Acts::Vector4& pos4, const Acts::Vector4& before4,
-      const Acts::Vector4& after4, std::int32_t index_ = -1)
+      const Acts::Vector4& after4, std::int32_t index = -1)
       : m_geometryId(geometryId),
         m_particleId(particleId),
-        m_index(index_),
+        m_index(index),
         m_pos4(pos4),
         m_before4(before4),
         m_after4(after4) {}
-  /// Copy constructor
-  Hit(const Hit&) = default;
-  /// Move constructor
-  Hit(Hit&&) = default;
-  /// Copy assignment operator
-  /// @return Reference to this hit after copying
-  Hit& operator=(const Hit&) = default;
-  /// Move assignment operator
-  /// @return Reference to this hit after moving
-  Hit& operator=(Hit&&) = default;
 
   /// Geometry identifier of the hit surface.
   /// @return GeometryIdentifier of the surface where the hit occurred
   constexpr Acts::GeometryIdentifier geometryId() const { return m_geometryId; }
-  /// Particle identifier of the particle that generated the hit.
-  /// @return Barcode identifier of the particle that created this hit
-  constexpr Barcode particleId() const { return m_particleId; }
+  /// Particle index of the particle that generated the hit.
+  /// @return Particle index of the particle that created this hit
+  constexpr ParticleIndex particleId() const { return m_particleId; }
   /// Hit index along the particle trajectory.
   ///
   /// @retval negative if the hit index is undefined.
@@ -115,8 +106,8 @@ class Hit {
  private:
   /// Identifier of the surface.
   Acts::GeometryIdentifier m_geometryId;
-  /// Identifier of the generating particle.
-  Barcode m_particleId;
+  /// Index of the generating particle.
+  ParticleIndex m_particleId{};
   /// Index of the hit along the particle trajectory.
   std::int32_t m_index = -1;
   /// Global space-time position four-vector.

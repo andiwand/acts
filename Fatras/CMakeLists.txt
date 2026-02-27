@@ -4,6 +4,7 @@ acts_add_library(
     src/Digitization/DigitizationError.cpp
     src/Digitization/PlanarSurfaceMask.cpp
     src/Digitization/PlanarSurfaceDrift.cpp
+    src/EventData/HitContainer.cpp
     src/EventData/Particle.cpp
     src/EventData/ParticleContainer.cpp
     src/EventData/ParticleOutcome.cpp
