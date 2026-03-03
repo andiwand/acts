@@ -6,7 +6,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/TruthTracking/HitSelector.hpp"
 #include "ActsExamples/TruthTracking/ParticleSelector.hpp"
 #include "ActsExamples/TruthTracking/ParticleTrackParamExtractor.hpp"
@@ -20,8 +19,6 @@
 #include "ActsExamples/TruthTracking/VertexTruthMatcher.hpp"
 #include "ActsPython/Utilities/Helpers.hpp"
 #include "ActsPython/Utilities/Macros.hpp"
-
-#include <memory>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -109,9 +106,9 @@ void addTruthTracking(py::module& mex) {
   }
 
   ACTS_PYTHON_DECLARE_ALGORITHM(TruthVertexFinder, mex, "TruthVertexFinder",
-                                inputTracks, inputTrackParticleMatching,
-                                outputProtoVertices, excludeSecondaries,
-                                separateSecondaries);
+                                inputParticles, inputTracks,
+                                inputTrackParticleMatching, outputProtoVertices,
+                                excludeSecondaries, separateSecondaries);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(TrackModifier, mex, "TrackModifier",
                                 inputTracks, outputTracks, dropCovariance,
@@ -131,7 +128,7 @@ void addTruthTracking(py::module& mex) {
                                 minPrimaryVertexId, maxPrimaryVertexId);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
-      TrackTruthMatcher, mex, "TrackTruthMatcher", inputTracks, inputParticles,
+      TrackTruthMatcher, mex, "TrackTruthMatcher", inputTracks,
       inputMeasurementParticlesMap, outputTrackParticleMatching,
       outputParticleTrackMatching, matchingRatio, doubleMatching);
 

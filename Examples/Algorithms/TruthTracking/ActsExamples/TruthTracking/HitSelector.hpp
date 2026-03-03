@@ -25,7 +25,7 @@ class HitSelector final : public IAlgorithm {
   struct Config {
     /// Input hit collection.
     std::string inputHits;
-    /// Optional input particle collection.
+    /// Input particle collection.
     std::string inputParticlesSelected;
     /// Output hit collection
     std::string outputHits;
@@ -81,7 +81,7 @@ class HitSelector final : public IAlgorithm {
   Config m_cfg;
 
   ReadDataHandle<SimHitContainer> m_inputHits{this, "InputHits"};
-  ReadDataHandle<SimParticleContainer> m_inputParticlesSelected{
+  ReadDataHandle<SelectedSimParticles> m_inputParticlesSelected{
       this, "InputParticlesSelected"};
   WriteDataHandle<SimHitContainer> m_outputHits{this, "OutputHits"};
 };

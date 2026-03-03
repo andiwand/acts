@@ -51,7 +51,7 @@ ProcessCode TruthTrackFinder::execute(const AlgorithmContext& ctx) const {
   // prepare input collections
   const auto& particles = m_inputParticles(ctx);
   const auto& particleMeasurementsMap = m_inputParticleMeasurementsMap(ctx);
-  const auto& measurementsIn = m_inputMeasurements(ctx);
+  const auto& measurements = m_inputMeasurements(ctx);
   const auto& simHits = m_inputSimHits(ctx);
   const auto& measurementSimHitsMap = m_inputMeasurementSimHitsMap(ctx);
 
@@ -60,56 +60,49 @@ ProcessCode TruthTrackFinder::execute(const AlgorithmContext& ctx) const {
   tracks.reserve(particles.size());
 
   ACTS_VERBOSE("Create proto tracks for " << particles.size() << " particles");
-  for (const auto& [i, particle] : Acts::enumerate(particles)) {
+  for (const auto& particle : particles) {
     // find the corresponding hits for this particle
-    const auto& measurements =
-        makeRange(particleMeasurementsMap.equal_range(particle.particleId()));
-    ACTS_VERBOSE(" - Proto track from " << measurements.size()
-                                        << " measurements for particle "
-                                        << particle);
+    const auto& particleMeasurements =
+        makeRange(particleMeasurementsMap.equal_range(particle.index()));
+
+    ACTS_VERBOSE(" - From " << particleMeasurements.size()
+                            << " measurements for particle " << particle);
+
     // fill hit indices to create the proto track
     ProtoTrack track;
     std::vector<const SimHit*> hits;
-    track.reserve(measurements.size());
-    hits.reserve(measurements.size());
-    for (const auto& [barcode, index] : measurements) {
+    track.reserve(particleMeasurements.size());
+    hits.reserve(particleMeasurements.size());
+    for (const auto& [_, measurementId] : particleMeasurements) {
       ConstVariableBoundMeasurementProxy measurement =
-          measurementsIn.getMeasurement(index);
-      ACTS_VERBOSE("   - Measurement " << index << " with barcode " << barcode
-                                       << " at " << measurement.geometryId());
-      const auto simHitMapIt = measurementSimHitsMap.find(index);
-      if (simHitMapIt == measurementSimHitsMap.end()) {
-        ACTS_WARNING("No sim hit found for measurement index " << index);
+          measurements.getMeasurement(measurementId);
+
+      ACTS_VERBOSE("   - Measurement " << measurementId << " with barcode "
+                                       << particle.barcode() << " at "
+                                       << measurement.geometryId());
+
+      const auto measurementSimHits =
+          measurementSimHitsMap.equal_range(measurementId);
+      if (measurementSimHits.first == measurementSimHits.second) {
+        ACTS_WARNING("No sim hit found for measurement index "
+                     << measurementId);
         continue;
       }
 
-      const auto simHitIdxIt = measurementSimHitsMap.nth(simHitMapIt->second);
-      if (simHitIdxIt == measurementSimHitsMap.end()) {
-        ACTS_WARNING("No sim hit found for index " << simHitMapIt->second);
-        continue;
-      }
+      const SimHit& firstSimHit = simHits.at(measurementSimHits.first->second);
 
-      const auto simHitIt = simHits.nth(simHitIdxIt->second);
-      if (simHitIt == simHits.end()) {
-        ACTS_WARNING("No sim hit found for index " << simHitIdxIt->second);
-        continue;
-      }
-
-      const auto& simHit = *simHitIt;
-
-      track.emplace_back(index);
-      hits.emplace_back(&simHit);
+      track.emplace_back(measurementId);
+      hits.emplace_back(&firstSimHit);
     }
 
-    std::vector<std::size_t> indices;
-    indices.resize(hits.size());
+    std::vector<std::size_t> indices(hits.size());
     std::iota(indices.begin(), indices.end(), 0);
-
     std::ranges::sort(indices, [&hits](std::size_t a, std::size_t b) {
       return hits[a]->time() < hits[b]->time();
     });
     ProtoTrack sortedTrack;
-    for (const auto& idx : indices) {
+    sortedTrack.reserve(hits.size());
+    for (const std::size_t idx : indices) {
       sortedTrack.emplace_back(track[idx]);
     }
 

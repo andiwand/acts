@@ -9,6 +9,7 @@
 #include "ActsExamples/TruthTracking/VertexTruthMatcher.hpp"
 
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Utilities/VertexTruthUtility.hpp"
 
 #include <optional>
@@ -55,13 +56,13 @@ ActsExamples::ProcessCode VertexTruthMatcher::execute(
   // Read input tracks
   const auto& tracks = m_inputTracks(ctx);
   // Read truth particle input collection
-  const SimParticleContainer& particles = m_inputParticles(ctx);
+  const SelectedSimParticles& particles = m_inputParticles(ctx);
   // Read track-particle matching
   const TrackParticleMatching& trackParticleMatching =
       m_inputTrackParticleMatching(ctx);
 
-  std::vector<VertexToTruthMatching> recoToTruthMatching;
-  std::map<SimVertexBarcode, VertexToRecoMatching> truthToRecoMatching;
+  VertexTruthMatching recoToTruthMatching;
+  TruthVertexMatching truthToRecoMatching;
 
   // Do truth matching for each reconstructed vertex
   for (const auto& [vtxIndex, vtx] : Acts::enumerate(vertices)) {
@@ -70,7 +71,7 @@ ActsExamples::ProcessCode VertexTruthMatcher::execute(
 
     // Containers for storing truth particles and truth vertices that
     // contribute to the reconstructed vertex
-    std::vector<std::pair<SimVertexBarcode, double>> contributingTruthVertices;
+    std::vector<std::pair<SimVertexIndex, double>> contributingTruthVertices;
 
     double totalTrackWeight = 0;
     for (const Acts::TrackAtVertex& trk : tracksAtVtx) {
@@ -80,30 +81,34 @@ ActsExamples::ProcessCode VertexTruthMatcher::execute(
 
       totalTrackWeight += trk.trackWeight;
 
-      std::optional<ConstTrackProxy> trackOpt = findTrack(tracks, trk);
+      const std::optional<ConstTrackProxy> trackOpt = findTrack(tracks, trk);
       if (!trackOpt.has_value()) {
         ACTS_DEBUG("Track has no matching input track.");
         continue;
       }
-      const ConstTrackProxy& inputTrk = *trackOpt;
-      const SimParticle* particle =
-          findParticle(particles, trackParticleMatching, inputTrk, logger());
-      if (particle == nullptr) {
+
+      const auto matchedParticleIt =
+          trackParticleMatching.find(trackOpt->index());
+      if (matchedParticleIt == trackParticleMatching.end() ||
+          !matchedParticleIt->second.particle.has_value()) {
         ACTS_VERBOSE("Track has no matching truth particle.");
-      } else {
-        contributingTruthVertices.emplace_back(
-            SimBarcode{particle->particleId()}.vertexId(), trk.trackWeight);
+        continue;
       }
+
+      SimParticle matchedParticle =
+          particles.at(matchedParticleIt->second.particle.value());
+      contributingTruthVertices.emplace_back(matchedParticle.index(),
+                                             trk.trackWeight);
     }
 
     // Find true vertex that contributes most to the reconstructed vertex
-    std::map<SimVertexBarcode, std::pair<int, double>> fmap;
+    std::map<SimVertexIndex, std::pair<int, double>> fmap;
     for (const auto& [vtxId, weight] : contributingTruthVertices) {
       ++fmap[vtxId].first;
       fmap[vtxId].second += weight;
     }
     double truthMajorityVertexTrackWeights = 0;
-    std::optional<SimVertexBarcode> truthMajorityVertexId = std::nullopt;
+    std::optional<SimVertexIndex> truthMajorityVertexId = std::nullopt;
     for (const auto& [vtxId, counter] : fmap) {
       if (counter.second > truthMajorityVertexTrackWeights) {
         truthMajorityVertexId = vtxId;

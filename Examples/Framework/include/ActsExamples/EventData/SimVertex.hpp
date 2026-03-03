@@ -123,3 +123,13 @@ struct SimVertex {
 using SimVertexContainer = std::vector<SimVertex>;
 
 }  // namespace ActsExamples
+
+// specialize std::hash so Barcode can be used e.g. in an unordered_map
+namespace std {
+template <>
+struct hash<ActsExamples::SimVertexBarcode> {
+  auto operator()(ActsExamples::SimVertexBarcode barcode) const noexcept {
+    return barcode.hash();
+  }
+};
+}  // namespace std

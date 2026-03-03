@@ -13,9 +13,8 @@
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
-#include "ActsExamples/Validation/TrackClassification.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
 
+#include <optional>
 #include <ostream>
 #include <stdexcept>
 #include <unordered_map>
@@ -48,6 +47,9 @@ struct ParticleMatchEntry {
 TruthVertexFinder::TruthVertexFinder(const Config& config,
                                      std::unique_ptr<const Acts::Logger> logger)
     : IAlgorithm("TruthVertexFinder", std::move(logger)), m_cfg(config) {
+  if (m_cfg.inputParticles.empty()) {
+    throw std::invalid_argument("Missing input truth particles collection");
+  }
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks collection");
   }
@@ -65,6 +67,7 @@ TruthVertexFinder::TruthVertexFinder(const Config& config,
 
 ProcessCode TruthVertexFinder::execute(const AlgorithmContext& ctx) const {
   // prepare input and output collections
+  const auto& particles = m_inputParticles(ctx);
   const auto& tracks = m_inputTracks(ctx);
   const auto& trackParticleMatching = m_inputTrackParticleMatching(ctx);
 
@@ -85,11 +88,12 @@ ProcessCode TruthVertexFinder::execute(const AlgorithmContext& ctx) const {
     const auto& trackMatch = trackMatchIt->second;
 
     // get the particle associated to the track
-    auto particleOpt = trackMatchIt->second.particle;
-    if (!particleOpt) {
+    const std::optional<SimParticleIndex> particleId =
+        trackMatchIt->second.particle;
+    if (!particleId.has_value()) {
       continue;
     }
-    auto barcode = *particleOpt;
+    const auto particle = particles.at(*particleId);
 
     // Skip fake and duplicate tracks
     if (trackMatch.classification != TrackMatchClassification::Matched) {
@@ -97,7 +101,7 @@ ProcessCode TruthVertexFinder::execute(const AlgorithmContext& ctx) const {
     }
 
     // derive the vertex ID from the barcode
-    SimVertexBarcode vertexId = SimVertexBarcode(barcode);
+    const SimVertexBarcode vertexId(particle.barcode().vertexId());
 
     // add the track to the proto vertex map
     protoVertexTrackMap[vertexId].push_back(track.index());
@@ -109,7 +113,7 @@ ProcessCode TruthVertexFinder::execute(const AlgorithmContext& ctx) const {
   ProtoVertexContainer protoVertices;
 
   // assumes the begin/end iterator references the particles container
-  auto addProtoVertex = [&](const std::vector<TrackIndex>& vertexTracks) {
+  const auto addProtoVertex = [&](const std::vector<TrackIndex>& vertexTracks) {
     ProtoVertex protoVertex;
     protoVertex.reserve(vertexTracks.size());
     for (const auto& track : vertexTracks) {

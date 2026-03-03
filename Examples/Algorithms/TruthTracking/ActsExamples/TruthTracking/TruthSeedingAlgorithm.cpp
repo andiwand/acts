@@ -74,7 +74,7 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
   const auto& measurementSimHitsMap = m_inputMeasurementSimHitsMap(ctx);
   const auto& spacePoints = m_inputSpacePoints(ctx);
 
-  SimParticleContainer seededParticles;
+  std::vector<SimParticleIndex> seededParticles;
   SeedContainer seeds;
   seeds.assignSpacePointContainer(spacePoints);
   ProtoTrackContainer tracks;
@@ -100,39 +100,27 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
   for (const auto& particle : particles) {
     // find the corresponding measurements for this particle
-    const auto& measurements =
-        makeRange(particleMeasurementsMap.equal_range(particle.particleId()));
+    const auto& particleMeasurements =
+        makeRange(particleMeasurementsMap.equal_range(particle.index()));
+
     // fill measurement indices to create the proto track
     ProtoTrack track;
-    track.reserve(measurements.size());
-
-    std::vector<std::pair<const SimHit*, Index>> hits;
-    hits.reserve(measurements.size());
-
-    for (const auto& [barcode, index] : measurements) {
-      const auto simHitMapIt = measurementSimHitsMap.find(index);
-      if (simHitMapIt == measurementSimHitsMap.end()) {
-        ACTS_WARNING("No sim hit found for measurement index " << index);
+    std::vector<const SimHit*> hits;
+    track.reserve(particleMeasurements.size());
+    hits.reserve(particleMeasurements.size());
+    for (const auto& [_, measurementId] : particleMeasurements) {
+      const auto measurementSimHits =
+          measurementSimHitsMap.equal_range(measurementId);
+      if (measurementSimHits.first == measurementSimHits.second) {
+        ACTS_WARNING("No sim hit found for measurement index "
+                     << measurementId);
         continue;
       }
 
-      const auto simHitIt = simHits.nth(simHitMapIt->second);
-      if (simHitIt == simHits.end()) {
-        ACTS_WARNING("No sim hit found for index " << simHitMapIt->second);
-        continue;
-      }
+      const SimHit& firstSimHit = simHits.at(measurementSimHits.first->second);
 
-      const auto& simHit = *simHitIt;
-
-      hits.emplace_back(&simHit, index);
-    }
-
-    std::sort(hits.begin(), hits.end(), [](const auto& a, const auto& b) {
-      return a.first->time() < b.first->time();
-    });
-
-    for (const auto& [hit, index] : hits) {
-      track.push_back(index);
+      track.emplace_back(measurementId);
+      hits.emplace_back(&firstSimHit);
     }
 
     // The list of measurements and the initial start parameters
@@ -140,19 +128,32 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
       ACTS_WARNING("Particle " << particle << " has less than 3 measurements");
       continue;
     }
+
+    std::vector<std::size_t> indices(hits.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::ranges::sort(indices, [&hits](std::size_t a, std::size_t b) {
+      return hits[a]->time() < hits[b]->time();
+    });
+    ProtoTrack sortedTrack;
+    sortedTrack.reserve(hits.size());
+    for (const std::size_t idx : indices) {
+      sortedTrack.emplace_back(track[idx]);
+    }
+
     // Space points on the proto track
     std::vector<SpacePointIndex> spacePointsOnTrack;
-    spacePointsOnTrack.reserve(track.size());
+    spacePointsOnTrack.reserve(sortedTrack.size());
     // Loop over the measurement index on the proto track to find the space
     // points
-    for (const auto& measurementIndex : track) {
-      auto it = spMap.find(measurementIndex);
-      if (it != spMap.end()) {
+    for (const auto& measurementId : sortedTrack) {
+      if (const auto it = spMap.find(measurementId); it != spMap.end()) {
         spacePointsOnTrack.push_back(it->second);
       }
     }
+
     // At least three space points are required
     if (spacePointsOnTrack.size() < 3) {
+      ACTS_WARNING("Particle " << particle << " has less than 3 space points");
       continue;
     }
 
@@ -160,7 +161,7 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
     // The score is defined as the product of the deltaR of the bottom-middle
     // and middle-top space point pairs to favor separation between both pairs.
     bool seedFound = false;
-    std::array<SpacePointIndex, 3> bestSPIndices{};
+    std::array<SpacePointIndex, 3> bestSpIndices{};
     float maxScore = std::numeric_limits<float>::min();
     for (std::size_t ib = 0; ib < spacePointsOnTrack.size() - 2; ++ib) {
       ConstSpacePointProxy b = spacePoints.at(spacePointsOnTrack[ib]);
@@ -207,7 +208,7 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
           if (score > maxScore) {
             seedFound = true;
-            bestSPIndices = {b.index(), m.index(), t.index()};
+            bestSpIndices = {b.index(), m.index(), t.index()};
             maxScore = score;
           }
         }
@@ -216,12 +217,12 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
     if (seedFound) {
       auto seed = seeds.createSeed();
-      seed.assignSpacePointIndices(bestSPIndices);
+      seed.assignSpacePointIndices(bestSpIndices);
 
-      Acts::ParticleHypothesis hypothesis =
+      const Acts::ParticleHypothesis hypothesis =
           m_cfg.particleHypothesis.value_or(particle.hypothesis());
 
-      seededParticles.insert(particle);
+      seededParticles.push_back(particle.index());
       tracks.emplace_back(std::move(track));
       particleHypotheses.emplace_back(hypothesis);
     }
@@ -229,7 +230,8 @@ ProcessCode TruthSeedingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
   ACTS_VERBOSE("Found " << seeds.size() << " seeds");
 
-  m_outputParticles(ctx, std::move(seededParticles));
+  m_outputParticles(
+      ctx, SelectedSimParticles(particles.container(), seededParticles));
   m_outputProtoTracks(ctx, std::move(tracks));
   m_outputSeeds(ctx, std::move(seeds));
   if (m_outputParticleHypotheses.isInitialized()) {

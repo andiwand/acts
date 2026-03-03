@@ -82,7 +82,7 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
+  ReadDataHandle<SelectedSimParticles> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
   ReadDataHandle<SimHitContainer> m_inputSimHits{this, "InputHits"};
@@ -91,7 +91,7 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
   ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
                                                          "InputSpacePoints"};
 
-  WriteDataHandle<SimParticleContainer> m_outputParticles{this,
+  WriteDataHandle<SelectedSimParticles> m_outputParticles{this,
                                                           "OutputParticles"};
   WriteDataHandle<ProtoTrackContainer> m_outputProtoTracks{this,
                                                            "OutputProtoTracks"};

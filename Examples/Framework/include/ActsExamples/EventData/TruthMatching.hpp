@@ -84,4 +84,7 @@ struct VertexToRecoMatching {
   double recoSumPt2{};
 };
 
+using VertexTruthMatching = std::vector<VertexToTruthMatching>;
+using TruthVertexMatching = std::map<SimVertexIndex, VertexToRecoMatching>;
+
 }  // namespace ActsExamples

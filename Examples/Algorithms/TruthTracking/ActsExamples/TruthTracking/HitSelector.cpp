@@ -8,9 +8,11 @@
 
 #include "ActsExamples/TruthTracking/HitSelector.hpp"
 
-#include "Acts/Utilities/MathHelpers.hpp"
+#include "Acts/Utilities/VectorHelpers.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+
+#include <set>
 
 namespace ActsExamples {
 
@@ -27,7 +29,7 @@ HitSelector::HitSelector(const Config& config,
         "values");
   }
   m_inputHits.initialize(m_cfg.inputHits);
-  m_inputParticlesSelected.maybeInitialize(m_cfg.inputParticlesSelected);
+  m_inputParticlesSelected.initialize(m_cfg.inputParticlesSelected);
   m_outputHits.initialize(m_cfg.outputHits);
 
   logSelectionConfig();
@@ -50,19 +52,26 @@ void HitSelector::logSelectionConfig() const {
 
 ProcessCode HitSelector::execute(const AlgorithmContext& ctx) const {
   const SimHitContainer& hits = m_inputHits(ctx);
-  const SimParticleContainer* particlesSelected =
-      m_inputParticlesSelected.isInitialized() ? &m_inputParticlesSelected(ctx)
-                                               : nullptr;
+  const SelectedSimParticles& particlesSelected = m_inputParticlesSelected(ctx);
 
-  std::vector<SimHit> unorderedHits;
-  unorderedHits.reserve(hits.size());
+  std::set<SimParticleIndex> selectedParticleIds;
+  for (const auto& particle : particlesSelected) {
+    selectedParticleIds.insert(particle.index());
+  }
+
+  SimHitContainer selectedHits;
+  selectedHits.reserve(hits.size());
 
   for (const auto& hit : hits) {
-    const double r = Acts::fastHypot(hit.position().x(), hit.position().y());
-    const std::uint64_t primaryVertexId = hit.particleId().vertexPrimary();
+    const SimParticleIndex particleId = hit.particleId();
+    if (selectedParticleIds.find(particleId) == selectedParticleIds.end()) {
+      continue;  // Skip hits from particles that are not selected
+    }
+    SimParticle particle = particlesSelected.container().at(particleId);
 
-    const bool validParticle = (particlesSelected == nullptr) ||
-                               particlesSelected->contains(hit.particleId());
+    const double r = Acts::VectorHelpers::perp(hit.position());
+    const std::uint64_t primaryVertexId = particle.barcode().vertexPrimary();
+
     const bool validX =
         (m_cfg.minX <= hit.position().x()) && (hit.position().x() < m_cfg.maxX);
     const bool validY =
@@ -79,17 +88,12 @@ ProcessCode HitSelector::execute(const AlgorithmContext& ctx) const {
         (m_cfg.minPrimaryVertexId <= primaryVertexId) &&
         (primaryVertexId < m_cfg.maxPrimaryVertexId);
 
-    const bool validHit = validParticle && validX && validY && validZ &&
-                          validR && validTime && validEnergyLoss &&
-                          validPrimaryVertexId;
+    const bool validHit = validX && validY && validZ && validR && validTime &&
+                          validEnergyLoss && validPrimaryVertexId;
     if (validHit) {
-      unorderedHits.push_back(hit);
+      selectedHits.push_back(hit);
     }
   }
-
-  // hits are still sorted after filtering
-  SimHitContainer selectedHits(boost::container::ordered_range_t{},
-                               unorderedHits.begin(), unorderedHits.end());
 
   ACTS_DEBUG("selected " << selectedHits.size() << " from " << hits.size()
                          << " hits");

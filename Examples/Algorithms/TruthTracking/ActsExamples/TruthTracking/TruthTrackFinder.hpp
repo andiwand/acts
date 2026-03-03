@@ -58,7 +58,7 @@ class TruthTrackFinder final : public IAlgorithm {
  private:
   Config m_cfg;
 
-  ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
+  ReadDataHandle<SelectedSimParticles> m_inputParticles{this, "InputParticles"};
 
   ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};

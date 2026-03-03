@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoVertex.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
@@ -24,6 +25,8 @@ namespace ActsExamples {
 class TruthVertexFinder final : public IAlgorithm {
  public:
   struct Config {
+    /// The input truth particles that should be used to create proto vertices.
+    std::string inputParticles;
     /// The input tracks that should be used to create proto vertices.
     std::string inputTracks;
     /// Input track-particle matching.
@@ -48,6 +51,7 @@ class TruthVertexFinder final : public IAlgorithm {
  private:
   Config m_cfg;
 
+  ReadDataHandle<SelectedSimParticles> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<ConstTrackContainer> m_inputTracks{this, "InputTracks"};
   ReadDataHandle<TrackParticleMatching> m_inputTrackParticleMatching{
       this, "InputTrackParticleMatching"};

@@ -10,7 +10,6 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/EventData/Vertex.hpp"
@@ -60,14 +59,14 @@ class VertexTruthMatcher final : public IAlgorithm {
 
   ReadDataHandle<VertexContainer> m_inputVertices{this, "InputVertices"};
   ReadDataHandle<ConstTrackContainer> m_inputTracks{this, "InputTracks"};
-  ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
+  ReadDataHandle<SelectedSimParticles> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<TrackParticleMatching> m_inputTrackParticleMatching{
       this, "InputTrackParticleMatching"};
 
-  WriteDataHandle<std::vector<VertexToTruthMatching>>
-      m_outputVertexTruthMatching{this, "OutputVertexTruthMatching"};
-  WriteDataHandle<std::map<SimVertexBarcode, VertexToRecoMatching>>
-      m_outputTruthVertexMatching{this, "OutputTruthVertexMatching"};
+  WriteDataHandle<VertexTruthMatching> m_outputVertexTruthMatching{
+      this, "OutputVertexTruthMatching"};
+  WriteDataHandle<TruthVertexMatching> m_outputTruthVertexMatching{
+      this, "OutputTruthVertexMatching"};
 };
 
 }  // namespace ActsExamples
