@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <array>
 #include <limits>
@@ -21,15 +21,15 @@ struct NoDecay {
   ///
   /// @returns Always returns infinity as limit.
   template <typename generator_t>
-  constexpr double generateProperTimeLimit(
-      generator_t& /* rng */, const Particle& /* particle */) const {
+  double generateProperTimeLimit(generator_t& /* rng */,
+                                 MutableParticleProxy /* particle */) const {
     return std::numeric_limits<double>::infinity();
   }
   /// Decay the particle without generating any descendant particles.
   /// @return Empty array of particles (no decay products)
   template <typename generator_t>
-  constexpr std::array<Particle, 0> run(generator_t& /* rng */,
-                                        const Particle& /* particle */) const {
+  std::array<ParticleIndex, 0> run(generator_t& /* rng */,
+                                   MutableParticleProxy /* particle */) const {
     return {};
   }
 };

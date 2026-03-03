@@ -129,8 +129,9 @@ struct SimulationActor {
           result.properTimeLimit - particle.properTime();
       // Evaluate the step size for massive particle, assuming massless
       // particles to be stable
-      const double stepSize =
-          properTimeDiff * particle.absoluteMomentum() / particle.mass();
+      const double stepSize = properTimeDiff *
+                              particle.simulationState().absoluteMomentum() /
+                              particle.mass();
       stepper.releaseStepSize(state.stepping,
                               Acts::ConstrainedStep::Type::User);
       stepper.updateStepSize(state.stepping, stepSize,
@@ -154,8 +155,10 @@ struct SimulationActor {
 
     // we need the particle state before and after the interaction for the hit
     // creation. create a copy since the particle will be modified in-place.
-    const Acts::Vector4 beforeFourPosition = particle.fourPosition();
-    const Acts::Vector4 beforeFourMomentum = particle.fourMomentum();
+    const Acts::Vector4 beforeFourPosition =
+        particle.simulationState().fourPosition();
+    const Acts::Vector4 beforeFourMomentum =
+        particle.simulationState().fourMomentum();
 
     // interactions only make sense if there is material to interact with.
     if (surface.surfaceMaterial()) {
@@ -163,7 +166,8 @@ struct SimulationActor {
       //   it should in principle never happen, so probably it would be best
       //   to change to a model using transform() directly
       const Acts::Result<Acts::Vector2> lpResult = surface.globalToLocal(
-          state.geoContext, particle.position(), particle.direction());
+          state.geoContext, particle.simulationState().position(),
+          particle.simulationState().direction());
       if (lpResult.ok()) {
         const Acts::Vector2 local = lpResult.value();
         Acts::MaterialSlab slab =
@@ -172,11 +176,13 @@ struct SimulationActor {
         if (!slab.isVacuum()) {
           // adapt material for non-zero incidence
           const Acts::Vector3 normal = surface.normal(
-              state.geoContext, particle.position(), particle.direction());
+              state.geoContext, particle.simulationState().position(),
+              particle.simulationState().direction());
           // dot-product(unit normal, direction) = cos(incidence angle)
           // particle direction is normalized, not sure about surface normal
           const double cosIncidenceInv =
-              normal.norm() / normal.dot(particle.direction());
+              normal.norm() /
+              normal.dot(particle.simulationState().direction());
           // apply abs in case `normal` and `particle` produce an angle > 90°
           slab.scaleThickness(std::abs(cosIncidenceInv));
           // run the interaction simulation
@@ -190,20 +196,24 @@ struct SimulationActor {
       hits->emplace_back(
           surface.geometryId(), particle.index(),
           // the interaction could potentially modify the particle position
-          0.5 * (beforeFourPosition + particle.fourPosition()),
-          beforeFourMomentum, particle.fourMomentum(), particle.numberOfHits());
+          0.5 *
+              (beforeFourPosition + particle.simulationState().fourPosition()),
+          beforeFourMomentum, particle.simulationState().fourMomentum(),
+          particle.numberOfHits());
 
       particle.numberOfHits() += 1;
     }
 
-    if (particle.absoluteMomentum() == 0.0) {
+    if (particle.simulationState().absoluteMomentum() == 0.0) {
       result.isAlive = false;
       return Acts::Result<void>::success();
     }
 
     // continue the propagation with the modified parameters
-    stepper.update(state.stepping, particle.position(), particle.direction(),
-                   particle.qOverP(), particle.time());
+    stepper.update(state.stepping, particle.simulationState().position(),
+                   particle.simulationState().direction(),
+                   particle.simulationState().qOverP(),
+                   particle.simulationState().time());
 
     return Acts::Result<void>::success();
   }
@@ -225,23 +235,28 @@ struct SimulationActor {
     // of motion. since the stepper provides only the lab time, we need to
     // compute the change in proper time for each step separately. this assumes
     // that the gamma factor is constant over one stepper step.
-    const double deltaLabTime = stepper.time(state.stepping) - particle.time();
+    const double deltaLabTime =
+        stepper.time(state.stepping) - particle.simulationState().time();
     // proper-time = time / gamma = (1/gamma) * time
     //       beta² = p²/E²
     //       gamma = 1 / sqrt(1 - beta²) = sqrt(m² + p²) / m
     //     1/gamma = m / sqrt(m² + p²) = m / E
-    const double gammaInv = particle.mass() / particle.energy();
+    const double gammaInv =
+        particle.mass() / particle.simulationState().energy();
     const double properTime = particle.properTime() + gammaInv * deltaLabTime;
     const Acts::Surface *currentSurface =
         navigator.currentSurface(state.navigation);
 
     // copy all properties and update kinematic state from stepper
-    particle.setPosition4(stepper.position(state.stepping),
-                          stepper.time(state.stepping));
-    particle.setDirection(stepper.direction(state.stepping));
-    particle.setAbsoluteMomentum(stepper.absoluteMomentum(state.stepping));
-    particle.setProperTime(properTime);
-    particle.setReferenceSurface(currentSurface);
+    particle.simulationState().fourPosition().head<3>() =
+        stepper.position(state.stepping);
+    particle.simulationState().fourPosition()[Acts::eTime] =
+        stepper.time(state.stepping);
+    particle.simulationState().direction() = stepper.direction(state.stepping);
+    particle.simulationState().absoluteMomentum() =
+        stepper.absoluteMomentum(state.stepping);
+    particle.simulationState().referenceSurface() = currentSurface;
+    particle.properTime() = properTime;
   }
 
   /// Prepare limits and process selection for the next point-like interaction.
@@ -279,7 +294,8 @@ struct SimulationActor {
       // should not) be modified by a physics process. to avoid issues, the
       // material is updated only after process simulation has occurred. this
       // intentionally overwrites any material updates made by the process.
-      particle.setMaterialPassed(x0, l0);
+      particle.pathInX0() = x0;
+      particle.pathInL0() = l0;
       return retval;
     };
 

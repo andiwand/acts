@@ -256,8 +256,8 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* stepPtr) {
     ACTS_VERBOSE("-> merge single step to hit");
 
     eventStore().hits.push_back(
-        hitFromStep(step, particleId, geoId, particle.currentNumberOfHits()));
-    ++particle.currentNumberOfHits();
+        hitFromStep(step, particleId, geoId, particle.numberOfHits()));
+    ++particle.numberOfHits();
 
     eventStore().numberGeantSteps += 1ul;
     eventStore().maxStepsForHit = std::max(eventStore().maxStepsForHit, 1ul);
@@ -276,8 +276,8 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* stepPtr) {
 
     eventStore().hits.emplace_back(
         geoId, particleId, pos4, buffer.front().momentum4Before(),
-        buffer.back().momentum4After(), particle.currentNumberOfHits());
-    ++particle.currentNumberOfHits();
+        buffer.back().momentum4After(), particle.numberOfHits());
+    ++particle.numberOfHits();
 
     assert(std::ranges::all_of(
         buffer, [&](const auto& h) { return h.geometryId() == geoId; }));

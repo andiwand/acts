@@ -13,6 +13,7 @@
 #include "Acts/Propagator/ActorList.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
+#include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/HitContainer.hpp"
 #include "ActsFatras/EventData/ParticleContainer.hpp"
 #include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
@@ -92,9 +93,9 @@ struct SingleParticleSimulation {
     actor.selectHitSurface = selectHitSurface;
     actor.initialParticle = particle;
 
-    if (particle.hasReferenceSurface()) {
+    if (particle.simulationState().hasReferenceSurface()) {
       auto result = propagator.propagate(
-          particle.boundParameters(geoCtx).value(), options);
+          particle.simulationState().boundParameters(geoCtx).value(), options);
       if (!result.ok()) {
         return result.error();
       }
@@ -102,8 +103,8 @@ struct SingleParticleSimulation {
       return std::move(value);
     }
 
-    auto result =
-        propagator.propagate(particle.curvilinearParameters(), options);
+    auto result = propagator.propagate(
+        particle.simulationState().curvilinearParameters(), options);
     if (!result.ok()) {
       return result.error();
     }
@@ -205,8 +206,8 @@ struct Simulation {
         continue;
       }
       // required to allow correct particle id numbering for secondaries later
-      if ((inputParticle.particleId().generation() != 0u) ||
-          (inputParticle.particleId().subParticle() != 0u)) {
+      if ((inputParticle.barcode().generation() != 0u) ||
+          (inputParticle.barcode().subParticle() != 0u)) {
         return detail::SimulationError::InvalidInputParticleId;
       }
 
@@ -215,7 +216,20 @@ struct Simulation {
       // the next primary particle. Use the end of the output container as
       // a queue to store particles that should be simulated.
       MutableParticleProxy simulationParticle = queue.createParticle();
-      simulationParticle.copyFrom(inputParticle);
+      // TODO copyFrom
+      simulationParticle.assignParentIndices(inputParticle.parentIndices());
+      simulationParticle.barcode() = inputParticle.barcode();
+      simulationParticle.pdg() = inputParticle.pdg();
+      simulationParticle.charge() = inputParticle.charge();
+      simulationParticle.mass() = inputParticle.mass();
+      simulationParticle.generationProcess() =
+          inputParticle.generationProcess();
+      simulationParticle.generationState().fourPosition() =
+          inputParticle.generationState().fourPosition();
+      simulationParticle.generationState().absoluteMomentum() =
+          inputParticle.generationState().absoluteMomentum();
+      simulationParticle.generationState().direction() =
+          inputParticle.generationState().direction();
       queue.commitParticle(simulationParticle);
 
       ParticleIndex lastValid = simulatedParticles.size() - 1;
@@ -308,8 +322,8 @@ struct Simulation {
     //     v|2|0|0, v|2|1|0, v|2|1|1, v|2|2|0, v|2|2|1, v|2|2|2, v|2|2|3
     //
     for (auto j = lastValid; j + 1 < particles.size(); ++j) {
-      const auto prevId = particles[j].particleId();
-      auto currId = particles[j + 1].particleId();
+      const Barcode prevId = particles[j].barcode();
+      Barcode currId = particles[j + 1].barcode();
       // NOTE primary/secondary vertex and particle are assumed to be equal
       // only renumber within one generation
       if (prevId.generation() != currId.generation()) {
@@ -321,7 +335,7 @@ struct Simulation {
       }
       // sub-particle numbering must be non-zero
       currId = currId.withSubParticle(prevId.subParticle() + 1);
-      particles[j + 1].setParticleId(currId);
+      particles[j + 1].barcode() = currId;
     }
   }
 };

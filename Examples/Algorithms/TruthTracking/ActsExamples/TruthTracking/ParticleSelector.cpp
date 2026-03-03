@@ -166,7 +166,7 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
     nInvalidCharge += static_cast<std::size_t>(!validCharge);
 
     const bool validHitCount =
-        within(p.currentNumberOfHits(), m_cfg.hitsMin, m_cfg.hitsMax);
+        within(p.numberOfHits(), m_cfg.hitsMin, m_cfg.hitsMax);
     nInvalidHitCount += static_cast<std::size_t>(!validHitCount);
 
     const std::size_t measurementCount =

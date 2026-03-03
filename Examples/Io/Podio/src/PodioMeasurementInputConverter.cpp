@@ -10,6 +10,7 @@
 
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "ActsExamples/EventData/Index.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsPodioEdm/MeasurementCollection.h"
 
 #include <podio/Frame.h>
@@ -53,10 +54,10 @@ ProcessCode PodioMeasurementInputConverter::convert(
   const auto& simHits = m_inputSimHits(ctx);
   const auto& simHitAssociations = m_inputSimHitAssociation(ctx);
 
-  IndexMultimap<SimBarcode> measurementToParticles;
+  MeasurementParticlesMap measurementToParticles;
   measurementToParticles.reserve(inputMeasurements.size());
-  IndexMultimap<Index> measurementToSimHits;
-  measurementToParticles.reserve(inputMeasurements.size());
+  MeasurementSimHitsMap measurementToSimHits;
+  measurementToSimHits.reserve(inputMeasurements.size());
 
   for (const auto& inputMeas : inputMeasurements) {
     std::size_t index = outputMeasurements.addMeasurement(
@@ -78,12 +79,8 @@ ProcessCode PodioMeasurementInputConverter::convert(
     // index -> measToSimHit -> simHit -> compare with what we get from edm4hep
     const auto& externalSimHit = inputMeas.getSimHit();
 
-    auto simHitIdx = simHitAssociations.lookup(externalSimHit);
-    auto internalSimHitIt = simHits.nth(simHitIdx);
-    if (internalSimHitIt == simHits.end()) {
-      throw std::invalid_argument("Invalid sim hit index");
-    }
-    const auto& internalSimHit = *internalSimHitIt;
+    const std::size_t simHitIdx = simHitAssociations.lookup(externalSimHit);
+    const auto& internalSimHit = simHits.at(simHitIdx);
 
     ACTS_VERBOSE("Hit lookup ext -> int "
                  << externalSimHit.id() << " -> " << "#" << simHitIdx << " ("

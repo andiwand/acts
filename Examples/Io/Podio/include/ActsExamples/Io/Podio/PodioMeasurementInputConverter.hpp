@@ -59,10 +59,10 @@ class PodioMeasurementInputConverter : public PodioInputConverter {
   WriteDataHandle<MeasurementContainer> m_outputMeasurements{
       this, "OutputMeasurements"};
 
-  WriteDataHandle<IndexMultimap<SimBarcode>> m_outputMeasurementParticlesMap{
+  WriteDataHandle<MeasurementParticlesMap> m_outputMeasurementParticlesMap{
       this, "OutputMeasurementParticlesMap"};
 
-  WriteDataHandle<IndexMultimap<Index>> m_outputMeasurementSimHitsMap{
+  WriteDataHandle<MeasurementSimHitsMap> m_outputMeasurementSimHitsMap{
       this, "OutputMeasurementSimHitsMap"};
 
   WriteDataHandle<ParticleMeasurementsMap> m_outputParticleMeasurementsMap{

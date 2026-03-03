@@ -23,7 +23,6 @@
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsFatras/EventData/Hit.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
 #include "ActsFatras/Kernel/InteractionList.hpp"
 #include "ActsFatras/Kernel/Simulation.hpp"
 #include "ActsFatras/Physics/Decay/NoDecay.hpp"
@@ -34,7 +33,6 @@
 
 #include <ostream>
 #include <stdexcept>
-#include <system_error>
 #include <utility>
 #include <vector>
 

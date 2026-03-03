@@ -88,25 +88,23 @@ enum class ParticleColumns : std::uint32_t {
   CurrentFourPosition = 1 << 11,
   CurrentAbsoluteMomentum = 1 << 12,
   CurrentDirection = 1 << 13,
-  CurrentProperTime = 1 << 14,
-  CurrentPathInX0 = 1 << 15,
-  CurrentPathInL0 = 1 << 16,
-  CurrentNumberOfHits = 1 << 17,
+  ProperTime = 1 << 14,
+  PathInX0 = 1 << 15,
+  PathInL0 = 1 << 16,
+  NumberOfHits = 1 << 17,
   SimulationOutcome = 1 << 18,
 
   Generated = Parents | Barcode | Pdg | Charge | Mass | GenerationProcess |
               InitialReferenceSurface | InitialFourPosition |
               InitialAbsoluteMomentum | InitialDirection,
   Simulated = Generated | CurrentReferenceSurface | CurrentFourPosition |
-              CurrentAbsoluteMomentum | CurrentDirection | CurrentProperTime |
-              CurrentPathInX0 | CurrentPathInL0 | CurrentNumberOfHits |
-              SimulationOutcome,
+              CurrentAbsoluteMomentum | CurrentDirection | ProperTime |
+              PathInX0 | PathInL0 | NumberOfHits | SimulationOutcome,
   All = Parents | Barcode | Pdg | Charge | Mass | GenerationProcess |
         InitialReferenceSurface | InitialFourPosition |
         InitialAbsoluteMomentum | InitialDirection | CurrentReferenceSurface |
         CurrentFourPosition | CurrentAbsoluteMomentum | CurrentDirection |
-        CurrentProperTime | CurrentPathInX0 | CurrentPathInL0 |
-        CurrentNumberOfHits | SimulationOutcome,
+        ProperTime | PathInX0 | PathInL0 | NumberOfHits | SimulationOutcome,
 };
 
 /// Enable bitwise operators for ParticleColumns enum
@@ -401,32 +399,30 @@ class ParticleContainer final {
   std::optional<ColumnHolder<Acts::Vector4>> m_currentFourPositionColumn;
   std::optional<ColumnHolder<double>> m_currentAbsoluteMomentumColumn;
   std::optional<ColumnHolder<Acts::Vector3>> m_currentDirectionColumn;
-  std::optional<ColumnHolder<double>> m_currentProperTimeColumn;
-  std::optional<ColumnHolder<double>> m_currentPathInX0Column;
-  std::optional<ColumnHolder<double>> m_currentPathInL0Column;
-  std::optional<ColumnHolder<std::uint32_t>> m_currentNumberOfHitsColumn;
+  std::optional<ColumnHolder<double>> m_properTimeColumn;
+  std::optional<ColumnHolder<double>> m_pathInX0Column;
+  std::optional<ColumnHolder<double>> m_pathInL0Column;
+  std::optional<ColumnHolder<std::uint32_t>> m_numberOfHitsColumn;
   std::optional<ColumnHolder<SimulationOutcome>> m_simulationOutcomeColumn;
 
   static auto knownColumnMasks() noexcept {
     using enum ParticleColumns;
-    return std::tuple(Parents, Parents, Barcode, Pdg, Charge, Mass,
-                      GenerationProcess, InitialReferenceSurface,
-                      InitialFourPosition, InitialAbsoluteMomentum,
-                      InitialDirection, CurrentReferenceSurface,
-                      CurrentFourPosition, CurrentAbsoluteMomentum,
-                      CurrentDirection, CurrentProperTime, CurrentPathInX0,
-                      CurrentPathInL0, CurrentNumberOfHits, SimulationOutcome);
+    return std::tuple(
+        Parents, Parents, Barcode, Pdg, Charge, Mass, GenerationProcess,
+        InitialReferenceSurface, InitialFourPosition, InitialAbsoluteMomentum,
+        InitialDirection, CurrentReferenceSurface, CurrentFourPosition,
+        CurrentAbsoluteMomentum, CurrentDirection, ProperTime, PathInX0,
+        PathInL0, NumberOfHits, SimulationOutcome);
   }
 
   static auto knownColumnNames() noexcept {
-    return std::tuple("parentsOffset", "parentsCount", "barcode", "pdg",
-                      "charge", "mass", "generationProcess",
-                      "initialReferenceSurface", "initialFourPosition",
-                      "initialAbsoluteMomentum", "initialDirection",
-                      "currentReferenceSurface", "currentFourPosition",
-                      "currentAbsoluteMomentum", "currentDirection",
-                      "currentProperTime", "currentPathInX0", "currentPathInL0",
-                      "currentNumberOfHits", "simulationOutcome");
+    return std::tuple(
+        "parentsOffset", "parentsCount", "barcode", "pdg", "charge", "mass",
+        "generationProcess", "initialReferenceSurface", "initialFourPosition",
+        "initialAbsoluteMomentum", "initialDirection",
+        "currentReferenceSurface", "currentFourPosition",
+        "currentAbsoluteMomentum", "currentDirection", "properTime", "pathInX0",
+        "pathInL0", "numberOfHits", "simulationOutcome");
   }
 
   static auto knownColumnDefaults() noexcept {
@@ -453,9 +449,8 @@ class ParticleContainer final {
         self.m_initialAbsoluteMomentumColumn, self.m_initialDirectionColumn,
         self.m_currentReferenceSurfaceColumn, self.m_currentFourPositionColumn,
         self.m_currentAbsoluteMomentumColumn, self.m_currentDirectionColumn,
-        self.m_currentProperTimeColumn, self.m_currentPathInX0Column,
-        self.m_currentPathInL0Column, self.m_currentNumberOfHitsColumn,
-        self.m_simulationOutcomeColumn);
+        self.m_properTimeColumn, self.m_pathInX0Column, self.m_pathInL0Column,
+        self.m_numberOfHitsColumn, self.m_simulationOutcomeColumn);
   }
   auto knownColumns() & noexcept { return knownColumns(*this); }
   auto knownColumns() const & noexcept { return knownColumns(*this); }
@@ -701,28 +696,28 @@ class ParticleProxy final {
     return accessImpl(m_container->m_currentDirectionColumn);
   }
 
-  double &currentProperTime() noexcept
+  double &properTime() noexcept
     requires(!ReadOnly)
   {
-    return accessImpl(m_container->m_currentProperTimeColumn);
+    return accessImpl(m_container->m_properTimeColumn);
   }
 
-  double &currentPathInX0() noexcept
+  double &pathInX0() noexcept
     requires(!ReadOnly)
   {
-    return accessImpl(m_container->m_currentPathInX0Column);
+    return accessImpl(m_container->m_pathInX0Column);
   }
 
-  double &currentPathInL0() noexcept
+  double &pathInL0() noexcept
     requires(!ReadOnly)
   {
-    return accessImpl(m_container->m_currentPathInL0Column);
+    return accessImpl(m_container->m_pathInL0Column);
   }
 
-  std::uint32_t &currentNumberOfHits() noexcept
+  std::uint32_t &numberOfHits() noexcept
     requires(!ReadOnly)
   {
-    return accessImpl(m_container->m_currentNumberOfHitsColumn);
+    return accessImpl(m_container->m_numberOfHitsColumn);
   }
 
   SimulationOutcome &simulationOutcome() noexcept
@@ -783,20 +778,20 @@ class ParticleProxy final {
     return accessImpl(m_container->m_currentDirectionColumn);
   }
 
-  double currentProperTime() const noexcept {
-    return accessImpl(m_container->m_currentProperTimeColumn);
+  double properTime() const noexcept {
+    return accessImpl(m_container->m_properTimeColumn);
   }
 
-  double currentPathInX0() const noexcept {
-    return accessImpl(m_container->m_currentPathInX0Column);
+  double pathInX0() const noexcept {
+    return accessImpl(m_container->m_pathInX0Column);
   }
 
-  double currentPathInL0() const noexcept {
-    return accessImpl(m_container->m_currentPathInL0Column);
+  double pathInL0() const noexcept {
+    return accessImpl(m_container->m_pathInL0Column);
   }
 
-  std::uint32_t currentNumberOfHits() const noexcept {
-    return accessImpl(m_container->m_currentNumberOfHitsColumn);
+  std::uint32_t numberOfHits() const noexcept {
+    return accessImpl(m_container->m_numberOfHitsColumn);
   }
 
   const SimulationOutcome &simulationOutcome() const noexcept {
