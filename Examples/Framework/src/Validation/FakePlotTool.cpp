@@ -75,11 +75,11 @@ void FakePlotTool::fill(const Acts::BoundTrackParameters& fittedParameters,
   m_efficiencies.at("fakeRatio_vs_phi").fill({fit_phi}, status);
 }
 
-void FakePlotTool::fill(const SimParticleState& truthParticle,
+void FakePlotTool::fill(const SimParticle& truthParticle,
                         std::size_t nTruthMatchedTracks,
                         std::size_t nFakeTracks) {
-  const auto t_eta = eta(truthParticle.direction());
-  const auto t_pT = truthParticle.transverseMomentum();
+  const auto t_eta = eta(truthParticle.generationState().direction());
+  const auto t_pT = truthParticle.generationState().transverseMomentum();
 
   m_histograms.at("nRecoTracks_vs_pT")
       .fill({t_pT, static_cast<double>(nTruthMatchedTracks + nFakeTracks)});

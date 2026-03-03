@@ -13,8 +13,6 @@
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
-#include "ActsExamples/Framework/WhiteBoard.hpp"
-#include "ActsExamples/Geant4/EventStore.hpp"
 #include "ActsExamples/Geant4/Geant4Manager.hpp"
 #include "ActsExamples/Geant4/MagneticFieldWrapper.hpp"
 #include "ActsExamples/Geant4/MaterialPhysicsList.hpp"
@@ -113,7 +111,7 @@ ProcessCode Geant4SimulationBase::execute(const AlgorithmContext& ctx) const {
   G4Random::setTheSeed(config().randomNumbers->generateSeed(ctx));
 
   // Get and reset event registry state
-  eventStore() = Geant4::EventStore{};
+  eventStore() = Geant4::EventStore();
 
   // Register the current event store to the registry
   // this will allow access from the User*Actions
@@ -132,15 +130,13 @@ ProcessCode Geant4SimulationBase::execute(const AlgorithmContext& ctx) const {
   }
 
   // Print out warnings about possible particle collision if happened
-  if (eventStore().particleIdCollisionsInitial > 0 ||
-      eventStore().particleIdCollisionsFinal > 0 ||
+  if (eventStore().particleIdNotFound > 0 ||
       eventStore().parentIdNotFound > 0) {
     ACTS_WARNING(
         "Particle ID collisions detected, don't trust the particle "
         "identification!");
     ACTS_WARNING(
-        "- initial states: " << eventStore().particleIdCollisionsInitial);
-    ACTS_WARNING("- final states: " << eventStore().particleIdCollisionsFinal);
+        "- particle ID not found: " << eventStore().particleIdNotFound);
     ACTS_WARNING("- parent ID not found: " << eventStore().parentIdNotFound);
   }
 
@@ -198,7 +194,6 @@ Geant4Simulation::Geant4Simulation(const Config& cfg,
     }
     Geant4::ParticleTrackingAction::Config trackingCfg;
     trackingCfg.eventStore = m_eventStore;
-    trackingCfg.keepParticlesWithoutHits = cfg.keepParticlesWithoutHits;
     // G4RunManager will take care of deletion
     auto trackingAction = new Geant4::ParticleTrackingAction(
         trackingCfg, this->logger().cloneWithSuffix("ParticleTracking"));
@@ -304,18 +299,14 @@ Geant4Simulation::Geant4Simulation(const Config& cfg,
 Geant4Simulation::~Geant4Simulation() = default;
 
 ProcessCode Geant4Simulation::execute(const AlgorithmContext& ctx) const {
-  auto ret = Geant4SimulationBase::execute(ctx);
+  const ProcessCode ret = Geant4SimulationBase::execute(ctx);
   if (ret != ProcessCode::SUCCESS) {
     return ret;
   }
 
   // Output handling: Simulation
-  m_outputParticles(
-      ctx, SimParticleContainer(eventStore().particlesSimulated.begin(),
-                                eventStore().particlesSimulated.end()));
-
-  m_outputSimHits(
-      ctx, SimHitContainer(eventStore().hits.begin(), eventStore().hits.end()));
+  m_outputParticles(ctx, std::move(eventStore().particles));
+  m_outputSimHits(ctx, std::move(eventStore().hits));
 
   // Output the propagation summaries if requested
   if (m_cfg.recordPropagationSummaries) {
@@ -376,7 +367,6 @@ Geant4MaterialRecording::Geant4MaterialRecording(
     }
     Geant4::ParticleTrackingAction::Config trackingCfg;
     trackingCfg.eventStore = m_eventStore;
-    trackingCfg.keepParticlesWithoutHits = true;
     // G4RunManager will take care of deletion
     auto trackingAction = new Geant4::ParticleTrackingAction(
         trackingCfg, this->logger().cloneWithSuffix("ParticleTracking"));

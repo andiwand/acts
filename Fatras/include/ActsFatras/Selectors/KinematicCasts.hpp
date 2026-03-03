@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Acts/Utilities/VectorHelpers.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <cmath>
 
@@ -20,8 +20,9 @@ struct Vrho {
   /// @brief Extract transverse distance from origin
   /// @param particle The particle to extract from
   /// @return Transverse distance rho = sqrt(x² + y²) from particle position
-  double operator()(const Particle& particle) const {
-    return std::hypot(particle.position().x(), particle.position().y());
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
+    return Acts::VectorHelpers::perp(particle.position());
   }
 };
 
@@ -30,7 +31,8 @@ struct Vz {
   /// @brief Extract longitudinal distance from origin
   /// @param particle The particle to extract from
   /// @return Z-coordinate of particle position
-  double operator()(const Particle& particle) const {
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
     return particle.position().z();
   }
 };
@@ -40,7 +42,8 @@ struct AbsVz {
   /// @brief Extract absolute longitudinal distance from origin
   /// @param particle The particle to extract from
   /// @return Absolute value of Z-coordinate of particle position
-  double operator()(const Particle& particle) const {
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
     return std::abs(particle.position().z());
   }
 };
@@ -50,9 +53,9 @@ struct Eta {
   /// @brief Extract direction pseudo-rapidity
   /// @param particle The particle to extract from
   /// @return Pseudo-rapidity η = atanh(p_z/p) from particle direction
-  double operator()(const Particle& particle) const {
-    // particle direction is always normalized, i.e. dz = pz / p
-    return std::atanh(particle.direction().z());
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
+    return Acts::VectorHelpers::eta(particle.direction());
   }
 };
 
@@ -61,8 +64,8 @@ struct AbsEta {
   /// @brief Extract absolute direction pseudo-rapidity
   /// @param particle The particle to extract from
   /// @return Absolute pseudo-rapidity |η| = atanh(|p_z|/p) from particle direction
-  double operator()(const Particle& particle) const {
-    // particle direction is always normalized, i.e. dz = pz / p
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
     return std::atanh(std::abs(particle.direction().z()));
   }
 };
@@ -72,10 +75,9 @@ struct Pt {
   /// @brief Extract transverse momentum
   /// @param particle The particle to extract from
   /// @return Transverse momentum p_T = p × sin(θ) from particle momentum
-  double operator()(const Particle& particle) const {
-    // particle direction is always normalized, i.e. dt²+dz²=1 w/ dt²=dx²+dy²
-    return particle.absoluteMomentum() *
-           Acts::VectorHelpers::perp(particle.direction());
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
+    return Acts::VectorHelpers::perp(particle.momentum());
   }
 };
 
@@ -84,7 +86,8 @@ struct P {
   /// @brief Extract absolute momentum magnitude
   /// @param particle The particle to extract from
   /// @return Total momentum magnitude |p| of the particle
-  double operator()(const Particle& particle) const {
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
     return particle.absoluteMomentum();
   }
 };
@@ -94,7 +97,8 @@ struct E {
   /// @brief Extract total energy
   /// @param particle The particle to extract from
   /// @return Total energy E = sqrt(p²c² + m²c⁴) of the particle
-  double operator()(const Particle& particle) const {
+  template <typename StateAccessor>
+  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
     return particle.energy();
   }
 };

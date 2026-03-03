@@ -8,13 +8,15 @@
 
 #pragma once
 
-#include "ActsExamples/EventData/GeometryContainers.hpp"
 #include "ActsFatras/EventData/Hit.hpp"
+#include "ActsFatras/EventData/HitContainer.hpp"
 
 namespace ActsExamples {
 
+using SimHitIndex = ::ActsFatras::HitIndex;
+
 using SimHit = ::ActsFatras::Hit;
-/// Store hits ordered by geometry identifier.
-using SimHitContainer = GeometryIdMultiset<SimHit>;
+
+using SimHitContainer = ::ActsFatras::HitContainer;
 
 }  // namespace ActsExamples

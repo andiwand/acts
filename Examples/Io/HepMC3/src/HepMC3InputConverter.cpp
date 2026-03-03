@@ -9,6 +9,8 @@
 #include "ActsExamples/Io/HepMC3/HepMC3InputConverter.hpp"
 
 #include "Acts/Utilities/ScopedTimer.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/EventData/SimVertex.hpp"
 
 #include <HepMC3/GenEvent.h>
 #include <HepMC3/GenParticle.h>
@@ -61,25 +63,15 @@ Acts::Vector4 convertPosition(const HepMC3::FourVector& vec) {
                        vec.t() * 1_mm);
 }
 
-std::string printListing(const auto& vertices, const auto& particles) {
-  auto findParticle = [&](SimBarcode particleId) {
-    if (auto it = std::ranges::find_if(particles,
-                                       [&](const auto& particle) {
-                                         return particle.particleId() ==
-                                                particleId;
-                                       });
-        it != particles.end()) {
-      return *it;
-    }
-    throw std::runtime_error("Particle not found");
-  };
+std::string printListing(const SimVertexContainer& vertices,
+                         const SimParticleContainer& particles) {
   std::stringstream ss;
 
   for (const auto& vertex : vertices) {
-    ss << "Vtx:    " << vertex.vertexId() << " at "
-       << vertex.position4.transpose() << "\n";
+    ss << "Vtx:    " << vertex.barcode << " at " << vertex.position4.transpose()
+       << "\n";
     for (const auto& [idx, particleId] : Acts::enumerate(vertex.incoming)) {
-      const auto& particle = findParticle(particleId);
+      const auto& particle = particles.at(particleId);
       if (idx == 0) {
         ss << " I:     ";
       } else {
@@ -90,7 +82,7 @@ std::string printListing(const auto& vertices, const auto& particles) {
     }
 
     for (const auto& [idx, particleId] : Acts::enumerate(vertex.outgoing)) {
-      const auto& particle = findParticle(particleId);
+      const auto& particle = particles.at(particleId);
       if (idx == 0) {
         ss << " O:     ";
       } else {
@@ -103,12 +95,13 @@ std::string printListing(const auto& vertices, const auto& particles) {
 
   return ss.str();
 };
+
 }  // namespace
 
 void HepMC3InputConverter::handleVertex(const HepMC3::GenVertex& genVertex,
                                         SimVertex& vertex,
-                                        std::vector<SimVertex>& vertices,
-                                        std::vector<SimParticle>& particles,
+                                        SimVertexContainer& vertices,
+                                        SimParticleContainer& particles,
                                         std::size_t& nSecondaryVertices,
                                         std::size_t& nParticles,
                                         std::vector<bool>& seenVertices) const {
@@ -126,9 +119,9 @@ void HepMC3InputConverter::handleVertex(const HepMC3::GenVertex& genVertex,
 
       ACTS_VERBOSE("Found secondary vertex at "
                    << endVertexPosition.transpose());
-      double distance = (endVertexPosition.template head<3>() -
-                         vertex.position4.template head<3>())
-                            .squaredNorm();
+      const double distance = (endVertexPosition.template head<3>() -
+                               vertex.position4.template head<3>())
+                                  .squaredNorm();
 
       if (distance <=
               m_cfg.vertexSpatialThreshold * m_cfg.vertexSpatialThreshold &&
@@ -139,8 +132,9 @@ void HepMC3InputConverter::handleVertex(const HepMC3::GenVertex& genVertex,
         // Over threshold, make a new vertex
         SimVertex secondaryVertex;
         nSecondaryVertices += 1;
-        secondaryVertex.id =
-            SimVertexBarcode{vertex.id}.withVertexSecondary(nSecondaryVertices);
+        secondaryVertex.barcode =
+            SimVertexBarcode{vertex.barcode}.withVertexSecondary(
+                nSecondaryVertices);
         secondaryVertex.position4 = convertPosition(endVertex.position());
 
         handleVertex(endVertex, secondaryVertex, vertices, particles,
@@ -159,10 +153,10 @@ void HepMC3InputConverter::handleVertex(const HepMC3::GenVertex& genVertex,
       }
       // This particle is a final state particle
       nParticles += 1;
-      SimBarcode particleId =
+      const SimBarcode barcode =
           SimBarcode()
-              .withVertexPrimary(vertex.vertexId().vertexPrimary())
-              .withVertexSecondary(vertex.vertexId().vertexSecondary())
+              .withVertexPrimary(vertex.barcode.vertexPrimary())
+              .withVertexSecondary(vertex.barcode.vertexSecondary())
               .withParticle(nParticles);
 
       Acts::PdgParticle pdg{particle->pdg_id()};
@@ -192,19 +186,22 @@ void HepMC3InputConverter::handleVertex(const HepMC3::GenVertex& genVertex,
         continue;
       }
 
-      SimParticle simParticle{particleId, pdg, charge, mass};
-      simParticle.initialState().setPosition4(vertex.position4);
-
       const HepMC3::FourVector& genMomentum = particle->momentum();
-      Acts::Vector3 momentum{genMomentum.px() * 1_GeV, genMomentum.py() * 1_GeV,
-                             genMomentum.pz() * 1_GeV};
-      double p = momentum.norm();
+      const Acts::Vector3 momentum{genMomentum.px() * 1_GeV,
+                                   genMomentum.py() * 1_GeV,
+                                   genMomentum.pz() * 1_GeV};
+      const double p = momentum.norm();
 
-      simParticle.initialState().setDirection(momentum.normalized());
-      simParticle.initialState().setAbsoluteMomentum(p);
+      MutableSimParticle simParticle = particles.createParticle();
+      simParticle.barcode() = barcode;
+      simParticle.pdg() = pdg;
+      simParticle.charge() = charge;
+      simParticle.mass() = mass;
+      simParticle.initialFourPosition() = vertex.position4;
+      simParticle.initialAbsoluteMomentum() = p;
+      simParticle.initialDirection() = momentum.normalized();
 
-      particles.push_back(simParticle);
-      vertex.outgoing.insert(particleId);
+      vertex.outgoing.push_back(simParticle.index());
     }
   }
 }
@@ -268,8 +265,8 @@ void HepMC3InputConverter::convertHepMC3ToInternalEdm(
   ACTS_DEBUG("Found " << vertexClusters.size()
                       << " primary vertex clusters (~ primary vertices)");
 
-  std::vector<SimVertex> verticesUnordered;
-  std::vector<SimParticle> particlesUnordered;
+  SimVertexContainer vertices;
+  SimParticleContainer particles;
 
   std::vector<bool> seenVertices;
   seenVertices.resize(genEvent.vertices().size());
@@ -296,8 +293,8 @@ void HepMC3InputConverter::convertHepMC3ToInternalEdm(
     ACTS_DEBUG("Reserving " << genEvent.vertices().size() / 2
                             << " vertices and " << nUndecayedParticles
                             << " particles");
-    verticesUnordered.reserve(genEvent.vertices().size() / 2);
-    particlesUnordered.reserve(nUndecayedParticles);
+    vertices.reserve(genEvent.vertices().size() / 2);
+    particles.reserve(nUndecayedParticles);
 
     for (auto& cluster : vertexClusters) {
       ACTS_VERBOSE("Primary vertex cluster at "
@@ -315,64 +312,49 @@ void HepMC3InputConverter::convertHepMC3ToInternalEdm(
 
       nPrimaryVertices += 1;
       SimVertex primaryVertex;
-      primaryVertex.id = SimVertexBarcode().withVertexPrimary(nPrimaryVertices);
+      primaryVertex.barcode =
+          SimVertexBarcode().withVertexPrimary(nPrimaryVertices);
       primaryVertex.position4 = convertPosition(cluster.at(0)->position());
 
       std::size_t nSecondaryVertices = 0;
       std::size_t nParticles = 0;
 
       for (auto& genVertex : cluster) {
-        handleVertex(*genVertex, primaryVertex, verticesUnordered,
-                     particlesUnordered, nSecondaryVertices, nParticles,
-                     seenVertices);
+        handleVertex(*genVertex, primaryVertex, vertices, particles,
+                     nSecondaryVertices, nParticles, seenVertices);
       }
-      verticesUnordered.push_back(primaryVertex);
+      vertices.push_back(primaryVertex);
     }
   }
 
-  ACTS_DEBUG("Converted " << particlesUnordered.size() << " particles and "
-                          << verticesUnordered.size() << " vertices");
+  ACTS_DEBUG("Converted " << particles.size() << " particles and "
+                          << vertices.size() << " vertices");
 
   if (m_cfg.printListing) {
     ACTS_VERBOSE("Converted event record:\n"
-                 << printListing(verticesUnordered, particlesUnordered));
-  }
-
-  {
-    Acts::ScopedTimer timer("Sorting particles and vertices", logger(),
-                            Acts::Logging::DEBUG);
-
-    std::ranges::sort(particlesUnordered, [](const auto& a, const auto& b) {
-      return a.particleId() < b.particleId();
-    });
-    std::ranges::sort(verticesUnordered, [](const auto& a, const auto& b) {
-      return a.vertexId() < b.vertexId();
-    });
+                 << printListing(vertices, particles));
   }
 
   if (m_cfg.checkConsistency) {
     ACTS_DEBUG("Checking consistency of particles");
-    auto equalParticleIds = [](const auto& a, const auto& b) {
-      return a.particleId() == b.particleId();
-    };
-    if (auto it =
-            std::ranges::adjacent_find(particlesUnordered, equalParticleIds);
-        it != particlesUnordered.end()) {
-      ACTS_ERROR("Found duplicate particle id " << it->particleId());
+    for (std::size_t i = 0; i < particles.size(); ++i) {
+      for (std::size_t j = i + 1; j < particles.size(); ++j) {
+        if (particles.at(i).barcode() == particles.at(j).barcode()) {
+          ACTS_ERROR("Found duplicate particle barcode "
+                     << particles.at(i).barcode());
+        }
+      }
     }
-    auto equalVertexIds = [](const auto& a, const auto& b) {
-      return a.vertexId() == b.vertexId();
-    };
-    if (auto it = std::ranges::adjacent_find(verticesUnordered, equalVertexIds);
-        it != verticesUnordered.end()) {
-      ACTS_ERROR("Found duplicate vertex id " << it->vertexId());
+    ACTS_DEBUG("Checking consistency of vertices");
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+      for (std::size_t j = i + 1; j < vertices.size(); ++j) {
+        if (vertices.at(i).barcode == vertices.at(j).barcode) {
+          ACTS_ERROR("Found duplicate vertex barcode "
+                     << vertices.at(i).barcode);
+        }
+      }
     }
   }
-
-  SimParticleContainer particles{particlesUnordered.begin(),
-                                 particlesUnordered.end()};
-  SimVertexContainer vertices{verticesUnordered.begin(),
-                              verticesUnordered.end()};
 
   // move generated event to the store
   m_outputParticles(ctx, std::move(particles));

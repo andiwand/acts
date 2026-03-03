@@ -63,8 +63,7 @@ class ResPlotTool {
   /// @param gctx the geometry context
   /// @param truthParticle the truth particle
   /// @param fittedParamters the fitted parameters at perigee surface
-  void fill(const Acts::GeometryContext& gctx,
-            const SimParticleState& truthParticle,
+  void fill(const Acts::GeometryContext& gctx, const SimParticle& truthParticle,
             const Acts::BoundTrackParameters& fittedParamters);
 
   /// @brief Accessors for histograms (const reference)

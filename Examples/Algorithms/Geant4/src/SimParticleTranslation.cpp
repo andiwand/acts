@@ -12,7 +12,6 @@
 #include "Acts/Definitions/Units.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
-#include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/Geant4/EventStore.hpp"
 
 #include <ostream>
@@ -30,6 +29,10 @@
 
 namespace ActsExamples::Geant4 {
 
+constexpr double convertLength = CLHEP::mm / Acts::UnitConstants::mm;
+constexpr double convertTime = CLHEP::ns / Acts::UnitConstants::ns;
+constexpr double convertEnergy = CLHEP::GeV / Acts::UnitConstants::GeV;
+
 SimParticleTranslation::SimParticleTranslation(
     const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
     : G4VUserPrimaryGeneratorAction(),
@@ -38,9 +41,12 @@ SimParticleTranslation::SimParticleTranslation(
 
 SimParticleTranslation::~SimParticleTranslation() = default;
 
-void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
-  anEvent->SetEventID(m_eventNr++);
-  unsigned int eventID = anEvent->GetEventID();
+void SimParticleTranslation::GeneratePrimaries(G4Event* eventPtr) {
+  assert(eventPtr != nullptr);
+  G4Event& event = *eventPtr;
+
+  event.SetEventID(m_eventNr++);
+  const std::uint32_t eventID = event.GetEventID();
 
   ACTS_DEBUG("Primary Generator Action for Event: " << eventID);
 
@@ -69,19 +75,18 @@ void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
   // We are looping through the particles and flush per vertex
   std::optional<Acts::Vector4> lastVertex;
 
-  constexpr double convertLength = CLHEP::mm / Acts::UnitConstants::mm;
-  constexpr double convertTime = CLHEP::ns / Acts::UnitConstants::ns;
-  constexpr double convertEnergy = CLHEP::GeV / Acts::UnitConstants::GeV;
+  std::uint32_t pCounter = 0;
+  std::uint32_t trackId = 1;
 
-  unsigned int pCounter = 0;
-  unsigned int trackId = 1;
   // Loop over the input partilces and run
-  for (const auto& part : inputParticles) {
-    auto currentVertex = part.fourPosition();
+  for (const auto& inputParticle : inputParticles) {
+    const Acts::Vector4 currentVertex =
+        inputParticle.generationState().fourPosition();
+
     if (!lastVertex || !currentVertex.isApprox(*lastVertex)) {
       // Add the vertex to the event
       if (pVertex != nullptr) {
-        anEvent->AddPrimaryVertex(pVertex);
+        event.AddPrimaryVertex(pVertex);
         ACTS_DEBUG("Flushing " << pCounter
                                << " particles associated with vertex "
                                << lastVertex->transpose());
@@ -95,13 +100,15 @@ void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
 
     // Add a new primary to the vertex
 
-    Acts::Vector4 mom4 = part.fourMomentum() * convertEnergy;
+    const Acts::Vector4 mom4 =
+        inputParticle.generationState().fourMomentum() * convertEnergy;
 
     // Particle properties, may be forced to specific value
-    G4int particlePdgCode = m_cfg.forcedPdgCode.value_or(part.pdg());
-    G4double particleCharge = m_cfg.forcedCharge.value_or(part.charge());
+    G4int particlePdgCode = m_cfg.forcedPdgCode.value_or(inputParticle.pdg());
+    G4double particleCharge =
+        m_cfg.forcedCharge.value_or(inputParticle.charge());
     G4double particleMass =
-        m_cfg.forcedMass.value_or(part.mass() * convertEnergy);
+        m_cfg.forcedMass.value_or(inputParticle.mass() * convertEnergy);
 
     // Check if it is a Geantino / ChargedGeantino
     G4ParticleDefinition* particleDefinition =
@@ -139,19 +146,33 @@ void SimParticleTranslation::GeneratePrimaries(G4Event* anEvent) {
     particle->SetMass(particleMass);
     particle->SetCharge(particleCharge);
     particle->Set4Momentum(mom4[0], mom4[1], mom4[2], mom4[3]);
-    particle->SetTrackID(trackId++);
+    particle->SetTrackID(trackId);
 
     // Add the primary to the vertex
     pVertex->SetPrimary(particle);
 
-    eventStore().particlesInitial.insert(part);
-    eventStore().trackIdMapping[particle->GetTrackID()] = part.particleId();
+    // TODO copyFrom
+    MutableSimParticle simParticle = eventStore().particles.createParticle();
+    simParticle.assignParentIndices(inputParticle.parentIndices());
+    simParticle.barcode() = inputParticle.barcode();
+    simParticle.pdg() = inputParticle.pdg();
+    simParticle.charge() = inputParticle.charge();
+    simParticle.mass() = inputParticle.mass();
+    simParticle.generationProcess() = inputParticle.generationProcess();
+    simParticle.initialFourPosition() = inputParticle.initialFourPosition();
+    simParticle.initialAbsoluteMomentum() =
+        inputParticle.initialAbsoluteMomentum();
+    simParticle.initialDirection() = inputParticle.initialDirection();
 
+    eventStore().trackIdMapping[particle->GetTrackID()] = simParticle.index();
+
+    ++trackId;
     ++pCounter;
   }
+
   // Final vertex to be added
   if (pVertex != nullptr) {
-    anEvent->AddPrimaryVertex(pVertex);
+    event.AddPrimaryVertex(pVertex);
     ACTS_DEBUG("Flushing " << pCounter << " particles associated with vertex "
                            << lastVertex->transpose());
   }

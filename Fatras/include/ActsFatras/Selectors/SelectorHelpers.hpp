@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "ActsFatras/EventData/Particle.hpp"
 #include "ActsFatras/Selectors/detail/combine_selectors.hpp"
 
 #include <functional>

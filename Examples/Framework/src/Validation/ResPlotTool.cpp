@@ -72,7 +72,7 @@ ResPlotTool::ResPlotTool(const ResPlotTool::Config& cfg,
 }
 
 void ResPlotTool::fill(const Acts::GeometryContext& gctx,
-                       const SimParticleState& truthParticle,
+                       const SimParticle& truthParticle,
                        const Acts::BoundTrackParameters& fittedParamters) {
   using ParametersVector = Acts::BoundTrackParameters::ParametersVector;
   using Acts::VectorHelpers::eta;
@@ -92,11 +92,13 @@ void ResPlotTool::fill(const Acts::GeometryContext& gctx,
   // get the truth perigee parameter
   Acts::Intersection3D intersection =
       pSurface
-          .intersect(gctx, truthParticle.position(), truthParticle.direction())
+          .intersect(gctx, truthParticle.generationState().position(),
+                     truthParticle.generationState().direction())
           .closest();
   if (intersection.isValid()) {
-    auto lpResult = pSurface.globalToLocal(gctx, intersection.position(),
-                                           truthParticle.direction());
+    auto lpResult =
+        pSurface.globalToLocal(gctx, intersection.position(),
+                               truthParticle.generationState().direction());
     assert(lpResult.ok());
 
     truthParameter[Acts::BoundIndices::eBoundLoc0] =
@@ -107,15 +109,17 @@ void ResPlotTool::fill(const Acts::GeometryContext& gctx,
     ACTS_ERROR("Cannot get the truth perigee parameter");
   }
   truthParameter[Acts::BoundIndices::eBoundPhi] =
-      phi(truthParticle.direction());
+      phi(truthParticle.generationState().direction());
   truthParameter[Acts::BoundIndices::eBoundTheta] =
-      theta(truthParticle.direction());
-  truthParameter[Acts::BoundIndices::eBoundQOverP] = truthParticle.qOverP();
-  truthParameter[Acts::BoundIndices::eBoundTime] = truthParticle.time();
+      theta(truthParticle.generationState().direction());
+  truthParameter[Acts::BoundIndices::eBoundQOverP] =
+      truthParticle.generationState().qOverP();
+  truthParameter[Acts::BoundIndices::eBoundTime] =
+      truthParticle.generationState().time();
 
   // get the truth eta and pT
-  const auto truthEta = eta(truthParticle.direction());
-  const auto truthPt = truthParticle.transverseMomentum();
+  const auto truthEta = eta(truthParticle.generationState().direction());
+  const auto truthPt = truthParticle.generationState().transverseMomentum();
 
   // fill the histograms for residual and pull
   for (unsigned int parID = 0; parID < Acts::eBoundSize; parID++) {

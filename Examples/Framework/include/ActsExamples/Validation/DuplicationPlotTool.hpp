@@ -59,7 +59,7 @@ class DuplicationPlotTool {
   ///
   /// @param truthParticle the truth Particle
   /// @param nDuplicatedTracks the number of matched tracks
-  void fill(const SimParticleState& truthParticle, std::size_t nMatchedTracks);
+  void fill(const SimParticle& truthParticle, std::size_t nMatchedTracks);
 
   /// @brief Accessors for histogram maps (const reference)
   const std::map<std::string, ProfileHistogram1>& profiles() const {

@@ -130,7 +130,7 @@ class RootTrackFinderPerformanceWriter final
       this, "InputTrackParticleMatching"};
   ReadDataHandle<ParticleTrackMatching> m_inputParticleTrackMatching{
       this, "InputParticleTrackMatching"};
-  ReadDataHandle<InverseMultimap<SimBarcode>> m_inputParticleMeasurementsMap{
+  ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
 };
 

@@ -10,7 +10,6 @@
 
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Utilities/VectorHelpers.hpp"
-#include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
@@ -23,10 +22,10 @@ namespace ActsExamples {
 
 bool ParticleSelector::MeasurementCounter::isValidParticle(
     const SimParticle& particle,
-    const InverseMultimap<SimBarcode>& particleMeasurementsMap,
+    const ParticleMeasurementsMap& particleMeasurementsMap,
     const MeasurementContainer& measurements) const {
   const auto [measurementsBegin, measurementsEnd] =
-      particleMeasurementsMap.equal_range(particle.particleId());
+      particleMeasurementsMap.equal_range(particle.barcode());
 
   for (const auto& [counterMap, threshold, perLayerCap] : counters) {
     std::uint32_t counter = 0;
@@ -127,11 +126,11 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
   // prepare input/ output types
   const SimParticleContainer& inputParticles = m_inputParticles(ctx);
 
-  const static InverseMultimap<SimBarcode> emptyMeasurementParticlesMap;
-  const InverseMultimap<SimBarcode>& inputMeasurementParticlesMap =
+  const static ParticleMeasurementsMap emptyParticlesMeasurementMap;
+  const ParticleMeasurementsMap& inputMeasurementParticlesMap =
       m_inputParticleMeasurementsMap.isInitialized()
           ? m_inputParticleMeasurementsMap(ctx)
-          : emptyMeasurementParticlesMap;
+          : emptyParticlesMeasurementMap;
 
   const static MeasurementContainer emptyMeasurements;
   const MeasurementContainer& inputMeasurements =

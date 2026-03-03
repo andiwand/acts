@@ -10,10 +10,9 @@
 
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Definitions/Units.hpp"
-#include "Acts/Utilities/MultiIndex.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Geant4/EventStore.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <cassert>
 #include <ostream>
@@ -27,11 +26,38 @@
 
 namespace ActsExamples::Geant4 {
 
+namespace {
+
+// Unit conversions G4->::ACTS
+constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
+constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
+constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
+
+template <typename StateAccessor>
+void convertState(const G4Track& track,
+                  ActsFatras::ParticleStateProxy<StateAccessor, false> state) {
+  const G4ThreeVector pPosition = convertLength * track.GetPosition();
+  const G4double pTime = convertTime * track.GetGlobalTime();
+  const G4ThreeVector pDirection = track.GetMomentumDirection();
+  const G4double p = convertEnergy * track.GetKineticEnergy();
+
+  state.fourPosition() =
+      Acts::Vector4(pPosition.x(), pPosition.y(), pPosition.z(), pTime);
+  state.absoluteMomentum() = p;
+  state.direction() =
+      Acts::Vector3(pDirection.x(), pDirection.y(), pDirection.z());
+}
+
+}  // namespace
+
 ParticleTrackingAction::ParticleTrackingAction(
     const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
     : G4UserTrackingAction(), m_cfg(cfg), m_logger(std::move(logger)) {}
 
-void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
+void ParticleTrackingAction::PreUserTrackingAction(const G4Track* trackPtr) {
+  assert(trackPtr != nullptr);
+  const G4Track& track = *trackPtr;
+
   // If this is not the case, there are unhandled cases of particle stopping in
   // the SensitiveSteppingAction
   // TODO We could also merge the remaining hits to a hit here, but it would be
@@ -39,115 +65,42 @@ void ParticleTrackingAction::PreUserTrackingAction(const G4Track* aTrack) {
   // SensitiveSteppingAction... This seems to happen O(1) times in a ttbar
   // event, so seems not to be too problematic
   if (!eventStore().hitBuffer.empty()) {
+    ACTS_WARNING("Hit buffer not empty after track. Clearing ...");
     eventStore().hitBuffer.clear();
-    ACTS_WARNING("Hit buffer not empty after track");
   }
 
-  auto barcode = makeParticleId(aTrack->GetTrackID(), aTrack->GetParentID());
+  const std::optional<SimBarcode> barcode =
+      makeBarcode(track.GetTrackID(), track.GetParentID());
 
-  // There is already a warning printed in the makeParticleId function if this
+  // There is already a warning printed in the makeBarcode function if this
   // indicates a failure
   if (!barcode) {
     return;
   }
 
-  auto fatrasParticle = convert(*aTrack, *barcode);
-  SimParticle particle(fatrasParticle, fatrasParticle);
-  auto [it, success] = eventStore().particlesInitial.insert(particle);
-
-  // Only register particle at the initial state AND if there is no particle ID
-  // collision
-  if (success) {
-    eventStore().trackIdMapping[aTrack->GetTrackID()] = particle.particleId();
-  } else {
-    eventStore().particleIdCollisionsInitial++;
-    ACTS_WARNING("Particle ID collision with "
-                 << particle.particleId()
-                 << " detected for initial particles. Skip particle");
-  }
+  MutableSimParticle simParticle = convertGenerated(track, *barcode);
+  eventStore().trackIdMapping[track.GetTrackID()] = simParticle.index();
 }
 
-void ParticleTrackingAction::PostUserTrackingAction(const G4Track* aTrack) {
+void ParticleTrackingAction::PostUserTrackingAction(const G4Track* trackPtr) {
+  assert(trackPtr != nullptr);
+  const G4Track& track = *trackPtr;
+
   // The initial particle maybe was not registered because of a particle ID
   // collision
-  if (!eventStore().trackIdMapping.contains(aTrack->GetTrackID())) {
-    ACTS_WARNING("Particle ID for track ID " << aTrack->GetTrackID()
+  if (!eventStore().trackIdMapping.contains(track.GetTrackID())) {
+    ACTS_WARNING("Particle ID for track ID " << track.GetTrackID()
                                              << " not registered. Skip");
     return;
   }
 
-  const auto barcode = eventStore().trackIdMapping.at(aTrack->GetTrackID());
-
-  auto hasHits = eventStore().particleHitCount.contains(barcode) &&
-                 eventStore().particleHitCount.at(barcode) > 0;
-
-  if (!m_cfg.keepParticlesWithoutHits && !hasHits) {
-    [[maybe_unused]] auto n = eventStore().particlesSimulated.erase(
-        SimParticle(barcode, Acts::PdgParticle::eInvalid));
-    assert(n == 1);
-    return;
-  }
-
-  auto particleIt = eventStore().particlesInitial.find(barcode);
-  if (particleIt == eventStore().particlesInitial.end()) {
-    ACTS_WARNING("Particle ID " << barcode
-                                << " not found in initial particles");
-    return;
-  }
-  SimParticle particle = *particleIt;
-  particle.finalState() = convert(*aTrack, barcode);
-
-  auto [it, success] = eventStore().particlesSimulated.insert(particle);
-
-  if (!success) {
-    eventStore().particleIdCollisionsFinal++;
-    ACTS_WARNING("Particle ID collision with "
-                 << particle.particleId()
-                 << " detected for final particles. Skip particle");
-  }
+  const SimParticleIndex simParticleId =
+      eventStore().trackIdMapping.at(track.GetTrackID());
+  MutableSimParticle simParticle = eventStore().particles.at(simParticleId);
+  convertFinal(track, simParticle);
 }
 
-SimParticleState ParticleTrackingAction::convert(const G4Track& aTrack,
-                                                 SimBarcode particleId) const {
-  // Unit conversions G4->::ACTS
-  constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
-  constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
-  constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
-
-  // Get all the information from the Track
-  const G4ParticleDefinition* particleDef = aTrack.GetParticleDefinition();
-  G4int pdg = particleDef->GetPDGEncoding();
-  G4double charge = particleDef->GetPDGCharge();
-  G4double mass = convertEnergy * particleDef->GetPDGMass();
-  G4ThreeVector pPosition = convertLength * aTrack.GetPosition();
-  G4double pTime = convertTime * aTrack.GetGlobalTime();
-  G4ThreeVector pDirection = aTrack.GetMomentumDirection();
-  G4double p = convertEnergy * aTrack.GetKineticEnergy();
-
-  std::uint32_t numberOfHits = 0;
-  if (auto it = eventStore().particleHitCount.find(particleId);
-      it != eventStore().particleHitCount.end()) {
-    numberOfHits = it->second;
-  }
-
-  ActsFatras::ParticleOutcome particleOutcome =
-      ActsFatras::ParticleOutcome::Alive;
-  if (auto it = eventStore().particleOutcome.find(particleId);
-      it != eventStore().particleOutcome.end()) {
-    particleOutcome = it->second;
-  }
-
-  // Now create the Particle
-  SimParticleState aParticle(particleId, Acts::PdgParticle{pdg}, charge, mass);
-  aParticle.setPosition4(pPosition[0], pPosition[1], pPosition[2], pTime);
-  aParticle.setDirection(pDirection[0], pDirection[1], pDirection[2]);
-  aParticle.setAbsoluteMomentum(p);
-  aParticle.setNumberOfHits(numberOfHits);
-  aParticle.setOutcome(particleOutcome);
-  return aParticle;
-}
-
-std::optional<SimBarcode> ParticleTrackingAction::makeParticleId(
+std::optional<SimBarcode> ParticleTrackingAction::makeBarcode(
     G4int trackId, G4int parentId) const {
   // We already have this particle registered (it is one of the input particles
   // or we are making a final particle state)
@@ -156,18 +109,47 @@ std::optional<SimBarcode> ParticleTrackingAction::makeParticleId(
   }
 
   if (!eventStore().trackIdMapping.contains(parentId)) {
-    ACTS_DEBUG("Parent particle " << parentId
-                                  << " not registered, cannot build barcode");
-    eventStore().parentIdNotFound++;
+    ACTS_DEBUG("Parent track ID " << parentId
+                                  << " not found, cannot build barcode");
+    ++eventStore().parentIdNotFound;
     return std::nullopt;
   }
 
-  auto pid = eventStore().trackIdMapping.at(parentId).makeDescendant();
-  auto key = pid.withoutSubparticle();
+  const SimParticleIndex simParticleId =
+      eventStore().trackIdMapping.at(parentId);
+  const SimParticle parentParticle =
+      eventStore().particles.at(simParticleId).asConst();
+  SimBarcode barcode = parentParticle.barcode().makeDescendant();
+  const SimBarcode key = parentParticle.barcode().withoutSubparticle();
   ++eventStore().subparticleMap[key];
-  pid = pid.withSubParticle(eventStore().subparticleMap[key]);
+  barcode = barcode.withSubParticle(eventStore().subparticleMap[key]);
 
-  return pid;
+  return barcode;
+}
+
+MutableSimParticle ParticleTrackingAction::convertGenerated(
+    const G4Track& track, const SimBarcode& barcode) const {
+  // Get all the information from the Track
+  const G4ParticleDefinition* particleDef = track.GetParticleDefinition();
+  const G4int pdg = particleDef->GetPDGEncoding();
+  const G4double charge = particleDef->GetPDGCharge();
+  const G4double mass = convertEnergy * particleDef->GetPDGMass();
+
+  // Now create the Particle
+  MutableSimParticle simParticle = eventStore().particles.createParticle();
+  simParticle.mass() = mass;
+  simParticle.charge() = charge;
+  simParticle.barcode() = barcode;
+  simParticle.pdg() = Acts::PdgParticle{pdg};
+
+  convertState(track, simParticle.generationState());
+
+  return simParticle;
+}
+
+void ParticleTrackingAction::convertFinal(
+    const G4Track& track, MutableSimParticle simParticle) const {
+  convertState(track, simParticle.simulationState());
 }
 
 }  // namespace ActsExamples::Geant4

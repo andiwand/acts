@@ -9,13 +9,12 @@
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Definitions/Common.hpp"
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/GenerationProcessType.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,7 +23,6 @@
 #include <numbers>
 #include <random>
 #include <utility>
-#include <vector>
 
 namespace ActsFatras {
 
@@ -47,32 +45,33 @@ class PhotonConversion {
   ///
   /// @return valid X0 limit and no limit on L0
   template <typename generator_t>
-  std::pair<double, double> generatePathLimits(generator_t& generator,
-                                               const Particle& particle) const;
+  std::pair<double, double> generatePathLimits(
+      generator_t& generator, ConstParticleProxy particle) const;
 
   /// This method evaluates the final state due to the photon conversion.
   ///
   /// @tparam generator_t Type of the random number generator
   /// @param [in, out] generator The random number generator
   /// @param [in, out] particle The interacting photon
-  /// @param [out] generated List of generated particles
+  /// @param [in] queue The particle simulation queue
   ///
   /// @return True if the conversion occurred, else false
   template <typename generator_t>
-  bool run(generator_t& generator, Particle& particle,
-           std::vector<Particle>& generated) const;
+  bool run(generator_t& generator, MutableParticleProxy particle,
+           const ParticleSimulationQueue& queue) const;
 
  private:
   /// This method constructs and returns the child particles.
   ///
   /// @param [in] photon The interacting photon
   /// @param [in] childEnergy The energy of one child particle
-  /// @param [in] childDirection The direction of the child particle
+  /// @param [in] child1Direction The direction of the first child particle
   ///
   /// @return Array containing the produced leptons
-  std::array<Particle, 2> generateChildren(
-      const Particle& photon, double childEnergy,
-      const Acts::Vector3& childDirection) const;
+  std::array<MutableParticleProxy, 2> generateChildren(
+      ConstParticleProxy photon, double childEnergy,
+      const Acts::Vector3& child1Direction,
+      const ParticleSimulationQueue& queue) const;
 
   /// Generate the energy fraction of the first child particle.
   ///
@@ -94,7 +93,7 @@ class PhotonConversion {
   /// @return The direction vector of the child particle
   template <typename generator_t>
   Acts::Vector3 generateChildDirection(generator_t& generator,
-                                       const Particle& particle) const;
+                                       ConstParticleProxy particle) const;
 
   /// Helper methods for momentum evaluation
   /// @note These methods are taken from the Geant4 class
@@ -124,12 +123,12 @@ inline double PhotonConversion::screenFunction2(double delta) const {
 
 template <typename generator_t>
 std::pair<double, double> PhotonConversion::generatePathLimits(
-    generator_t& generator, const Particle& particle) const {
+    generator_t& generator, ConstParticleProxy particle) const {
   /// This method is based upon the Athena class PhotonConversionTool
 
   // Fast exit if not a photon or the energy is too low
   if (particle.pdg() != Acts::PdgParticle::eGamma ||
-      particle.absoluteMomentum() < (2 * electronMass())) {
+      particle.simulationState().absoluteMomentum() < (2 * electronMass())) {
     return {std::numeric_limits<double>::infinity(),
             std::numeric_limits<double>::infinity()};
   }
@@ -152,7 +151,8 @@ std::pair<double, double> PhotonConversion::generatePathLimits(
   constexpr double p2 = -6.07682e-01;
 
   // Calculate xi
-  const double xi = p0 + p1 * std::pow(particle.absoluteMomentum(), p2);
+  const double xi =
+      p0 + p1 * std::pow(particle.simulationState().absoluteMomentum(), p2);
 
   std::uniform_real_distribution<double> uniformDistribution{0., 1.};
   // This is a transformation of eq. 3.75
@@ -223,86 +223,96 @@ double PhotonConversion::generateFirstChildEnergyFraction(
 
 template <typename generator_t>
 Acts::Vector3 PhotonConversion::generateChildDirection(
-    generator_t& generator, const Particle& particle) const {
+    generator_t& generator, ConstParticleProxy particle) const {
   /// This method is based upon the Athena class PhotonConversionTool
 
-  // Following the Geant4 approximation from L. Urban
-  // the azimutal angle
-  double theta = electronMass() / particle.energy();
-
-  std::uniform_real_distribution<double> uniformDistribution{0., 1.};
+  const std::uniform_real_distribution<double> uniformDistribution{0., 1.};
   const double u = -std::log(uniformDistribution(generator) *
                              uniformDistribution(generator)) *
                    1.6;
 
-  theta *= (uniformDistribution(generator) < 0.25)
-               ? u
-               : u * 1. / 3.;  // 9./(9.+27) = 0.25
+  // Following the Geant4 approximation from L. Urban the azimutal angle
+  const double theta = electronMass() / particle.simulationState().energy() *
+                       ((uniformDistribution(generator) < 0.25)
+                            ? u
+                            : u * 1. / 3.);  // 9./(9.+27) = 0.25
 
   // draw the random orientation angle
   const auto psi = std::uniform_real_distribution<double>(
       -std::numbers::pi, std::numbers::pi)(generator);
 
-  Acts::Vector3 direction = particle.direction();
   // construct the combined rotation to the scattered direction
-  Acts::RotationMatrix3 rotation(
+  const Acts::RotationMatrix3 rotation(
       // rotation of the scattering deflector axis relative to the reference
-      Acts::AngleAxis3(psi, direction) *
+      Acts::AngleAxis3(psi, particle.simulationState().direction()) *
       // rotation by the scattering angle around the deflector axis
-      Acts::AngleAxis3(theta, Acts::createCurvilinearUnitU(direction)));
-  direction.applyOnTheLeft(rotation);
+      Acts::AngleAxis3(theta, Acts::createCurvilinearUnitU(
+                                  particle.simulationState().direction())));
+  const Acts::Vector3 direction =
+      rotation * particle.simulationState().direction();
   return direction;
 }
 
-inline std::array<Particle, 2> PhotonConversion::generateChildren(
-    const Particle& photon, double childEnergy,
-    const Acts::Vector3& childDirection) const {
+inline std::array<MutableParticleProxy, 2> PhotonConversion::generateChildren(
+    ConstParticleProxy photon, double childEnergy,
+    const Acts::Vector3& child1Direction,
+    const ParticleSimulationQueue& queue) const {
   using namespace Acts::UnitLiterals;
 
   // Calculate the child momentum
   const double massChild = electronMass();
-  const double momentum1 =
+  const double absoluteMomentum1 =
       std::sqrt(childEnergy * childEnergy - massChild * massChild);
 
   // Use energy-momentum conservation for the other child
-  const Acts::Vector3 vtmp =
-      photon.fourMomentum().template segment<3>(Acts::eMom0) -
-      momentum1 * childDirection;
-  const double momentum2 = vtmp.norm();
+  const Acts::Vector3 momentum2 =
+      photon.simulationState().momentum() - absoluteMomentum1 * child1Direction;
 
   // The daughter particles are created with the explicit electron mass used in
   // the calculations for consistency. Using the full Particle constructor with
   // charge and mass also avoids an additional lookup in the internal data
   // tables.
-  std::array<Particle, 2> children = {
-      Particle(photon.particleId().makeDescendant(0), Acts::eElectron, -1_e,
-               electronMass())
-          .setPosition4(photon.fourPosition())
-          .setDirection(childDirection)
-          .setAbsoluteMomentum(momentum1)
-          .setProcess(ProcessType::ePhotonConversion)
-          .setReferenceSurface(photon.referenceSurface()),
-      Particle(photon.particleId().makeDescendant(1), Acts::ePositron, 1_e,
-               electronMass())
-          .setPosition4(photon.fourPosition())
-          .setDirection(childDirection)
-          .setAbsoluteMomentum(momentum2)
-          .setProcess(ProcessType::ePhotonConversion)
-          .setReferenceSurface(photon.referenceSurface()),
-  };
-  return children;
+
+  MutableParticleProxy child1 = queue.createParticle();
+  child1.barcode() = photon.barcode().makeDescendant(0);
+  child1.pdg() = Acts::PdgParticle::eElectron;
+  child1.charge() = -1_e;
+  child1.mass() = electronMass();
+  child1.generationProcess() = GenerationProcessType::ePhotonConversion;
+  child1.generationState().referenceSurface() =
+      photon.simulationState().referenceSurface();
+  child1.generationState().fourPosition() =
+      photon.simulationState().fourPosition();
+  child1.generationState().direction() = child1Direction;
+  child1.generationState().absoluteMomentum() = absoluteMomentum1;
+
+  MutableParticleProxy child2 = queue.createParticle();
+  child2.barcode() = photon.barcode().makeDescendant(1);
+  child2.pdg() = Acts::PdgParticle::ePositron;
+  child2.charge() = 1_e;
+  child2.mass() = electronMass();
+  child2.generationProcess() = GenerationProcessType::ePhotonConversion;
+  child2.generationState().referenceSurface() =
+      photon.simulationState().referenceSurface();
+  child2.generationState().fourPosition() =
+      photon.simulationState().fourPosition();
+  child2.generationState().direction() = momentum2.normalized();
+  child2.generationState().absoluteMomentum() = momentum2.norm();
+
+  return {child1, child2};
 }
 
 template <typename generator_t>
-bool PhotonConversion::run(generator_t& generator, Particle& particle,
-                           std::vector<Particle>& generated) const {
+bool PhotonConversion::run(generator_t& generator,
+                           MutableParticleProxy particle,
+                           const ParticleSimulationQueue& queue) const {
   // Fast exit if particle is not a photon
   if (particle.pdg() != Acts::PdgParticle::eGamma) {
     return false;
   }
 
   // Fast exit if momentum is too low
-  const double p = particle.absoluteMomentum();
+  const double p = particle.simulationState().absoluteMomentum();
   if (p < (2 * electronMass())) {
     return false;
   }
@@ -314,9 +324,7 @@ bool PhotonConversion::run(generator_t& generator, Particle& particle,
   const Acts::Vector3 childDir = generateChildDirection(generator, particle);
 
   // Produce the final state
-  const std::array<Particle, 2> finalState =
-      generateChildren(particle, childEnergy, childDir);
-  generated.insert(generated.end(), finalState.begin(), finalState.end());
+  generateChildren(particle.asConst(), childEnergy, childDir, queue);
 
   return true;
 }

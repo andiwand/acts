@@ -74,8 +74,8 @@ class EffPlotTool {
   /// @param truthParticle the truth Particle
   /// @param deltaR the distance to the closest truth particle
   /// @param status the reconstruction status
-  void fill(const Acts::GeometryContext& gctx,
-            const SimParticleState& truthParticle, double deltaR, bool status);
+  void fill(const Acts::GeometryContext& gctx, const SimParticle& truthParticle,
+            double deltaR, bool status);
 
   /// @brief Accessors for efficiency maps (const reference)
   const std::map<std::string, Efficiency1>& efficiencies1D() const {

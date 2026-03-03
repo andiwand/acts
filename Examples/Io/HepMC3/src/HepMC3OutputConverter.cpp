@@ -8,6 +8,7 @@
 
 #include "ActsExamples/Io/HepMC3/HepMC3OutputConverter.hpp"
 
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 
 #include <HepMC3/GenEvent.h>
@@ -48,11 +49,11 @@ ProcessCode HepMC3OutputConverter::execute(const AlgorithmContext& ctx) const {
   ACTS_DEBUG("Converting " << inputParticles.size() << " and "
                            << inputVertices.size() << " vertices to HepMC3");
 
-  std::unordered_map<SimBarcode, std::shared_ptr<HepMC3::GenParticle>>
-      barcodeMap;
+  std::unordered_map<SimParticleIndex, std::shared_ptr<HepMC3::GenParticle>>
+      simToHepMC3ParticleMap;
   for (const auto& inParticle : inputParticles) {
-    const Vector4 momentum =
-        inParticle.fourMomentum() / 1_GeV;  // Let's ensure we're using GeV
+    const Vector4 momentum = inParticle.generationState().fourMomentum() /
+                             1_GeV;  // Let's ensure we're using GeV
     const HepMC3::FourVector vec(momentum[0], momentum[1], momentum[2],
                                  momentum[3]);
     auto hepmc3Particle =
@@ -60,8 +61,8 @@ ProcessCode HepMC3OutputConverter::execute(const AlgorithmContext& ctx) const {
     hepmc3Particle->set_generated_mass(inParticle.mass());
     hepmc3Particle->set_status(1);
     genEvent->add_particle(hepmc3Particle);
-    ACTS_VERBOSE("Adding particle with barcode " << inParticle.particleId());
-    barcodeMap.try_emplace(inParticle.particleId(), hepmc3Particle);
+    ACTS_VERBOSE("Adding particle with barcode " << inParticle.barcode());
+    simToHepMC3ParticleMap.try_emplace(inParticle.index(), hepmc3Particle);
   }
 
   for (const auto& inVertex : inputVertices) {
@@ -89,18 +90,18 @@ ProcessCode HepMC3OutputConverter::execute(const AlgorithmContext& ctx) const {
     genEvent->add_vertex(hepmc3Vertex);
 
     for (const auto& particleId : inVertex.incoming) {
-      auto it = barcodeMap.find(particleId);
-      if (it == barcodeMap.end()) {
-        ACTS_ERROR("Particle with barcode " << particleId << " not found");
+      const auto it = simToHepMC3ParticleMap.find(particleId);
+      if (it == simToHepMC3ParticleMap.end()) {
+        ACTS_ERROR("Particle with index " << particleId << " not found");
         continue;
       }
       hepmc3Vertex->add_particle_in(it->second);
     }
 
     for (const auto& particleId : inVertex.outgoing) {
-      auto it = barcodeMap.find(particleId);
-      if (it == barcodeMap.end()) {
-        ACTS_ERROR("Particle with barcode " << particleId << " not found");
+      const auto it = simToHepMC3ParticleMap.find(particleId);
+      if (it == simToHepMC3ParticleMap.end()) {
+        ACTS_ERROR("Particle with index " << particleId << " not found");
         continue;
       }
       hepmc3Vertex->add_particle_out(it->second);

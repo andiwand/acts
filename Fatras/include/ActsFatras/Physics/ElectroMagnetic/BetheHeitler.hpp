@@ -9,8 +9,8 @@
 #pragma once
 
 #include "Acts/Material/MaterialSlab.hpp"
-#include "Acts/Utilities/UnitVectors.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Utilities/detail/FpeSafeGammaDistribution.hpp"
 
 #include <array>
@@ -40,10 +40,12 @@ struct BetheHeitler {
   /// @param [in] rndTheta1 Random number for the polar angle
   /// @param [in] rndTheta2 Random number for the polar angle
   /// @param [in] rndTheta3 Random number for the polar angle
+  /// @param [in] queue The particle simulation queue for creating the photon
   /// @return Particle representing the emitted photon
-  Particle bremPhoton(const Particle &particle, double gammaE, double rndPsi,
-                      double rndTheta1, double rndTheta2,
-                      double rndTheta3) const;
+  MutableParticleProxy bremPhoton(ConstParticleProxy particle, double gammaE,
+                                  double rndPsi, double rndTheta1,
+                                  double rndTheta2, double rndTheta3,
+                                  const ParticleSimulationQueue &queue) const;
 
   /// Simulate energy loss and update the particle parameters.
   ///
@@ -54,31 +56,39 @@ struct BetheHeitler {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<Particle, 1> operator()(generator_t &generator,
-                                     const Acts::MaterialSlab &slab,
-                                     Particle &particle) const {
+  std::array<ParticleIndex, 1> operator()(
+      generator_t &generator, const Acts::MaterialSlab &slab,
+      MutableParticleProxy particle,
+      const ParticleSimulationQueue &queue) const {
     // Take a random gamma-distributed value - depending on t/X0
     detail::FpeSafeGammaDistribution gDist(
         slab.thicknessInX0() / std::numbers::ln2, 1.);
 
-    const auto u = gDist(generator);
-    const auto z = std::exp(-u);
-    const auto sampledEnergyLoss =
-        std::abs(scaleFactor * particle.energy() * (z - 1.));
+    const double u = gDist(generator);
+    const double z = std::exp(-u);
+    const double sampledEnergyLoss =
+        std::abs(scaleFactor * particle.simulationState().energy() * (z - 1.));
 
-    std::uniform_real_distribution<double> uDist(0., 1.);
+    const std::uniform_real_distribution<double> uDist(0., 1.);
     // Build the produced photon
-    Particle photon =
-        bremPhoton(particle, sampledEnergyLoss, uDist(generator),
-                   uDist(generator), uDist(generator), uDist(generator));
-    // Recoil input momentum
-    particle.setDirection(particle.direction() * particle.absoluteMomentum() -
-                          photon.energy() * photon.direction());
+    const double rndPsi = uDist(generator);
+    const double rndTheta1 = uDist(generator);
+    const double rndTheta2 = uDist(generator);
+    const double rndTheta3 = uDist(generator);
+    const MutableParticleProxy photon =
+        bremPhoton(particle.asConst(), sampledEnergyLoss, rndPsi, rndTheta1,
+                   rndTheta2, rndTheta3, queue);
 
-    // apply the energy loss
-    particle.correctEnergy(-sampledEnergyLoss);
+    // Recoil input momentum and apply the energy loss to the electron
+    const Acts::Vector3 newMomentum =
+        particle.simulationState().direction() *
+            particle.simulationState().absoluteMomentum() -
+        photon.simulationState().energy() *
+            photon.simulationState().direction();
+    particle.simulationState().direction() = newMomentum.normalized();
+    particle.simulationState().absoluteMomentum() = newMomentum.norm();
 
-    return {photon};
+    return {photon.index()};
   }
 };
 

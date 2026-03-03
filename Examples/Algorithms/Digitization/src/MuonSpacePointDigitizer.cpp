@@ -19,6 +19,7 @@
 #include "ActsExamples/Digitization/MeasurementCreation.hpp"
 #include "ActsExamples/Digitization/Smearers.hpp"
 #include "ActsExamples/EventData/MuonSpacePoint.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 
 #include <algorithm>
 #include <format>
@@ -160,8 +161,8 @@ ProcessCode MuonSpacePointDigitizer::execute(
   // need list here for stable addresses
   MeasurementContainer measurements;
 
-  IndexMultimap<SimBarcode> measurementParticlesMap;
-  IndexMultimap<Index> measurementSimHitsMap;
+  MeasurementParticlesMap measurementParticlesMap;
+  MeasurementSimHitsMap measurementSimHitsMap;
   measurements.reserve(gotSimHits.size());
   measurementParticlesMap.reserve(gotSimHits.size());
   measurementSimHitsMap.reserve(gotSimHits.size());
@@ -174,14 +175,7 @@ ProcessCode MuonSpacePointDigitizer::execute(
   std::multimap<GeometryIdentifier, std::array<double, 3>> stripTimes{};
 
   ACTS_DEBUG("Starting loop over modules ...");
-  for (const auto& simHitsGroup : groupByModule(gotSimHits)) {
-    // Manual pair unpacking instead of using
-    //   auto [moduleGeoId, moduleSimHits] : ...
-    // otherwise clang on macos complains that it is unable to capture the local
-    // binding in the lambda used for visiting the smearer below.
-    Acts::GeometryIdentifier moduleGeoId = simHitsGroup.first;
-    const auto& moduleSimHits = simHitsGroup.second;
-
+  for (const auto& [moduleGeoId, moduleSimHits] : gotSimHits.hitsBySurfaces()) {
     const Surface* hitSurf = trackingGeometry().findSurface(moduleGeoId);
     assert(hitSurf != nullptr);
 
@@ -193,9 +187,8 @@ ProcessCode MuonSpacePointDigitizer::execute(
     const auto& bounds = hitSurf->bounds();
 
     // Iterate over all simHits in a single module
-    for (auto h = moduleSimHits.begin(); h != moduleSimHits.end(); ++h) {
-      const auto& simHit = *h;
-      const auto simHitIdx = gotSimHits.index_of(h);
+    for (const SimHitIndex simHitId : moduleSimHits) {
+      const auto& simHit = gotSimHits.at(simHitId);
 
       // Convert the hit trajectory into local coordinates
       const Vector3 locPos = surfLocToGlob.inverse() * simHit.position();
@@ -289,11 +282,9 @@ ProcessCode MuonSpacePointDigitizer::execute(
 
               auto measurement =
                   createMeasurement(measurements, moduleGeoId, dParameters);
-              measurementParticlesMap.emplace_hint(
-                  measurementParticlesMap.end(), measurement.index(),
-                  gotSimHits.nth(simHitIdx)->particleId());
-              measurementSimHitsMap.emplace_hint(
-                  measurementSimHitsMap.end(), measurement.index(), simHitIdx);
+              measurementParticlesMap.emplace(measurement.index(),
+                                              simHit.particleId());
+              measurementSimHitsMap.emplace(measurement.index(), simHitId);
 
               break;
             }
@@ -395,11 +386,9 @@ ProcessCode MuonSpacePointDigitizer::execute(
 
           auto measurement =
               createMeasurement(measurements, moduleGeoId, dParameters);
-          measurementParticlesMap.emplace_hint(
-              measurementParticlesMap.end(), measurement.index(),
-              gotSimHits.nth(simHitIdx)->particleId());
-          measurementSimHitsMap.emplace_hint(measurementSimHitsMap.end(),
-                                             measurement.index(), simHitIdx);
+          measurementParticlesMap.emplace(measurement.index(),
+                                          simHit.particleId());
+          measurementSimHitsMap.emplace(measurement.index(), simHitId);
           break;
         }
         default:

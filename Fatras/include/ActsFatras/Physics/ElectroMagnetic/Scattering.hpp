@@ -11,7 +11,8 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Physics/ElectroMagnetic/detail/GaussianMixture.hpp"
 #include "ActsFatras/Physics/ElectroMagnetic/detail/GeneralMixture.hpp"
 #include "ActsFatras/Physics/ElectroMagnetic/detail/Highland.hpp"
@@ -39,9 +40,10 @@ struct GenericScattering {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<Particle, 0> operator()(generator_t &generator,
-                                     const Acts::MaterialSlab &slab,
-                                     Particle &particle) const {
+  std::array<ParticleIndex, 0> operator()(
+      generator_t &generator, const Acts::MaterialSlab &slab,
+      MutableParticleProxy particle,
+      const ParticleSimulationQueue & /*queue*/) const {
     // the scattered direction can be computed by rotating the initial
     // direction around a vector orthogonal to the initial direction, i.e. the
     // scattering deflector, by the scattering angle. there are an infinite
@@ -56,17 +58,17 @@ struct GenericScattering {
     const auto psi = std::uniform_real_distribution<double>(
         -std::numbers::pi, std::numbers::pi)(generator);
     // draw the scattering angle
-    const auto theta = angle(generator, slab, particle);
+    const double theta = angle(generator, slab, particle);
 
-    Acts::Vector3 direction = particle.direction();
     // construct the combined rotation to the scattered direction
-    Acts::RotationMatrix3 rotation(
+    const Acts::RotationMatrix3 rotation(
         // rotation of the scattering deflector axis relative to the reference
-        Acts::AngleAxis3(psi, direction) *
+        Acts::AngleAxis3(psi, particle.simulationState().direction()) *
         // rotation by the scattering angle around the deflector axis
-        Acts::AngleAxis3(theta, Acts::createCurvilinearUnitU(direction)));
-    direction.applyOnTheLeft(rotation);
-    particle.setDirection(direction);
+        Acts::AngleAxis3(theta, Acts::createCurvilinearUnitU(
+                                    particle.simulationState().direction())));
+    particle.simulationState().direction() =
+        rotation * particle.simulationState().direction();
 
     // scattering is non-destructive and produces no secondaries
     return {};

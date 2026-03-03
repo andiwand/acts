@@ -42,6 +42,18 @@ class HitContainer {
 
   const std::vector<Hit>& hits() const noexcept { return m_hits; }
 
+  const std::unordered_map<ParticleIndex, std::vector<HitIndex>>&
+  hitsByParticles() const noexcept {
+    return m_hitsByParticles;
+  }
+
+  const std::unordered_map<Acts::GeometryIdentifier, std::vector<HitIndex>>&
+  hitsBySurfaces() const noexcept {
+    return m_hitsBySurfaces;
+  }
+
+  Hit& push_back(const Hit& hit);
+
   Hit& emplace_back(Acts::GeometryIdentifier geometryId,
                     ParticleIndex particleId, const Acts::Vector4& pos4,
                     const Acts::Vector4& before4, const Acts::Vector4& after4,
@@ -105,9 +117,9 @@ class HitContainer {
 
  private:
   std::vector<Hit> m_hits;
-  std::unordered_map<ParticleIndex, std::vector<HitIndex>> m_hitsByParticle;
+  std::unordered_map<ParticleIndex, std::vector<HitIndex>> m_hitsByParticles;
   std::unordered_map<Acts::GeometryIdentifier, std::vector<HitIndex>>
-      m_hitsBySurface;
+      m_hitsBySurfaces;
 };
 
 }  // namespace ActsFatras

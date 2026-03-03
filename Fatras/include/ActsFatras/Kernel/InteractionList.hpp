@@ -9,7 +9,8 @@
 #pragma once
 
 #include "Acts/Material/MaterialSlab.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 
 #include <bitset>
 #include <tuple>
@@ -82,7 +83,7 @@ using TupleFilter = typename TupleFilterImpl<predicate_t, tuple_t,
 template <typename process_t>
 concept PointLikeProcessConcept = requires(
     const process_t& p, std::uniform_int_distribution<unsigned int>& rng,
-    const Particle& prt) {
+    ConstParticleProxy prt) {
   { p.generatePathLimits(rng, prt) } -> std::same_as<std::pair<double, double>>;
 };
 
@@ -219,14 +220,13 @@ class InteractionList {
   /// @param[in]     rng       is the random number generator
   /// @param[in]     slab      is the passed material
   /// @param[in,out] particle  is the particle being updated
-  /// @param[out]    generated is the container of generated particles
+  /// @param[in]     queue     is the simulation queue of generated particles
   /// @return Break condition, i.e. whether a process stopped the propagation
   template <typename generator_t>
   bool runContinuous(generator_t& rng, const Acts::MaterialSlab& slab,
-                     Particle& particle,
-                     std::vector<Particle>& generated) const {
-    return runContinuousImpl(rng, slab, particle, generated,
-                             ContinuousIndices());
+                     MutableParticleProxy particle,
+                     const ParticleSimulationQueue& queue) const {
+    return runContinuousImpl(rng, slab, particle, queue, ContinuousIndices());
   }
 
   /// Arm the point-like interactions by generating limits and select processes.
@@ -237,7 +237,8 @@ class InteractionList {
   /// @return X0/L0 limits for the particle and the process index that should be
   ///   executed once the limit has been reached.
   template <typename generator_t>
-  Selection armPointLike(generator_t& rng, const Particle& particle) const {
+  Selection armPointLike(generator_t& rng,
+                         MutableParticleProxy particle) const {
     Selection selection;
     armPointLikeImpl(rng, particle, selection, PointLikeIndices());
     return selection;
@@ -249,7 +250,7 @@ class InteractionList {
   /// @param[in]     rng          is the random number generator
   /// @param[in]     processIndex is the index of the process to be executed
   /// @param[in,out] particle     is the particle being updated
-  /// @param[out]    generated    is the container of generated particles
+  /// @param[in]     queue        is the simulation queue of generated particles
   /// @return Break condition, i.e. whether a process killed the particle
   ///
   /// The process index is expected to originate from a previous
@@ -257,9 +258,9 @@ class InteractionList {
   /// correct process requires more information that is not available here.
   template <typename generator_t>
   bool runPointLike(generator_t& rng, std::size_t processIndex,
-                    Particle& particle,
-                    std::vector<Particle>& generated) const {
-    return runPointLikeImpl(rng, processIndex, particle, generated,
+                    MutableParticleProxy particle,
+                    const ParticleSimulationQueue& queue) const {
+    return runPointLikeImpl(rng, processIndex, particle, queue,
                             PointLikeIndices());
   }
 
@@ -273,22 +274,23 @@ class InteractionList {
   // interface. this is done using an index-based compile-time recursive call.
   template <typename generator_t, std::size_t kI0, std::size_t... kIs>
   bool runContinuousImpl(generator_t& rng, const Acts::MaterialSlab& slab,
-                         Particle& particle, std::vector<Particle>& generated,
+                         MutableParticleProxy particle,
+                         const ParticleSimulationQueue& queue,
                          std::index_sequence<kI0, kIs...> /*indices*/) const {
     const auto& process = std::get<kI0>(m_processes);
     // only call process if it is not masked
-    if (!m_mask[kI0] && process(rng, slab, particle, generated)) {
+    if (!m_mask[kI0] && process(rng, slab, particle, queue)) {
       // exit early in case the process signals an abort
       return true;
     }
-    return runContinuousImpl(rng, slab, particle, generated,
+    return runContinuousImpl(rng, slab, particle, queue,
                              std::index_sequence<kIs...>());
   }
   template <typename generator_t>
   bool runContinuousImpl(generator_t& /*rng*/,
                          const Acts::MaterialSlab& /*slab*/,
-                         Particle& /*particle*/,
-                         std::vector<Particle>& /*generated*/,
+                         MutableParticleProxy /*particle*/,
+                         const ParticleSimulationQueue& /*queue*/,
                          std::index_sequence<> /*indices*/) const {
     return false;
   }
@@ -297,7 +299,7 @@ class InteractionList {
   // processes and select the ones that generate the smallest limits. this is
   // done using an index-based compile-time recursive call.
   template <typename generator_t, std::size_t kI0, std::size_t... kIs>
-  void armPointLikeImpl(generator_t& rng, const Particle& particle,
+  void armPointLikeImpl(generator_t& rng, MutableParticleProxy particle,
                         Selection& selection,
                         std::index_sequence<kI0, kIs...> /*indices*/) const {
     // only arm the process if it is not masked
@@ -317,7 +319,7 @@ class InteractionList {
     armPointLikeImpl(rng, particle, selection, std::index_sequence<kIs...>());
   }
   template <typename generator_t>
-  void armPointLikeImpl(generator_t& /*rng*/, const Particle& /*particle*/,
+  void armPointLikeImpl(generator_t& /*rng*/, MutableParticleProxy /*particle*/,
                         Selection& /*selection*/,
                         std::index_sequence<> /*indices*/) const {}
 
@@ -327,7 +329,8 @@ class InteractionList {
   // requested one.
   template <typename generator_t, std::size_t kI0, std::size_t... kIs>
   bool runPointLikeImpl(generator_t& rng, std::size_t processIndex,
-                        Particle& particle, std::vector<Particle>& generated,
+                        MutableParticleProxy particle,
+                        const ParticleSimulationQueue& queue,
                         std::index_sequence<kI0, kIs...> /*indices*/) const {
     if (kI0 == processIndex) {
       if (m_mask[kI0]) {
@@ -335,16 +338,16 @@ class InteractionList {
         // particle continues to be alive; not a break condition.
         return false;
       }
-      return std::get<kI0>(m_processes).run(rng, particle, generated);
+      return std::get<kI0>(m_processes).run(rng, particle, queue);
     }
     // continue the iteration with the remaining processes
-    return runPointLikeImpl(rng, processIndex, particle, generated,
+    return runPointLikeImpl(rng, processIndex, particle, queue,
                             std::index_sequence<kIs...>());
   }
   template <typename generator_t>
   bool runPointLikeImpl(generator_t& /*rng*/, std::size_t /*processIndex*/,
-                        Particle& /*particle*/,
-                        std::vector<Particle>& /*generated*/,
+                        MutableParticleProxy /*particle*/,
+                        const ParticleSimulationQueue& /*queue*/,
                         std::index_sequence<> /*indices*/) const {
     // the requested process index is outside the possible range. **do not**
     // treat this as an error to simplify the case of an empty physics lists or

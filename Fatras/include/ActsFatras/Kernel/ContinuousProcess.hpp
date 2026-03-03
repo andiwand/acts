@@ -9,7 +9,8 @@
 #pragma once
 
 #include "Acts/Material/MaterialSlab.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Kernel/InteractionList.hpp"
 
 namespace ActsFatras {
@@ -58,22 +59,26 @@ struct ContinuousProcess {
   /// @param[in]     generator is the random number generator
   /// @param[in]     slab      is the passed material
   /// @param[in,out] particle  is the particle being updated
-  /// @param[out]    generated is the container of generated particles
+  /// @param[in]     queue     is the simulation queue of generated particles
   /// @return Break condition, i.e. whether this process stops the propagation
   ///
   /// @tparam generator_t must be a RandomNumberEngine
   template <typename generator_t>
   bool operator()(generator_t &generator, const Acts::MaterialSlab &slab,
-                  Particle &particle, std::vector<Particle> &generated) const {
+                  MutableParticleProxy particle,
+                  const ParticleSimulationQueue &queue) const {
     // not selecting this process is not a break condition
     if (!selectInputParticle(particle)) {
       return false;
     }
     // modify particle according to the physics process
     auto children = physics(generator, slab, particle);
-    // move selected child particles to the output container
-    std::copy_if(std::begin(children), std::end(children),
-                 std::back_inserter(generated), selectChildParticle);
+    // enqueue selected child particles
+    for (const MutableParticleProxy child : children) {
+      if (selectChildParticle(child)) {
+        queue.selectParticle(child);
+      }
+    }
     // break condition is defined by whether the output particle is still valid
     // or not e.g. because it has fallen below a momentum threshold.
     return !selectOutputParticle(particle);

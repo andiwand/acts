@@ -13,14 +13,15 @@
 #include "Acts/Propagator/ActorList.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/HitContainer.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Kernel/SimulationResult.hpp"
 #include "ActsFatras/Kernel/detail/SimulationActor.hpp"
 #include "ActsFatras/Kernel/detail/SimulationError.hpp"
 
 #include <algorithm>
 #include <cassert>
-#include <iterator>
 #include <memory>
 #include <vector>
 
@@ -52,10 +53,10 @@ struct SingleParticleSimulation {
 
   /// Alternatively construct the simulator with an external logger.
   /// @param propagator_ Propagator to use for particle simulation
-  /// @param _logger Logger instance for debug output
+  /// @param logger_ Logger instance for debug output
   SingleParticleSimulation(propagator_t &&propagator_,
-                           std::unique_ptr<const Acts::Logger> _logger)
-      : propagator(propagator_), logger(std::move(_logger)) {}
+                           std::unique_ptr<const Acts::Logger> logger_)
+      : propagator(propagator_), logger(std::move(logger_)) {}
 
   /// Simulate a single particle without secondaries.
   ///
@@ -70,7 +71,7 @@ struct SingleParticleSimulation {
   Acts::Result<SimulationResult> simulate(
       const Acts::GeometryContext &geoCtx,
       const Acts::MagneticFieldContext &magCtx, generator_t &generator,
-      const Particle &particle) const {
+      ConstParticleProxy particle) const {
     // propagator-related additional types
     using Actor = detail::SimulationActor<generator_t, decay_t, interactions_t,
                                           hit_surface_selector_t>;
@@ -118,7 +119,7 @@ struct FailedParticle {
   /// This must store the full particle state to be able to handle secondaries
   /// that are not in the input particle list. Otherwise they could not be
   /// referenced.
-  Particle particle;
+  ParticleIndex particleId{};
   /// The associated error code for this particular failure case.
   std::error_code error;
 };
@@ -187,23 +188,18 @@ struct Simulation {
   /// @tparam input_particles_t is a Container for particles
   /// @tparam output_particles_t is a SequenceContainer for particles
   /// @tparam hits_t is a SequenceContainer for hits
-  template <typename generator_t, typename input_particles_t,
-            typename output_particles_t, typename hits_t>
+  template <typename generator_t>
   Acts::Result<std::vector<FailedParticle>> simulate(
       const Acts::GeometryContext &geoCtx,
       const Acts::MagneticFieldContext &magCtx, generator_t &generator,
-      const input_particles_t &inputParticles,
-      output_particles_t &simulatedParticlesInitial,
-      output_particles_t &simulatedParticlesFinal, hits_t &hits) const {
-    assert(
-        (simulatedParticlesInitial.size() == simulatedParticlesFinal.size()) &&
-        "Inconsistent initial sizes of the simulated particle containers");
-
+      const ParticleContainer &inputParticles,
+      ParticleContainer &simulatedParticles, HitContainer &hits) const {
     using SingleParticleSimulationResult = Acts::Result<SimulationResult>;
 
+    ParticleSimulationQueue queue(simulatedParticles);
     std::vector<FailedParticle> failedParticles;
 
-    for (const Particle &inputParticle : inputParticles) {
+    for (ConstParticleProxy inputParticle : inputParticles) {
       // only consider simulatable particles
       if (!selectParticle(inputParticle)) {
         continue;
@@ -218,54 +214,46 @@ struct Simulation {
       // i.e. we simulate all secondaries, tertiaries, ... before simulating
       // the next primary particle. Use the end of the output container as
       // a queue to store particles that should be simulated.
-      //
-      // WARNING the initial particle state output container will be modified
-      //         during iteration. New secondaries are added to and failed
-      //         particles might be removed. To avoid issues, access must always
-      //         occur via indices.
-      std::size_t iinitial = simulatedParticlesInitial.size();
-      simulatedParticlesInitial.push_back(inputParticle);
-      while (iinitial < simulatedParticlesInitial.size()) {
-        const auto &initialParticle = simulatedParticlesInitial[iinitial];
+      MutableParticleProxy simulationParticle = queue.createParticle();
+      simulationParticle.copyFrom(inputParticle);
+      queue.commitParticle(simulationParticle);
+
+      ParticleIndex lastValid = simulatedParticles.size() - 1;
+
+      while (!queue.empty()) {
+        MutableParticleProxy currentParticle = queue.popParticle();
 
         // only simulatable particles are pushed to the container and here we
         // only need to switch between charged/neutral.
         SingleParticleSimulationResult result =
             SingleParticleSimulationResult::success({});
-        if (initialParticle.charge() != 0.) {
-          result = charged.simulate(geoCtx, magCtx, generator, initialParticle);
+        if (currentParticle.charge() != 0) {
+          result = charged.simulate(geoCtx, magCtx, generator, currentParticle);
         } else {
-          result = neutral.simulate(geoCtx, magCtx, generator, initialParticle);
+          result = neutral.simulate(geoCtx, magCtx, generator, currentParticle);
         }
 
         if (!result.ok()) {
-          // remove particle from output container since it was not simulated.
-          simulatedParticlesInitial.erase(
-              std::next(simulatedParticlesInitial.begin(), iinitial));
           // record the particle as failed
-          failedParticles.push_back({initialParticle, result.error()});
+          failedParticles.push_back({currentParticle.index(), result.error()});
           continue;
         }
 
-        assert(result->particle.particleId() == initialParticle.particleId() &&
-               "Particle id must not change during simulation");
+        for (ConstParticleProxy selectedParticle : queue.selectedParticles()) {
+          if (selectParticle(selectedParticle)) {
+            queue.commitParticle(selectedParticle);
+          }
+        }
 
-        copyOutputs(result.value(), simulatedParticlesInitial,
-                    simulatedParticlesFinal, hits);
         // since physics processes are independent, there can be particle id
         // collisions within the generated secondaries. they can be resolved by
         // renumbering within each sub-particle generation. this must happen
         // before the particle is simulated since the particle id is used to
         // associate generated hits back to the particle.
-        renumberTailParticleIds(simulatedParticlesInitial, iinitial);
-
-        ++iinitial;
+        renumberTailParticleIds(simulatedParticles, lastValid);
+        lastValid = simulatedParticles.size() - 1;
       }
     }
-
-    assert(
-        (simulatedParticlesInitial.size() == simulatedParticlesFinal.size()) &&
-        "Inconsistent final sizes of the simulated particle containers");
 
     // the overall function call succeeded, i.e. no fatal errors occurred.
     // yet, there might have been some particle for which the propagation
@@ -276,32 +264,12 @@ struct Simulation {
 
  private:
   /// Select if the particle should be simulated at all.
-  bool selectParticle(const Particle &particle) const {
-    if (particle.charge() != 0.) {
+  bool selectParticle(ConstParticleProxy particle) const {
+    if (particle.charge() != 0) {
       return selectCharged(particle);
     } else {
       return selectNeutral(particle);
     }
-  }
-
-  /// Copy results to output containers.
-  ///
-  /// @tparam particles_t is a SequenceContainer for particles
-  /// @tparam hits_t is a SequenceContainer for hits
-  template <typename particles_t, typename hits_t>
-  void copyOutputs(const SimulationResult &result,
-                   particles_t &particlesInitial, particles_t &particlesFinal,
-                   hits_t &hits) const {
-    // initial particle state was already pushed to the container before
-    // store final particle state at the end of the simulation
-    particlesFinal.push_back(result.particle);
-    std::copy(result.hits.begin(), result.hits.end(), std::back_inserter(hits));
-
-    // move generated secondaries that should be simulated to the output
-    std::copy_if(
-        result.generatedParticles.begin(), result.generatedParticles.end(),
-        std::back_inserter(particlesInitial),
-        [this](const Particle &particle) { return selectParticle(particle); });
   }
 
   /// Renumber particle ids in the tail of the container.
@@ -318,9 +286,8 @@ struct Simulation {
   ///       vertex numbers (primary/secondary) and particle number and are
   ///       ordered according to their generation number.
   ///
-  template <typename particles_t>
-  static void renumberTailParticleIds(particles_t &particles,
-                                      std::size_t lastValid) {
+  static void renumberTailParticleIds(ParticleContainer &particles,
+                                      ParticleIndex lastValid) {
     // iterate over adjacent pairs; potentially modify the second element.
     // assume e.g. a primary particle 2 with generation=subparticle=0 that
     // generates two secondaries during simulation. we have the following
@@ -340,9 +307,9 @@ struct Simulation {
     //
     //     v|2|0|0, v|2|1|0, v|2|1|1, v|2|2|0, v|2|2|1, v|2|2|2, v|2|2|3
     //
-    for (auto j = lastValid; (j + 1u) < particles.size(); ++j) {
+    for (auto j = lastValid; j + 1 < particles.size(); ++j) {
       const auto prevId = particles[j].particleId();
-      auto currId = particles[j + 1u].particleId();
+      auto currId = particles[j + 1].particleId();
       // NOTE primary/secondary vertex and particle are assumed to be equal
       // only renumber within one generation
       if (prevId.generation() != currId.generation()) {
@@ -353,8 +320,8 @@ struct Simulation {
         continue;
       }
       // sub-particle numbering must be non-zero
-      currId = currId.withSubParticle(prevId.subParticle() + 1u);
-      particles[j + 1u] = particles[j + 1u].withParticleId(currId);
+      currId = currId.withSubParticle(prevId.subParticle() + 1);
+      particles[j + 1].setParticleId(currId);
     }
   }
 };

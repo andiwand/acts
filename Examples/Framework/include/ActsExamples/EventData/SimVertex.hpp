@@ -10,11 +10,13 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/GenerationProcessType.hpp"
 
 #include <boost/container/flat_set.hpp>
 
 namespace ActsExamples {
+
+using SimVertexIndex = std::uint32_t;
 
 class SimVertexBarcode {
  public:
@@ -83,15 +85,16 @@ class SimVertexBarcode {
 /// A simulated vertex e.g. from a physics process.
 struct SimVertex {
   /// The vertex ID
-  SimVertexBarcode id = SimVertexBarcode(SimBarcode::Invalid());
+  SimVertexBarcode barcode = SimVertexBarcode(SimBarcode::Invalid());
   /// The vertex four-position
   Acts::Vector4 position4 = Acts::Vector4::Zero();
   /// The vertex process type
-  ActsFatras::ProcessType process = ActsFatras::ProcessType::eUndefined;
+  ActsFatras::GenerationProcessType process =
+      ActsFatras::GenerationProcessType::eUndefined;
   /// The incoming particles into the vertex
-  SimBarcodeContainer incoming;
+  std::vector<SimParticleIndex> incoming;
   /// The outgoing particles from the vertex
-  SimBarcodeContainer outgoing;
+  std::vector<SimParticleIndex> outgoing;
 
   /// Construct the vertex from a position and optional process type.
   ///
@@ -100,10 +103,10 @@ struct SimVertex {
   ///
   /// Associated particles are left empty by default and must be filled by the
   /// user after construction.
-  SimVertex(
-      SimVertexBarcode id_, const Acts::Vector4& position4_,
-      ActsFatras::ProcessType process_ = ActsFatras::ProcessType::eUndefined)
-      : id(id_), position4(position4_), process(process_) {}
+  SimVertex(SimVertexBarcode barcode_, const Acts::Vector4& position4_,
+            ActsFatras::GenerationProcessType process_ =
+                ActsFatras::GenerationProcessType::eUndefined)
+      : barcode(barcode_), position4(position4_), process(process_) {}
   // explicitly default rule-of-five.
   SimVertex() = default;
   SimVertex(const SimVertex&) = default;
@@ -111,40 +114,12 @@ struct SimVertex {
   SimVertex& operator=(const SimVertex&) = default;
   SimVertex& operator=(SimVertex&&) = default;
 
-  constexpr SimVertexBarcode vertexId() const { return id; }
   /// The vertex three-position.
   auto position() const { return position4.head<3>(); }
   /// The vertex time.
   double time() const { return position4[3]; }
 };
 
-namespace detail {
-struct CompareVertexId {
-  using is_transparent = void;
-  constexpr bool operator()(const SimVertex& lhs, const SimVertex& rhs) const {
-    return lhs.vertexId() < rhs.vertexId();
-  }
-  constexpr bool operator()(SimVertexBarcode lhs, const SimVertex& rhs) const {
-    return lhs < rhs.vertexId();
-  }
-  constexpr bool operator()(const SimVertex& lhs, SimVertexBarcode rhs) const {
-    return lhs.vertexId() < rhs;
-  }
-};
-}  // namespace detail
-
-/// Store vertices ordered by vertex identifier.
-using SimVertexContainer =
-    ::boost::container::flat_set<SimVertex, detail::CompareVertexId>;
+using SimVertexContainer = std::vector<SimVertex>;
 
 }  // namespace ActsExamples
-
-// specialize std::hash so Barcode can be used e.g. in an unordered_map
-namespace std {
-template <>
-struct hash<ActsExamples::SimVertexBarcode> {
-  auto operator()(ActsExamples::SimVertexBarcode barcode) const noexcept {
-    return barcode.hash();
-  }
-};
-}  // namespace std

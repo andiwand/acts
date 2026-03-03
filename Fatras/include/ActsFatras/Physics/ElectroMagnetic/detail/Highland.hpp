@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Acts/Material/Interactions.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <numbers>
 #include <random>
@@ -31,11 +31,11 @@ struct Highland {
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
   double operator()(generator_t &generator, const Acts::MaterialSlab &slab,
-                    Particle &particle) const {
+                    MutableParticleProxy particle) const {
     // compute the planar scattering angle
-    const auto theta0 = Acts::computeMultipleScatteringTheta0(
-        slab, particle.absolutePdg(), particle.mass(), particle.qOverP(),
-        particle.absoluteCharge());
+    const double theta0 = Acts::computeMultipleScatteringTheta0(
+        slab, particle.absolutePdg(), particle.mass(),
+        particle.simulationState().qOverP(), particle.absoluteCharge());
     // draw from the normal distribution representing the 3d angle distribution
     return std::normal_distribution<double>(
         0., std::numbers::sqrt2 * theta0)(generator);

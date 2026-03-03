@@ -10,9 +10,9 @@
 
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -46,10 +46,9 @@ class ParticleSelector final : public IAlgorithm {
 
     boost::container::small_vector<CounterElement, 4> counters;
 
-    bool isValidParticle(
-        const SimParticle& particle,
-        const InverseMultimap<SimBarcode>& particleMeasurementsMap,
-        const MeasurementContainer& measurements) const;
+    bool isValidParticle(const SimParticle& particle,
+                         const ParticleMeasurementsMap& particleMeasurementsMap,
+                         const MeasurementContainer& measurements) const;
 
     void addCounter(const std::vector<Acts::GeometryIdentifier>& identifiers,
                     std::uint32_t threshold,
@@ -137,7 +136,7 @@ class ParticleSelector final : public IAlgorithm {
   Config m_cfg;
 
   ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
-  ReadDataHandle<InverseMultimap<SimBarcode>> m_inputParticleMeasurementsMap{
+  ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
   ReadDataHandle<MeasurementContainer> m_inputMeasurements{this,
                                                            "InputMeasurements"};

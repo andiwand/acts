@@ -146,8 +146,6 @@ class Geant4Simulation final : public Geant4SimulationBase {
 
     bool recordHitsOfSecondaries = true;
 
-    bool keepParticlesWithoutHits = true;
-
     bool recordPropagationSummaries = false;
   };
 

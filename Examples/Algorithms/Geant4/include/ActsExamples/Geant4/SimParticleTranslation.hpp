@@ -61,8 +61,8 @@ class SimParticleTranslation final : public G4VUserPrimaryGeneratorAction {
 
   /// Interface method to generate the primary
   ///
-  /// @param anEvent is the event that will be run
-  void GeneratePrimaries(G4Event* anEvent) override;
+  /// @param eventPtr is the event that will be run
+  void GeneratePrimaries(G4Event* eventPtr) override;
 
  protected:
   Config m_cfg;

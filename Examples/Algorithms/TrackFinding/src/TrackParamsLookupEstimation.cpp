@@ -9,6 +9,7 @@
 #include "ActsExamples/TrackFinding/TrackParamsLookupEstimation.hpp"
 
 #include "Acts/Surfaces/RectangleBounds.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 namespace ActsExamples {
@@ -70,32 +71,33 @@ ProcessCode TrackParamsLookupEstimation::execute(
   // accumulate the track parameters
   for (const auto& [geoId, refSurface] : m_cfg.refLayers) {
     // Get reference layer hits
-    auto refLayerHits = hits.equal_range(geoId);
+    auto refLayerHits = hits.hitsBySurface(geoId);
 
-    for (auto hit = refLayerHits.first; hit != refLayerHits.second; ++hit) {
+    for (const auto& hit : refLayerHits) {
       // Get the corresponding particle
-      const auto& id = hit->particleId();
-      const auto& particle = particles.find(id);
-
-      if (particle == particles.end()) {
-        throw std::invalid_argument("Particle not found");
-      }
+      const SimParticleIndex particleId = hit.particleId();
+      const SimParticle particle = particles.at(particleId);
 
       // Hit stores the reference layer parameters
-      auto refLayerPars = Acts::BoundTrackParameters::createCurvilinear(
-          hit->fourPosition(), hit->direction(), particle->qOverP(),
-          std::nullopt, particle->hypothesis());
+      const double qOverP = particle.hypothesis().qOverP(
+          hit.momentum4Before().head<3>().norm(), particle.charge());
+      const auto refLayerPars = Acts::BoundTrackParameters::createCurvilinear(
+          hit.fourPosition(), hit.direction(), qOverP, std::nullopt,
+          particle.hypothesis());
 
       // Particle stores the IP parameters
-      auto ipPars = Acts::BoundTrackParameters::createCurvilinear(
-          particle->fourPosition(), particle->direction(), particle->qOverP(),
-          std::nullopt, particle->hypothesis());
+      const auto ipPars = Acts::BoundTrackParameters::createCurvilinear(
+          particle.generationState().fourPosition(),
+          particle.generationState().direction(),
+          particle.generationState().qOverP(), std::nullopt,
+          particle.hypothesis());
 
       // Get the local position of the hit
-      auto localPos = refSurface
-                          ->globalToLocal(ctx.geoContext, hit->position(),
-                                          Acts::Vector3{0, 1, 0})
-                          .value();
+      const Acts::Vector2 localPos =
+          refSurface
+              ->globalToLocal(ctx.geoContext, hit.position(),
+                              Acts::Vector3{0, 1, 0})
+              .value();
 
       // Add the track parameters to the accumulator grid
       m_accumulators.at(geoId)->addTrack(ipPars, refLayerPars, localPos);

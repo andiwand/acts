@@ -31,8 +31,6 @@ class ParticleTrackingAction : public G4UserTrackingAction {
  public:
   struct Config {
     std::shared_ptr<EventStore> eventStore;
-
-    bool keepParticlesWithoutHits = true;
   };
 
   /// Construct the stepping action
@@ -48,28 +46,31 @@ class ParticleTrackingAction : public G4UserTrackingAction {
   /// Action before the track is processed in the
   /// the simulation, this will record the initial particle
   ///
-  /// @param aTrack the current Geant4 track
-  void PreUserTrackingAction(const G4Track* aTrack) final;
+  /// @param trackPtr the current Geant4 track
+  void PreUserTrackingAction(const G4Track* trackPtr) final;
 
   /// Action after the track is processed in the
   /// the simulation, this will record the final particle
   ///
-  /// @param aTrack the current Geant4 track
-  void PostUserTrackingAction(const G4Track* aTrack) final;
+  /// @param trackPtr the current Geant4 track
+  void PostUserTrackingAction(const G4Track* trackPtr) final;
 
  protected:
   Config m_cfg;
 
  private:
-  /// Convert a G4Track to a SimParticleState
-  ///
-  /// @param aTrack the current Geant4 track
-  /// @param particleId the particle ID the particle will have
-  /// @return SimParticleState the converted particle state
-  SimParticleState convert(const G4Track& aTrack, SimBarcode particleId) const;
+  /// Make the particle barcode
+  std::optional<SimBarcode> makeBarcode(G4int trackId, G4int parentId) const;
 
-  /// Make the particle id
-  std::optional<SimBarcode> makeParticleId(G4int trackId, G4int parentId) const;
+  /// Convert a G4Track to a SimParticle
+  ///
+  /// @param track the current Geant4 track
+  /// @param barcode the barcode the particle will have
+  /// @return SimParticleState the converted particle state
+  MutableSimParticle convertGenerated(const G4Track& track,
+                                      const SimBarcode& barcode) const;
+
+  void convertFinal(const G4Track& track, MutableSimParticle simParticle) const;
 
   /// Private access method to the logging instance
   const Acts::Logger& logger() const { return *m_logger; }

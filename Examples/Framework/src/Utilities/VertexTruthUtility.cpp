@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 
 #include <map>
+#include <set>
 #include <vector>
 
 std::uint32_t ActsExamples::getNumberOfReconstructableVertices(
@@ -23,12 +24,12 @@ std::uint32_t ActsExamples::getNumberOfReconstructableVertices(
 
   // traverse the array for frequency
   for (const SimParticle& p : collection) {
-    std::uint32_t generation = p.particleId().generation();
+    std::uint32_t generation = p.barcode().generation();
     if (generation > 0) {
       // truthparticle from secondary vtx
       continue;
     }
-    std::uint32_t priVtxId = p.particleId().vertexPrimary();
+    std::uint32_t priVtxId = p.barcode().vertexPrimary();
     fmap[priVtxId]++;
   }
 
@@ -48,8 +49,8 @@ std::uint32_t ActsExamples::getNumberOfTruePriVertices(
   // Vector to store indices of all primary vertices
   std::set<std::uint32_t> allPriVtxIds;
   for (const SimParticle& p : collection) {
-    std::uint32_t priVtxId = p.particleId().vertexPrimary();
-    std::uint32_t generation = p.particleId().generation();
+    std::uint32_t priVtxId = p.barcode().vertexPrimary();
+    std::uint32_t generation = p.barcode().generation();
     if (generation > 0) {
       // truthparticle from secondary vtx
       continue;
@@ -79,7 +80,7 @@ double ActsExamples::calculateTruthPrimaryVertexDensity(
   double z = vtx.fullPosition()[Acts::CoordinateIndices::eZ];
   int count = 0;
   for (const SimVertex& truthVertex : truthVertices) {
-    if (truthVertex.vertexId().vertexSecondary() != 0) {
+    if (truthVertex.barcode.vertexSecondary() != 0) {
       continue;
     }
     double zTruth = truthVertex.position4[Acts::CoordinateIndices::eZ];
@@ -88,33 +89,6 @@ double ActsExamples::calculateTruthPrimaryVertexDensity(
     }
   }
   return count / (2 * vertexDensityWindow);
-}
-
-const ActsExamples::SimParticle* ActsExamples::findParticle(
-    const SimParticleContainer& particles,
-    const TrackParticleMatching& trackParticleMatching, ConstTrackProxy track,
-    const Acts::Logger& logger) {
-  // Get the truth-matched particle
-  auto imatched = trackParticleMatching.find(track.index());
-  if (imatched == trackParticleMatching.end() ||
-      !imatched->second.particle.has_value()) {
-    ACTS_DEBUG("No truth particle associated with this track, index = "
-               << track.index() << " tip index = " << track.tipIndex());
-    return nullptr;
-  }
-
-  const TrackMatchEntry& particleMatch = imatched->second;
-
-  auto iparticle = particles.find(SimBarcode{particleMatch.particle.value()});
-  if (iparticle == particles.end()) {
-    ACTS_DEBUG(
-        "Truth particle found but not monitored with this track, index = "
-        << track.index() << " tip index = " << track.tipIndex()
-        << " and this barcode = " << particleMatch.particle.value());
-    return {};
-  }
-
-  return &(*iparticle);
 }
 
 std::optional<ActsExamples::ConstTrackProxy> ActsExamples::findTrack(

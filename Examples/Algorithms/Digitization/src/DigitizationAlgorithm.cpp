@@ -8,13 +8,12 @@
 
 #include "ActsExamples/Digitization/DigitizationAlgorithm.hpp"
 
-#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
 #include "ActsExamples/Digitization/ModuleClusters.hpp"
-#include "ActsExamples/EventData/GeometryContainers.hpp"
 #include "ActsExamples/EventData/Index.hpp"
+#include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 
 #include <algorithm>
@@ -65,7 +64,7 @@ DigitizationAlgorithm::DigitizationAlgorithm(
     }
     if (m_cfg.outputSimHitMeasurementsMap.empty()) {
       throw std::invalid_argument(
-          "Missing particle-to-simulated-hits map output collection");
+          "Missing simhit-to-measurements map output collection");
     }
 
     m_outputMeasurements.initialize(m_cfg.outputMeasurements);
@@ -112,7 +111,7 @@ DigitizationAlgorithm::DigitizationAlgorithm(
 
     auto dup = std::adjacent_find(indices.begin(), indices.end());
     if (dup != indices.end()) {
-      std::invalid_argument(
+      throw std::invalid_argument(
           "Digitization configuration contains duplicate parameter indices");
     }
 
@@ -150,8 +149,8 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
   MeasurementContainer measurements;
   ClusterContainer clusters;
 
-  IndexMultimap<SimBarcode> measurementParticlesMap;
-  IndexMultimap<Index> measurementSimHitsMap;
+  MeasurementParticlesMap measurementParticlesMap;
+  MeasurementSimHitsMap measurementSimHitsMap;
   measurements.reserve(simHits.size());
   measurementParticlesMap.reserve(simHits.size());
   measurementSimHitsMap.reserve(simHits.size());
@@ -167,14 +166,7 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
   CellsMap cellsMap;
 
   ACTS_DEBUG("Starting loop over modules ...");
-  for (const auto& simHitsGroup : groupByModule(simHits)) {
-    // Manual pair unpacking instead of using
-    //   auto [moduleGeoId, moduleSimHits] : ...
-    // otherwise clang on macos complains that it is unable to capture the local
-    // binding in the lambda used for visiting the smearer below.
-    Acts::GeometryIdentifier moduleGeoId = simHitsGroup.first;
-    const auto& moduleSimHits = simHitsGroup.second;
-
+  for (const auto& [moduleGeoId, moduleSimHits] : simHits.hitsBySurfaces()) {
     auto surfaceItr = m_cfg.surfaceByIdentifier.find(moduleGeoId);
 
     if (surfaceItr == m_cfg.surfaceByIdentifier.end()) {
@@ -203,9 +195,8 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
               digitizer.geometric.segmentation, digitizer.geometric.indices,
               m_cfg.doMerge, m_cfg.mergeNsigma, m_cfg.mergeCommonCorner);
 
-          for (auto h = moduleSimHits.begin(); h != moduleSimHits.end(); ++h) {
-            const auto& simHit = *h;
-            const auto simHitIdx = simHits.index_of(h);
+          for (const SimHitIndex simHitId : moduleSimHits) {
+            const auto& simHit = simHits.at(simHitId);
 
             DigitizedParameters dParameters;
 
@@ -271,7 +262,7 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
               continue;
             }
 
-            moduleClusters.add(std::move(dParameters), simHitIdx);
+            moduleClusters.add(std::move(dParameters), simHitId);
           }
 
           auto digitizeParametersResult = moduleClusters.digitizedParameters();
@@ -279,7 +270,7 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
           // Store the cell data into a map.
           if (m_cfg.doOutputCells) {
             std::vector<Cluster::Cell> cells;
-            for (const auto& [dParameters, simHitsIdxs] :
+            for (const auto& [dParameters, simHitsIds] :
                  digitizeParametersResult) {
               for (const auto& cell : dParameters.cluster.channels) {
                 cells.push_back(cell);
@@ -289,7 +280,7 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
           }
 
           if (m_cfg.doClusterization) {
-            for (auto& [dParameters, simHitsIdxs] : digitizeParametersResult) {
+            for (auto& [dParameters, simHitsIds] : digitizeParametersResult) {
               auto measurement =
                   createMeasurement(measurements, moduleGeoId, dParameters);
 
@@ -297,13 +288,10 @@ ProcessCode DigitizationAlgorithm::execute(const AlgorithmContext& ctx) const {
                   dParameters, *surfacePtr, ctx.geoContext);
               clusters.emplace_back(std::move(dParameters.cluster));
 
-              for (auto simHitIdx : simHitsIdxs) {
-                measurementParticlesMap.emplace_hint(
-                    measurementParticlesMap.end(), measurement.index(),
-                    simHits.nth(simHitIdx)->particleId());
-                measurementSimHitsMap.emplace_hint(measurementSimHitsMap.end(),
-                                                   measurement.index(),
-                                                   simHitIdx);
+              for (const SimHitIndex simHitId : simHitsIds) {
+                measurementParticlesMap.emplace(
+                    measurement.index(), simHits.at(simHitId).particleId());
+                measurementSimHitsMap.emplace(measurement.index(), simHitId);
               }
             }
           }

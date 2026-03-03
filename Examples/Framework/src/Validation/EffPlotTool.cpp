@@ -114,31 +114,33 @@ EffPlotTool::EffPlotTool(const EffPlotTool::Config& cfg,
 }
 
 void EffPlotTool::fill(const Acts::GeometryContext& gctx,
-                       const SimParticleState& truthParticle,
-                       const double deltaR, const bool status) {
+                       const SimParticle& truthParticle, const double deltaR,
+                       const bool status) {
   constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 
   const auto intersection =
       m_cfg.beamline
-          ->intersect(gctx, truthParticle.position(), truthParticle.direction())
+          ->intersect(gctx, truthParticle.generationState().position(),
+                      truthParticle.generationState().direction())
           .closest();
   Acts::Vector2 d0z0{nan, nan};
   if (intersection.isValid()) {
-    auto localRes = m_cfg.beamline->globalToLocal(gctx, intersection.position(),
-                                                  truthParticle.direction());
+    auto localRes = m_cfg.beamline->globalToLocal(
+        gctx, intersection.position(),
+        truthParticle.generationState().direction());
     if (localRes.ok()) {
       d0z0 = localRes.value();
     }
   }
 
-  const double t_phi = phi(truthParticle.direction());
-  const double t_eta = eta(truthParticle.direction());
+  const double t_phi = phi(truthParticle.generationState().direction());
+  const double t_eta = eta(truthParticle.generationState().direction());
   const double t_absEta = std::abs(t_eta);
-  const double t_pT = truthParticle.transverseMomentum();
+  const double t_pT = truthParticle.generationState().transverseMomentum();
   const double t_d0 = d0z0.x();
   const double t_z0 = d0z0.y();
   const double t_deltaR = deltaR;
-  const double t_prodR = perp(truthParticle.position());
+  const double t_prodR = perp(truthParticle.generationState().position());
 
   // cut on truth pT with the global range for the relevant plots
   if (t_pT >= m_cfg.minTruthPt) {

@@ -6,16 +6,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/GenerationProcessType.hpp"
 
 #include <ostream>
 
 namespace ActsFatras {
 
-std::ostream &operator<<(std::ostream &os, ProcessType processType) {
+std::ostream &operator<<(std::ostream &os, GenerationProcessType processType) {
+  using enum GenerationProcessType;
+
   switch (processType) {
-    case ProcessType::eUndefined:
+    case eUndefined:
       return (os << "undefined");
+    case eDecay:
+      return (os << "decay");
+    case ePhotonConversion:
+      return (os << "photon conversion");
+    case eBremsstrahlung:
+      return (os << "bremsstrahlung");
+    case eNuclearInteraction:
+      return (os << "nuclear interaction");
     default:
       return (os << static_cast<std::uint32_t>(processType));
   }

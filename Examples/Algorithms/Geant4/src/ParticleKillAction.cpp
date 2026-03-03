@@ -8,11 +8,9 @@
 
 #include "ActsExamples/Geant4/ParticleKillAction.hpp"
 
-#include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Geant4/AlgebraConverters.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
-#include "ActsFatras/EventData/ParticleOutcome.hpp"
 
 #include <ostream>
 #include <utility>
@@ -26,54 +24,63 @@
 
 namespace ActsExamples::Geant4 {
 
+constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
+
 ParticleKillAction::ParticleKillAction(
     const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
     : G4UserSteppingAction(), m_cfg(cfg), m_logger(std::move(logger)) {}
 
-void ParticleKillAction::UserSteppingAction(const G4Step* step) {
-  constexpr double convertTime = Acts::UnitConstants::ns / CLHEP::ns;
+void ParticleKillAction::UserSteppingAction(const G4Step* stepPtr) {
+  assert(stepPtr != nullptr);
+  const G4Step& step = *stepPtr;
 
-  G4Track* track = step->GetTrack();
+  assert(step.GetTrack() != nullptr);
 
-  const auto time = convertTime * track->GetGlobalTime();
+  G4Track& track = *step.GetTrack();
+
+  const double time = convertTime * track.GetGlobalTime();
   const bool isSecondary =
-      track->GetDynamicParticle()->GetPrimaryParticle() == nullptr;
+      track.GetDynamicParticle()->GetPrimaryParticle() == nullptr;
 
   const bool outOfVolume =
       m_cfg.volume &&
       !m_cfg.volume->inside(eventStore().geoContext,
-                            convertPosition(track->GetPosition()));
+                            convertPosition(track.GetPosition()));
   const bool outOfTime = time > m_cfg.maxTime;
   const bool invalidSecondary = m_cfg.secondaries && isSecondary;
 
   if (outOfVolume || outOfTime || invalidSecondary) {
     ACTS_DEBUG("Kill track with internal track ID "
-               << track->GetTrackID() << " at "
-               << convertPosition(track->GetPosition()) << " and global time "
+               << track.GetTrackID() << " at "
+               << convertPosition(track.GetPosition()) << " and global time "
                << time / Acts::UnitConstants::ns << "ns and isSecondary "
                << isSecondary);
-    track->SetTrackStatus(G4TrackStatus::fStopAndKill);
+    track.SetTrackStatus(G4TrackStatus::fStopAndKill);
   }
 
   // store the outcome of the particle
-  auto trackIt = eventStore().trackIdMapping.find(track->GetTrackID());
   // check if we have a particle assigned to track
-  if (trackIt != eventStore().trackIdMapping.end()) {
+  if (auto trackIt = eventStore().trackIdMapping.find(track.GetTrackID());
+      trackIt != eventStore().trackIdMapping.end()) {
+    const SimParticleIndex simParticleIndex = trackIt->second;
+    MutableSimParticle simParticle =
+        eventStore().particles.at(simParticleIndex);
+
+    using enum ActsFatras::SimulationOutcome;
+
     // set the outcome of the particle
-    const ActsFatras::Barcode particleId = trackIt->second;
     if (outOfVolume) {
-      eventStore().particleOutcome[particleId] =
-          ActsFatras::ParticleOutcome::KilledVolumeExit;
+      simParticle.simulationOutcome() = KilledVolumeExit;
     } else if (outOfTime) {
-      eventStore().particleOutcome[particleId] =
-          ActsFatras::ParticleOutcome::KilledTime;
+      simParticle.simulationOutcome() = KilledTime;
     } else if (invalidSecondary) {
-      eventStore().particleOutcome[particleId] =
-          ActsFatras::ParticleOutcome::KilledSecondaryParticle;
-    } else if (track->GetTrackStatus() == fStopAndKill) {
-      eventStore().particleOutcome[particleId] =
-          ActsFatras::ParticleOutcome::KilledInteraction;
+      simParticle.simulationOutcome() = KilledSecondaryParticle;
+    } else if (track.GetTrackStatus() == G4TrackStatus::fStopAndKill) {
+      simParticle.simulationOutcome() = KilledInteraction;
     }
+  } else {
+    ACTS_DEBUG("Track ID " << track.GetTrackID() << " not found");
+    ++eventStore().particleIdNotFound;
   }
 }
 

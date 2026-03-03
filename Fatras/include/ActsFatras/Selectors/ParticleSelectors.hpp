@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Acts/Definitions/PdgParticle.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
 
 namespace ActsFatras {
 
@@ -18,7 +18,7 @@ struct EveryParticle {
   /// Select all particles unconditionally
   /// @param particle The particle to evaluate (unused)
   /// @return Always true
-  bool operator()(const Particle &particle) const {
+  bool operator()(ConstParticleProxy particle) const {
     static_cast<void>(particle);
     return true;
   }
@@ -29,8 +29,8 @@ struct NeutralSelector {
   /// Check if particle is neutral
   /// @param particle The particle to evaluate
   /// @return true if particle charge is zero
-  bool operator()(const Particle &particle) const {
-    return (particle.charge() == 0.);
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.charge() == 0;
   }
 };
 
@@ -39,8 +39,8 @@ struct ChargedSelector {
   /// Check if particle is charged
   /// @param particle The particle to evaluate
   /// @return true if particle charge is non-zero
-  bool operator()(const Particle &particle) const {
-    return (particle.charge() != 0.);
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.charge() != 0;
   }
 };
 
@@ -49,8 +49,8 @@ struct PositiveSelector {
   /// Check if particle is positively charged
   /// @param particle The particle to evaluate
   /// @return true if particle charge is positive
-  bool operator()(const Particle &particle) const {
-    return (0. < particle.charge());
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.charge() > 0;
   }
 };
 
@@ -59,8 +59,8 @@ struct NegativeSelector {
   /// Check if particle is negatively charged
   /// @param particle The particle to evaluate
   /// @return true if particle charge is negative
-  bool operator()(const Particle &particle) const {
-    return (particle.charge() < 0.);
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.charge() < 0;
   }
 };
 
@@ -72,8 +72,8 @@ struct PdgSelector {
   /// Check if particle matches the specific PDG type
   /// @param particle The particle to evaluate
   /// @return true if particle PDG matches the template parameter
-  bool operator()(const Particle &particle) const {
-    return (particle.pdg() == Pdg);
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.pdg() == Pdg;
   }
 };
 
@@ -83,9 +83,9 @@ struct AbsPdgSelector {
   /// Check if particle matches the specific PDG type (ignoring sign)
   /// @param particle The particle to evaluate
   /// @return true if absolute PDG type matches the template parameter
-  bool operator()(const Particle &particle) const {
-    return (makeAbsolutePdgParticle(particle.pdg()) ==
-            makeAbsolutePdgParticle(Pdg));
+  bool operator()(ConstParticleProxy particle) const {
+    return makeAbsolutePdgParticle(particle.pdg()) ==
+           makeAbsolutePdgParticle(Pdg);
   }
 };
 
@@ -97,8 +97,8 @@ struct PdgExcluder {
   /// Check if particle does not match the specific PDG type
   /// @param particle The particle to evaluate
   /// @return true if particle PDG does not match the template parameter
-  bool operator()(const Particle &particle) const {
-    return (particle.pdg() != Pdg);
+  bool operator()(ConstParticleProxy particle) const {
+    return particle.pdg() != Pdg;
   }
 };
 
@@ -108,9 +108,9 @@ struct AbsPdgExcluder {
   /// Check if particle does not match the specific PDG type (ignoring sign)
   /// @param particle The particle to evaluate
   /// @return true if absolute PDG type does not match the template parameter
-  bool operator()(const Particle &particle) const {
-    return (makeAbsolutePdgParticle(particle.pdg()) !=
-            makeAbsolutePdgParticle(Pdg));
+  bool operator()(ConstParticleProxy particle) const {
+    return makeAbsolutePdgParticle(particle.pdg()) !=
+           makeAbsolutePdgParticle(Pdg);
   }
 };
 

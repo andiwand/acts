@@ -13,10 +13,10 @@
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Propagator/detail/SteppingLogger.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Geant4/AlgebraConverters.hpp"
 #include "ActsExamples/Geant4/EventStore.hpp"
 #include "ActsExamples/Geant4/SensitiveSurfaceMapper.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
 
 #include <algorithm>
 #include <array>
@@ -46,38 +46,41 @@ BOOST_DESCRIBE_ENUM(G4ProcessType, fNotDefined, fTransportation,
 BOOST_DESCRIBE_ENUM(G4TrackStatus, fAlive, fStopButAlive, fStopAndKill,
                     fKillTrackAndSecondaries, fSuspend, fPostponeToNextEvent);
 
+namespace ActsExamples::Geant4 {
+
 namespace {
 
-std::array<Acts::Vector4, 4u> kinematicsOfStep(const G4Step* step) {
-  const G4StepPoint* preStepPoint = step->GetPreStepPoint();
-  const G4StepPoint* postStepPoint = step->GetPostStepPoint();
-  using namespace ActsExamples::Geant4;
-  Acts::Vector4 preStepPosition = convertPosition(
+// Unit conversions G4->::ACTS
+static constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
+static constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
+static constexpr auto mappingPrefix = SensitiveSurfaceMapper::mappingPrefix;
+
+std::array<Acts::Vector4, 4u> kinematicsOfStep(const G4Step& step) {
+  const G4StepPoint* preStepPoint = step.GetPreStepPoint();
+  const G4StepPoint* postStepPoint = step.GetPostStepPoint();
+
+  const Acts::Vector4 preStepPosition = convertPosition(
       preStepPoint->GetPosition(), preStepPoint->GetGlobalTime());
-
-  Acts::Vector4 preStepMomentum = convertMomentum(
+  const Acts::Vector4 preStepMomentum = convertMomentum(
       preStepPoint->GetMomentum(), preStepPoint->GetTotalEnergy());
-  Acts::Vector4 postStepPosition = convertPosition(
+  const Acts::Vector4 postStepPosition = convertPosition(
       postStepPoint->GetPosition(), postStepPoint->GetGlobalTime());
-
-  Acts::Vector4 postStepMomentum = convertMomentum(
+  const Acts::Vector4 postStepMomentum = convertMomentum(
       postStepPoint->GetMomentum(), postStepPoint->GetTotalEnergy());
 
   return {preStepPosition, preStepMomentum, postStepPosition, postStepMomentum};
 }
 
-ActsFatras::Hit hitFromStep(const G4Step* step, ActsFatras::Barcode particleId,
-                            Acts::GeometryIdentifier geoId,
-                            std::int32_t index) {
+SimHit hitFromStep(const G4Step& step, SimParticleIndex particleId,
+                   Acts::GeometryIdentifier geoId, std::int32_t index) {
   auto [preStepPosition, preStepMomentum, postStepPosition, postStepMomentum] =
       kinematicsOfStep(step);
 
-  return ActsFatras::Hit(geoId, particleId,
-                         0.5 * (preStepPosition + postStepPosition),
-                         preStepMomentum, postStepMomentum, index);
+  return SimHit(geoId, particleId, 0.5 * (preStepPosition + postStepPosition),
+                preStepMomentum, postStepMomentum, index);
 }
 
-Acts::detail::Step stepFromG4Step(const G4Step* step) {
+Acts::detail::Step stepFromG4Step(const G4Step& step) {
   Acts::detail::Step pStep;
   auto [preStepPosition, preStepMomentum, postStepPosition, postStepMomentum] =
       kinematicsOfStep(step);
@@ -91,29 +94,29 @@ Acts::detail::Step stepFromG4Step(const G4Step* step) {
 
 }  // namespace
 
-namespace ActsExamples::Geant4 {
-
 SensitiveSteppingAction::SensitiveSteppingAction(
     const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
     : G4UserSteppingAction(), m_cfg(cfg), m_logger(std::move(logger)) {}
 
-void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
-  // Unit conversions G4->::ACTS
-  static constexpr double convertLength = Acts::UnitConstants::mm / CLHEP::mm;
-  static constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
-  static constexpr auto mappingPrefix = SensitiveSurfaceMapper::mappingPrefix;
+void SensitiveSteppingAction::UserSteppingAction(const G4Step* stepPtr) {
+  assert(stepPtr != nullptr);
+  const G4Step& step = *stepPtr;
+
+  assert(step.GetTrack() != nullptr);
+  assert(step.GetPreStepPoint() != nullptr);
+  assert(step.GetPostStepPoint() != nullptr);
 
   // The particle after the step
-  G4Track* track = step->GetTrack();
+  const G4Track& track = *step.GetTrack();
   G4PrimaryParticle* primaryParticle =
-      track->GetDynamicParticle()->GetPrimaryParticle();
+      track.GetDynamicParticle()->GetPrimaryParticle();
 
   // Get PreStepPoint and PostStepPoint
-  const G4StepPoint* preStepPoint = step->GetPreStepPoint();
-  const G4StepPoint* postStepPoint = step->GetPostStepPoint();
+  const G4StepPoint& preStepPoint = *step.GetPreStepPoint();
+  const G4StepPoint& postStepPoint = *step.GetPostStepPoint();
 
   // Bail out if charged & configured to do so
-  G4double absCharge = std::abs(track->GetParticleDefinition()->GetPDGCharge());
+  G4double absCharge = std::abs(track.GetParticleDefinition()->GetPDGCharge());
   if (!m_cfg.charged && absCharge > 0.) {
     return;
   }
@@ -134,72 +137,72 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
   }
 
   // Get the physical volume & check if it has the sensitive string name
-  const G4VPhysicalVolume* volume = track->GetVolume();
-  if (volume == nullptr) {
+  if (track.GetVolume() == nullptr) {
     throw std::runtime_error("No volume found, terminate simulation");
   }
-  std::string volumeName = volume->GetName();
+  const G4VPhysicalVolume& volume = *track.GetVolume();
+  const std::string_view volumeName = volume.GetName();
   ACTS_VERBOSE("Check whether volume " << volumeName << " is sensitive");
   if (!m_cfg.stepLogging &&
       volumeName.find(mappingPrefix) == std::string::npos) {
     return;
   }
 
-  // The G4Touchable for the matching
-  const G4VTouchable* touchable = track->GetTouchable();
-
-  Acts::GeometryIdentifier geoId{};
   const Acts::Surface* surface = nullptr;
+  Acts::GeometryIdentifier geoId{};
 
   // Find the range of candidate surfaces for the current position in the map
-  const auto surfaceMap_itr = m_surfaceMapping.find(volume);
-  if (surfaceMap_itr != m_surfaceMapping.end()) {
-    const auto& surfacesToG4Vol = surfaceMap_itr->second;
+  if (const auto surfaceMapIt = m_surfaceMapping.find(&volume);
+      surfaceMapIt != m_surfaceMapping.end()) {
+    const G4VTouchable& touchable = *track.GetTouchable();
+    const auto& surfacesToG4Vol = surfaceMapIt->second;
     ACTS_VERBOSE("Found " << surfacesToG4Vol.size()
                           << " candidate surfaces for volume " << volumeName);
-    const Acts::Vector3 volumePos =
-        convertPosition(touchable->GetTranslation());
-    const auto lookUp_itr = surfacesToG4Vol.find(volumePos);
-    if (lookUp_itr == surfacesToG4Vol.end() && !m_cfg.stepLogging) {
+    const Acts::Vector3 volumePos = convertPosition(touchable.GetTranslation());
+    const auto surfaceToG4It = surfacesToG4Vol.find(volumePos);
+    if (surfaceToG4It == surfacesToG4Vol.end() && !m_cfg.stepLogging) {
       ACTS_ERROR("No candidate surfaces found for volume " << volumeName);
       return;
     }
-    surface = lookUp_itr->second;
+    surface = surfaceToG4It->second;
     geoId = surface->geometryId();
     ACTS_VERBOSE("Replica assignment successful -> to surface " << geoId);
   } else if (!m_cfg.stepLogging) {
     ACTS_ERROR("No candidate surfaces found for volume " << volumeName);
     return;
   }
+
   // This is not the case if we have a particle-ID collision
-  if (!eventStore().trackIdMapping.contains(track->GetTrackID())) {
+  if (!eventStore().trackIdMapping.contains(track.GetTrackID())) {
     return;
   }
-
   // Output is only strictly valid if step logging is not enabled
-  const auto particleId = eventStore().trackIdMapping.at(track->GetTrackID());
+  const SimParticleIndex particleId =
+      eventStore().trackIdMapping.at(track.GetTrackID());
+  MutableSimParticle particle = eventStore().particles.at(particleId);
+
   if (!m_cfg.stepLogging && surface != nullptr) {
     ACTS_VERBOSE("Step of " << particleId << " in sensitive volume " << geoId);
   } else if (m_cfg.stepLogging) {
-    if (!eventStore().propagationRecords.contains(track->GetTrackID())) {
+    if (!eventStore().propagationRecords.contains(track.GetTrackID())) {
       // Create the propagation summary
-      double absMomentum = track->GetMomentum().mag() * convertEnergy;
+      double absMomentum = track.GetMomentum().mag() * convertEnergy;
 
       PropagationSummary iSummary(Acts::BoundTrackParameters::createCurvilinear(
-          convertPosition(track->GetVertexPosition(), 0.),
-          convertDirection(track->GetVertexMomentumDirection()),
+          convertPosition(track.GetVertexPosition(), 0.),
+          convertDirection(track.GetVertexMomentumDirection()),
           absCharge / absMomentum, std::nullopt,
           Acts::ParticleHypothesis::pion()));
 
-      eventStore().propagationRecords.insert({track->GetTrackID(), iSummary});
+      eventStore().propagationRecords.insert({track.GetTrackID(), iSummary});
     }
     PropagationSummary& pSummary =
-        eventStore().propagationRecords.at(track->GetTrackID());
+        eventStore().propagationRecords.at(track.GetTrackID());
 
     // Increase the step counter
     pSummary.nSteps += 1;
 
-    double currentTrackLength = track->GetTrackLength() * convertLength;
+    double currentTrackLength = track.GetTrackLength() * convertLength;
     double currentStepLength = currentTrackLength - pSummary.pathLength;
     pSummary.pathLength = currentTrackLength;
 
@@ -223,44 +226,38 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
     return;
   }
 
-  // Set particle hit count to zero, so we have this entry in the map later
-  if (!eventStore().particleHitCount.contains(particleId)) {
-    eventStore().particleHitCount[particleId] = 0;
-  }
-
   // Extract if we are at volume boundaries
-  const bool preOnBoundary = preStepPoint->GetStepStatus() == fGeomBoundary;
-  const bool postOnBoundary = postStepPoint->GetStepStatus() == fGeomBoundary ||
-                              postStepPoint->GetStepStatus() == fWorldBoundary;
-  const bool particleStopped = (postStepPoint->GetKineticEnergy() == 0.0);
+  const bool preOnBoundary = preStepPoint.GetStepStatus() == fGeomBoundary;
+  const bool postOnBoundary = postStepPoint.GetStepStatus() == fGeomBoundary ||
+                              postStepPoint.GetStepStatus() == fWorldBoundary;
+  const bool particleStopped = (postStepPoint.GetKineticEnergy() == 0.0);
   const bool particleDecayed =
-      (postStepPoint->GetProcessDefinedStep()->GetProcessType() == fDecay);
+      (postStepPoint.GetProcessDefinedStep()->GetProcessType() == fDecay);
 
   auto print = [](auto s) {
     return boost::describe::enum_to_string(s, "unmatched");
   };
 
   ACTS_VERBOSE("status: pre="
-               << print(preStepPoint->GetStepStatus())
-               << ", post=" << print(postStepPoint->GetStepStatus())
+               << print(preStepPoint.GetStepStatus())
+               << ", post=" << print(postStepPoint.GetStepStatus())
                << ", post E_kin=" << std::boolalpha
-               << postStepPoint->GetKineticEnergy() << ", process_type="
-               << print(
-                      postStepPoint->GetProcessDefinedStep()->GetProcessType())
+               << postStepPoint.GetKineticEnergy() << ", process_type="
+               << print(postStepPoint.GetProcessDefinedStep()->GetProcessType())
                << ", particle="
-               << track->GetParticleDefinition()->GetParticleName()
+               << track.GetParticleDefinition()->GetParticleName()
                << ", process_name="
-               << postStepPoint->GetProcessDefinedStep()->GetProcessName()
-               << ", track status=" << print(track->GetTrackStatus()));
+               << postStepPoint.GetProcessDefinedStep()->GetProcessName()
+               << ", track status=" << print(track.GetTrackStatus()));
 
   // Case A: The step starts at the entry of the volume and ends at the exit.
   // Add hit to collection.
   if (preOnBoundary && postOnBoundary) {
     ACTS_VERBOSE("-> merge single step to hit");
-    ++eventStore().particleHitCount[particleId];
+
     eventStore().hits.push_back(
-        hitFromStep(step, particleId, geoId,
-                    eventStore().particleHitCount.at(particleId) - 1));
+        hitFromStep(step, particleId, geoId, particle.currentNumberOfHits()));
+    ++particle.currentNumberOfHits();
 
     eventStore().numberGeantSteps += 1ul;
     eventStore().maxStepsForHit = std::max(eventStore().maxStepsForHit, 1ul);
@@ -277,11 +274,10 @@ void SensitiveSteppingAction::UserSteppingAction(const G4Step* step) {
     const auto pos4 =
         0.5 * (buffer.front().fourPosition() + buffer.back().fourPosition());
 
-    ++eventStore().particleHitCount[particleId];
     eventStore().hits.emplace_back(
         geoId, particleId, pos4, buffer.front().momentum4Before(),
-        buffer.back().momentum4After(),
-        eventStore().particleHitCount.at(particleId) - 1);
+        buffer.back().momentum4After(), particle.currentNumberOfHits());
+    ++particle.currentNumberOfHits();
 
     assert(std::ranges::all_of(
         buffer, [&](const auto& h) { return h.geometryId() == geoId; }));

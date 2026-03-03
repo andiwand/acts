@@ -75,11 +75,11 @@ void DuplicationPlotTool::fill(
   m_efficiencies.at("duplicationRatio_vs_phi").fill({fit_phi}, status);
 }
 
-void DuplicationPlotTool::fill(const SimParticleState& truthParticle,
+void DuplicationPlotTool::fill(const SimParticle& truthParticle,
                                std::size_t nMatchedTracks) {
-  const auto t_phi = phi(truthParticle.direction());
-  const auto t_eta = eta(truthParticle.direction());
-  const auto t_pT = truthParticle.transverseMomentum();
+  const auto t_phi = phi(truthParticle.generationState().direction());
+  const auto t_eta = eta(truthParticle.generationState().direction());
+  const auto t_pT = truthParticle.generationState().transverseMomentum();
 
   const auto nDuplicatedTracks = nMatchedTracks == 0 ? 0 : nMatchedTracks - 1;
 

@@ -8,12 +8,10 @@
 
 #pragma once
 
-#include "Acts/Utilities/Logger.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
-#include "ActsExamples/EventData/TruthMatching.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -31,11 +29,6 @@ double calcSumPt2(const Acts::Vertex& vtx, double minTrkWeight);
 double calculateTruthPrimaryVertexDensity(
     const SimVertexContainer& truthVertices, const Acts::Vertex& vtx,
     double vertexDensityWindow);
-
-const SimParticle* findParticle(
-    const SimParticleContainer& particles,
-    const TrackParticleMatching& trackParticleMatching, ConstTrackProxy track,
-    const Acts::Logger& logger);
 
 std::optional<ConstTrackProxy> findTrack(const ConstTrackContainer& tracks,
                                          const Acts::TrackAtVertex& trkAtVtx);

@@ -12,16 +12,18 @@
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Utilities/UnitVectors.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <numbers>
-#include <utility>
 
-ActsFatras::Particle ActsFatras::BetheHeitler::bremPhoton(
-    const Particle &particle, double gammaE, double rndPsi, double rndTheta1,
-    double rndTheta2, double rndTheta3) const {
+namespace ActsFatras {
+
+MutableParticleProxy ActsFatras::BetheHeitler::bremPhoton(
+    ConstParticleProxy particle, double gammaE, double rndPsi, double rndTheta1,
+    double rndTheta2, double rndTheta3,
+    const ParticleSimulationQueue &queue) const {
   // ------------------------------------------------------
   // simple approach
   // (a) simulate theta uniform within the opening angle of the relativistic
@@ -31,39 +33,44 @@ ActsFatras::Particle ActsFatras::BetheHeitler::bremPhoton(
   // later
   //      the azimutal angle
 
-  double psi = 2. * std::numbers::pi * rndPsi;
+  const double psi = 2. * std::numbers::pi * rndPsi;
 
   // the start of the equation
   double theta = 0.;
   if (uniformHertzDipoleAngle) {
     // the simplest simulation
-    theta = particle.mass() / particle.energy() * rndTheta1;
+    theta = particle.mass() / particle.simulationState().energy() * rndTheta1;
   } else {
     // ----->
-    theta = particle.mass() / particle.energy();
+    theta = particle.mass() / particle.simulationState().energy();
     // follow
     constexpr double a = 0.625;  // 5/8
-    double u = -log(rndTheta2 * rndTheta3) / a;
+    const double u = -log(rndTheta2 * rndTheta3) / a;
     theta *= (rndTheta1 < 0.25) ? u : u / 3.;  // 9./(9.+27) = 0.25
   }
 
-  Acts::Vector3 particleDirection = particle.direction();
-  Acts::Vector3 photonDirection = particleDirection;
+  const Acts::Vector3 particleDirection =
+      particle.simulationState().direction();
 
   // construct the combined rotation to the scattered direction
-  Acts::RotationMatrix3 rotation(
+  const Acts::RotationMatrix3 rotation(
       // rotation of the scattering deflector axis relative to the reference
       Acts::AngleAxis3(psi, particleDirection) *
       // rotation by the scattering angle around the deflector axis
       Acts::AngleAxis3(theta, Acts::createCurvilinearUnitU(particleDirection)));
-  photonDirection.applyOnTheLeft(rotation);
+  const Acts::Vector3 photonDirection = rotation * particleDirection;
 
-  Particle photon(particle.particleId().makeDescendant(0),
-                  Acts::PdgParticle::eGamma);
-  photon.setProcess(ActsFatras::ProcessType::eBremsstrahlung)
-      .setPosition4(particle.fourPosition())
-      .setDirection(photonDirection)
-      .setAbsoluteMomentum(gammaE)
-      .setReferenceSurface(particle.referenceSurface());
+  MutableParticleProxy photon = queue.createParticle();
+  photon.barcode() = particle.barcode().makeDescendant(0);
+  photon.pdg() = Acts::PdgParticle::eGamma;
+  photon.generationProcess() = GenerationProcessType::eBremsstrahlung;
+  photon.generationState().fourPosition() =
+      particle.simulationState().fourPosition();
+  photon.generationState().direction() = photonDirection;
+  photon.generationState().absoluteMomentum() = gammaE;
+  photon.generationState().referenceSurface() =
+      particle.simulationState().referenceSurface();
   return photon;
 }
+
+}  // namespace ActsFatras

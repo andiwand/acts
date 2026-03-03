@@ -65,8 +65,8 @@ class HepMC3InputConverter : public IAlgorithm {
                                   const HepMC3::GenEvent& genEvent) const;
 
   void handleVertex(const HepMC3::GenVertex& genVertex, SimVertex& vertex,
-                    std::vector<SimVertex>& vertices,
-                    std::vector<SimParticle>& particles,
+                    SimVertexContainer& vertices,
+                    SimParticleContainer& particles,
                     std::size_t& nSecondaryVertices, std::size_t& nParticles,
                     std::vector<bool>& seenVertices) const;
 

@@ -10,7 +10,8 @@
 
 #include "Acts/Material/Interactions.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Utilities/LandauDistribution.hpp"
 
 #include <array>
@@ -37,12 +38,13 @@ struct BetheBloch {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<Particle, 0> operator()(generator_t &generator,
-                                     const Acts::MaterialSlab &slab,
-                                     Particle &particle) const {
+  std::array<ParticleIndex, 0> operator()(
+      generator_t &generator, const Acts::MaterialSlab &slab,
+      MutableParticleProxy particle,
+      const ParticleSimulationQueue & /*queue*/) const {
     // compute energy loss distribution parameters
     const float m = particle.mass();
-    const float qOverP = particle.qOverP();
+    const float qOverP = particle.simulationState().qOverP();
     const float absQ = particle.absoluteCharge();
     // most probable value
     const float energyLoss =
@@ -54,12 +56,12 @@ struct BetheBloch {
     // Simulate the energy loss
     // TODO landau location and scale parameters are not identical to the most
     //      probable value and the Gaussian-equivalent sigma
-    LandauDistribution lossDistribution(scaleFactorMPV * energyLoss,
-                                        scaleFactorSigma * energyLossSigma);
-    const auto loss = lossDistribution(generator);
+    const LandauDistribution lossDistribution(
+        scaleFactorMPV * energyLoss, scaleFactorSigma * energyLossSigma);
+    const double loss = lossDistribution(generator);
 
     // Apply the energy loss
-    particle.correctEnergy(-loss);
+    particle.simulationState().applyEnergyDelta(-loss);
 
     // Generates no new particles
     return {};

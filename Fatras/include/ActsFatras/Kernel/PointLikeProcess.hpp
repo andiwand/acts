@@ -8,11 +8,9 @@
 
 #pragma once
 
-#include "Acts/Material/MaterialSlab.hpp"
-#include "ActsFatras/EventData/Particle.hpp"
+#include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Kernel/InteractionList.hpp"
-
-#include <limits>
 
 namespace ActsFatras {
 
@@ -70,29 +68,33 @@ struct PointLikeProcess {
   /// @param particle Input particle
   /// @return Pair of minimum and maximum path limits
   template <class generator_t>
-  std::pair<double, double> generatePathLimits(generator_t& generator,
-                                               const Particle& particle) const {
+  std::pair<double, double> generatePathLimits(
+      generator_t& generator, MutableParticleProxy particle) const {
     return physics.generatePathLimits(generator, particle);
   }
 
   /// Run the process
-  /// @param rng Random number generator
+  /// @param generator Random number generator
   /// @param particle Input particle
-  /// @param generatedParticles Output vector of generated particles
+  /// @param queue Output queue of generated particles
   /// @return True if process was applied
   template <class generator_t>
-  bool run(generator_t& rng, Particle& particle,
-           std::vector<Particle>& generatedParticles) const {
+  bool run(generator_t& generator, MutableParticleProxy particle,
+           const ParticleSimulationQueue& queue) const {
+    // not selecting this process is not a break condition
     if (!selectInputParticle(particle)) {
       return false;
     }
-
-    std::vector<Particle> children;
-    physics.run(rng, particle, children);
-
-    std::copy_if(std::begin(children), std::end(children),
-                 std::back_inserter(generatedParticles), selectChildParticle);
-
+    // modify particle according to the physics process
+    auto children = physics(generator, particle);
+    // enqueue selected child particles
+    for (const MutableParticleProxy child : children) {
+      if (selectChildParticle(child)) {
+        queue.selectParticle(child);
+      }
+    }
+    // break condition is defined by whether the output particle is still valid
+    // or not e.g. because it has fallen below a momentum threshold.
     return !selectOutputParticle(particle);
   }
 };
