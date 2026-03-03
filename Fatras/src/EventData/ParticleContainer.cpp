@@ -25,9 +25,9 @@ namespace ActsFatras {
 static_assert(std::random_access_iterator<ParticleContainer::iterator>);
 static_assert(std::random_access_iterator<ParticleContainer::const_iterator>);
 static_assert(
-    std::random_access_iterator<ParticleContainer::MutableSubset::Iterator>);
+    std::random_access_iterator<ParticleContainer::MutableSubset::iterator>);
 static_assert(
-    std::random_access_iterator<ParticleContainer::ConstSubset::Iterator>);
+    std::random_access_iterator<ParticleContainer::ConstSubset::iterator>);
 
 ParticleContainer::ParticleContainer(ParticleColumns columns) noexcept {
   createColumns(columns);

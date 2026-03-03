@@ -9,8 +9,6 @@
 #pragma once
 
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/Measurement.hpp"
-#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
@@ -27,8 +25,6 @@ class TrackTruthMatcher final : public IAlgorithm {
   struct Config {
     /// Input (fitted) tracks collection
     std::string inputTracks;
-    /// Input particles collection.
-    std::string inputParticles;
     /// Input hit-particles map collection.
     std::string inputMeasurementParticlesMap;
     /// Output track-particle matching.
@@ -55,7 +51,6 @@ class TrackTruthMatcher final : public IAlgorithm {
   Config m_cfg;
 
   ReadDataHandle<ConstTrackContainer> m_inputTracks{this, "InputTracks"};
-  ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<MeasurementParticlesMap> m_inputMeasurementParticlesMap{
       this, "InputMeasurementParticlesMap"};
   WriteDataHandle<TrackParticleMatching> m_outputTrackParticleMatching{

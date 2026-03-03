@@ -26,13 +26,13 @@ using SimBarcode = ::ActsFatras::Barcode;
 class SelectedSimParticles final
     : public Acts::detail::ContainerSubset<
           SelectedSimParticles, SelectedSimParticles, SimParticleContainer,
-          SimParticle, SimParticleIndex, true> {
+          SimParticle, std::vector<SimParticleIndex>, true> {
  public:
   /// Base class type
   using Base =
       Acts::detail::ContainerSubset<SelectedSimParticles, SelectedSimParticles,
                                     SimParticleContainer, SimParticle,
-                                    SimParticleIndex, true>;
+                                    std::vector<SimParticleIndex>, true>;
 
   using Base::Base;
 };

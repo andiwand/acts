@@ -26,9 +26,6 @@ TrackTruthMatcher::TrackTruthMatcher(const Config& config,
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks");
   }
-  if (m_cfg.inputParticles.empty()) {
-    throw std::invalid_argument("Missing input particles");
-  }
   if (m_cfg.inputMeasurementParticlesMap.empty()) {
     throw std::invalid_argument("Missing input measurement particles map");
   }
@@ -40,7 +37,6 @@ TrackTruthMatcher::TrackTruthMatcher(const Config& config,
   }
 
   m_inputTracks.initialize(m_cfg.inputTracks);
-  m_inputParticles.initialize(m_cfg.inputParticles);
   m_inputMeasurementParticlesMap.initialize(m_cfg.inputMeasurementParticlesMap);
   m_outputTrackParticleMatching.initialize(m_cfg.outputTrackParticleMatching);
   m_outputParticleTrackMatching.initialize(m_cfg.outputParticleTrackMatching);
@@ -51,16 +47,15 @@ ProcessCode TrackTruthMatcher::execute(const AlgorithmContext& ctx) const {
   const auto& tracks = m_inputTracks(ctx);
 
   // Read truth input collections
-  const auto& particles = m_inputParticles(ctx);
-  const auto& hitParticlesMap = m_inputMeasurementParticlesMap(ctx);
+  const auto& measurementParticlesMap = m_inputMeasurementParticlesMap(ctx);
 
   TrackParticleMatching trackParticleMatching;
   ParticleTrackMatching particleTrackMatching;
 
   // TODO this may be computed in a separate algorithm
   // TODO can we wire this through?
-  std::map<SimBarcode, std::size_t> particleTruthHitCount;
-  for (const auto& [_, pid] : hitParticlesMap) {
+  std::map<SimParticleIndex, std::size_t> particleTruthHitCount;
+  for (const auto& [_, pid] : measurementParticlesMap) {
     particleTruthHitCount[pid]++;
   }
 
@@ -69,7 +64,8 @@ ProcessCode TrackTruthMatcher::execute(const AlgorithmContext& ctx) const {
 
   for (const auto& track : tracks) {
     // Get the majority truth particle to this track
-    identifyContributingParticles(hitParticlesMap, track, particleHitCounts);
+    identifyContributingParticles(measurementParticlesMap, track,
+                                  particleHitCounts);
     if (particleHitCounts.empty()) {
       ACTS_DEBUG(
           "No truth particle associated with this trajectory with tip index = "
@@ -80,17 +76,9 @@ ProcessCode TrackTruthMatcher::execute(const AlgorithmContext& ctx) const {
     // Get the majority particleId and majority particle counts
     // Note that the majority particle might not be in the truth seeds
     // collection
-    ActsFatras::Barcode majorityParticleId =
+    const SimParticleIndex majorityParticleId =
         particleHitCounts.front().particleId;
     std::size_t nMajorityHits = particleHitCounts.front().hitCount;
-
-    if (!particles.contains(majorityParticleId)) {
-      ACTS_VERBOSE(
-          "The majority particle is not in the input particle collection, "
-          "majorityParticleId = "
-          << majorityParticleId);
-      continue;
-    }
 
     // Check if the trajectory is matched with truth.
     // If not, it will be classified as 'fake'

@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/EventData/Track.hpp"
-#include "ActsExamples/Validation/TrackClassification.hpp"
 
 #include <cstdint>
 #include <map>
@@ -35,6 +35,12 @@ enum class TrackMatchClassification {
   Duplicate,
   /// The track cannot be uniquely associated to a truth particle
   Fake,
+};
+
+/// Associate a particle to its hit count within a proto track.
+struct ParticleHitCount {
+  SimParticleIndex particleId{};
+  std::size_t hitCount{};
 };
 
 struct TrackMatchEntry {

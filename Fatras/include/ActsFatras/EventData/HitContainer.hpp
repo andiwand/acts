@@ -77,15 +77,16 @@ class HitContainer {
 
   /// Subset facade over arbitrary index sets.
   template <bool read_only>
-  class Subset
-      : public Acts::detail::ContainerSubset<
-            Subset<read_only>, Subset<true>, HitContainer,
-            std::conditional_t<read_only, const Hit&, Hit&>, Index, read_only> {
+  class Subset : public Acts::detail::ContainerSubset<
+                     Subset<read_only>, Subset<true>, HitContainer,
+                     std::conditional_t<read_only, const Hit&, Hit&>,
+                     std::span<const Index>, read_only> {
    public:
     /// Base class type
     using Base = Acts::detail::ContainerSubset<
         Subset<read_only>, Subset<true>, HitContainer,
-        std::conditional_t<read_only, const Hit&, Hit&>, Index, read_only>;
+        std::conditional_t<read_only, const Hit&, Hit&>, std::span<const Index>,
+        read_only>;
 
     using Base::Base;
   };

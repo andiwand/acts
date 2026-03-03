@@ -333,14 +333,14 @@ class ParticleContainer final {
   class Subset final
       : public Acts::detail::ContainerSubset<
             Subset<read_only>, Subset<true>, ParticleContainer,
-            std::conditional_t<read_only, ConstProxy, MutableProxy>, Index,
-            read_only> {
+            std::conditional_t<read_only, ConstProxy, MutableProxy>,
+            std::span<const Index>, read_only> {
    public:
     /// Base class type
     using Base = Acts::detail::ContainerSubset<
         Subset<read_only>, Subset<true>, ParticleContainer,
-        std::conditional_t<read_only, ConstProxy, MutableProxy>, Index,
-        read_only>;
+        std::conditional_t<read_only, ConstProxy, MutableProxy>,
+        std::span<const Index>, read_only>;
 
     using Base::Base;
   };

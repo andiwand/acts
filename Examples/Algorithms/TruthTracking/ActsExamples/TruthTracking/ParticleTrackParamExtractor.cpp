@@ -39,30 +39,31 @@ ProcessCode ParticleTrackParamExtractor::execute(
   std::unordered_map<SimBarcode, std::shared_ptr<Acts::PerigeeSurface>>
       perigeeSurfaces;
 
-  for (auto&& [vtxId, vtxParticles] : groupByVertexId(particles)) {
-    // a group contains at least one particle by construction. assume that all
-    // particles within the group originate from the same position and use it
-    // to as the reference position for the perigee frame.
-    auto perigee = Acts::Surface::makeShared<Acts::PerigeeSurface>(
-        vtxParticles.begin()->position());
-    perigeeSurfaces[vtxId] = perigee;
-  }
-
   // create track parameters from the particles
   TrackParametersContainer trackParameters;
 
   for (const auto& particle : particles) {
-    const auto vtxId = particle.particleId().vertexId();
+    const auto vtxId = particle.barcode().vertexId();
     const auto particleHypothesis = particle.hypothesis();
-    const auto phi = Acts::VectorHelpers::phi(particle.direction());
-    const auto theta = Acts::VectorHelpers::theta(particle.direction());
-    const auto qOverP = particle.qOverP();
-    const auto time = particle.time();
+    const double phi =
+        Acts::VectorHelpers::phi(particle.generationState().direction());
+    const double theta =
+        Acts::VectorHelpers::theta(particle.generationState().direction());
+    const double qOverP = particle.generationState().qOverP();
+    const double time = particle.generationState().time();
+
+    std::shared_ptr<Acts::PerigeeSurface>& perigee = perigeeSurfaces[vtxId];
+    if (perigee == nullptr) {
+      // assume that all particles with the same vertex ID originate from the
+      // same position and use it to as the reference position for the perigee
+      // frame.
+      perigee = Acts::Surface::makeShared<Acts::PerigeeSurface>(
+          particle.generationState().position());
+    }
 
     trackParameters.emplace_back(
-        perigeeSurfaces.at(vtxId),
-        Acts::BoundVector{0, 0, phi, theta, qOverP, time}, std::nullopt,
-        particleHypothesis);
+        perigee, Acts::BoundVector{0, 0, phi, theta, qOverP, time},
+        std::nullopt, particleHypothesis);
   }
 
   m_outputTrackParameters(ctx, std::move(trackParameters));

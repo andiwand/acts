@@ -9,8 +9,6 @@
 #include "ActsExamples/TruthTracking/TruthTrackFinder.hpp"
 
 #include "ActsExamples/EventData/ProtoTrack.hpp"
-#include "ActsExamples/EventData/SimParticle.hpp"
-#include "ActsExamples/Utilities/Range.hpp"
 
 #include <ostream>
 #include <stdexcept>

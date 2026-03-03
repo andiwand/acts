@@ -25,7 +25,7 @@ bool ParticleSelector::MeasurementCounter::isValidParticle(
     const ParticleMeasurementsMap& particleMeasurementsMap,
     const MeasurementContainer& measurements) const {
   const auto [measurementsBegin, measurementsEnd] =
-      particleMeasurementsMap.equal_range(particle.barcode());
+      particleMeasurementsMap.equal_range(particle.index());
 
   for (const auto& [counterMap, threshold, perLayerCap] : counters) {
     std::uint32_t counter = 0;
@@ -206,16 +206,14 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
            within(p.mass(), m_cfg.mMin, m_cfg.mMax);
   };
 
-  SimParticleContainer outputParticles;
+  std::vector<SimParticleIndex> outputParticles;
   outputParticles.reserve(inputParticles.size());
 
-  // copy selected particles
   for (const auto& inputParticle : inputParticles) {
     if (!isValidParticle(inputParticle)) {
       continue;
     }
-
-    outputParticles.insert(outputParticles.end(), inputParticle);
+    outputParticles.push_back(inputParticle.index());
   }
   outputParticles.shrink_to_fit();
 
@@ -227,7 +225,8 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
   ACTS_DEBUG("filtered out because of measurement count: "
              << nInvalidMeasurementCount);
 
-  m_outputParticles(ctx, std::move(outputParticles));
+  m_outputParticles(ctx, SelectedSimParticles(inputParticles.container(),
+                                              std::move(outputParticles)));
 
   return ProcessCode::SUCCESS;
 }
