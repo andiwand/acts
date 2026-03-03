@@ -135,13 +135,13 @@ class ParticleSelector final : public IAlgorithm {
 
   Config m_cfg;
 
-  ReadDataHandle<SimParticleContainer> m_inputParticles{this, "InputParticles"};
+  ReadDataHandle<SelectedSimParticles> m_inputParticles{this, "InputParticles"};
   ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
   ReadDataHandle<MeasurementContainer> m_inputMeasurements{this,
                                                            "InputMeasurements"};
 
-  WriteDataHandle<SimParticleContainer> m_outputParticles{this,
+  WriteDataHandle<SelectedSimParticles> m_outputParticles{this,
                                                           "OutputParticles"};
 };
 

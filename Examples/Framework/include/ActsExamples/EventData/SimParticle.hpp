@@ -23,4 +23,18 @@ using MutableSimParticle = ::ActsFatras::MutableParticleProxy;
 
 using SimBarcode = ::ActsFatras::Barcode;
 
+class SelectedSimParticles final
+    : public Acts::detail::ContainerSubset<
+          SelectedSimParticles, SelectedSimParticles, SimParticleContainer,
+          SimParticle, SimParticleIndex, true> {
+ public:
+  /// Base class type
+  using Base =
+      Acts::detail::ContainerSubset<SelectedSimParticles, SelectedSimParticles,
+                                    SimParticleContainer, SimParticle,
+                                    SimParticleIndex, true>;
+
+  using Base::Base;
+};
+
 }  // namespace ActsExamples

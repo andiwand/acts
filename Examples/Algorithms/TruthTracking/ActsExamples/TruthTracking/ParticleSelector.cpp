@@ -124,7 +124,7 @@ void ParticleSelector::logSelectionConfig() const {
 
 ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
   // prepare input/ output types
-  const SimParticleContainer& inputParticles = m_inputParticles(ctx);
+  const SelectedSimParticles& inputParticles = m_inputParticles(ctx);
 
   const static ParticleMeasurementsMap emptyParticlesMeasurementMap;
   const ParticleMeasurementsMap& inputMeasurementParticlesMap =
@@ -143,31 +143,34 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
   std::size_t nInvalidMeasurementRegionCount = 0;
 
   // helper functions to select tracks
-  auto within = [](auto x, auto min, auto max) {
+  const auto within = [](auto x, auto min, auto max) {
     return (min <= x) && (x < max);
   };
 
-  auto isValidParticle = [&](const SimParticle& p) {
-    const auto eta = Acts::VectorHelpers::eta(p.direction());
-    const auto phi = Acts::VectorHelpers::phi(p.direction());
-    const auto rho = Acts::VectorHelpers::perp(p.position());
+  const auto isValidParticle = [&](const SimParticle& p) {
+    const double eta =
+        Acts::VectorHelpers::eta(p.generationState().direction());
+    const double phi =
+        Acts::VectorHelpers::phi(p.generationState().direction());
+    const double rho =
+        Acts::VectorHelpers::perp(p.generationState().position());
     // define charge selection
     const bool validNeutral = (p.charge() == 0) && !m_cfg.removeNeutral;
     const bool validCharged = (p.charge() != 0) && !m_cfg.removeCharged;
     const bool validCharge = validNeutral || validCharged;
     const bool validSecondary = !m_cfg.removeSecondaries || !p.isSecondary();
     const bool validPrimaryVertexId =
-        within(p.particleId().vertexPrimary(), m_cfg.minPrimaryVertexId,
+        within(p.barcode().vertexPrimary(), m_cfg.minPrimaryVertexId,
                m_cfg.maxPrimaryVertexId);
 
     nInvalidCharge += static_cast<std::size_t>(!validCharge);
 
     const bool validHitCount =
-        within(p.numberOfHits(), m_cfg.hitsMin, m_cfg.hitsMax);
+        within(p.currentNumberOfHits(), m_cfg.hitsMin, m_cfg.hitsMax);
     nInvalidHitCount += static_cast<std::size_t>(!validHitCount);
 
     const std::size_t measurementCount =
-        inputMeasurementParticlesMap.count(p.particleId());
+        inputMeasurementParticlesMap.count(p.index());
     const bool validMeasurementCount =
         within(measurementCount, m_cfg.measurementsMin, m_cfg.measurementsMax);
     nInvalidMeasurementCount +=
@@ -191,14 +194,15 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
     return validPdg && validCharge && validSecondary && validPrimaryVertexId &&
            validHitCount && validMeasurementCount &&
            validMeasurementRegionCount &&
-           within(p.transverseMomentum(), m_cfg.ptMin, m_cfg.ptMax) &&
+           within(p.generationState().transverseMomentum(), m_cfg.ptMin,
+                  m_cfg.ptMax) &&
            within(std::abs(eta), m_cfg.absEtaMin, m_cfg.absEtaMax) &&
            within(eta, m_cfg.etaMin, m_cfg.etaMax) &&
            within(phi, m_cfg.phiMin, m_cfg.phiMax) &&
-           within(std::abs(p.position()[Acts::ePos2]), m_cfg.absZMin,
-                  m_cfg.absZMax) &&
+           within(std::abs(p.generationState().position()[Acts::ePos2]),
+                  m_cfg.absZMin, m_cfg.absZMax) &&
            within(rho, m_cfg.rhoMin, m_cfg.rhoMax) &&
-           within(p.time(), m_cfg.timeMin, m_cfg.timeMax) &&
+           within(p.generationState().time(), m_cfg.timeMin, m_cfg.timeMax) &&
            within(p.mass(), m_cfg.mMin, m_cfg.mMax);
   };
 
