@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -86,13 +87,13 @@ class CsvMeasurementReader final : public IReader {
   WriteDataHandle<MeasurementContainer> m_outputMeasurements{
       this, "OutputMeasurements"};
 
-  WriteDataHandle<IndexMultimap<Index>> m_outputMeasurementSimHitsMap{
+  WriteDataHandle<MeasurementSimHitsMap> m_outputMeasurementSimHitsMap{
       this, "OutputMeasurementSimHitsMap"};
 
   WriteDataHandle<ClusterContainer> m_outputClusters{this, "OutputClusters"};
 
-  WriteDataHandle<IndexMultimap<ActsFatras::Barcode>>
-      m_outputMeasurementParticlesMap{this, "OutputMeasurementParticlesMap"};
+  WriteDataHandle<MeasurementParticlesMap> m_outputMeasurementParticlesMap{
+      this, "OutputMeasurementParticlesMap"};
 
   ReadDataHandle<SimHitContainer> m_inputHits{this, "InputHits"};
 };

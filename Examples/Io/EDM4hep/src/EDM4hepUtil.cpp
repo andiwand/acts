@@ -13,7 +13,6 @@
 #include "Acts/EventData/MultiTrajectoryHelpers.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "ActsExamples/Digitization/MeasurementCreation.hpp"
-#include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/Validation/TrackClassification.hpp"
 #include "ActsPlugins/DD4hep/DD4hepDetectorElement.hpp"
@@ -229,13 +228,13 @@ void EDM4hepUtil::writeTrajectory(
     const Acts::GeometryContext& gctx, double Bz, const Trajectories& from,
     edm4hep::MutableTrack to, std::size_t fromIndex,
     const Acts::ParticleHypothesis& particleHypothesis,
-    const IndexMultimap<ActsFatras::Barcode>& hitParticlesMap) {
+    const MeasurementParticlesMap& measurementParticlesMap) {
   const auto& multiTrajectory = from.multiTrajectory();
   auto trajectoryState =
       Acts::MultiTrajectoryHelpers::trajectoryState(multiTrajectory, fromIndex);
 
   std::vector<ParticleHitCount> particleHitCount;
-  identifyContributingParticles(hitParticlesMap, from, fromIndex,
+  identifyContributingParticles(measurementParticlesMap, from, fromIndex,
                                 particleHitCount);
   // TODO use particles
 

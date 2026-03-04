@@ -40,7 +40,7 @@ struct GenericScattering {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<ParticleIndex, 0> operator()(
+  std::array<MutableParticleProxy, 0> operator()(
       generator_t &generator, const Acts::MaterialSlab &slab,
       MutableParticleProxy particle,
       const ParticleSimulationQueue & /*queue*/) const {

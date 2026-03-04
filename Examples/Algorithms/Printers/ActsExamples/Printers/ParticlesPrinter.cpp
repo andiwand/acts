@@ -10,9 +10,7 @@
 
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Utilities/Logger.hpp"
-#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
 
 #include <ostream>
 #include <stdexcept>
@@ -39,13 +37,17 @@ ProcessCode ParticlesPrinter::execute(const AlgorithmContext& ctx) const {
                      << particles.size() << " particles");
   for (const auto& particle : particles) {
     ACTS_INFO("  particle " << particle);
-    ACTS_INFO("    process_type: " << particle.process());
-    ACTS_INFO("    position:     " << particle.position().transpose() / 1_mm
-                                   << " mm");
-    ACTS_INFO("    direction:    " << particle.direction().transpose());
-    ACTS_INFO("    time:         " << particle.time() / 1_ns << " ns");
-    ACTS_INFO("    |p|:          " << particle.absoluteMomentum() / 1_GeV
-                                   << " GeV");
+    ACTS_INFO("    process_type: " << particle.generationProcess());
+    ACTS_INFO("    position:     "
+              << particle.generationState().position().transpose() / 1_mm
+              << " mm");
+    ACTS_INFO("    direction:    "
+              << particle.generationState().direction().transpose());
+    ACTS_INFO("    time:         " << particle.generationState().time() / 1_ns
+                                   << " ns");
+    ACTS_INFO("    |p|:          "
+              << particle.generationState().absoluteMomentum() / 1_GeV
+              << " GeV");
   }
   return ProcessCode::SUCCESS;
 }

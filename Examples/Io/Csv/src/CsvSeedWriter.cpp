@@ -8,9 +8,10 @@
 
 #include "ActsExamples/Io/Csv/CsvSeedWriter.hpp"
 
+#include "ActsExamples/EventData/SimHit.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Utilities/EventDataTransforms.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
-#include "ActsExamples/Utilities/Range.hpp"
 #include "ActsExamples/Validation/TrackClassification.hpp"
 
 #include <fstream>
@@ -32,7 +33,7 @@ namespace {
 ///
 struct SeedInfo {
   std::size_t seedID = 0;
-  ActsFatras::Barcode particleId;
+  SimParticleIndex particleId = 0;
   float seedPt = -1;
   float seedPhi = 0;
   float seedEta = 0;
@@ -81,8 +82,8 @@ ProcessCode CsvSeedWriter::writeT(const AlgorithmContext& ctx,
   // Read additional input collections
   const auto& seeds = m_inputSeeds(ctx);
   const auto& simHits = m_inputSimHits(ctx);
-  const auto& hitParticlesMap = m_inputMeasurementParticlesMap(ctx);
-  const auto& hitSimHitsMap = m_inputMeasurementSimHitsMap(ctx);
+  const auto& measurementParticlesMap = m_inputMeasurementParticlesMap(ctx);
+  const auto& measurementSimHitsMap = m_inputMeasurementSimHitsMap(ctx);
 
   std::string path =
       perEventFilepath(m_cfg.outputDir, m_cfg.fileName, ctx.eventNumber);
@@ -93,8 +94,7 @@ ProcessCode CsvSeedWriter::writeT(const AlgorithmContext& ctx,
   }
 
   std::unordered_map<std::size_t, SeedInfo> infoMap;
-  std::unordered_map<ActsFatras::Barcode, std::pair<std::size_t, float>>
-      goodSeed;
+  std::unordered_map<SimParticleIndex, std::pair<std::size_t, float>> goodSeed;
 
   // Loop over the estimated track parameters
   for (std::size_t iparams = 0; iparams < trackParams.size(); ++iparams) {
@@ -109,31 +109,30 @@ ProcessCode CsvSeedWriter::writeT(const AlgorithmContext& ctx,
     const auto& ptrack = seedToProtoTrack(seed);
 
     std::vector<ParticleHitCount> particleHitCounts;
-    identifyContributingParticles(hitParticlesMap, ptrack, particleHitCounts);
+    identifyContributingParticles(measurementParticlesMap, ptrack,
+                                  particleHitCounts);
     bool truthMatched = false;
     float truthDistance = -1;
-    auto majorityParticleId = particleHitCounts.front().particleId;
+    const SimParticleIndex majorityParticleId =
+        particleHitCounts.front().particleId;
     // Seed are considered truth matched if they have only one contributing
     // particle
     if (particleHitCounts.size() == 1) {
       truthMatched = true;
-      // Get the index of the first space point
-      const auto& hitIdx = ptrack.front();
-      // Get the sim hits via the measurement to sim hits map
-      auto indices = makeRange(hitSimHitsMap.equal_range(hitIdx));
-      // Get the truth particle direction from the sim hits
-      Acts::Vector3 truthUnitDir = {0, 0, 0};
-      for (auto [_, simHitIdx] : indices) {
-        const auto& simHit = *simHits.nth(simHitIdx);
-        if (simHit.particleId() == majorityParticleId) {
-          truthUnitDir = simHit.direction();
-        }
-      }
+      // Get the index of the first measurement
+      const std::size_t firstMeasurementIndex = ptrack.front();
+      // Get the first sim hit via the measurement to sim hits map
+      const SimHitIndex firstSimHitIndex =
+          measurementSimHitsMap.equal_range(firstMeasurementIndex)
+              .first->second;
+      const SimHit& firstSimHit = simHits.at(firstSimHitIndex);
+      // Get the truth particle direction from the sim hit
+      const Acts::Vector3 truthUnitDir = firstSimHit.direction();
       // Compute the distance between the truth and estimated directions
-      float truthPhi = phi(truthUnitDir);
-      float truthEta = std::atanh(std::cos(theta(truthUnitDir)));
-      float dEta = std::abs(truthEta - seedEta);
-      float dPhi =
+      const float truthPhi = phi(truthUnitDir);
+      const float truthEta = std::atanh(std::cos(theta(truthUnitDir)));
+      const float dEta = std::abs(truthEta - seedEta);
+      const float dPhi =
           std::abs(truthPhi - seedPhi) < std::numbers::pi_v<float>
               ? std::abs(truthPhi - seedPhi)
               : std::abs(truthPhi - seedPhi) - std::numbers::pi_v<float>;
@@ -148,11 +147,11 @@ ProcessCode CsvSeedWriter::writeT(const AlgorithmContext& ctx,
         goodSeed[majorityParticleId] = std::make_pair(iparams, truthDistance);
       }
     }
+
     // Store the global position of the space points
     boost::container::small_vector<Acts::Vector3, 3> globalPosition;
-    for (auto sp : seed.spacePoints()) {
-      Acts::Vector3 pos(sp.x(), sp.y(), sp.z());
-      globalPosition.push_back(pos);
+    for (const auto sp : seed.spacePoints()) {
+      globalPosition.emplace_back(sp.x(), sp.y(), sp.z());
     }
 
     // track info

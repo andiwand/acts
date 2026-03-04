@@ -863,6 +863,11 @@ class ParticleStateProxy final {
   explicit ParticleStateProxy(Particle particle) noexcept
       : m_particle(std::move(particle)) {}
 
+  ///
+  explicit ParticleStateProxy(ParticleProxy<false> particle) noexcept
+    requires(ReadOnly)
+      : m_particle(std::move(particle)) {}
+
   /// Copy construct a particle proxy.
   /// @param other The particle proxy to copy.
   ParticleStateProxy(const ParticleStateProxy &other) noexcept = default;

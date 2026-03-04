@@ -55,11 +55,7 @@ struct SimHitData {
   /// Hit surface identifier. Not available in the TrackML datasets.
   std::uint64_t geometry_id = 0u;
   /// Event-unique particle identifier of the generating particle.
-  std::uint32_t particle_id_pv = 0;
-  std::uint32_t particle_id_sv = 0;
-  std::uint32_t particle_id_part = 0;
-  std::uint32_t particle_id_gen = 0;
-  std::uint32_t particle_id_subpart = 0;
+  std::uint32_t particle_id = 0;
   /// True global hit position components in mm.
   float tx = 0, ty = 0, tz = 0;
   // True global hit time in ns. Not available in the TrackML datasets.
@@ -76,12 +72,11 @@ struct SimHitData {
   float deltapz = 0.0f;
   float deltae = 0.0f;
   // Hit index along the trajectory. Not available in the TrackML datasets.
-  std::int32_t index = -1;
+  std::int32_t particle_hit_index = -1;
 
-  DFE_NAMEDTUPLE(SimHitData, particle_id_pv, particle_id_sv, particle_id_part,
-                 particle_id_gen, particle_id_subpart, geometry_id, tx, ty, tz,
-                 tt, tpx, tpy, tpz, te, deltapx, deltapy, deltapz, deltae,
-                 index);
+  DFE_NAMEDTUPLE(SimHitData, particle_id, geometry_id, tx, ty, tz, tt, tpx, tpy,
+                 tpz, te, deltapx, deltapy, deltapz, deltae,
+                 particle_hit_index);
 };
 
 // Write out muon simhits before digitization

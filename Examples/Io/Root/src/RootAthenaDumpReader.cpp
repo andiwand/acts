@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SpacePoint.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 
 #include <algorithm>
 
@@ -279,8 +280,7 @@ SimParticleContainer RootAthenaDumpReader::readParticles() const {
   return particlesSet;
 }
 
-std::tuple<ClusterContainer, MeasurementContainer,
-           IndexMultimap<ActsFatras::Barcode>,
+std::tuple<ClusterContainer, MeasurementContainer, MeasurementParticlesMap,
            std::unordered_map<int, std::size_t>>
 RootAthenaDumpReader::readMeasurements(
     SimParticleContainer& particles, const Acts::GeometryContext& gctx) const {
@@ -293,7 +293,7 @@ RootAthenaDumpReader::readMeasurements(
   std::size_t nTotalTotZero = 0;
 
   const auto prevParticlesSize = particles.size();
-  IndexMultimap<ActsFatras::Barcode> measPartMap;
+  MeasurementParticlesMap measPartMap;
 
   // We cannot use im for the index since we might skip measurements
   std::unordered_map<int, std::size_t> imIdxMap;
@@ -675,13 +675,13 @@ RootAthenaDumpReader::readSpacePoints(
           std::move(stripSpacePoints)};
 }
 
-std::pair<SimParticleContainer, IndexMultimap<ActsFatras::Barcode>>
+std::pair<SimParticleContainer, MeasurementParticlesMap>
 RootAthenaDumpReader::reprocessParticles(
     const SimParticleContainer& particles,
-    const IndexMultimap<ActsFatras::Barcode>& measPartMap) const {
+    const MeasurementParticlesMap& measPartMap) const {
   std::vector<SimParticle> newParticles;
   newParticles.reserve(particles.size());
-  IndexMultimap<ActsFatras::Barcode> newMeasPartMap;
+  MeasurementParticlesMap newMeasPartMap;
   newMeasPartMap.reserve(measPartMap.size());
 
   const auto partMeasMap = invertIndexMultimap(measPartMap);

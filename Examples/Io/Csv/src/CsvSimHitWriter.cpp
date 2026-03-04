@@ -16,11 +16,9 @@
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
-#include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/Hit.hpp"
 
 #include <stdexcept>
-#include <vector>
 
 #include "CsvOutputData.hpp"
 
@@ -53,32 +51,31 @@ ProcessCode CsvSimHitWriter::writeT(const AlgorithmContext& ctx,
     const Acts::Vector4& momentum4Before = simHit.momentum4Before();
 
     simhit.geometry_id = simHit.geometryId().value();
-    const auto particleID = simHit.particleId().asVector();
-    simhit.particle_id_pv = particleID[0];
-    simhit.particle_id_sv = particleID[1];
-    simhit.particle_id_part = particleID[2];
-    simhit.particle_id_gen = particleID[3];
-    simhit.particle_id_subpart = particleID[4];
+    simhit.particle_id = simHit.particleId();
+
     // hit position
     simhit.tx = globalPos4[Acts::ePos0] / Acts::UnitConstants::mm;
     simhit.ty = globalPos4[Acts::ePos1] / Acts::UnitConstants::mm;
     simhit.tz = globalPos4[Acts::ePos2] / Acts::UnitConstants::mm;
     simhit.tt = globalPos4[Acts::eTime] / Acts::UnitConstants::mm;
+
     // particle four-momentum before interaction
     simhit.tpx = momentum4Before[Acts::eMom0] / Acts::UnitConstants::GeV;
     simhit.tpy = momentum4Before[Acts::eMom1] / Acts::UnitConstants::GeV;
     simhit.tpz = momentum4Before[Acts::eMom2] / Acts::UnitConstants::GeV;
     simhit.te = momentum4Before[Acts::eEnergy] / Acts::UnitConstants::GeV;
+
     // particle four-momentum change due to interaction
-    const auto delta4 = simHit.momentum4After() - momentum4Before;
+    const Acts::Vector4 delta4 = simHit.momentum4After() - momentum4Before;
     simhit.deltapx = delta4[Acts::eMom0] / Acts::UnitConstants::GeV;
     simhit.deltapy = delta4[Acts::eMom1] / Acts::UnitConstants::GeV;
     simhit.deltapz = delta4[Acts::eMom2] / Acts::UnitConstants::GeV;
     simhit.deltae = delta4[Acts::eEnergy] / Acts::UnitConstants::GeV;
-    // TODO write hit index along the particle trajectory
-    simhit.index = simHit.index();
+
+    simhit.particle_hit_index = simHit.particleHitIndex();
+
     writerSimHit.append(simhit);
-  }  // end simHit loop
+  }
 
   return ProcessCode::SUCCESS;
 }

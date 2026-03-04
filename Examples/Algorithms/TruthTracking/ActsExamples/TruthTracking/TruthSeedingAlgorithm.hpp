@@ -86,7 +86,7 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
   ReadDataHandle<ParticleMeasurementsMap> m_inputParticleMeasurementsMap{
       this, "InputParticleMeasurementsMap"};
   ReadDataHandle<SimHitContainer> m_inputSimHits{this, "InputHits"};
-  ReadDataHandle<InverseMultimap<Index>> m_inputMeasurementSimHitsMap{
+  ReadDataHandle<MeasurementSimHitsMap> m_inputMeasurementSimHitsMap{
       this, "MeasurementSimHitsMap"};
   ReadDataHandle<SpacePointContainer> m_inputSpacePoints{this,
                                                          "InputSpacePoints"};

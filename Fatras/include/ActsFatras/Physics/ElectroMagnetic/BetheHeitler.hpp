@@ -56,7 +56,7 @@ struct BetheHeitler {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<ParticleIndex, 1> operator()(
+  std::array<MutableParticleProxy, 1> operator()(
       generator_t &generator, const Acts::MaterialSlab &slab,
       MutableParticleProxy particle,
       const ParticleSimulationQueue &queue) const {
@@ -69,7 +69,7 @@ struct BetheHeitler {
     const double sampledEnergyLoss =
         std::abs(scaleFactor * particle.simulationState().energy() * (z - 1.));
 
-    const std::uniform_real_distribution<double> uDist(0., 1.);
+    std::uniform_real_distribution<double> uDist(0., 1.);
     // Build the produced photon
     const double rndPsi = uDist(generator);
     const double rndTheta1 = uDist(generator);
@@ -88,7 +88,7 @@ struct BetheHeitler {
     particle.simulationState().direction() = newMomentum.normalized();
     particle.simulationState().absoluteMomentum() = newMomentum.norm();
 
-    return {photon.index()};
+    return {photon};
   }
 };
 

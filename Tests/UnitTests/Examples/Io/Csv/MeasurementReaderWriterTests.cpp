@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_SUITE(CsvSuite)
 BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
   MeasurementContainer measOriginal;
   ClusterContainer clusterOriginal;
-  IndexMultimap<Index> mapOriginal;
+  MeasurementSimHitsMap mapOriginal;
 
   ////////////////////////////
   // Create some dummy data //

@@ -72,7 +72,8 @@ struct SingleParticleSimulation {
   Acts::Result<SimulationResult> simulate(
       const Acts::GeometryContext &geoCtx,
       const Acts::MagneticFieldContext &magCtx, generator_t &generator,
-      ConstParticleProxy particle) const {
+      MutableParticleProxy particle,
+      const ParticleSimulationQueue &particleQueue, HitContainer &hits) const {
     // propagator-related additional types
     using Actor = detail::SimulationActor<generator_t, decay_t, interactions_t,
                                           hit_surface_selector_t>;
@@ -87,11 +88,13 @@ struct SingleParticleSimulation {
     options.pathLimit = pathLimit;
     // setup the interactor as part of the propagator options
     auto &actor = options.actorList.template get<Actor>();
+    actor.currentParticle = particle;
+    actor.particleQueue = &particleQueue;
+    actor.hits = &hits;
     actor.generator = &generator;
     actor.decay = decay;
     actor.interactions = interactions;
     actor.selectHitSurface = selectHitSurface;
-    actor.initialParticle = particle;
 
     if (particle.simulationState().hasReferenceSurface()) {
       auto result = propagator.propagate(
@@ -197,7 +200,7 @@ struct Simulation {
       ParticleContainer &simulatedParticles, HitContainer &hits) const {
     using SingleParticleSimulationResult = Acts::Result<SimulationResult>;
 
-    ParticleSimulationQueue queue(simulatedParticles);
+    ParticleSimulationQueue particleQueue(simulatedParticles);
     std::vector<FailedParticle> failedParticles;
 
     for (ConstParticleProxy inputParticle : inputParticles) {
@@ -215,7 +218,7 @@ struct Simulation {
       // i.e. we simulate all secondaries, tertiaries, ... before simulating
       // the next primary particle. Use the end of the output container as
       // a queue to store particles that should be simulated.
-      MutableParticleProxy simulationParticle = queue.createParticle();
+      MutableParticleProxy simulationParticle = particleQueue.createParticle();
       // TODO copyFrom
       simulationParticle.assignParentIndices(inputParticle.parentIndices());
       simulationParticle.barcode() = inputParticle.barcode();
@@ -230,21 +233,23 @@ struct Simulation {
           inputParticle.generationState().absoluteMomentum();
       simulationParticle.generationState().direction() =
           inputParticle.generationState().direction();
-      queue.commitParticle(simulationParticle);
+      particleQueue.commitParticle(simulationParticle);
 
       ParticleIndex lastValid = simulatedParticles.size() - 1;
 
-      while (!queue.empty()) {
-        MutableParticleProxy currentParticle = queue.popParticle();
+      while (!particleQueue.empty()) {
+        MutableParticleProxy currentParticle = particleQueue.popParticle();
 
         // only simulatable particles are pushed to the container and here we
         // only need to switch between charged/neutral.
         SingleParticleSimulationResult result =
             SingleParticleSimulationResult::success({});
         if (currentParticle.charge() != 0) {
-          result = charged.simulate(geoCtx, magCtx, generator, currentParticle);
+          result = charged.simulate(geoCtx, magCtx, generator, currentParticle,
+                                    particleQueue, hits);
         } else {
-          result = neutral.simulate(geoCtx, magCtx, generator, currentParticle);
+          result = neutral.simulate(geoCtx, magCtx, generator, currentParticle,
+                                    particleQueue, hits);
         }
 
         if (!result.ok()) {
@@ -253,9 +258,10 @@ struct Simulation {
           continue;
         }
 
-        for (ConstParticleProxy selectedParticle : queue.selectedParticles()) {
+        for (ConstParticleProxy selectedParticle :
+             particleQueue.selectedParticles()) {
           if (selectParticle(selectedParticle)) {
-            queue.commitParticle(selectedParticle);
+            particleQueue.commitParticle(selectedParticle);
           }
         }
 

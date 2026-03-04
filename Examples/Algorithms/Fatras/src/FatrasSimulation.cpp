@@ -22,7 +22,6 @@
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
-#include "ActsFatras/EventData/Hit.hpp"
 #include "ActsFatras/Kernel/InteractionList.hpp"
 #include "ActsFatras/Kernel/Simulation.hpp"
 #include "ActsFatras/Physics/Decay/NoDecay.hpp"
@@ -64,10 +63,11 @@ struct HitSurfaceSelector {
 struct detail::FatrasSimulation {
   virtual ~FatrasSimulation() = default;
   virtual Acts::Result<std::vector<ActsFatras::FailedParticle>> simulate(
-      const Acts::GeometryContext &, const Acts::MagneticFieldContext &,
-      RandomEngine &, const std::vector<ActsFatras::Particle> &,
-      std::vector<ActsFatras::Particle> &, std::vector<ActsFatras::Particle> &,
-      std::vector<ActsFatras::Hit> &) const = 0;
+      const Acts::GeometryContext &geoCtx,
+      const Acts::MagneticFieldContext &magCtx, RandomEngine &rng,
+      const SimParticleContainer &inputParticles,
+      SimParticleContainer &simulatedParticles,
+      SimHitContainer &hits) const = 0;
 };
 
 namespace {
@@ -161,13 +161,11 @@ struct FatrasSimulationT final : detail::FatrasSimulation {
   Acts::Result<std::vector<ActsFatras::FailedParticle>> simulate(
       const Acts::GeometryContext &geoCtx,
       const Acts::MagneticFieldContext &magCtx, RandomEngine &rng,
-      const std::vector<ActsFatras::Particle> &inputParticles,
-      std::vector<ActsFatras::Particle> &simulatedParticlesInitial,
-      std::vector<ActsFatras::Particle> &simulatedParticlesFinal,
-      std::vector<ActsFatras::Hit> &simHits) const final {
+      const SimParticleContainer &inputParticles,
+      SimParticleContainer &simulatedParticles,
+      SimHitContainer &hits) const final {
     return simulation.simulate(geoCtx, magCtx, rng, inputParticles,
-                               simulatedParticlesInitial,
-                               simulatedParticlesFinal, simHits);
+                               simulatedParticles, hits);
   }
 };
 
@@ -220,28 +218,17 @@ ProcessCode FatrasSimulation::execute(const AlgorithmContext &ctx) const {
 
   ACTS_DEBUG(inputParticles.size() << " input particles");
 
-  // prepare input container
-  std::vector<ActsFatras::Particle> particlesInput;
-  particlesInput.reserve(inputParticles.size());
-  for (const auto &p : inputParticles) {
-    particlesInput.push_back(p.initialState());
-  }
-
   // prepare output containers
-  std::vector<ActsFatras::Particle> particlesInitialUnordered;
-  std::vector<ActsFatras::Particle> particlesFinalUnordered;
-  std::vector<ActsFatras::Hit> simHitsUnordered;
+  SimParticleContainer simulatedParticles;
+  SimHitContainer hits;
   // reserve appropriate resources
-  particlesInitialUnordered.reserve(inputParticles.size());
-  particlesFinalUnordered.reserve(inputParticles.size());
-  simHitsUnordered.reserve(inputParticles.size() *
-                           m_cfg.averageHitsPerParticle);
+  simulatedParticles.reserve(inputParticles.size());
+  hits.reserve(inputParticles.size() * m_cfg.averageHitsPerParticle);
 
   // run the simulation w/ a local random generator
   auto rng = m_cfg.randomNumbers->spawnGenerator(ctx);
   auto ret = m_sim->simulate(ctx.geoContext, ctx.magFieldContext, rng,
-                             particlesInput, particlesInitialUnordered,
-                             particlesFinalUnordered, simHitsUnordered);
+                             inputParticles, simulatedParticles, hits);
   // fatal error leads to panic
   if (!ret.ok()) {
     ACTS_FATAL("event " << ctx.eventNumber << " simulation failed with error "
@@ -252,47 +239,17 @@ ProcessCode FatrasSimulation::execute(const AlgorithmContext &ctx) const {
   // to edge-cases representing a tiny fraction of the event; not due to a
   // fundamental issue.
   for (const auto &failed : ret.value()) {
-    ACTS_ERROR("event " << ctx.eventNumber << " particle " << failed.particle
+    ACTS_ERROR("event " << ctx.eventNumber << " particle " << failed.particleId
                         << " failed to simulate with error " << failed.error
                         << ": " << failed.error.message());
   }
 
-  ACTS_DEBUG(particlesInitialUnordered.size()
-             << " simulated particles (initial state)");
-  ACTS_DEBUG(particlesFinalUnordered.size()
-             << " simulated particles (final state)");
-  ACTS_DEBUG(simHitsUnordered.size() << " simulated hits");
-
-  if (particlesInitialUnordered.size() != particlesFinalUnordered.size()) {
-    ACTS_ERROR("number of initial and final state particles differ");
-  }
-
-  // order output containers
-  SimParticleStateContainer particlesInitial(particlesInitialUnordered.begin(),
-                                             particlesInitialUnordered.end());
-  SimParticleStateContainer particlesFinal(particlesFinalUnordered.begin(),
-                                           particlesFinalUnordered.end());
-  SimHitContainer simHits(simHitsUnordered.begin(), simHitsUnordered.end());
-
-  SimParticleContainer particlesSimulated;
-  particlesSimulated.reserve(particlesInitial.size());
-  for (const auto &particleInitial : particlesInitial) {
-    SimParticle particleSimulated(particleInitial, particleInitial);
-
-    if (auto it = particlesFinal.find(particleInitial.particleId());
-        it != particlesFinal.end()) {
-      particleSimulated.finalState() = *it;
-    } else {
-      ACTS_ERROR("particle " << particleInitial.particleId()
-                             << " has no final state");
-    }
-
-    particlesSimulated.insert(particleSimulated);
-  }
+  ACTS_DEBUG(simulatedParticles.size() << " simulated particles");
+  ACTS_DEBUG(hits.size() << " simulated hits");
 
   // store ordered output containers
-  m_outputParticles(ctx, std::move(particlesSimulated));
-  m_outputSimHits(ctx, std::move(simHits));
+  m_outputParticles(ctx, std::move(simulatedParticles));
+  m_outputSimHits(ctx, std::move(hits));
 
   return ProcessCode::SUCCESS;
 }

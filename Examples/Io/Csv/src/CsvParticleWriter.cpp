@@ -9,6 +9,7 @@
 #include "ActsExamples/Io/Csv/CsvParticleWriter.hpp"
 
 #include "Acts/Definitions/Units.hpp"
+#include "Acts/Utilities/Helpers.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
@@ -38,22 +39,26 @@ ProcessCode CsvParticleWriter::writeT(const AlgorithmContext& ctx,
 
   ParticleData data;
   for (const auto& particle : particles) {
-    const auto particleID = particle.particleId().asVector();
+    const auto particleID = particle.barcode().asVector();
     data.particle_id_pv = particleID[0];
     data.particle_id_sv = particleID[1];
     data.particle_id_part = particleID[2];
     data.particle_id_gen = particleID[3];
     data.particle_id_subpart = particleID[4];
     data.particle_type = particle.pdg();
-    data.process = static_cast<decltype(data.process)>(particle.process());
-    data.vx = particle.position().x() / Acts::UnitConstants::mm;
-    data.vy = particle.position().y() / Acts::UnitConstants::mm;
-    data.vz = particle.position().z() / Acts::UnitConstants::mm;
-    data.vt = particle.time() / Acts::UnitConstants::mm;
-    const auto p = particle.absoluteMomentum() / Acts::UnitConstants::GeV;
-    data.px = p * particle.direction().x();
-    data.py = p * particle.direction().y();
-    data.pz = p * particle.direction().z();
+    data.process = Acts::toUnderlying(particle.generationProcess());
+    data.vx =
+        particle.generationState().position().x() / Acts::UnitConstants::mm;
+    data.vy =
+        particle.generationState().position().y() / Acts::UnitConstants::mm;
+    data.vz =
+        particle.generationState().position().z() / Acts::UnitConstants::mm;
+    data.vt = particle.generationState().time() / Acts::UnitConstants::mm;
+    const auto p = particle.generationState().absoluteMomentum() /
+                   Acts::UnitConstants::GeV;
+    data.px = p * particle.generationState().direction().x();
+    data.py = p * particle.generationState().direction().y();
+    data.pz = p * particle.generationState().direction().z();
     data.m = particle.mass() / Acts::UnitConstants::GeV;
     data.q = particle.charge() / Acts::UnitConstants::e;
     writer.append(data);

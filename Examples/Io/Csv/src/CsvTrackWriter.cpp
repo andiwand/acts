@@ -10,6 +10,7 @@
 
 #include "Acts/EventData/ProxyAccessor.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
@@ -54,7 +55,7 @@ ProcessCode CsvTrackWriter::writeT(const AlgorithmContext& context,
 
   // Counter of truth-matched reco tracks
   using RecoTrackInfo = std::pair<TrackInfo, std::size_t>;
-  std::map<ActsFatras::Barcode, std::vector<RecoTrackInfo>> matched;
+  std::map<SimParticleIndex, std::vector<RecoTrackInfo>> matched;
 
   for (const auto& track : tracks) {
     // Reco track selection
@@ -91,7 +92,7 @@ ProcessCode CsvTrackWriter::writeT(const AlgorithmContext& context,
       continue;
     }
     std::size_t nMajorityHits = 0;
-    ActsFatras::Barcode majorityParticleId;
+    SimParticleIndex majorityParticleId = 0;
     if (!particleHitCount.empty()) {
       // Get the majority particle counts
       majorityParticleId = particleHitCount.front().particleId;

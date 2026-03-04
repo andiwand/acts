@@ -38,7 +38,7 @@ struct BetheBloch {
   ///
   /// @tparam generator_t is a RandomNumberEngine
   template <typename generator_t>
-  std::array<ParticleIndex, 0> operator()(
+  std::array<MutableParticleProxy, 0> operator()(
       generator_t &generator, const Acts::MaterialSlab &slab,
       MutableParticleProxy particle,
       const ParticleSimulationQueue & /*queue*/) const {
@@ -56,8 +56,8 @@ struct BetheBloch {
     // Simulate the energy loss
     // TODO landau location and scale parameters are not identical to the most
     //      probable value and the Gaussian-equivalent sigma
-    const LandauDistribution lossDistribution(
-        scaleFactorMPV * energyLoss, scaleFactorSigma * energyLossSigma);
+    LandauDistribution lossDistribution(scaleFactorMPV * energyLoss,
+                                        scaleFactorSigma * energyLossSigma);
     const double loss = lossDistribution(generator);
 
     // Apply the energy loss

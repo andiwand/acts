@@ -20,9 +20,8 @@ struct Vrho {
   /// @brief Extract transverse distance from origin
   /// @param particle The particle to extract from
   /// @return Transverse distance rho = sqrt(x² + y²) from particle position
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return Acts::VectorHelpers::perp(particle.position());
+  double operator()(ConstParticleProxy particle) const {
+    return Acts::VectorHelpers::perp(particle.generationState().position());
   }
 };
 
@@ -31,9 +30,8 @@ struct Vz {
   /// @brief Extract longitudinal distance from origin
   /// @param particle The particle to extract from
   /// @return Z-coordinate of particle position
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return particle.position().z();
+  double operator()(ConstParticleProxy particle) const {
+    return particle.generationState().position().z();
   }
 };
 
@@ -42,9 +40,8 @@ struct AbsVz {
   /// @brief Extract absolute longitudinal distance from origin
   /// @param particle The particle to extract from
   /// @return Absolute value of Z-coordinate of particle position
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return std::abs(particle.position().z());
+  double operator()(ConstParticleProxy particle) const {
+    return std::abs(particle.generationState().position().z());
   }
 };
 
@@ -53,9 +50,8 @@ struct Eta {
   /// @brief Extract direction pseudo-rapidity
   /// @param particle The particle to extract from
   /// @return Pseudo-rapidity η = atanh(p_z/p) from particle direction
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return Acts::VectorHelpers::eta(particle.direction());
+  double operator()(ConstParticleProxy particle) const {
+    return Acts::VectorHelpers::eta(particle.generationState().direction());
   }
 };
 
@@ -64,9 +60,8 @@ struct AbsEta {
   /// @brief Extract absolute direction pseudo-rapidity
   /// @param particle The particle to extract from
   /// @return Absolute pseudo-rapidity |η| = atanh(|p_z|/p) from particle direction
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return std::atanh(std::abs(particle.direction().z()));
+  double operator()(ConstParticleProxy particle) const {
+    return std::abs(Eta{}(particle));
   }
 };
 
@@ -75,9 +70,8 @@ struct Pt {
   /// @brief Extract transverse momentum
   /// @param particle The particle to extract from
   /// @return Transverse momentum p_T = p × sin(θ) from particle momentum
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return Acts::VectorHelpers::perp(particle.momentum());
+  double operator()(ConstParticleProxy particle) const {
+    return Acts::VectorHelpers::perp(particle.generationState().momentum());
   }
 };
 
@@ -86,9 +80,8 @@ struct P {
   /// @brief Extract absolute momentum magnitude
   /// @param particle The particle to extract from
   /// @return Total momentum magnitude |p| of the particle
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return particle.absoluteMomentum();
+  double operator()(ConstParticleProxy particle) const {
+    return particle.generationState().absoluteMomentum();
   }
 };
 
@@ -97,9 +90,8 @@ struct E {
   /// @brief Extract total energy
   /// @param particle The particle to extract from
   /// @return Total energy E = sqrt(p²c² + m²c⁴) of the particle
-  template <typename StateAccessor>
-  double operator()(ParticleStateProxy<StateAccessor, true> particle) const {
-    return particle.energy();
+  double operator()(ConstParticleProxy particle) const {
+    return particle.generationState().energy();
   }
 };
 

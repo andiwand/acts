@@ -14,8 +14,8 @@
 #include "ActsExamples/Digitization/MeasurementCreation.hpp"
 #include "ActsExamples/EventData/Cluster.hpp"
 #include "ActsExamples/EventData/GeometryContainers.hpp"
-#include "ActsExamples/EventData/Index.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
+#include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
@@ -189,7 +189,7 @@ ProcessCode CsvMeasurementReader::read(const AlgorithmContext& ctx) {
   // Prepare containers for the hit data using the framework event data types
   MeasurementContainer tmpMeasurements;
   GeometryIdMultimap<ConstVariableBoundMeasurementProxy> orderedMeasurements;
-  IndexMultimap<Index> measurementSimHitsMap;
+  MeasurementSimHitsMap measurementSimHitsMap;
 
   tmpMeasurements.reserve(measurementData.size());
   orderedMeasurements.reserve(measurementData.size());
@@ -265,11 +265,11 @@ ProcessCode CsvMeasurementReader::read(const AlgorithmContext& ctx) {
       m_outputMeasurementParticlesMap.isInitialized()) {
     const auto hits = m_inputHits(ctx);
 
-    IndexMultimap<ActsFatras::Barcode> outputMap;
+    MeasurementParticlesMap outputMap;
 
     for (const auto& [measIdx, hitIdx] : measurementSimHitsMap) {
-      const auto& hit = hits.nth(hitIdx);
-      outputMap.emplace(measIdx, hit->particleId());
+      const auto& hit = hits.at(hitIdx);
+      outputMap.emplace(measIdx, hit.particleId());
     }
 
     m_outputMeasurementParticlesMap(ctx, std::move(outputMap));

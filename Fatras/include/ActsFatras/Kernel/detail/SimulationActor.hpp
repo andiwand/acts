@@ -15,6 +15,7 @@
 #include "Acts/Surfaces/Surface.hpp"
 #include "ActsFatras/EventData/HitContainer.hpp"
 #include "ActsFatras/EventData/ParticleContainer.hpp"
+#include "ActsFatras/EventData/ParticleSimulationQueue.hpp"
 #include "ActsFatras/Kernel/SimulationResult.hpp"
 
 #include <algorithm>
@@ -43,7 +44,7 @@ struct SimulationActor {
   ///
   std::optional<MutableParticleProxy> currentParticle;
   ///
-  ParticleContainer *particles = nullptr;
+  const ParticleSimulationQueue *particleQueue = nullptr;
   ///
   HitContainer *hits = nullptr;
   /// Random number generator used for the simulation.
@@ -75,9 +76,8 @@ struct SimulationActor {
     assert(
         currentParticle.has_value() &&
         "The current particle must be set before the first call to the actor");
-    assert(particles != nullptr &&
-           "The particle container pointer must be valid");
-    assert(particles != nullptr && "The hit container pointer must be valid");
+    assert(particleQueue != nullptr &&
+           "The particle queue pointer must be valid");
     assert(hits != nullptr && "The hit container pointer must be valid");
     assert(generator != nullptr && "The generator pointer must be valid");
 
@@ -140,13 +140,14 @@ struct SimulationActor {
 
     // arm the point-like interaction limits in the first step
     if (std::isnan(result.x0Limit) || std::isnan(result.l0Limit)) {
-      armPointLikeInteractions(particle, result);
+      armPointLikeInteractions(particle.asConst(), result);
     }
 
     // If we are on target, everything should have been done
     if (state.stage == Acts::PropagatorStage::postPropagation) {
       return Acts::Result<void>::success();
     }
+
     // If we are not on a surface, there is nothing further for us to do
     if (!navigator.currentSurface(state.navigation)) {
       return Acts::Result<void>::success();
@@ -162,32 +163,29 @@ struct SimulationActor {
 
     // interactions only make sense if there is material to interact with.
     if (surface.surfaceMaterial()) {
-      // TODO is this the right thing to do when globalToLocal fails?
-      //   it should in principle never happen, so probably it would be best
-      //   to change to a model using transform() directly
       const Acts::Result<Acts::Vector2> lpResult = surface.globalToLocal(
           state.geoContext, particle.simulationState().position(),
           particle.simulationState().direction());
-      if (lpResult.ok()) {
-        const Acts::Vector2 local = lpResult.value();
-        Acts::MaterialSlab slab =
-            surface.surfaceMaterial()->materialSlab(local);
-        // again: interact only if there is valid material to interact with
-        if (!slab.isVacuum()) {
-          // adapt material for non-zero incidence
-          const Acts::Vector3 normal = surface.normal(
-              state.geoContext, particle.simulationState().position(),
-              particle.simulationState().direction());
-          // dot-product(unit normal, direction) = cos(incidence angle)
-          // particle direction is normalized, not sure about surface normal
-          const double cosIncidenceInv =
-              normal.norm() /
-              normal.dot(particle.simulationState().direction());
-          // apply abs in case `normal` and `particle` produce an angle > 90°
-          slab.scaleThickness(std::abs(cosIncidenceInv));
-          // run the interaction simulation
-          interact(slab, result);  // MARK: fpeMask(FLTUND, 1, #2346)
-        }
+      if (!lpResult.ok()) {
+        ACTS_DEBUG("Failed to convert global to local position on surface "
+                   << surface.geometryId());
+        return lpResult.error();
+      }
+      const Acts::Vector2 local = lpResult.value();
+      Acts::MaterialSlab slab = surface.surfaceMaterial()->materialSlab(local);
+      // again: interact only if there is valid material to interact with
+      if (!slab.isVacuum()) {
+        // adapt material for non-zero incidence
+        const Acts::Vector3 normal = surface.normal(
+            state.geoContext, particle.simulationState().position(),
+            particle.simulationState().direction());
+        // dot-product(unit normal, unit direction) = cos(incidence angle)
+        const double cosIncidenceInv =
+            1 / normal.dot(particle.simulationState().direction());
+        // apply abs in case `normal` and `particle` produce an angle > 90°
+        slab.scaleThickness(std::abs(cosIncidenceInv));
+        // run the interaction simulation
+        interact(particle, slab, result);  // MARK: fpeMask(FLTUND, 1, #2346)
       }
     }
 
@@ -260,7 +258,7 @@ struct SimulationActor {
   }
 
   /// Prepare limits and process selection for the next point-like interaction.
-  void armPointLikeInteractions(MutableParticleProxy particle,
+  void armPointLikeInteractions(ConstParticleProxy particle,
                                 result_type &result) const {
     const auto selection = interactions.armPointLike(*generator, particle);
     result.x0Limit = selection.x0Limit;
@@ -284,8 +282,8 @@ struct SimulationActor {
       const double x0 = particle.pathInX0() + partialSlab.thicknessInX0();
       const double l0 = particle.pathInL0() + partialSlab.thicknessInL0();
       bool retval = false;
-      if (interactions.runContinuous(*(this->generator), partialSlab, particle,
-                                     result.generatedParticles)) {
+      if (interactions.runContinuous(*generator, partialSlab, particle,
+                                     *particleQueue)) {
         result.isAlive = false;
         retval = true;
       }
@@ -331,20 +329,21 @@ struct SimulationActor {
     const float frac = std::min(fracX0, fracL0);
 
     // do not run if there is zero material before the point-like interaction
-    if (0.0f < frac) {
+    if (frac > 0) {
       // simulate continuous processes before the point-like interaction
       if (runContinuousPartial(frac)) {
         return;
       }
     }
+
     // do not run if there is no point-like interaction
-    if (frac < 1.0f) {
+    if (frac < 1) {
       // select which process to simulate
       const std::size_t process =
           (fracX0 < fracL0) ? result.x0Process : result.l0Process;
       // simulate the selected point-like process
       if (interactions.runPointLike(*generator, process, particle,
-                                    result.generatedParticles)) {
+                                    *particleQueue)) {
         result.isAlive = false;
         return;
       }
@@ -359,7 +358,7 @@ struct SimulationActor {
       // should already occur within the same material slab. thus, re-arming is
       // done after all processes are simulated to enforce the
       // one-interaction-per-slab rule.
-      armPointLikeInteractions(particle, result);
+      armPointLikeInteractions(particle.asConst(), result);
     }
   }
 };

@@ -226,7 +226,7 @@ Acts::Vector3 PhotonConversion::generateChildDirection(
     generator_t& generator, ConstParticleProxy particle) const {
   /// This method is based upon the Athena class PhotonConversionTool
 
-  const std::uniform_real_distribution<double> uniformDistribution{0., 1.};
+  std::uniform_real_distribution<double> uniformDistribution{0., 1.};
   const double u = -std::log(uniformDistribution(generator) *
                              uniformDistribution(generator)) *
                    1.6;
@@ -321,7 +321,8 @@ bool PhotonConversion::run(generator_t& generator,
   const double childEnergy = p * generateFirstChildEnergyFraction(generator, p);
 
   // Now get the deflection
-  const Acts::Vector3 childDir = generateChildDirection(generator, particle);
+  const Acts::Vector3 childDir =
+      generateChildDirection(generator, particle.asConst());
 
   // Produce the final state
   generateChildren(particle.asConst(), childEnergy, childDir, queue);

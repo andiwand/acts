@@ -43,7 +43,7 @@ TruthGraphBuilder::TruthGraphBuilder(Config config,
 std::vector<std::int64_t> TruthGraphBuilder::buildFromMeasurements(
     const SpacePointContainer& spacePoints,
     const SimParticleContainer& particles,
-    const IndexMultimap<ActsFatras::Barcode>& measPartMap) const {
+    const MeasurementParticlesMap& measPartMap) const {
   if (m_cfg.targetMinPT < 500_MeV) {
     ACTS_WARNING(
         "truth graph building based on distance from origin, this breaks down "
@@ -131,7 +131,7 @@ struct HitInfo {
 
 std::vector<std::int64_t> TruthGraphBuilder::buildFromSimhits(
     const SpacePointContainer& spacePoints,
-    const IndexMultimap<Index>& measHitMap, const SimHitContainer& simhits,
+    const MeasurementSimHitsMap& measHitMap, const SimHitContainer& simhits,
     const SimParticleContainer& particles) const {
   // Associate tracks to graph, collect momentum
   std::unordered_map<ActsFatras::Barcode, std::vector<HitInfo>> tracks;

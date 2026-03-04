@@ -31,22 +31,22 @@ class Hit {
 
   /// Construct from four-position and four-momenta.
   ///
-  /// @param geometryId      Geometry identifier of the surface
+  /// @param geometryId Geometry identifier of the surface
   /// @param particleId Particle index of the particle that created the hit
-  /// @param pos4       Particle space-time four-vector on the surface
-  /// @param before4    Particle four-momentum before the interaction
-  /// @param after4     Particle four-momentum after the interaction
-  /// @param index_     Hit index along the particle trajectory
+  /// @param pos4 Particle space-time four-vector on the surface
+  /// @param before4 Particle four-momentum before the interaction
+  /// @param after4 Particle four-momentum after the interaction
+  /// @param particleHitIndex Hit index along the particle trajectory
   ///
   /// All quantities are given in the global coordinate system. It is the
   /// users responsibility to ensure that the position correspond to a
   /// position on the given surface.
   Hit(Acts::GeometryIdentifier geometryId, ParticleIndex particleId,
       const Acts::Vector4& pos4, const Acts::Vector4& before4,
-      const Acts::Vector4& after4, std::int32_t index = -1)
+      const Acts::Vector4& after4, std::int32_t particleHitIndex = -1)
       : m_geometryId(geometryId),
         m_particleId(particleId),
-        m_index(index),
+        m_particleHitIndex(particleHitIndex),
         m_pos4(pos4),
         m_before4(before4),
         m_after4(after4) {}
@@ -60,7 +60,7 @@ class Hit {
   /// Hit index along the particle trajectory.
   ///
   /// @retval negative if the hit index is undefined.
-  constexpr std::int32_t index() const { return m_index; }
+  constexpr std::int32_t particleHitIndex() const { return m_particleHitIndex; }
 
   /// Space-time position four-vector.
   /// @return Reference to four-vector containing position and time coordinates
@@ -109,7 +109,7 @@ class Hit {
   /// Index of the generating particle.
   ParticleIndex m_particleId{};
   /// Index of the hit along the particle trajectory.
-  std::int32_t m_index = -1;
+  std::int32_t m_particleHitIndex = -1;
   /// Global space-time position four-vector.
   Acts::Vector4 m_pos4 = Acts::Vector4::Zero();
   /// Global particle energy-momentum four-vector before the hit.

@@ -56,32 +56,32 @@ struct ContinuousProcess {
 
   /// Execute the physics process considering the configured selectors.
   ///
-  /// @param[in]     generator is the random number generator
-  /// @param[in]     slab      is the passed material
-  /// @param[in,out] particle  is the particle being updated
-  /// @param[in]     queue     is the simulation queue of generated particles
+  /// @param[in] generator is the random number generator
+  /// @param[in] slab is the passed material
+  /// @param[in,out] particle is the particle being updated
+  /// @param[in] particleQueue is the simulation queue of generated particles
   /// @return Break condition, i.e. whether this process stops the propagation
   ///
   /// @tparam generator_t must be a RandomNumberEngine
   template <typename generator_t>
   bool operator()(generator_t &generator, const Acts::MaterialSlab &slab,
                   MutableParticleProxy particle,
-                  const ParticleSimulationQueue &queue) const {
+                  const ParticleSimulationQueue &particleQueue) const {
     // not selecting this process is not a break condition
-    if (!selectInputParticle(particle)) {
+    if (!selectInputParticle(particle.asConst())) {
       return false;
     }
     // modify particle according to the physics process
-    auto children = physics(generator, slab, particle);
+    auto children = physics(generator, slab, particle, particleQueue);
     // enqueue selected child particles
     for (const MutableParticleProxy child : children) {
-      if (selectChildParticle(child)) {
-        queue.selectParticle(child);
+      if (selectChildParticle(child.asConst())) {
+        particleQueue.selectParticle(child);
       }
     }
     // break condition is defined by whether the output particle is still valid
     // or not e.g. because it has fallen below a momentum threshold.
-    return !selectOutputParticle(particle);
+    return !selectOutputParticle(particle.asConst());
   }
 };
 

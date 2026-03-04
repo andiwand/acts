@@ -23,7 +23,6 @@
 #include "Acts/Vertexing/TrackAtVertex.hpp"
 #include "Acts/Vertexing/TrackDensityVertexFinder.hpp"
 #include "Acts/Vertexing/Vertex.hpp"
-#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
@@ -242,7 +241,7 @@ ProcessCode AdaptiveMultiVertexFinderAlgorithm::execute(
 
     for (const auto& truthVertex : truthVertices) {
       // Skip secondary vertices
-      if (truthVertex.vertexId().vertexSecondary() != 0) {
+      if (truthVertex.barcode.vertexSecondary() != 0) {
         continue;
       }
       vertexSeederState.truthVertices.push_back(truthVertex);
@@ -250,18 +249,18 @@ ProcessCode AdaptiveMultiVertexFinderAlgorithm::execute(
       // Count the number of particles associated with each vertex
       std::size_t particleCount = 0;
       for (const auto& particle : truthParticles) {
-        if (static_cast<SimVertexBarcode>(particle.particleId().vertexId()) ==
-            truthVertex.vertexId()) {
+        if (static_cast<SimVertexBarcode>(particle.barcode().vertexId()) ==
+            truthVertex.barcode) {
           ++particleCount;
         }
       }
-      vertexParticleCount[truthVertex.vertexId()] = particleCount;
+      vertexParticleCount[truthVertex.barcode] = particleCount;
     }
 
     // sort by number of particles
     std::ranges::sort(vertexSeederState.truthVertices, {},
                       [&vertexParticleCount](const auto& v) {
-                        return vertexParticleCount[v.vertexId()];
+                        return vertexParticleCount[v.barcode];
                       });
 
     ACTS_INFO("Got " << truthVertices.size() << " truth vertices and selected "

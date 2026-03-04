@@ -11,14 +11,14 @@
 #include "Acts/Definitions/PdgParticle.hpp"
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Io/Csv/CsvInputOutput.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/GenerationProcessType.hpp"
 
-#include <cmath>
 #include <stdexcept>
 #include <string>
 
@@ -51,38 +51,37 @@ std::pair<std::size_t, std::size_t> CsvParticleReader::availableEvents() const {
 }
 
 ProcessCode CsvParticleReader::read(const AlgorithmContext& ctx) {
-  SimParticleContainer::sequence_type unordered;
+  SimParticleContainer particles(SimParticleColumns::Generated);
 
-  auto path = perEventFilepath(m_cfg.inputDir, m_cfg.inputStem + ".csv",
-                               ctx.eventNumber);
+  const std::string path = perEventFilepath(
+      m_cfg.inputDir, m_cfg.inputStem + ".csv", ctx.eventNumber);
+
   // vt and m are an optional columns
   NamedTupleCsvReader<ParticleData> reader(path, {"vt", "m"});
   ParticleData data;
-
   while (reader.read(data)) {
-    SimParticleState particle(ActsFatras::Barcode()
-                                  .withVertexPrimary(data.particle_id_pv)
-                                  .withVertexSecondary(data.particle_id_sv)
-                                  .withParticle(data.particle_id_part)
-                                  .withGeneration(data.particle_id_gen)
-                                  .withSubParticle(data.particle_id_subpart),
-                              Acts::PdgParticle{data.particle_type},
-                              data.q * Acts::UnitConstants::e,
-                              data.m * Acts::UnitConstants::GeV);
-    particle.setProcess(static_cast<ActsFatras::ProcessType>(data.process));
-    particle.setPosition4(
+    MutableSimParticle particle = particles.createParticle();
+    particle.assignParentIndices({});
+    particle.barcode() = ActsFatras::Barcode()
+                             .withVertexPrimary(data.particle_id_pv)
+                             .withVertexSecondary(data.particle_id_sv)
+                             .withParticle(data.particle_id_part)
+                             .withGeneration(data.particle_id_gen)
+                             .withSubParticle(data.particle_id_subpart);
+    particle.pdg() = Acts::PdgParticle{data.particle_type};
+    particle.charge() = data.q * Acts::UnitConstants::e;
+    particle.mass() = data.m * Acts::UnitConstants::GeV;
+    particle.generationProcess() =
+        static_cast<ActsFatras::GenerationProcessType>(data.process);
+    particle.generationState().fourPosition() = Acts::Vector4(
         data.vx * Acts::UnitConstants::mm, data.vy * Acts::UnitConstants::mm,
         data.vz * Acts::UnitConstants::mm, data.vt * Acts::UnitConstants::mm);
-    // Only used for direction; normalization/units do not matter
-    particle.setDirection(data.px, data.py, data.pz);
-    particle.setAbsoluteMomentum(std::hypot(data.px, data.py, data.pz) *
-                                 Acts::UnitConstants::GeV);
-    unordered.push_back(SimParticle(particle, particle));
+    particle.generationState().absoluteMomentum() =
+        Acts::fastHypot(data.px, data.py, data.pz);
+    particle.generationState().direction() =
+        Acts::Vector3(data.px, data.py, data.pz);
   }
 
-  // Write ordered particles container to the EventStore
-  SimParticleContainer particles;
-  particles.insert(unordered.begin(), unordered.end());
   m_outputParticles(ctx, std::move(particles));
 
   return ProcessCode::SUCCESS;
