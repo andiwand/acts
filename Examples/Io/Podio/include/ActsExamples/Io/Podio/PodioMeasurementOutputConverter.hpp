@@ -10,15 +10,12 @@
 
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
-#include "ActsExamples/Io/Podio/CollectionBaseWriteHandle.hpp"
+#include "ActsExamples/Io/Podio/PodioCollectionDataHandle.hpp"
 #include "ActsExamples/Io/Podio/PodioOutputConverter.hpp"
 #include "ActsPlugins/EDM4hep/EDM4hepUtil.hpp"
+#include "ActsPodioEdm/MeasurementCollection.h"
 
 #include <edm4hep/SimTrackerHit.h>
-
-namespace podio {
-class CollectionBase;
-}
 
 namespace ActsExamples {
 
@@ -64,7 +61,8 @@ class PodioMeasurementOutputConverter : public PodioOutputConverter {
   ReadDataHandle<MeasurementSimHitsMap> m_inputMeasurementSimHitsMap{
       this, "InputMeasurementSimHitsMap"};
 
-  CollectionBaseWriteHandle m_outputMeasurements{this, "OutputMeasurements"};
+  PodioCollectionWriteHandle<ActsPodioEdm::MeasurementCollection>
+      m_outputMeasurements{this, "OutputMeasurements"};
 };
 
 }  // namespace ActsExamples

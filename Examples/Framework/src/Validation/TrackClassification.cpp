@@ -9,6 +9,7 @@
 #include "ActsExamples/Validation/TrackClassification.hpp"
 
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
+#include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/Trajectories.hpp"
 #include "ActsExamples/Utilities/Range.hpp"

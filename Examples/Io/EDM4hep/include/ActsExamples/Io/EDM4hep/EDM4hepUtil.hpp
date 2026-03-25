@@ -31,13 +31,12 @@
 namespace ActsExamples::EDM4hepUtil {
 
 using MapParticleIdFrom =
-    std::function<ActsFatras::Barcode(const edm4hep::MCParticle& particle)>;
+    std::function<SimBarcode(const edm4hep::MCParticle& particle)>;
 using MapParticleIdTo =
-    std::function<edm4hep::MCParticle(ActsFatras::Barcode particleId)>;
+    std::function<edm4hep::MCParticle(SimBarcode particleId)>;
 
-inline ActsFatras::Barcode zeroParticleMapper(
-    const edm4hep::MCParticle& /*particle*/) {
-  return ActsFatras::Barcode::Invalid();
+inline SimBarcode zeroParticleMapper(const edm4hep::MCParticle& /*particle*/) {
+  return SimBarcode::Invalid();
 }
 
 using MapGeometryIdFrom =

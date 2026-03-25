@@ -51,7 +51,7 @@ std::vector<std::int64_t> TruthGraphBuilder::buildFromMeasurements(
   }
 
   // Associate tracks to graph, collect momentum
-  std::unordered_map<ActsFatras::Barcode, std::vector<std::size_t>> tracks;
+  std::unordered_map<SimBarcode, std::vector<std::size_t>> tracks;
 
   for (auto i = 0ul; i < spacePoints.size(); ++i) {
     const auto measId =
@@ -134,7 +134,7 @@ std::vector<std::int64_t> TruthGraphBuilder::buildFromSimhits(
     const MeasurementSimHitsMap& measHitMap, const SimHitContainer& simhits,
     const SimParticleContainer& particles) const {
   // Associate tracks to graph, collect momentum
-  std::unordered_map<ActsFatras::Barcode, std::vector<HitInfo>> tracks;
+  std::unordered_map<SimBarcode, std::vector<HitInfo>> tracks;
 
   for (auto i = 0ul; i < spacePoints.size(); ++i) {
     const auto measId =

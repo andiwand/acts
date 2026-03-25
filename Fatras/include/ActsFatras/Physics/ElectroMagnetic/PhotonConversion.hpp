@@ -69,7 +69,7 @@ class PhotonConversion {
   ///
   /// @return Array containing the produced leptons
   std::array<MutableParticleProxy, 2> generateChildren(
-      ConstParticleProxy photon, double childEnergy,
+      ConstParticleProxy photon, double child1Energy,
       const Acts::Vector3& child1Direction,
       const ParticleSimulationQueue& queue) const;
 
@@ -254,7 +254,7 @@ Acts::Vector3 PhotonConversion::generateChildDirection(
 }
 
 inline std::array<MutableParticleProxy, 2> PhotonConversion::generateChildren(
-    ConstParticleProxy photon, double childEnergy,
+    ConstParticleProxy photon, double child1Energy,
     const Acts::Vector3& child1Direction,
     const ParticleSimulationQueue& queue) const {
   using namespace Acts::UnitLiterals;
@@ -262,7 +262,7 @@ inline std::array<MutableParticleProxy, 2> PhotonConversion::generateChildren(
   // Calculate the child momentum
   const double massChild = electronMass();
   const double absoluteMomentum1 =
-      std::sqrt(childEnergy * childEnergy - massChild * massChild);
+      std::sqrt(child1Energy * child1Energy - massChild * massChild);
 
   // Use energy-momentum conservation for the other child
   const Acts::Vector3 momentum2 =
@@ -318,14 +318,15 @@ bool PhotonConversion::run(generator_t& generator,
   }
 
   // Get one child energy
-  const double childEnergy = p * generateFirstChildEnergyFraction(generator, p);
+  const double child1Energy =
+      p * generateFirstChildEnergyFraction(generator, p);
 
   // Now get the deflection
   const Acts::Vector3 childDir =
       generateChildDirection(generator, particle.asConst());
 
   // Produce the final state
-  generateChildren(particle.asConst(), childEnergy, childDir, queue);
+  generateChildren(particle.asConst(), child1Energy, childDir, queue);
 
   return true;
 }

@@ -471,7 +471,7 @@ RootAthenaDumpReader::readMeasurements(
           particles.emplace(dummyBarcode, Acts::PdgParticle::eInvalid);
         }
         measPartMap.insert(
-            std::pair<Index, ActsFatras::Barcode>{measIndex, dummyBarcode});
+            std::pair<Index, SimBarcode>{measIndex, dummyBarcode});
       }
     }
   }
@@ -701,8 +701,7 @@ RootAthenaDumpReader::reprocessParticles(
     auto primary = particle.particleId().vertexSecondary() == 0;
 
     // vertex primary shouldn't be zero for a valid particle
-    ActsFatras::Barcode fatrasBarcode =
-        ActsFatras::Barcode().withVertexPrimary(1);
+    SimBarcode fatrasBarcode = SimBarcode().withVertexPrimary(1);
     if (primary) {
       fatrasBarcode =
           fatrasBarcode.withVertexSecondary(0).withParticle(primaryCount);
@@ -721,7 +720,7 @@ RootAthenaDumpReader::reprocessParticles(
 
     for (auto it = begin; it != end; ++it) {
       newMeasPartMap.insert(
-          std::pair<Index, ActsFatras::Barcode>{it->second, fatrasBarcode});
+          std::pair<Index, SimBarcode>{it->second, fatrasBarcode});
     }
   }
 

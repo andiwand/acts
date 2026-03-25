@@ -22,6 +22,7 @@
 
 #include <cstddef>
 #include <mutex>
+#include <set>
 #include <string>
 
 class TFile;

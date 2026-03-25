@@ -45,7 +45,7 @@ MutableParticleProxy ActsFatras::BetheHeitler::bremPhoton(
     theta = particle.mass() / particle.simulationState().energy();
     // follow
     constexpr double a = 0.625;  // 5/8
-    const double u = -log(rndTheta2 * rndTheta3) / a;
+    const double u = -std::log(rndTheta2 * rndTheta3) / a;
     theta *= (rndTheta1 < 0.25) ? u : u / 3.;  // 9./(9.+27) = 0.25
   }
 

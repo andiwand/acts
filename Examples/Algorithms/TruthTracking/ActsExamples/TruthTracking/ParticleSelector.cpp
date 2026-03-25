@@ -178,7 +178,7 @@ ProcessCode ParticleSelector::execute(const AlgorithmContext& ctx) const {
 
     const bool validMeasurementRegionCount =
         m_cfg.measurementCounter.isValidParticle(
-            p, inputMeasurementParticlesMap, inputMeasurements);
+            p, inputParticlesMeasurementMap, inputMeasurements);
     nInvalidMeasurementRegionCount +=
         static_cast<std::size_t>(!validMeasurementRegionCount);
 

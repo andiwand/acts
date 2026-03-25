@@ -29,7 +29,7 @@ namespace ActsExamples {
 
 SimParticle EDM4hepUtil::readParticle(const edm4hep::MCParticle& from,
                                       const MapParticleIdFrom& particleMapper) {
-  ActsFatras::Barcode particleId = particleMapper(from);
+  SimBarcode particleId = particleMapper(from);
 
   SimParticle to(particleId, static_cast<Acts::PdgParticle>(from.getPDG()),
                  from.getCharge() * Acts::UnitConstants::e,
@@ -75,7 +75,7 @@ ActsFatras::Hit EDM4hepUtil::readSimHit(const edm4hep::SimTrackerHit& from,
                                         const MapGeometryIdFrom& geometryMapper,
                                         std::uint32_t index) {
   auto particle = ActsPlugins::EDM4hepUtil::getParticle(from);
-  ActsFatras::Barcode particleId = particleMapper(particle);
+  SimBarcode particleId = particleMapper(particle);
 
   const auto mass = particle.getMass() * 1_GeV;
   const Acts::Vector3 momentum{
