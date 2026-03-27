@@ -10,6 +10,7 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Utilities/TypeTraits.hpp"
+#include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/ForwardDeclare.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 
@@ -106,6 +107,8 @@ class VertexProxy final {
   /// @return The index of the vertex in the container.
   Index index() const noexcept { return m_index; }
 
+  Barcode &barcode() noexcept { return container().m_barcodeColumn[m_index]; }
+
   void assignIncomingParticleIndices(
       std::span<const ParticleIndex> particleIndices)
     requires(!ReadOnly)
@@ -134,6 +137,10 @@ class VertexProxy final {
 
   ProcessType &generationProcess() noexcept {
     return container().m_processType[m_index];
+  }
+
+  const Barcode &barcode() const noexcept {
+    return container().m_barcodeColumn[m_index];
   }
 
   std::span<const ParticleIndex> incomingParticleIndices() const noexcept {

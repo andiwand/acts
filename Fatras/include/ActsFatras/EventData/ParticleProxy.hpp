@@ -192,6 +192,22 @@ class ParticleProxy final {
     return accessImpl(m_container->m_endOutcomeColumn);
   }
 
+  void assignVertexIndices(std::span<const VertexIndex> vertexIndices) noexcept
+    requires(!ReadOnly)
+  {
+    if (accessImpl(m_container->m_vertexIndicesCountColumn) != 0) {
+      throw std::logic_error("Vertices already assigned to the particle");
+    }
+
+    accessImpl(m_container->m_vertexIndicesOffsetColumn[m_index]) =
+        static_cast<std::uint32_t>(m_container->m_spacePoints.size());
+    accessImpl(m_container->m_vertexIndicesCountColumn[m_index]) =
+        static_cast<std::uint8_t>(vertexIndices.size());
+    m_container->m_vertexIndices.insert(m_container->m_spacePoints.end(),
+                                        vertexIndices.begin(),
+                                        vertexIndices.end());
+  }
+
   void assignHitIndices(std::span<const HitIndex> hitIndices) noexcept
     requires(!ReadOnly)
   {
@@ -226,13 +242,18 @@ class ParticleProxy final {
   }
 
   ConstVertexProxy productionVertex() const noexcept {
-    return m_container->vertexContainer().at(
-        accessImpl(m_container->m_productionVertexIndexColumn));
+    return m_container->vertexContainer()[accessImpl(
+        m_container->m_productionVertexIndexColumn)];
+  }
+
+  ConstParticleSubset parents() const noexcept {
+    return productionVertex().incomingParticles();
   }
 
   ProcessType productionProcess() const noexcept {
-    return m_container->vertexContainer()
-        .at(accessImpl(m_container->m_productionVertexIndexColumn))
+    return m_container
+        ->vertexContainer()[accessImpl(
+            m_container->m_productionVertexIndexColumn)]
         .process();
   }
 
@@ -253,8 +274,9 @@ class ParticleProxy final {
   }
 
   const Acts::Surface *productionReferenceSurface() const noexcept {
-    return m_container->vertexContainer()
-        .at(accessImpl(m_container->m_productionVertexIndexColumn))
+    return m_container
+        ->vertexContainer()[accessImpl(
+            m_container->m_productionVertexIndexColumn)]
         .referenceSurface();
   }
 
@@ -290,8 +312,26 @@ class ParticleProxy final {
     return accessImpl(m_container->m_endOutcomeColumn);
   }
 
-  std::uint32_t numberOfHits() const noexcept {
-    return accessImpl(m_container->m_numberOfHitsColumn);
+  std::span<const VertexIndex> vertexIndices() const noexcept {
+    const auto offset =
+        accessImpl(m_container->m_vertexIndicesOffsetColumn[m_index]);
+    const auto count =
+        accessImpl(m_container->m_vertexIndicesCountColumn[m_index]);
+    return std::span<const VertexIndex>(
+        m_container->m_vertexIndices.data() + offset, count);
+  }
+
+  std::span<const HitIndex> hitIndices() const noexcept {
+    const auto offset =
+        accessImpl(m_container->m_hitIndicesOffsetColumn[m_index]);
+    const auto count =
+        accessImpl(m_container->m_hitIndicesCountColumn[m_index]);
+    return std::span<const HitIndex>(m_container->m_hitIndices.data() + offset,
+                                     count);
+  }
+
+  std::uint8_t numberOfHits() const noexcept {
+    return accessImpl(m_container->m_hitIndicesCountColumn);
   }
 
   /// Const access to an extra column of data for the particle.

@@ -34,12 +34,16 @@ ParticleContainer::ParticleContainer(ParticleColumns columns) noexcept {
 }
 
 ParticleContainer::ParticleContainer(const ParticleContainer &other) noexcept
-    : m_size(other.m_size), m_hitIndices(other.m_hitIndices) {
+    : m_size(other.m_size),
+      m_vertexIndices(other.m_vertexIndices),
+      m_hitIndices(other.m_hitIndices) {
   copyColumns(other);
 }
 
 ParticleContainer::ParticleContainer(ParticleContainer &&other) noexcept
-    : m_size(other.m_size), m_hitIndices(std::move(other.m_hitIndices)) {
+    : m_size(other.m_size),
+      m_vertexIndices(std::move(other.m_vertexIndices)),
+      m_hitIndices(std::move(other.m_hitIndices)) {
   moveColumns(other);
 
   other.m_size = 0;
@@ -52,6 +56,7 @@ ParticleContainer &ParticleContainer::operator=(
   }
 
   copyColumns(other);
+  m_vertexIndices = other.m_vertexIndices;
   m_hitIndices = other.m_hitIndices;
   m_size = other.m_size;
 
@@ -65,6 +70,7 @@ ParticleContainer &ParticleContainer::operator=(
   }
 
   moveColumns(other);
+  m_vertexIndices = std::move(other.m_vertexIndices);
   m_hitIndices = std::move(other.m_hitIndices);
   m_size = other.m_size;
 
@@ -177,7 +183,13 @@ void ParticleContainer::moveColumns(ParticleContainer &other) noexcept {
 }
 
 void ParticleContainer::reserve(std::uint32_t size,
+                                float averageVerticesPerParticle,
                                 float averageHitsPerParticle) noexcept {
+  if (hasColumns(ParticleColumns::Vertices)) {
+    m_vertexIndices.reserve(
+        static_cast<std::size_t>(size * averageVerticesPerParticle));
+  }
+
   if (hasColumns(ParticleColumns::Hits)) {
     m_hitIndices.reserve(
         static_cast<std::size_t>(size * averageHitsPerParticle));
@@ -190,6 +202,7 @@ void ParticleContainer::reserve(std::uint32_t size,
 
 void ParticleContainer::clear() noexcept {
   m_size = 0;
+  m_vertexIndices.clear();
   m_hitIndices.clear();
 
   for (const auto &[name, column] : m_allColumns) {
@@ -248,6 +261,10 @@ void ParticleContainer::dropColumns(ParticleColumns columns) noexcept {
                  std::get<Is>(knownColumns()))),
      ...);
   }(tuple_indices<decltype(knownColumns())>{});
+
+  if (ACTS_CHECK_BIT(columns, ParticleColumns::Vertices)) {
+    m_vertexIndices.clear();
+  }
 
   if (ACTS_CHECK_BIT(columns, ParticleColumns::Hits)) {
     m_hitIndices.clear();

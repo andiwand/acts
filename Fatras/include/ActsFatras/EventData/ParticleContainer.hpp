@@ -38,25 +38,26 @@ enum class ParticleColumns : std::uint32_t {
   ProductionVertex = 1 << 4,
   ProductionMomentum = 1 << 5,
 
-  EndVertex = 1 << 7,
-  EndReferenceSurface = 1 << 8,
-  EndFourPosition = 1 << 9,
-  EndMomentum = 1 << 10,
-  EndProperTime = 1 << 12,
-  EndPathInX0 = 1 << 13,
-  EndPathInL0 = 1 << 14,
-  EndOutcome = 1 << 16,
+  EndVertex = 1 << 6,
+  EndReferenceSurface = 1 << 7,
+  EndFourPosition = 1 << 8,
+  EndMomentum = 1 << 9,
+  EndProperTime = 1 << 10,
+  EndPathInX0 = 1 << 11,
+  EndPathInL0 = 1 << 12,
+  EndOutcome = 1 << 13,
 
-  Hits = 1 << 17,
+  Vertices = 1 << 14,
+  Hits = 1 << 15,
 
   Generated =
       Barcode | Pdg | Charge | Mass | ProductionVertex | ProductionMomentum,
   Simulated = Generated | EndVertex | EndReferenceSurface | EndFourPosition |
               EndMomentum | EndProperTime | EndPathInX0 | EndPathInL0 |
-              EndOutcome | Hits,
+              EndOutcome | Vertices | Hits,
   All = Barcode | Pdg | Charge | Mass | ProductionVertex | EndVertex |
         EndReferenceSurface | EndFourPosition | EndMomentum | EndProperTime |
-        EndPathInX0 | EndPathInL0 | EndOutcome | Hits,
+        EndPathInX0 | EndPathInL0 | EndOutcome | Vertices | Hits,
 };
 
 /// Enable bitwise operators for ParticleColumns enum
@@ -189,8 +190,10 @@ class ParticleContainer final {
 
   /// Reserves space for the given number of particles.
   /// @param size The number of particles to reserve space for.
+  /// @param averageVerticesPerParticle The average number of vertices per particle.
   /// @param averageHitsPerParticle The average number of hits per particle.
-  void reserve(std::uint32_t size, float averageHitsPerParticle) noexcept;
+  void reserve(std::uint32_t size, float averageVerticesPerParticle = 3,
+               float averageHitsPerParticle = 10) noexcept;
 
   /// Clears the container, removing all particles and columns.
   void clear() noexcept;
@@ -351,9 +354,13 @@ class ParticleContainer final {
   std::optional<ColumnHolder<double>> m_endPathInL0Column;
   std::optional<ColumnHolder<ParticleOutcome>> m_endOutcomeColumn;
 
+  std::optional<ColumnHolder<std::uint32_t>> m_vertexIndicesOffsetColumn;
+  std::optional<ColumnHolder<std::uint8_t>> m_vertexIndicesCountColumn;
+
   std::optional<ColumnHolder<std::uint32_t>> m_hitIndicesOffsetColumn;
   std::optional<ColumnHolder<std::uint8_t>> m_hitIndicesCountColumn;
 
+  std::vector<VertexIndex> m_vertexIndices;
   std::vector<HitIndex> m_hitIndices;
 
   const VertexContainer *m_vertexContainer{nullptr};
@@ -364,7 +371,7 @@ class ParticleContainer final {
     return std::tuple(Barcode, Pdg, Charge, Mass, ProductionVertex,
                       ProductionMomentum, EndVertex, EndReferenceSurface,
                       EndFourPosition, EndMomentum, EndProperTime, EndPathInX0,
-                      EndPathInL0, EndOutcome, Hits, Hits);
+                      EndPathInL0, EndOutcome, Vertices, Vertices, Hits, Hits);
   }
 
   static auto knownColumnNames() noexcept {
@@ -372,7 +379,8 @@ class ParticleContainer final {
         "barcode", "pdg", "charge", "mass", "productionVertexIndex",
         "productionMomentum", "endVertexIndex", "endReferenceSurface",
         "endFourPosition", "endMomentum", "endProperTime", "endPathInX0",
-        "endPathInL0", "endOutcome", "hitIndicesOffset", "hitIndicesCount");
+        "endPathInL0", "endOutcome", "vertexIndicesOffset",
+        "vertexIndicesCount", "hitIndicesOffset", "hitIndicesCount");
   }
 
   static auto knownColumnDefaults() noexcept {
@@ -384,7 +392,8 @@ class ParticleContainer final {
                       Acts::Vector4(Acts::Vector4::Zero()),
                       Acts::Vector3(Acts::Vector3::Zero()), double{0},
                       double{0}, double{0}, ParticleOutcome::Alive,
-                      std::uint32_t{0}, std::uint8_t{0});
+                      std::uint32_t{0}, std::uint8_t{0}, std::uint32_t{0},
+                      std::uint8_t{0});
   }
 
   template <typename Self>
@@ -396,7 +405,8 @@ class ParticleContainer final {
         self.m_endReferenceSurfaceColumn, self.m_endFourPositionColumn,
         self.m_endMomentumColumn, self.m_endProperTimeColumn,
         self.m_endPathInX0Column, self.m_endPathInL0Column,
-        self.m_endOutcomeColumn, self.m_hitIndicesOffsetColumn,
+        self.m_endOutcomeColumn, self.m_vertexIndicesOffsetColumn,
+        self.m_vertexIndicesCountColumn, self.m_hitIndicesOffsetColumn,
         self.m_hitIndicesCountColumn);
   }
   auto knownColumns() & noexcept { return knownColumns(*this); }

@@ -10,6 +10,7 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Utilities/detail/ContainerIterator.hpp"
+#include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/ForwardDeclare.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 
@@ -140,6 +141,7 @@ class VertexContainer final {
 
   std::vector<ParticleIndex> m_particleIndices;
 
+  std::vector<Barcode> m_barcodeColumn;
   std::vector<std::uint32_t> m_incomingParticleIndicesOffset;
   std::vector<std::uint8_t> m_incomingParticleIndicesCount;
   std::vector<std::uint32_t> m_outgoingParticleIndicesOffset;
@@ -152,7 +154,7 @@ class VertexContainer final {
 
   template <typename Self>
   static auto knownColumns(Self &&self) noexcept {
-    return std::tie(self.m_incomingParticleIndicesOffset,
+    return std::tie(self.m_barcodeColumn, self.m_incomingParticleIndicesOffset,
                     self.m_incomingParticleIndicesCount,
                     self.m_outgoingParticleIndicesOffset,
                     self.m_outgoingParticleIndicesCount,
