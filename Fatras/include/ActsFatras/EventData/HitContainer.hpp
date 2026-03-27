@@ -19,12 +19,31 @@ namespace ActsFatras {
 using HitIndex = std::uint32_t;
 using HitIndexSubset = std::span<const HitIndex>;
 
+using ParticleIndex = std::uint32_t;
+using ParticleIndexSubset = std::span<const ParticleIndex>;
+
+class ParticleContainer;
+
 class HitContainer {
  public:
   /// Type alias for particle index in container
   using Index = HitIndex;
   /// Type alias for subset of particle indices
   using IndexSubset = HitIndexSubset;
+
+  /// Assigns a particle container to this vertex container.
+  /// @param particleContainer The particle container to assign.
+  /// @throws std::logic_error if a particle container has already been assigned.
+  void assignParticleContainer(const ParticleContainer& particleContainer);
+
+  /// Checks if a particle container has been assigned to this vertex container.
+  /// @return True if a particle container has been assigned.
+  bool hasParticleContainer() const noexcept;
+
+  /// Returns a const reference to the assigned particle container.
+  /// @return A const reference to the assigned particle container.
+  /// @throws std::logic_error if no particle container has been assigned.
+  const ParticleContainer& particleContainer() const;
 
   /// Returns the number of hits in the container.
   /// @return The number of hits in the container.
@@ -121,6 +140,8 @@ class HitContainer {
   std::unordered_map<ParticleIndex, std::vector<HitIndex>> m_hitsByParticles;
   std::unordered_map<Acts::GeometryIdentifier, std::vector<HitIndex>>
       m_hitsBySurfaces;
+
+  const ParticleContainer* m_particleContainer{nullptr};
 };
 
 }  // namespace ActsFatras

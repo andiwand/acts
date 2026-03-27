@@ -33,6 +33,16 @@ using ParticleIndexSubset = std::span<const ParticleIndex>;
 
 class ParticleContainer;
 
+using VertexIndex = std::uint32_t;
+using VertexIndexSubset = std::span<const VertexIndex>;
+
+class VertexContainer;
+
+using HitIndex = std::uint32_t;
+using HitIndexSubset = std::span<const HitIndex>;
+
+class HitContainer;
+
 template <bool>
 class ParticleProxy;
 using MutableParticleProxy = ParticleProxy<false>;
@@ -176,6 +186,34 @@ class ParticleContainer final {
   /// @param other The particle container to move.
   /// @return A reference to this particle container.
   ParticleContainer &operator=(ParticleContainer &&other) noexcept;
+
+  /// Assigns a vertex container to this vertex container.
+  /// @param vertexContainer The vertex container to assign.
+  /// @throws std::logic_error if a vertex container has already been assigned.
+  void assignVertexContainer(const VertexContainer &vertexContainer);
+
+  /// Assigns a hit container to this particle container.
+  /// @param hitContainer The hit container to assign.
+  /// @throws std::logic_error if a hit container has already been assigned.
+  void assignHitContainer(const HitContainer &hitContainer);
+
+  /// Checks if a vertex container has been assigned to this vertex container.
+  /// @return True if a vertex container has been assigned.
+  bool hasVertexContainer() const noexcept;
+
+  /// Checks if a hit container has been assigned to this particle container.
+  /// @return True if a hit container has been assigned.
+  bool hasHitContainer() const noexcept;
+
+  /// Returns a const reference to the assigned vertex container.
+  /// @return A const reference to the assigned vertex container.
+  /// @throws std::logic_error if no vertex container has been assigned.
+  const VertexContainer &vertexContainer() const;
+
+  /// Returns a const reference to the assigned hit container.
+  /// @return A const reference to the assigned hit container.
+  /// @throws std::logic_error if no hit container has been assigned.
+  const HitContainer &hitContainer() const;
 
   /// Returns the number of particles in the container.
   /// @return The number of particles in the container.
@@ -383,6 +421,9 @@ class ParticleContainer final {
   std::optional<ColumnHolder<double>> m_finalPathInL0Column;
   std::optional<ColumnHolder<std::uint32_t>> m_finalNumberOfHitsColumn;
   std::optional<ColumnHolder<ParticleOutcome>> m_simulationOutcomeColumn;
+
+  const VertexContainer *m_vertexContainer{nullptr};
+  const HitContainer *m_hitContainer{nullptr};
 
   static auto knownColumnMasks() noexcept {
     using enum ParticleColumns;

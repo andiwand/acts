@@ -16,10 +16,16 @@
 #include <cstdint>
 #include <span>
 
+namespace Acts {
+class Surface;
+}
+
 namespace ActsFatras {
 
 using ParticleIndex = std::uint32_t;
 using ParticleIndexSubset = std::span<const ParticleIndex>;
+
+class ParticleContainer;
 
 using VertexIndex = std::uint32_t;
 using VertexIndexSubset = std::span<const VertexIndex>;
@@ -62,6 +68,20 @@ class VertexContainer final {
   /// @param other The vertex container to move.
   /// @return A reference to this vertex container.
   VertexContainer &operator=(VertexContainer &&other) noexcept;
+
+  /// Assigns a particle container to this vertex container.
+  /// @param particleContainer The particle container to assign.
+  /// @throws std::logic_error if a particle container has already been assigned.
+  void assignParticleContainer(const ParticleContainer &particleContainer);
+
+  /// Checks if a particle container has been assigned to this vertex container.
+  /// @return True if a particle container has been assigned.
+  bool hasParticleContainer() const noexcept;
+
+  /// Returns a const reference to the assigned particle container.
+  /// @return A const reference to the assigned particle container.
+  /// @throws std::logic_error if no particle container has been assigned.
+  const ParticleContainer &particleContainer() const;
 
   /// Returns the number of vertices in the container.
   /// @return The number of vertices in the container.
@@ -139,7 +159,10 @@ class VertexContainer final {
   std::vector<std::uint32_t> m_outgoingParticleIndicesOffset;
   std::vector<std::uint8_t> m_outgoingParticleIndicesCount;
   std::vector<Acts::Vector4> m_positionColumn;
+  std::vector<const Acts::Surface *> m_surfacePointers;
   std::vector<ProcessType> m_processType;
+
+  const ParticleContainer *m_particleContainer{nullptr};
 
   template <typename Self>
   static auto knownColumns(Self &&self) noexcept {
@@ -147,7 +170,7 @@ class VertexContainer final {
                     self.m_incomingParticleIndicesCount,
                     self.m_outgoingParticleIndicesOffset,
                     self.m_outgoingParticleIndicesCount, self.m_positionColumn,
-                    self.m_processType);
+                    self.m_surfacePointers, self.m_processType);
   }
   auto knownColumns() & noexcept { return knownColumns(*this); }
   auto knownColumns() const & noexcept { return knownColumns(*this); }

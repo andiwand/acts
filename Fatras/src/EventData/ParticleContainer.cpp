@@ -73,6 +73,48 @@ ParticleContainer &ParticleContainer::operator=(
   return *this;
 }
 
+void ParticleContainer::assignVertexContainer(
+    const VertexContainer &vertexContainer) {
+  if (m_vertexContainer != nullptr) {
+    throw std::logic_error(
+        "A vertex container has already been assigned to the particle "
+        "container");
+  }
+  m_vertexContainer = &vertexContainer;
+}
+
+void ParticleContainer::assignHitContainer(const HitContainer &hitContainer) {
+  if (m_hitContainer != nullptr) {
+    throw std::logic_error(
+        "A hit container has already been assigned to the particle container");
+  }
+  m_hitContainer = &hitContainer;
+}
+
+bool ParticleContainer::hasVertexContainer() const noexcept {
+  return m_vertexContainer != nullptr;
+}
+
+bool ParticleContainer::hasHitContainer() const noexcept {
+  return m_hitContainer != nullptr;
+}
+
+const VertexContainer &ParticleContainer::vertexContainer() const {
+  if (m_vertexContainer == nullptr) {
+    throw std::logic_error(
+        "No vertex container assigned to the particle container");
+  }
+  return *m_vertexContainer;
+}
+
+const HitContainer &ParticleContainer::hitContainer() const {
+  if (m_hitContainer == nullptr) {
+    throw std::logic_error(
+        "No hit container assigned to the particle container");
+  }
+  return *m_hitContainer;
+}
+
 void ParticleContainer::copyColumns(const ParticleContainer &other) {
   m_allColumns.reserve(other.m_allColumns.size());
   m_dynamicColumns.reserve(other.m_dynamicColumns.size());

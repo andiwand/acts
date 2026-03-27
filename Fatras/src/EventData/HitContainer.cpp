@@ -10,6 +10,29 @@
 
 namespace ActsFatras {
 
+void HitContainer::assignParticleContainer(
+    const ParticleContainer& particleContainer) {
+  if (m_particleContainer != nullptr) {
+    throw std::logic_error(
+        "Particle container already assigned to the hit container");
+  }
+
+  m_particleContainer = &particleContainer;
+}
+
+bool HitContainer::hasParticleContainer() const noexcept {
+  return m_particleContainer != nullptr;
+}
+
+const ParticleContainer& HitContainer::particleContainer() const {
+  if (m_particleContainer == nullptr) {
+    throw std::logic_error(
+        "No particle container assigned to the hit container");
+  }
+
+  return *m_particleContainer;
+}
+
 void HitContainer::reserve(std::uint32_t size) noexcept {
   m_hits.reserve(size);
 }

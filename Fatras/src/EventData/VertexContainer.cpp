@@ -63,6 +63,29 @@ VertexContainer &VertexContainer::operator=(VertexContainer &&other) noexcept {
   return *this;
 }
 
+void VertexContainer::assignParticleContainer(
+    const ParticleContainer &particleContainer) {
+  if (m_particleContainer != nullptr) {
+    throw std::logic_error(
+        "Particle container already assigned to the vertex container");
+  }
+
+  m_particleContainer = &particleContainer;
+}
+
+bool VertexContainer::hasParticleContainer() const noexcept {
+  return m_particleContainer != nullptr;
+}
+
+const ParticleContainer &VertexContainer::particleContainer() const {
+  if (m_particleContainer == nullptr) {
+    throw std::logic_error(
+        "No particle container assigned to the vertex container");
+  }
+
+  return *m_particleContainer;
+}
+
 void VertexContainer::copyColumns(const VertexContainer &other) {
   knownColumns() = other.knownColumns();
 }
