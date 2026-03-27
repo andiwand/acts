@@ -10,16 +10,16 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/PdgParticle.hpp"
-#include "Acts/EventData/ParticleHypothesis.hpp"
 #include "Acts/Utilities/EnumBitwiseOperators.hpp"
 #include "Acts/Utilities/TypeTraits.hpp"
 #include "Acts/Utilities/detail/ContainerIterator.hpp"
 #include "Acts/Utilities/detail/ContainerSubset.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
+#include "ActsFatras/EventData/ForwardDeclare.hpp"
 #include "ActsFatras/EventData/ParticleOutcome.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <span>
 
 namespace Acts {
@@ -28,74 +28,35 @@ class Surface;
 
 namespace ActsFatras {
 
-using ParticleIndex = std::uint32_t;
-using ParticleIndexSubset = std::span<const ParticleIndex>;
-
-class ParticleContainer;
-
-using VertexIndex = std::uint32_t;
-using VertexIndexSubset = std::span<const VertexIndex>;
-
-class VertexContainer;
-
-using HitIndex = std::uint32_t;
-using HitIndexSubset = std::span<const HitIndex>;
-
-class HitContainer;
-
-template <bool>
-class ParticleProxy;
-using MutableParticleProxy = ParticleProxy<false>;
-using ConstParticleProxy = ParticleProxy<true>;
-
-template <typename T, bool>
-class ParticleColumnProxy;
-template <typename T>
-using MutableParticleColumnProxy = ParticleColumnProxy<T, false>;
-template <typename T>
-using ConstParticleColumnProxy = ParticleColumnProxy<T, true>;
-
 enum class ParticleColumns : std::uint32_t {
   None = 0,
 
-  // General particle properties
-  Parents = 1 << 0,
-  Barcode = 1 << 1,
-  Pdg = 1 << 2,
-  Charge = 1 << 3,
-  Mass = 1 << 4,
-  GenerationProcess = 1 << 5,
+  Barcode = 1 << 0,
+  Pdg = 1 << 1,
+  Charge = 1 << 2,
+  Mass = 1 << 3,
+  ProductionVertex = 1 << 4,
+  ProductionMomentum = 1 << 5,
 
-  // Initial kinematic properties
-  InitialReferenceSurface = 1 << 6,
-  InitialFourPosition = 1 << 7,
-  InitialAbsoluteMomentum = 1 << 8,
-  InitialDirection = 1 << 9,
+  EndVertex = 1 << 7,
+  EndReferenceSurface = 1 << 8,
+  EndFourPosition = 1 << 9,
+  EndMomentum = 1 << 10,
+  EndProperTime = 1 << 12,
+  EndPathInX0 = 1 << 13,
+  EndPathInL0 = 1 << 14,
+  EndOutcome = 1 << 16,
 
-  // Final kinematic properties (after simulation)
-  FinalReferenceSurface = 1 << 10,
-  FinalFourPosition = 1 << 11,
-  FinalAbsoluteMomentum = 1 << 12,
-  FinalDirection = 1 << 13,
-  FinalProperTime = 1 << 14,
-  FinalPathInX0 = 1 << 15,
-  FinalPathInL0 = 1 << 16,
-  FinalNumberOfHits = 1 << 17,
-  SimulationOutcome = 1 << 18,
+  Hits = 1 << 17,
 
-  Generated = Parents | Barcode | Pdg | Charge | Mass | GenerationProcess |
-              InitialReferenceSurface | InitialFourPosition |
-              InitialAbsoluteMomentum | InitialDirection,
-  Simulated = Generated | FinalReferenceSurface | FinalFourPosition |
-              FinalAbsoluteMomentum | FinalDirection | FinalProperTime |
-              FinalPathInX0 | FinalPathInL0 | FinalNumberOfHits |
-              SimulationOutcome,
-  All = Parents | Barcode | Pdg | Charge | Mass | GenerationProcess |
-        InitialReferenceSurface | InitialFourPosition |
-        InitialAbsoluteMomentum | InitialDirection | FinalReferenceSurface |
-        FinalFourPosition | FinalAbsoluteMomentum | FinalDirection |
-        FinalProperTime | FinalPathInX0 | FinalPathInL0 | FinalNumberOfHits |
-        SimulationOutcome,
+  Generated =
+      Barcode | Pdg | Charge | Mass | ProductionVertex | ProductionMomentum,
+  Simulated = Generated | EndVertex | EndReferenceSurface | EndFourPosition |
+              EndMomentum | EndProperTime | EndPathInX0 | EndPathInL0 |
+              EndOutcome | Hits,
+  All = Barcode | Pdg | Charge | Mass | ProductionVertex | EndVertex |
+        EndReferenceSurface | EndFourPosition | EndMomentum | EndProperTime |
+        EndPathInX0 | EndPathInL0 | EndOutcome | Hits,
 };
 
 /// Enable bitwise operators for ParticleColumns enum
@@ -162,6 +123,10 @@ class ParticleContainer final {
   using MutableProxy = MutableParticleProxy;
   /// Type alias for const particle proxy
   using ConstProxy = ConstParticleProxy;
+  /// Type alias for mutable particle subset
+  using MutableSubset = MutableParticleSubset;
+  /// Type alias for const particle subset
+  using ConstSubset = ConstParticleSubset;
 
   explicit ParticleContainer(
       ParticleColumns columns = ParticleColumns::None) noexcept;
@@ -224,8 +189,8 @@ class ParticleContainer final {
 
   /// Reserves space for the given number of particles.
   /// @param size The number of particles to reserve space for.
-  /// @param averageParentIndices The average number of parent indices per particle.
-  void reserve(std::uint32_t size, float averageParentIndices = 1) noexcept;
+  /// @param averageHitsPerParticle The average number of hits per particle.
+  void reserve(std::uint32_t size, float averageHitsPerParticle) noexcept;
 
   /// Clears the container, removing all particles and columns.
   void clear() noexcept;
@@ -345,40 +310,14 @@ class ParticleContainer final {
   /// @return Const iterator pointing past the last particle
   const_iterator end() const noexcept { return const_iterator(*this, size()); }
 
-  /// Subset facade over arbitrary index sets.
-  template <bool read_only>
-  class Subset final
-      : public Acts::detail::ContainerSubset<
-            Subset<read_only>, Subset<true>, ParticleContainer,
-            std::conditional_t<read_only, ConstProxy, MutableProxy>,
-            std::span<const Index>, read_only> {
-   public:
-    /// Base class type
-    using Base = Acts::detail::ContainerSubset<
-        Subset<read_only>, Subset<true>, ParticleContainer,
-        std::conditional_t<read_only, ConstProxy, MutableProxy>,
-        std::span<const Index>, read_only>;
-
-    using Base::Base;
-  };
-
-  /// Type alias for mutable subset of particles
-  using MutableSubset = Subset<false>;
-  /// Type alias for const subset of particles
-  using ConstSubset = Subset<true>;
-
   /// Creates a mutable subset of particles from the given index subset.
   /// @param subset The index subset to create the subset from.
   /// @return A mutable subset of particles.
-  MutableSubset subset(const IndexSubset &subset) noexcept {
-    return MutableSubset(*this, subset);
-  }
+  MutableSubset subset(const IndexSubset &subset) noexcept;
   /// Creates a const subset of particles from the given index subset.
   /// @param subset The index subset to create the subset from.
   /// @return A const subset of particles.
-  ConstSubset subset(const IndexSubset &subset) const noexcept {
-    return ConstSubset(*this, subset);
-  }
+  ConstSubset subset(const IndexSubset &subset) const noexcept;
 
  public:
   using ColumnHolderBase = detail::ColumnHolderBase;
@@ -395,82 +334,70 @@ class ParticleContainer final {
   std::unordered_map<std::string, std::unique_ptr<ColumnHolderBase>>
       m_dynamicColumns;
 
-  std::vector<ParticleIndex> m_parentIndices;
-
-  std::optional<ColumnHolder<std::uint32_t>> m_parentIndicesOffsetColumn;
-  std::optional<ColumnHolder<std::uint8_t>> m_parentIndicesCountColumn;
   std::optional<ColumnHolder<Barcode>> m_barcodeColumn;
   std::optional<ColumnHolder<Acts::PdgParticle>> m_pdgColumn;
-  std::optional<ColumnHolder<double>> m_chargeColumn;
+  std::optional<ColumnHolder<float>> m_chargeColumn;
   std::optional<ColumnHolder<double>> m_massColumn;
-  std::optional<ColumnHolder<ProcessType>> m_generationProcessColumn;
+  std::optional<ColumnHolder<VertexIndex>> m_productionVertexIndexColumn;
+  std::optional<ColumnHolder<Acts::Vector3>> m_productionMomentumColumn;
 
+  std::optional<ColumnHolder<VertexIndex>> m_endVertexIndexColumn;
   std::optional<ColumnHolder<const Acts::Surface *>>
-      m_initialReferenceSurfaceColumn;
-  std::optional<ColumnHolder<Acts::Vector4>> m_initialFourPositionColumn;
-  std::optional<ColumnHolder<double>> m_initialAbsoluteMomentumColumn;
-  std::optional<ColumnHolder<Acts::Vector3>> m_initialDirectionColumn;
+      m_endReferenceSurfaceColumn;
+  std::optional<ColumnHolder<Acts::Vector4>> m_endFourPositionColumn;
+  std::optional<ColumnHolder<Acts::Vector3>> m_endMomentumColumn;
+  std::optional<ColumnHolder<double>> m_endProperTimeColumn;
+  std::optional<ColumnHolder<double>> m_endPathInX0Column;
+  std::optional<ColumnHolder<double>> m_endPathInL0Column;
+  std::optional<ColumnHolder<ParticleOutcome>> m_endOutcomeColumn;
 
-  std::optional<ColumnHolder<const Acts::Surface *>>
-      m_finalReferenceSurfaceColumn;
-  std::optional<ColumnHolder<Acts::Vector4>> m_finalFourPositionColumn;
-  std::optional<ColumnHolder<double>> m_finalAbsoluteMomentumColumn;
-  std::optional<ColumnHolder<Acts::Vector3>> m_finalDirectionColumn;
-  std::optional<ColumnHolder<double>> m_finalProperTimeColumn;
-  std::optional<ColumnHolder<double>> m_finalPathInX0Column;
-  std::optional<ColumnHolder<double>> m_finalPathInL0Column;
-  std::optional<ColumnHolder<std::uint32_t>> m_finalNumberOfHitsColumn;
-  std::optional<ColumnHolder<ParticleOutcome>> m_simulationOutcomeColumn;
+  std::optional<ColumnHolder<std::uint32_t>> m_hitIndicesOffsetColumn;
+  std::optional<ColumnHolder<std::uint8_t>> m_hitIndicesCountColumn;
+
+  std::vector<HitIndex> m_hitIndices;
 
   const VertexContainer *m_vertexContainer{nullptr};
   const HitContainer *m_hitContainer{nullptr};
 
   static auto knownColumnMasks() noexcept {
     using enum ParticleColumns;
-    return std::tuple(
-        Parents, Parents, Barcode, Pdg, Charge, Mass, GenerationProcess,
-        InitialReferenceSurface, InitialFourPosition, InitialAbsoluteMomentum,
-        InitialDirection, FinalReferenceSurface, FinalFourPosition,
-        FinalAbsoluteMomentum, FinalDirection, FinalProperTime, FinalPathInX0,
-        FinalPathInL0, FinalNumberOfHits, SimulationOutcome);
+    return std::tuple(Barcode, Pdg, Charge, Mass, ProductionVertex,
+                      ProductionMomentum, EndVertex, EndReferenceSurface,
+                      EndFourPosition, EndMomentum, EndProperTime, EndPathInX0,
+                      EndPathInL0, EndOutcome, Hits, Hits);
   }
 
   static auto knownColumnNames() noexcept {
     return std::tuple(
-        "parentsOffset", "parentsCount", "barcode", "pdg", "charge", "mass",
-        "generationProcess", "initialReferenceSurface", "initialFourPosition",
-        "initialAbsoluteMomentum", "initialDirection", "finalReferenceSurface",
-        "finalFourPosition", "finalAbsoluteMomentum", "finalDirection",
-        "finalProperTime", "finalPathInX0", "finalPathInL0",
-        "finalNumberOfHits", "simulationOutcome");
+        "barcode", "pdg", "charge", "mass", "productionVertexIndex",
+        "productionMomentum", "endVertexIndex", "endReferenceSurface",
+        "endFourPosition", "endMomentum", "endProperTime", "endPathInX0",
+        "endPathInL0", "endOutcome", "hitIndicesOffset", "hitIndicesCount");
   }
 
   static auto knownColumnDefaults() noexcept {
-    return std::tuple(
-        std::uint32_t{0}, std::uint8_t{0}, Barcode{},
-        Acts::PdgParticle::eInvalid, double{0}, double{0},
-        ProcessType::eUndefined, static_cast<const Acts::Surface *>(nullptr),
-        Acts::Vector4(Acts::Vector4::Zero()), double{0},
-        Acts::Vector3(Acts::Vector3::Zero()),
-        static_cast<const Acts::Surface *>(nullptr),
-        Acts::Vector4(Acts::Vector4::Zero()), double{0},
-        Acts::Vector3(Acts::Vector3::Zero()), double{0}, double{0}, double{0},
-        std::uint32_t{0}, ParticleOutcome::Alive);
+    return std::tuple(Barcode{}, Acts::PdgParticle::eInvalid, float{0},
+                      double{0}, std::numeric_limits<VertexIndex>::max(),
+                      Acts::Vector3(Acts::Vector3::Zero()),
+                      std::numeric_limits<VertexIndex>::max(),
+                      static_cast<const Acts::Surface *>(nullptr),
+                      Acts::Vector4(Acts::Vector4::Zero()),
+                      Acts::Vector3(Acts::Vector3::Zero()), double{0},
+                      double{0}, double{0}, ParticleOutcome::Alive,
+                      std::uint32_t{0}, std::uint8_t{0});
   }
 
   template <typename Self>
   static auto knownColumns(Self &&self) noexcept {
     return std::tie(
-        self.m_parentIndicesOffsetColumn, self.m_parentIndicesCountColumn,
         self.m_barcodeColumn, self.m_pdgColumn, self.m_chargeColumn,
-        self.m_massColumn, self.m_generationProcessColumn,
-        self.m_initialReferenceSurfaceColumn, self.m_initialFourPositionColumn,
-        self.m_initialAbsoluteMomentumColumn, self.m_initialDirectionColumn,
-        self.m_finalReferenceSurfaceColumn, self.m_finalFourPositionColumn,
-        self.m_finalAbsoluteMomentumColumn, self.m_finalDirectionColumn,
-        self.m_finalProperTimeColumn, self.m_finalPathInX0Column,
-        self.m_finalPathInL0Column, self.m_finalNumberOfHitsColumn,
-        self.m_simulationOutcomeColumn);
+        self.m_massColumn, self.m_productionVertexIndexColumn,
+        self.m_productionMomentumColumn, self.m_endVertexIndexColumn,
+        self.m_endReferenceSurfaceColumn, self.m_endFourPositionColumn,
+        self.m_endMomentumColumn, self.m_endProperTimeColumn,
+        self.m_endPathInX0Column, self.m_endPathInL0Column,
+        self.m_endOutcomeColumn, self.m_hitIndicesOffsetColumn,
+        self.m_hitIndicesCountColumn);
   }
   auto knownColumns() & noexcept { return knownColumns(*this); }
   auto knownColumns() const & noexcept { return knownColumns(*this); }
@@ -521,335 +448,22 @@ class ParticleContainer final {
   }
 };
 
-using ConstParticleSubset = ParticleContainer::ConstSubset;
-using MutableParticleSubset = ParticleContainer::MutableSubset;
-
-/// A proxy class for accessing individual particles.
+/// Subset facade over arbitrary index sets.
 template <bool read_only>
-class ParticleProxy final {
+class ParticleSubset final
+    : public Acts::detail::ContainerSubset<
+          ParticleSubset<read_only>, ParticleSubset<true>, ParticleContainer,
+          std::conditional_t<read_only, ConstParticleProxy,
+                             MutableParticleProxy>,
+          std::span<const ParticleIndex>, read_only> {
  public:
-  /// Indicates whether this particle proxy is read-only or data can be
-  /// modified
-  static constexpr bool ReadOnly = read_only;
+  /// Base class type
+  using Base = Acts::detail::ContainerSubset<
+      ParticleSubset<read_only>, ParticleSubset<true>, ParticleContainer,
+      std::conditional_t<read_only, ConstParticleProxy, MutableParticleProxy>,
+      std::span<const ParticleIndex>, read_only>;
 
-  /// Type alias for particle index type
-  using Index = ParticleIndex;
-
-  /// Type alias for container type (const if read-only)
-  using Container = Acts::const_if_t<ReadOnly, ParticleContainer>;
-
-  /// Constructs a particle proxy for the given container and index.
-  /// @param container The container holding the particle.
-  /// @param index The index of the particle in the container.
-  ParticleProxy(Container &container, Index index) noexcept
-      : m_container(&container), m_index(index) {}
-
-  /// Copy construct a particle proxy.
-  /// @param other The particle proxy to copy.
-  ParticleProxy(const ParticleProxy &other) noexcept = default;
-
-  /// Copy construct a mutable particle proxy.
-  /// @param other The mutable particle proxy to copy.
-  explicit ParticleProxy(const ParticleProxy<false> &other) noexcept
-    requires ReadOnly
-      : m_container(&other.container()), m_index(other.index()) {}
-
-  /// Copy assign a particle proxy.
-  /// @param other The particle proxy to copy.
-  /// @return Reference to this particle proxy after assignment.
-  ParticleProxy &operator=(const ParticleProxy &other) noexcept = default;
-
-  /// Copy assign a mutable particle proxy.
-  /// @param other The mutable particle proxy to copy.
-  /// @return Reference to this particle proxy after assignment.
-  ParticleProxy &operator=(const ParticleProxy<false> &other) noexcept
-    requires ReadOnly
-  {
-    m_container = &other.container();
-    m_index = other.index();
-    return *this;
-  }
-
-  /// Move assign a particle proxy.
-  /// @param other The particle proxy to move.
-  /// @return Reference to this particle proxy after assignment.
-  ParticleProxy &operator=(ParticleProxy &&other) noexcept = default;
-
-  /// Move assign a mutable particle proxy.
-  /// @param other The mutable particle proxy to move.
-  /// @return Reference to this particle proxy after assignment.
-  ParticleProxy &operator=(ParticleProxy<false> &&other) noexcept
-    requires ReadOnly
-  {
-    m_container = &other.container();
-    m_index = other.index();
-    return *this;
-  }
-
-  /// Returns a const proxy of the particle.
-  /// @return A const proxy of the particle.
-  ParticleProxy<true> asConst() const noexcept
-    requires(!ReadOnly)
-  {
-    return {*m_container, m_index};
-  }
-
-  /// Gets the container holding the particle.
-  /// @return A reference to the container holding the particle.
-  ParticleContainer &container() const noexcept
-    requires(!ReadOnly)
-  {
-    return *m_container;
-  }
-  /// Gets the container holding the particle.
-  /// @return A const reference to the container holding the particle.
-  const ParticleContainer &container() const noexcept { return *m_container; }
-  /// Gets the index of the particle in the container.
-  /// @return The index of the particle in the container.
-  Index index() const noexcept { return m_index; }
-
-  void assignParentIndices(std::span<const ParticleIndex> parentIndices)
-    requires(!ReadOnly)
-  {
-    if (!m_container->m_parentIndicesOffsetColumn.has_value() ||
-        !m_container->m_parentIndicesCountColumn.has_value()) {
-      throw std::logic_error("No parent indices column available");
-    }
-    if (accessImpl(m_container->m_parentIndicesCountColumn) != 0) {
-      throw std::logic_error("Parent indices already assigned to the particle");
-    }
-
-    accessImpl(m_container->m_parentIndicesOffsetColumn) =
-        static_cast<std::uint32_t>(m_container->m_parentIndices.size());
-    accessImpl(m_container->m_parentIndicesCountColumn) =
-        static_cast<std::uint8_t>(parentIndices.size());
-    m_container->m_parentIndices.insert(m_container->m_parentIndices.end(),
-                                        parentIndices.begin(),
-                                        parentIndices.end());
-  }
-
-  std::span<ParticleIndex> parentIndices() noexcept
-    requires(!ReadOnly)
-  {
-    return {m_container->m_parentIndices.data() +
-                accessImpl(m_container->m_parentIndicesOffsetColumn),
-            accessImpl(m_container->m_parentIndicesCountColumn)};
-  }
-
-  Barcode &barcode() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_barcodeColumn);
-  }
-
-  Acts::PdgParticle &pdg() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_pdgColumn);
-  }
-
-  double &charge() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_chargeColumn);
-  }
-
-  double &mass() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_massColumn);
-  }
-
-  ProcessType &generationProcess() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_generationProcessColumn);
-  }
-
-  Acts::Vector4 &initialFourPosition() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_initialFourPositionColumn);
-  }
-
-  double &initialAbsoluteMomentum() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_initialAbsoluteMomentumColumn);
-  }
-
-  Acts::Vector3 &initialDirection() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_initialDirectionColumn);
-  }
-
-  const Acts::Surface *&currentReferenceSurface() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_currentReferenceSurfaceColumn);
-  }
-
-  Acts::Vector4 &currentFourPosition() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_currentFourPositionColumn);
-  }
-
-  double &currentAbsoluteMomentum() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_currentAbsoluteMomentumColumn);
-  }
-
-  Acts::Vector3 &currentDirection() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_currentDirectionColumn);
-  }
-
-  double &properTime() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_properTimeColumn);
-  }
-
-  double &pathInX0() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_pathInX0Column);
-  }
-
-  double &pathInL0() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_pathInL0Column);
-  }
-
-  std::uint32_t &numberOfHits() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_numberOfHitsColumn);
-  }
-
-  ParticleOutcome &simulationOutcome() noexcept
-    requires(!ReadOnly)
-  {
-    return accessImpl(m_container->m_simulationOutcomeColumn);
-  }
-
-  std::span<const ParticleIndex> parentIndices() const noexcept {
-    return {m_container->m_parentIndices.data() +
-                accessImpl(m_container->m_parentIndicesOffsetColumn),
-            accessImpl(m_container->m_parentIndicesCountColumn)};
-  }
-
-  const Barcode &barcode() const noexcept {
-    return accessImpl(m_container->m_barcodeColumn);
-  }
-
-  Acts::PdgParticle pdg() const noexcept {
-    return accessImpl(m_container->m_pdgColumn);
-  }
-
-  double charge() const noexcept {
-    return accessImpl(m_container->m_chargeColumn);
-  }
-
-  double mass() const noexcept { return accessImpl(m_container->m_massColumn); }
-
-  ProcessType generationProcess() const noexcept {
-    return accessImpl(m_container->m_generationProcessColumn);
-  }
-
-  const Acts::Vector4 &initialFourPosition() const noexcept {
-    return accessImpl(m_container->m_initialFourPositionColumn);
-  }
-
-  double initialAbsoluteMomentum() const noexcept {
-    return accessImpl(m_container->m_initialAbsoluteMomentumColumn);
-  }
-
-  const Acts::Vector3 &initialDirection() const noexcept {
-    return accessImpl(m_container->m_initialDirectionColumn);
-  }
-
-  const Acts::Surface *currentReferenceSurface() const noexcept {
-    return accessImpl(m_container->m_currentReferenceSurfaceColumn);
-  }
-
-  const Acts::Vector4 &currentFourPosition() const noexcept {
-    return accessImpl(m_container->m_currentFourPositionColumn);
-  }
-
-  double currentAbsoluteMomentum() const noexcept {
-    return accessImpl(m_container->m_currentAbsoluteMomentumColumn);
-  }
-
-  const Acts::Vector3 &currentDirection() const noexcept {
-    return accessImpl(m_container->m_currentDirectionColumn);
-  }
-
-  double properTime() const noexcept {
-    return accessImpl(m_container->m_properTimeColumn);
-  }
-
-  double pathInX0() const noexcept {
-    return accessImpl(m_container->m_pathInX0Column);
-  }
-
-  double pathInL0() const noexcept {
-    return accessImpl(m_container->m_pathInL0Column);
-  }
-
-  std::uint32_t numberOfHits() const noexcept {
-    return accessImpl(m_container->m_numberOfHitsColumn);
-  }
-
-  const ParticleOutcome &simulationOutcome() const noexcept {
-    return accessImpl(m_container->m_simulationOutcomeColumn);
-  }
-
-  /// Const access to an extra column of data for the particle.
-  /// @param column The extra column proxy to access.
-  /// @return A const reference to the value in the extra column for the particle.
-  template <typename T>
-  const T &extra(const ConstParticleColumnProxy<T> &column) const noexcept {
-    return column[m_index];
-  }
-
-  /// Check if this is a secondary particle.
-  /// @return True if particle is a secondary (has non-zero vertex secondary, generation, or sub-particle), false otherwise
-  bool isSecondary() const {
-    return barcode().vertexSecondary() != 0 || barcode().generation() != 0 ||
-           barcode().subParticle() != 0;
-  }
-
-  Acts::PdgParticle absolutePdg() const {
-    return Acts::makeAbsolutePdgParticle(pdg());
-  }
-
-  /// Particle absolute charge.
-  /// @return The absolute particle charge (positive value)
-  double absoluteCharge() const { return std::abs(charge()); }
-
-  /// Particle hypothesis.
-  /// @return Particle hypothesis containing PDG, mass, and charge information
-  Acts::ParticleHypothesis hypothesis() const {
-    return Acts::ParticleHypothesis(absolutePdg(), static_cast<float>(mass()),
-                                    static_cast<float>(absoluteCharge()));
-  }
-
- private:
-  Container *m_container{nullptr};
-  Index m_index{0};
-
-  template <typename OptColumn>
-  auto &accessImpl(OptColumn &&column) const {
-    assert(column.has_value() && "Column does not exist");
-    assert(m_index < column->size() && "Index out of bounds");
-    return column->proxy(*m_container)[m_index];
-  }
+  using Base::Base;
 };
 
 /// Additional column of data that can be added to the particle container.
@@ -1016,22 +630,5 @@ class ParticleColumnProxy final {
 };
 
 }  // namespace ActsFatras
-
-inline std::ostream &operator<<(std::ostream &os,
-                                ActsFatras::ConstParticleProxy particle) {
-  // compact format w/ only identity information but no kinematics
-  os << "id=" << particle.index();
-  os << "|barcode=" << "(" << particle.barcode() << ")";
-  os << "|pdg=" << particle.pdg();
-  os << "|q=" << particle.charge();
-  os << "|m=" << particle.mass();
-  os << "|p=" << particle.initialAbsoluteMomentum();
-  return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                ActsFatras::MutableParticleProxy particle) {
-  return os << particle.asConst();
-}
 
 #include "ActsFatras/EventData/ParticleContainer.ipp"

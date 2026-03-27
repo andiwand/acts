@@ -9,20 +9,13 @@
 #pragma once
 
 #include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "ActsFatras/EventData/ForwardDeclare.hpp"
 #include "ActsFatras/EventData/Hit.hpp"
 #include "ActsFatras/EventData/ParticleContainer.hpp"
 
 #include <unordered_map>
 
 namespace ActsFatras {
-
-using HitIndex = std::uint32_t;
-using HitIndexSubset = std::span<const HitIndex>;
-
-using ParticleIndex = std::uint32_t;
-using ParticleIndexSubset = std::span<const ParticleIndex>;
-
-class ParticleContainer;
 
 class HitContainer {
  public:

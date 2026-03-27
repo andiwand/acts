@@ -10,6 +10,8 @@
 
 #include "ActsFatras/EventData/ParticleContainer.hpp"
 
+#include "ActsFatras/EventData/ParticleProxy.hpp"
+
 namespace ActsFatras {
 
 inline MutableParticleProxy ParticleContainer::at(Index index) {
@@ -38,6 +40,16 @@ inline MutableParticleProxy ParticleContainer::operator[](
 inline ConstParticleProxy ParticleContainer::operator[](
     Index index) const noexcept {
   return ConstProxy(*this, index);
+}
+
+inline MutableParticleSubset ParticleContainer::subset(
+    const IndexSubset &subset) noexcept {
+  return MutableSubset(*this, subset);
+}
+
+inline ConstParticleSubset ParticleContainer::subset(
+    const IndexSubset &subset) const noexcept {
+  return ConstSubset(*this, subset);
 }
 
 }  // namespace ActsFatras

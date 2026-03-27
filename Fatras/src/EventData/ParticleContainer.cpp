@@ -34,12 +34,12 @@ ParticleContainer::ParticleContainer(ParticleColumns columns) noexcept {
 }
 
 ParticleContainer::ParticleContainer(const ParticleContainer &other) noexcept
-    : m_size(other.m_size), m_parentIndices(other.m_parentIndices) {
+    : m_size(other.m_size), m_hitIndices(other.m_hitIndices) {
   copyColumns(other);
 }
 
 ParticleContainer::ParticleContainer(ParticleContainer &&other) noexcept
-    : m_size(other.m_size), m_parentIndices(std::move(other.m_parentIndices)) {
+    : m_size(other.m_size), m_hitIndices(std::move(other.m_hitIndices)) {
   moveColumns(other);
 
   other.m_size = 0;
@@ -52,7 +52,7 @@ ParticleContainer &ParticleContainer::operator=(
   }
 
   copyColumns(other);
-  m_parentIndices = other.m_parentIndices;
+  m_hitIndices = other.m_hitIndices;
   m_size = other.m_size;
 
   return *this;
@@ -65,7 +65,7 @@ ParticleContainer &ParticleContainer::operator=(
   }
 
   moveColumns(other);
-  m_parentIndices = std::move(other.m_parentIndices);
+  m_hitIndices = std::move(other.m_hitIndices);
   m_size = other.m_size;
 
   other.m_size = 0;
@@ -177,10 +177,10 @@ void ParticleContainer::moveColumns(ParticleContainer &other) noexcept {
 }
 
 void ParticleContainer::reserve(std::uint32_t size,
-                                float averageParentIndices) noexcept {
-  if (hasColumns(ParticleColumns::Parents)) {
-    m_parentIndices.reserve(
-        static_cast<std::uint32_t>(size * averageParentIndices));
+                                float averageHitsPerParticle) noexcept {
+  if (hasColumns(ParticleColumns::Hits)) {
+    m_hitIndices.reserve(
+        static_cast<std::size_t>(size * averageHitsPerParticle));
   }
 
   for (const auto &[name, column] : m_allColumns) {
@@ -190,7 +190,7 @@ void ParticleContainer::reserve(std::uint32_t size,
 
 void ParticleContainer::clear() noexcept {
   m_size = 0;
-  m_parentIndices.clear();
+  m_hitIndices.clear();
 
   for (const auto &[name, column] : m_allColumns) {
     column->clear();
@@ -249,8 +249,8 @@ void ParticleContainer::dropColumns(ParticleColumns columns) noexcept {
      ...);
   }(tuple_indices<decltype(knownColumns())>{});
 
-  if (ACTS_CHECK_BIT(columns, ParticleColumns::Parents)) {
-    m_parentIndices.clear();
+  if (ACTS_CHECK_BIT(columns, ParticleColumns::Hits)) {
+    m_hitIndices.clear();
   }
 }
 

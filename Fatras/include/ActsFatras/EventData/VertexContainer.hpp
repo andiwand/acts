@@ -9,31 +9,17 @@
 #pragma once
 
 #include "Acts/Definitions/Algebra.hpp"
-#include "Acts/Utilities/TypeTraits.hpp"
 #include "Acts/Utilities/detail/ContainerIterator.hpp"
+#include "ActsFatras/EventData/ForwardDeclare.hpp"
 #include "ActsFatras/EventData/ProcessType.hpp"
 
 #include <cstdint>
-#include <span>
 
 namespace Acts {
 class Surface;
 }
 
 namespace ActsFatras {
-
-using ParticleIndex = std::uint32_t;
-using ParticleIndexSubset = std::span<const ParticleIndex>;
-
-class ParticleContainer;
-
-using VertexIndex = std::uint32_t;
-using VertexIndexSubset = std::span<const VertexIndex>;
-
-template <bool>
-class VertexProxy;
-using MutableVertexProxy = VertexProxy<false>;
-using ConstVertexProxy = VertexProxy<true>;
 
 class VertexContainer final {
  public:
@@ -158,7 +144,7 @@ class VertexContainer final {
   std::vector<std::uint8_t> m_incomingParticleIndicesCount;
   std::vector<std::uint32_t> m_outgoingParticleIndicesOffset;
   std::vector<std::uint8_t> m_outgoingParticleIndicesCount;
-  std::vector<Acts::Vector4> m_positionColumn;
+  std::vector<Acts::Vector4> m_fourPositionColumn;
   std::vector<const Acts::Surface *> m_surfacePointers;
   std::vector<ProcessType> m_processType;
 
@@ -169,8 +155,9 @@ class VertexContainer final {
     return std::tie(self.m_incomingParticleIndicesOffset,
                     self.m_incomingParticleIndicesCount,
                     self.m_outgoingParticleIndicesOffset,
-                    self.m_outgoingParticleIndicesCount, self.m_positionColumn,
-                    self.m_surfacePointers, self.m_processType);
+                    self.m_outgoingParticleIndicesCount,
+                    self.m_fourPositionColumn, self.m_surfacePointers,
+                    self.m_processType);
   }
   auto knownColumns() & noexcept { return knownColumns(*this); }
   auto knownColumns() const & noexcept { return knownColumns(*this); }
@@ -180,128 +167,6 @@ class VertexContainer final {
   void moveColumns(VertexContainer &other) noexcept;
 };
 
-/// A proxy class for accessing individual vertices.
-template <bool read_only>
-class VertexProxy final {
- public:
-  /// Indicates whether this vertex proxy is read-only or data can be
-  /// modified
-  static constexpr bool ReadOnly = read_only;
-
-  /// Type alias for vertex index type
-  using Index = VertexIndex;
-
-  /// Type alias for container type (const if read-only)
-  using Container = Acts::const_if_t<ReadOnly, VertexContainer>;
-
-  /// Constructs a vertex proxy for the given container and index.
-  /// @param container The container holding the vertex.
-  /// @param index The index of the vertex in the container.
-  VertexProxy(Container &container, Index index) noexcept
-      : m_container(&container), m_index(index) {}
-
-  /// Copy construct a vertex proxy.
-  /// @param other The vertex proxy to copy.
-  VertexProxy(const VertexProxy &other) noexcept = default;
-
-  /// Copy construct a mutable vertex proxy.
-  /// @param other The mutable vertex proxy to copy.
-  explicit VertexProxy(const VertexProxy<false> &other) noexcept
-    requires ReadOnly
-      : m_container(&other.container()), m_index(other.index()) {}
-
-  /// Copy assign a vertex proxy.
-  /// @param other The vertex proxy to copy.
-  /// @return Reference to this vertex proxy after assignment.
-  VertexProxy &operator=(const VertexProxy &other) noexcept = default;
-
-  /// Copy assign a mutable vertex proxy.
-  /// @param other The mutable vertex proxy to copy.
-  /// @return Reference to this vertex proxy after assignment.
-  VertexProxy &operator=(const VertexProxy<false> &other) noexcept
-    requires ReadOnly
-  {
-    m_container = &other.container();
-    m_index = other.index();
-    return *this;
-  }
-
-  /// Move assign a vertex proxy.
-  /// @param other The vertex proxy to move.
-  /// @return Reference to this vertex proxy after assignment.
-  VertexProxy &operator=(VertexProxy &&other) noexcept = default;
-
-  /// Move assign a mutable vertex proxy.
-  /// @param other The mutable vertex proxy to move.
-  /// @return Reference to this vertex proxy after assignment.
-  VertexProxy &operator=(VertexProxy<false> &&other) noexcept
-    requires ReadOnly
-  {
-    m_container = &other.container();
-    m_index = other.index();
-    return *this;
-  }
-
-  /// Returns a const proxy of the vertex.
-  /// @return A const proxy of the vertex.
-  VertexProxy<true> asConst() const noexcept
-    requires(!ReadOnly)
-  {
-    return {*m_container, m_index};
-  }
-
-  /// Gets the container holding the vertex.
-  /// @return A reference to the container holding the vertex.
-  VertexContainer &container() const noexcept
-    requires(!ReadOnly)
-  {
-    return *m_container;
-  }
-  /// Gets the container holding the vertex.
-  /// @return A const reference to the container holding the vertex.
-  const VertexContainer &container() const noexcept { return *m_container; }
-  /// Gets the index of the vertex in the container.
-  /// @return The index of the vertex in the container.
-  Index index() const noexcept { return m_index; }
-
-  void assignIncomingParticleIndices(
-      std::span<const ParticleIndex> particleIndices)
-    requires(!ReadOnly)
-  {
-    assignParticleIndices(particleIndices,
-                          container().m_incomingParticleIndicesOffset,
-                          container().m_incomingParticleIndicesCount);
-  }
-
-  void assignOutgoingParticleIndices(
-      std::span<const ParticleIndex> particleIndices)
-    requires(!ReadOnly)
-  {
-    assignParticleIndices(particleIndices,
-                          container().m_outgoingParticleIndicesOffset,
-                          container().m_outgoingParticleIndicesCount);
-  }
-
- private:
-  Container *m_container{nullptr};
-  Index m_index{0};
-
-  void assignParticleIndices(std::span<const ParticleIndex> particleIndices,
-                             std::vector<std::uint32_t> &offsetColumn,
-                             std::vector<std::uint8_t> &countColumn)
-    requires(!ReadOnly)
-  {
-    if (countColumn[m_index] != 0) {
-      throw std::logic_error("Particle indices already assigned to the vertex");
-    }
-
-    offsetColumn[m_index] =
-        static_cast<std::uint32_t>(m_container->m_parentIndices.size());
-    countColumn[m_index] = static_cast<std::uint8_t>(particleIndices.size());
-    m_container->m_parentIndices.insert(m_container->m_parentIndices.end(),
-                                        particleIndices.begin(),
-                                        particleIndices.end());
-  }
-};
-
 }  // namespace ActsFatras
+
+#include "ActsFatras/EventData/VertexContainer.ipp"
