@@ -12,7 +12,7 @@
 #include "Acts/Utilities/TypeTraits.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/ForwardDeclare.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/GenerationProcess.hpp"
 
 #include <cstdint>
 #include <span>
@@ -135,8 +135,8 @@ class VertexProxy final {
     return container().m_surfacePointers[m_index];
   }
 
-  ProcessType &generationProcess() noexcept {
-    return container().m_processType[m_index];
+  GenerationProcess &generationProcess() noexcept {
+    return container().m_generationProcess[m_index];
   }
 
   const Barcode &barcode() const noexcept {
@@ -173,8 +173,8 @@ class VertexProxy final {
     return container().m_surfacePointers[m_index];
   }
 
-  ProcessType generationProcess() const noexcept {
-    return container().m_processType[m_index];
+  GenerationProcess generationProcess() const noexcept {
+    return container().m_generationProcess[m_index];
   }
 
  private:

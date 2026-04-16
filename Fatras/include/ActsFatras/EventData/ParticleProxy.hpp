@@ -14,9 +14,9 @@
 #include "Acts/Utilities/TypeTraits.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/ForwardDeclare.hpp"
+#include "ActsFatras/EventData/GenerationProcess.hpp"
 #include "ActsFatras/EventData/ParticleContainer.hpp"
-#include "ActsFatras/EventData/ParticleOutcome.hpp"
-#include "ActsFatras/EventData/ProcessType.hpp"
+#include "ActsFatras/EventData/SimulationOutcome.hpp"
 #include "ActsFatras/EventData/VertexProxy.hpp"
 
 #include <cstdint>
@@ -138,7 +138,7 @@ class ParticleProxy final {
     return accessImpl(m_container->m_massColumn);
   }
 
-  ProcessType &generationProcess() noexcept
+  GenerationProcess &generationProcess() noexcept
     requires(!ReadOnly)
   {
     return accessImpl(m_container->m_generationProcessColumn);
@@ -186,7 +186,7 @@ class ParticleProxy final {
     return accessImpl(m_container->m_pathInL0Column);
   }
 
-  ParticleOutcome &endOutcome() noexcept
+  SimulationOutcome &endOutcome() noexcept
     requires(!ReadOnly)
   {
     return accessImpl(m_container->m_endOutcomeColumn);
@@ -250,7 +250,7 @@ class ParticleProxy final {
     return productionVertex().incomingParticles();
   }
 
-  ProcessType productionProcess() const noexcept {
+  GenerationProcess productionProcess() const noexcept {
     return m_container
         ->vertexContainer()[accessImpl(
             m_container->m_productionVertexIndexColumn)]
@@ -308,7 +308,7 @@ class ParticleProxy final {
     return accessImpl(m_container->m_pathInL0Column);
   }
 
-  const ParticleOutcome &endOutcome() const noexcept {
+  const SimulationOutcome &endOutcome() const noexcept {
     return accessImpl(m_container->m_endOutcomeColumn);
   }
 

@@ -16,7 +16,7 @@
 #include "Acts/Utilities/detail/ContainerSubset.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 #include "ActsFatras/EventData/ForwardDeclare.hpp"
-#include "ActsFatras/EventData/ParticleOutcome.hpp"
+#include "ActsFatras/EventData/SimulationOutcome.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -352,7 +352,7 @@ class ParticleContainer final {
   std::optional<ColumnHolder<double>> m_endProperTimeColumn;
   std::optional<ColumnHolder<double>> m_endPathInX0Column;
   std::optional<ColumnHolder<double>> m_endPathInL0Column;
-  std::optional<ColumnHolder<ParticleOutcome>> m_endOutcomeColumn;
+  std::optional<ColumnHolder<SimulationOutcome>> m_endOutcomeColumn;
 
   std::optional<ColumnHolder<std::uint32_t>> m_vertexIndicesOffsetColumn;
   std::optional<ColumnHolder<std::uint8_t>> m_vertexIndicesCountColumn;
@@ -391,7 +391,7 @@ class ParticleContainer final {
                       static_cast<const Acts::Surface *>(nullptr),
                       Acts::Vector4(Acts::Vector4::Zero()),
                       Acts::Vector3(Acts::Vector3::Zero()), double{0},
-                      double{0}, double{0}, ParticleOutcome::Alive,
+                      double{0}, double{0}, SimulationOutcome::Alive,
                       std::uint32_t{0}, std::uint8_t{0}, std::uint32_t{0},
                       std::uint8_t{0});
   }
