@@ -17,10 +17,7 @@
 #include "Acts/Utilities/Helpers.hpp"
 
 #include <array>
-#include <iostream>
 #include <vector>
-
-class MsgStream;
 
 namespace Acts {
 
@@ -68,10 +65,10 @@ class BinnedArrayXD : public BinnedArray<T> {
     /// loop over the object & position for ordering
     for (auto& tap : tapvector) {
       /// check for inside
-      if (m_binUtility->inside(tap.second)) {
+      if (m_binUtility->insideNative(tap.second)) {
         // butil to the array store - if the bingen
         // dimension is smaller 1,2 it will provide 0
-        auto bins = m_binUtility->binTriple(tap.second);
+        auto bins = m_binUtility->binTripleNative(tap.second);
         /// fill the data
         m_objectGrid[bins[2]][bins[1]][bins[0]] = tap.first;
         /// fill the unique m_arrayObjects
@@ -118,8 +115,6 @@ class BinnedArrayXD : public BinnedArray<T> {
   /// - not allowed, use the same array
   BinnedArrayXD& operator=(const BinnedArrayXD<T>& barr) = delete;
 
-  /// Destructor
-  ~BinnedArrayXD() override = default;
   /// Returns the object in the array from a local position
   ///
   /// @todo check if we can change to triple return at once
@@ -131,10 +126,8 @@ class BinnedArrayXD : public BinnedArray<T> {
   T object(const Vector2& lposition,
            std::array<std::size_t, 3>& bins) const final {
     if (m_binUtility) {
-      std::size_t bdim = m_binUtility->dimensions();
-      bins[2] = bdim > 2 ? m_binUtility->bin(lposition, 2) : 0;
-      bins[1] = bdim > 1 ? m_binUtility->bin(lposition, 1) : 0;
-      bins[0] = m_binUtility->bin(lposition, 0);
+      bins =
+          m_binUtility->binTripleNative(Vector3(lposition[0], lposition[1], 0));
       return m_objectGrid[bins[2]][bins[1]][bins[0]];
     }
     return m_objectGrid[0][0][0];
@@ -155,10 +148,7 @@ class BinnedArrayXD : public BinnedArray<T> {
   T object(const Vector3& position,
            std::array<std::size_t, 3>& bins) const final {
     if (m_binUtility) {
-      std::size_t bdim = m_binUtility->dimensions();
-      bins[2] = bdim > 2 ? m_binUtility->bin(position, 2) : 0;
-      bins[1] = bdim > 1 ? m_binUtility->bin(position, 1) : 0;
-      bins[0] = m_binUtility->bin(position, 0);
+      bins = m_binUtility->binTripleNative(position);
       return m_objectGrid[bins[2]][bins[1]][bins[0]];
     }
     return m_objectGrid[0][0][0];
@@ -193,4 +183,5 @@ class BinnedArrayXD : public BinnedArray<T> {
   /// binUtility for retrieving and filling the Array
   std::unique_ptr<const BinUtility> m_binUtility;
 };
+
 }  // namespace Acts

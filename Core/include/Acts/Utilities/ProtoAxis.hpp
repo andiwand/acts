@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "Acts/Utilities/Axis.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Grid.hpp"
 #include "Acts/Utilities/IAxis.hpp"
@@ -196,8 +195,6 @@ struct DirectedProtoAxis : public ProtoAxis {
   /// @note that auto-range is only supported for equidistant binning
   DirectedProtoAxis(AxisDirection axisDir, AxisBoundaryType abType,
                     std::size_t nbins);
-
-  virtual ~DirectedProtoAxis() = default;
 
   /// Access to the AxisDirection
   /// @return the axis direction

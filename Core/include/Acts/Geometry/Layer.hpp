@@ -236,10 +236,6 @@ class Layer : public virtual GeometryObject {
   /// the previous Layer according to BinGenUtils
   NextLayers m_nextLayers;
 
-  /// A binutility to find the next layer
-  /// @todo check if this is needed
-  const BinUtility* m_nextLayerUtility = nullptr;
-
   /// SurfaceArray on this layer Surface
   ///
   /// This array will be modified during signature and constant afterwards, but

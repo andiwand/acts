@@ -80,12 +80,9 @@ class AccumulatedSurfaceMaterial {
   AccumulatedSurfaceMaterial& operator=(
       const AccumulatedSurfaceMaterial& asma) = default;
 
-  /// Destructor
-  ~AccumulatedSurfaceMaterial() = default;
-
   /// Return the BinUtility
   /// @return Reference to the bin utility used for material binning
-  const BinUtility& binUtility() const;
+  const BinUtility& binUtility() const { return m_binUtility; }
 
   /// Assign a material properties object
   ///
@@ -105,6 +102,9 @@ class AccumulatedSurfaceMaterial {
   /// @param pathCorrection Correction factor for the effective path length
   ///
   /// @return the bin triple to which the material was assigned
+  [[deprecated(
+      "Global position access will be removed, use the alternative with local "
+      "position instead")]]
   std::array<std::size_t, 3> accumulate(const Vector3& gp,
                                         const MaterialSlab& mp,
                                         double pathCorrection = 1.);
@@ -123,6 +123,9 @@ class AccumulatedSurfaceMaterial {
   /// @param gp global position for the bin assignment
   /// @param emptyHit indicator if this is an empty assignment
   /// @param slabReference indicator if this is an empty assignment
+  [[deprecated(
+      "Global position access will be removed, use the alternative with local "
+      "position instead")]]
   void trackVariance(const Vector3& gp, MaterialSlab slabReference,
                      bool emptyHit = false);
 
@@ -139,7 +142,10 @@ class AccumulatedSurfaceMaterial {
   ///
   /// @param gp global position for the bin assignment
   /// @param emptyHit indicator if this is an empty assignment
-  void trackAverage(const Vector3& gp, bool emptyHit = false);
+  [[deprecated(
+      "Global position access will be removed, use the alternative with local "
+      "position instead")]] void
+  trackAverage(const Vector3& gp, bool emptyHit = false);
 
   /// Total average creates SurfaceMaterial
   /// @return Unique pointer to the averaged surface material
@@ -147,11 +153,13 @@ class AccumulatedSurfaceMaterial {
 
   /// Access to the accumulated material
   /// @return Reference to the matrix of accumulated material data
-  const AccumulatedMatrix& accumulatedMaterial() const;
+  const AccumulatedMatrix& accumulatedMaterial() const {
+    return m_accumulatedMaterial;
+  }
 
   /// Access to the split factor
   /// @return The split factor used for material averaging
-  double splitFactor() const;
+  double splitFactor() const { return m_splitFactor; }
 
  private:
   /// The helper for the bin finding
@@ -164,16 +172,4 @@ class AccumulatedSurfaceMaterial {
   AccumulatedMatrix m_accumulatedMaterial;
 };
 
-inline const BinUtility& AccumulatedSurfaceMaterial::binUtility() const {
-  return m_binUtility;
-}
-
-inline const AccumulatedSurfaceMaterial::AccumulatedMatrix&
-AccumulatedSurfaceMaterial::accumulatedMaterial() const {
-  return m_accumulatedMaterial;
-}
-
-inline double AccumulatedSurfaceMaterial::splitFactor() const {
-  return m_splitFactor;
-}
 }  // namespace Acts

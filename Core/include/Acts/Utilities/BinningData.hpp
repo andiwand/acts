@@ -56,6 +56,8 @@ class BinningData {
   /// sub structure: additive or multiplicative
   bool subBinningAdditive{};
 
+  BinningData() = default;
+
   /// Constructor for 0D binning
   ///
   /// @param bValue is the axis direction AxisX, AxisY, etc.
@@ -229,11 +231,8 @@ class BinningData {
         m_functionPtr = &searchInVectorWithBoundary;
       }
     }
-    return (*this);
+    return *this;
   }
-
-  BinningData() = default;
-  ~BinningData() = default;
 
   /// Equality operator
   ///
@@ -241,13 +240,13 @@ class BinningData {
   ///
   /// @return a boolean indicating if they are the same
   bool operator==(const BinningData& bData) const {
-    return (type == bData.type && option == bData.option &&
-            binvalue == bData.binvalue && min == bData.min &&
-            max == bData.max && step == bData.step && zdim == bData.zdim &&
-            ((subBinningData == nullptr && bData.subBinningData == nullptr) ||
-             (subBinningData != nullptr && bData.subBinningData != nullptr &&
-              (*subBinningData == *bData.subBinningData))) &&
-            subBinningAdditive == bData.subBinningAdditive);
+    return type == bData.type && option == bData.option &&
+           binvalue == bData.binvalue && min == bData.min && max == bData.max &&
+           step == bData.step && zdim == bData.zdim &&
+           ((subBinningData == nullptr && bData.subBinningData == nullptr) ||
+            (subBinningData != nullptr && bData.subBinningData != nullptr &&
+             (*subBinningData == *bData.subBinningData))) &&
+           subBinningAdditive == bData.subBinningAdditive;
   }
 
   /// Return the number of bins - including sub bins
@@ -285,6 +284,7 @@ class BinningData {
   /// @param position is the global position
   ///
   /// @return float value according to the binning setup
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   float value(const Vector3& position) const {
     using VectorHelpers::eta;
     using VectorHelpers::perp;
@@ -292,13 +292,13 @@ class BinningData {
     // ordered after occurrence
     if (binvalue == AxisDirection::AxisR ||
         binvalue == AxisDirection::AxisTheta) {
-      return (perp(position));
+      return perp(position);
     }
     if (binvalue == AxisDirection::AxisRPhi) {
-      return (perp(position) * phi(position));
+      return perp(position) * phi(position);
     }
     if (binvalue == AxisDirection::AxisEta) {
-      return (eta(position));
+      return eta(position);
     }
     if (toUnderlying(binvalue) < 3) {
       return static_cast<float>(position[toUnderlying(binvalue)]);
@@ -337,6 +337,7 @@ class BinningData {
   /// @param position is the search position in global coordinated
   ///
   /// @return boolean if this is inside() method is true
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   bool inside(const Vector3& position) const {
     // closed one is always inside
     if (option == closed) {
@@ -345,7 +346,7 @@ class BinningData {
     // all other options
     // @todo remove hard-coded tolerance parameters
     float val = value(position);
-    return (val > min - 0.001 && val < max + 0.001);
+    return val > min - 0.001 && val < max + 0.001;
   }
 
   /// Check if bin is inside from Vector2
@@ -353,6 +354,7 @@ class BinningData {
   /// @param lposition is the search position in global coordinated
   ///
   /// @return boolean if this is inside() method is true
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   bool inside(const Vector2& lposition) const {
     // closed one is always inside
     if (option == closed) {
@@ -361,7 +363,22 @@ class BinningData {
     // all other options
     // @todo remove hard-coded tolerance parameters
     float val = value(lposition);
-    return (val > min - 0.001 && val < max + 0.001);
+    return val > min - 0.001 && val < max + 0.001;
+  }
+
+  /// Check if bin is inside from double
+  ///
+  /// @param val is the search value
+  ///
+  /// @return boolean if this is inside() method is true
+  bool inside(double val) const {
+    // closed one is always inside
+    if (option == closed) {
+      return true;
+    }
+    // all other options
+    // @todo remove hard-coded tolerance parameters
+    return val > min - 0.001 && val < max + 0.001;
   }
 
   /// Generic search from a 2D position
@@ -369,6 +386,7 @@ class BinningData {
   /// @param lposition is the search position in local coordinated
   ///
   /// @return bin according tot this
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   std::size_t searchLocal(const Vector2& lposition) const {
     if (zdim) {
       return 0;
@@ -381,6 +399,7 @@ class BinningData {
   /// @param position is the search position in global coordinated
   ///
   /// @return bin according tot this
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   std::size_t searchGlobal(const Vector3& position) const {
     if (zdim) {
       return 0;
@@ -398,8 +417,8 @@ class BinningData {
       return 0;
     }
     assert(m_functionPtr != nullptr);
-    return (!subBinningData) ? (*m_functionPtr)(value, *this)
-                             : searchWithSubStructure(value);
+    return !subBinningData ? (*m_functionPtr)(value, *this)
+                           : searchWithSubStructure(value);
   }
 
   ///  Generic search with sub structure
@@ -432,6 +451,7 @@ class BinningData {
   /// @todo check if this can be changed
   ///
   /// @return integer that indicates which direction to move
+  [[deprecated("BinningData will be replaced by Grid and Axis")]]
   int nextDirection(const Vector3& position, const Vector3& dir) const {
     if (zdim) {
       return 0;
@@ -527,7 +547,7 @@ class BinningData {
     // special treatment of the 0 bin for closed
     if (bData.option == closed) {
       if (value < bData.min) {
-        return (bData.m_bins - 1);
+        return bData.m_bins - 1;
       }
       if (value > bData.max) {
         return 0;
@@ -584,4 +604,5 @@ class BinningData {
     return sl.str();
   }
 };
+
 }  // namespace Acts

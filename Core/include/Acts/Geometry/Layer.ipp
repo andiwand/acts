@@ -40,16 +40,12 @@ inline const Volume* Layer::representingVolume() const {
   return m_representingVolume.get();
 }
 
-inline const Layer* Layer::nextLayer(const GeometryContext& /*gctx*/,
+inline const Layer* Layer::nextLayer(const GeometryContext& gctx,
                                      const Vector3& position,
                                      const Vector3& direction) const {
-  // no binutility -> no chance to find out the direction
-  if (m_nextLayerUtility == nullptr) {
-    return nullptr;
-  }
-  return (m_nextLayerUtility->nextDirection(position, direction) < 0)
-             ? m_nextLayers.first
-             : m_nextLayers.second;
+  const Vector3 normal =
+      surfaceRepresentation().normal(gctx, position, direction);
+  return direction.dot(normal) < 0 ? m_nextLayers.first : m_nextLayers.second;
 }
 
 inline bool Layer::resolve(bool resolveSensitive, bool resolveMaterial,

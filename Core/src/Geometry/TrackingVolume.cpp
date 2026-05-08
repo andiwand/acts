@@ -336,7 +336,6 @@ void TrackingVolume::interlinkLayers() {
     // we'll need to mutate our confined layers to perform this operation
     Layer& mutableLayer = *(std::const_pointer_cast<Layer>(layerPtr));
     // register the layers
-    mutableLayer.m_nextLayerUtility = m_confinedLayers->binUtility();
     mutableLayer.m_nextLayers.first = lastLayer;
     // register the volume
     mutableLayer.encloseTrackingVolume(*this);
