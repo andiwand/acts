@@ -15,8 +15,8 @@
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 #include "Acts/Surfaces/TrapezoidBounds.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Zip.hpp"
 #include "ActsExamples/Digitization/SmearingConfig.hpp"
 #include "ActsFatras/Digitization/UncorrelatedHitSmearer.hpp"
@@ -90,7 +90,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   (maxX - minX) / inputSegmentation.binningData()[0].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minX), static_cast<float>(maxX),
-                  Acts::open, Acts::AxisDirection::AxisX);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisX);
             }
             if (inputSegmentation.binningData()[0].binvalue ==
                     Acts::AxisDirection::AxisY ||
@@ -104,7 +104,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                              inputSegmentation.binningData()[accessBin].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minY), static_cast<float>(maxY),
-                  Acts::open, Acts::AxisDirection::AxisY);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisY);
             }
           } break;
 
@@ -119,7 +119,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   2 * maxX / inputSegmentation.binningData()[0].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, -static_cast<float>(maxX), static_cast<float>(maxX),
-                  Acts::open, Acts::AxisDirection::AxisX);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisX);
             }
             if (inputSegmentation.binningData()[0].binvalue ==
                     Acts::AxisDirection::AxisY ||
@@ -132,7 +132,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                              inputSegmentation.binningData()[accessBin].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, -static_cast<float>(maxY), static_cast<float>(maxY),
-                  Acts::open, Acts::AxisDirection::AxisY);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisY);
             }
           } break;
 
@@ -146,7 +146,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   (maxR - minR) / inputSegmentation.binningData()[0].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minR), static_cast<float>(maxR),
-                  Acts::open, Acts::AxisDirection::AxisR);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisR);
             }
             if (inputSegmentation.binningData()[0].binvalue ==
                     Acts::AxisDirection::AxisPhi ||
@@ -163,7 +163,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                              inputSegmentation.binningData()[accessBin].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minPhi), static_cast<float>(maxPhi),
-                  Acts::open, Acts::AxisDirection::AxisPhi);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisPhi);
             }
 
           } break;
@@ -179,7 +179,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   (maxR - minR) / inputSegmentation.binningData()[0].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minR), static_cast<float>(maxR),
-                  Acts::open, Acts::AxisDirection::AxisR);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisR);
             }
             if (inputSegmentation.binningData()[0].binvalue ==
                     Acts::AxisDirection::AxisPhi ||
@@ -200,8 +200,8 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   2 * alpha / inputSegmentation.binningData()[accessBin].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(averagePhi - alpha),
-                  static_cast<float>(averagePhi + alpha), Acts::open,
-                  Acts::AxisDirection::AxisPhi);
+                  static_cast<float>(averagePhi + alpha),
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisPhi);
             }
 
           } break;
@@ -215,7 +215,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                   (maxR - minR) / inputSegmentation.binningData()[0].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minR), static_cast<float>(maxR),
-                  Acts::open, Acts::AxisDirection::AxisR);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisR);
             }
             if (inputSegmentation.binningData()[0].binvalue ==
                     Acts::AxisDirection::AxisPhi ||
@@ -234,7 +234,7 @@ void DigitizationConfigurator::operator()(const Acts::Surface *surface) {
                              inputSegmentation.binningData()[accessBin].step));
               outputSegmentation += Acts::BinUtility(
                   nBins, static_cast<float>(minPhi), static_cast<float>(maxPhi),
-                  Acts::open, Acts::AxisDirection::AxisPhi);
+                  Acts::AxisBoundaryType::Open, Acts::AxisDirection::AxisPhi);
             }
 
           } break;

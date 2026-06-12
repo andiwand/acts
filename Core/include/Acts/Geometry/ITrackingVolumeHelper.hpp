@@ -10,7 +10,7 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 
 #include <memory>
 #include <string>
@@ -67,7 +67,7 @@ class ITrackingVolumeHelper {
       MutableTrackingVolumeVector mtvVector = {},
       const Transform3& transform = Transform3::Identity(),
       const std::string& volumeName = "UndefinedVolume",
-      BinningType btype = arbitrary) const = 0;
+      AxisType btype = AxisType::Variable) const = 0;
 
   /// Create a TrackingVolume* from a set of layers and (optional) parameters
   ///
@@ -89,7 +89,7 @@ class ITrackingVolumeHelper {
       std::shared_ptr<const IVolumeMaterial> volumeMaterial, double loc0Min,
       double loc0Max, double loc1Min, double loc1Max,
       const std::string& volumeName = "UndefinedVolume",
-      BinningType btype = arbitrary) const = 0;
+      AxisType btype = AxisType::Variable) const = 0;
 
   /// Create a gap volume from dimensions and
   ///
@@ -128,7 +128,7 @@ class ITrackingVolumeHelper {
       double loc0Max, double loc1Min, double loc1Max,
       const std::vector<double>& layerPositions, bool cylinder = true,
       const std::string& volumeName = "UndefinedVolume",
-      BinningType btype = arbitrary) const = 0;
+      AxisType btype = AxisType::Variable) const = 0;
 
   /// Create a one level higher TrackingVolue
   ///

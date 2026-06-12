@@ -10,7 +10,6 @@
 
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Utilities/BinnedArray.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 
 #include <memory>
 #include <vector>
@@ -49,7 +48,7 @@ class ILayerArrayCreator {
   /// @return unique pointer to a new LayerArray
   virtual std::unique_ptr<const LayerArray> layerArray(
       const GeometryContext& gctx, const LayerVector& layers, double min,
-      double max, BinningType btype = arbitrary,
+      double max, AxisType btype = AxisType::Variable,
       AxisDirection bvalue = AxisDirection::AxisX) const = 0;
 };
 }  // namespace Acts

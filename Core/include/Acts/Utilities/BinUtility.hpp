@@ -11,7 +11,6 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinningData.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Enumerate.hpp"
 #include "Acts/Utilities/ProtoAxis.hpp"
 
@@ -72,7 +71,8 @@ class BinUtility {
   /// @param opt is the binning option : open, closed
   /// @param value is the axis direction : AxisX, AxisY, AxisZ, etc.
   /// @param tForm is the (optional) transform
-  BinUtility(std::size_t bins, float min, float max, BinningOption opt = open,
+  BinUtility(std::size_t bins, float min, float max,
+             AxisBoundaryType opt = AxisBoundaryType::Open,
              AxisDirection value = AxisDirection::AxisX,
              const Transform3& tForm = Transform3::Identity())
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {
@@ -86,7 +86,8 @@ class BinUtility {
   /// @param opt is the binning option : open, closed
   /// @param value is the axis direction : AxisX, AxisY, AxisZ, etc.
   /// @param tForm is the (optional) transform
-  explicit BinUtility(std::vector<float>& bValues, BinningOption opt = open,
+  explicit BinUtility(std::vector<float>& bValues,
+                      AxisBoundaryType opt = AxisBoundaryType::Open,
                       AxisDirection value = AxisDirection::AxisPhi,
                       const Transform3& tForm = Transform3::Identity())
       : m_binningData(), m_transform(tForm), m_itransform(tForm.inverse()) {

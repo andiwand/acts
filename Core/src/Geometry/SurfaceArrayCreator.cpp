@@ -17,7 +17,6 @@
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceArray.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Diagnostics.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 
@@ -75,8 +74,8 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnCylinder(
 
 std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnCylinder(
     const GeometryContext& gctx,
-    std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypePhi,
-    BinningType bTypeZ, std::optional<ProtoLayer> protoLayerOpt,
+    std::vector<std::shared_ptr<const Surface>> surfaces, AxisType bTypePhi,
+    AxisType bTypeZ, std::optional<ProtoLayer> protoLayerOpt,
     const Transform3& transform, std::uint8_t maxNeighborDistance) const {
   std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
   // check if we have proto layer, else build it
@@ -92,7 +91,7 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnCylinder(
 
   Transform3 fullTransform = transform;
 
-  if (bTypePhi == equidistant) {
+  if (bTypePhi == AxisType::Equidistant) {
     pAxisPhi = createEquidistantAxis(gctx, surfacesRaw, AxisDirection::AxisPhi,
                                      protoLayer, fullTransform, 0);
   } else {
@@ -100,7 +99,7 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnCylinder(
                                   protoLayer, fullTransform);
   }
 
-  if (bTypeZ == equidistant) {
+  if (bTypeZ == AxisType::Equidistant) {
     pAxisZ = createEquidistantAxis(gctx, surfacesRaw, AxisDirection::AxisZ,
                                    protoLayer, fullTransform);
   } else {
@@ -195,8 +194,8 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnDisc(
 
 std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnDisc(
     const GeometryContext& gctx,
-    std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypeR,
-    BinningType bTypePhi, std::optional<ProtoLayer> protoLayerOpt,
+    std::vector<std::shared_ptr<const Surface>> surfaces, AxisType bTypeR,
+    AxisType bTypePhi, std::optional<ProtoLayer> protoLayerOpt,
     const Transform3& transform, std::uint8_t maxNeighborDistance) const {
   std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
   // check if we have proto layer, else build it
@@ -211,7 +210,7 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnDisc(
   Transform3 fullTransform = transform;
   Transform3 inverseTransform = transform.inverse();
 
-  if (bTypeR == equidistant) {
+  if (bTypeR == AxisType::Equidistant) {
     pAxisR = createEquidistantAxis(gctx, surfacesRaw, AxisDirection::AxisR,
                                    protoLayer, fullTransform);
   } else {
@@ -258,7 +257,7 @@ std::unique_ptr<SurfaceArray> SurfaceArrayCreator::surfaceArrayOnDisc(
 
   } else {
     // use regular determination
-    if (bTypePhi == equidistant) {
+    if (bTypePhi == AxisType::Equidistant) {
       pAxisPhi =
           createEquidistantAxis(gctx, surfacesRaw, AxisDirection::AxisPhi,
                                 protoLayer, fullTransform, 0);
@@ -568,7 +567,7 @@ SurfaceArrayCreator::ProtoAxis SurfaceArrayCreator::createVariableAxis(
                                        << ")");
 
   ProtoAxis pAxis;
-  pAxis.bType = arbitrary;
+  pAxis.bType = AxisType::Variable;
   pAxis.axisDir = aDir;
   pAxis.binEdges = aDirs;
   pAxis.nBins = aDirs.size() - 1;
@@ -643,7 +642,7 @@ SurfaceArrayCreator::ProtoAxis SurfaceArrayCreator::createEquidistantAxis(
   ProtoAxis pAxis;
   pAxis.max = maximum;
   pAxis.min = minimum;
-  pAxis.bType = equidistant;
+  pAxis.bType = AxisType::Equidistant;
   pAxis.axisDir = aDir;
   pAxis.nBins = binNumber;
 

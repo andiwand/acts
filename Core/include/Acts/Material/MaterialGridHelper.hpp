@@ -11,18 +11,13 @@
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Material/AccumulatedVolumeMaterial.hpp"
 #include "Acts/Material/Material.hpp"
-#include "Acts/Utilities/Axis.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Grid.hpp"
 
-#include <array>
 #include <cstddef>
 #include <functional>
 #include <tuple>
-#include <utility>
-#include <vector>
 
 namespace Acts {
 

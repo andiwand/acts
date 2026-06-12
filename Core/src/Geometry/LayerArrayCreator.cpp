@@ -17,9 +17,9 @@
 #include "Acts/Surfaces/DiscSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/BinUtility.hpp"
 #include "Acts/Utilities/BinnedArrayXD.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -31,7 +31,7 @@ namespace Acts {
 
 std::unique_ptr<const LayerArray> LayerArrayCreator::layerArray(
     const GeometryContext& gctx, const LayerVector& layersInput, double min,
-    double max, BinningType bType, AxisDirection aDir) const {
+    double max, AxisType bType, AxisDirection aDir) const {
   ACTS_VERBOSE("Build LayerArray with " << layersInput.size()
                                         << " layers at input.");
   ACTS_VERBOSE("       min/max provided : " << min << " / " << max);
@@ -54,7 +54,7 @@ std::unique_ptr<const LayerArray> LayerArrayCreator::layerArray(
   // switch the binning type
   switch (bType) {
     // equidistant binning - no navigation layers built - only equdistant layers
-    case equidistant: {
+    case AxisType::Equidistant: {
       // loop over layers and put them in
       for (auto& layIter : layers) {
         ACTS_VERBOSE("equidistant : registering a Layer at binning position : "
@@ -63,13 +63,13 @@ std::unique_ptr<const LayerArray> LayerArrayCreator::layerArray(
                                       layIter->referencePosition(gctx, aDir));
       }
       // create the binUitlity
-      binUtility = std::make_unique<const BinUtility>(layers.size(), min, max,
-                                                      open, aDir);
+      binUtility = std::make_unique<const BinUtility>(
+          layers.size(), min, max, AxisBoundaryType::Open, aDir);
       ACTS_VERBOSE("equidistant : created a BinUtility as " << *binUtility);
     } break;
 
     // arbitrary binning
-    case arbitrary: {
+    case AxisType::Variable: {
       std::vector<float> boundaries;
       // initial step
       boundaries.emplace_back(min);
@@ -156,7 +156,8 @@ std::unique_ptr<const LayerArray> LayerArrayCreator::layerArray(
       ACTS_VERBOSE(layerOrderVector.size()
                    << " Layers (material + navigation) built. ");
       // create the BinUtility
-      binUtility = std::make_unique<const BinUtility>(boundaries, open, aDir);
+      binUtility = std::make_unique<const BinUtility>(
+          boundaries, AxisBoundaryType::Open, aDir);
       ACTS_VERBOSE("arbitrary : created a BinUtility as " << *binUtility);
 
     } break;

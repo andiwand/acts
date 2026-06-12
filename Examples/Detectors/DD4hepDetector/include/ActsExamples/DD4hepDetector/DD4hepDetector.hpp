@@ -12,10 +12,9 @@
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "Acts/Material/IMaterialDecorator.hpp"
-#include "Acts/Utilities/BinningType.hpp"
+#include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/DetectorCommons/Detector.hpp"
-#include "ActsExamples/Framework/IContextDecorator.hpp"
 #include "ActsPlugins/DD4hep/DD4hepFieldAdapter.hpp"
 #include "ActsPlugins/DD4hep/DD4hepLayerBuilder.hpp"
 
@@ -95,11 +94,11 @@ class DD4hepDetector final : public DD4hepDetectorBase {
  public:
   struct Config : public DD4hepDetectorBase::Config {
     /// Binningtype in phi
-    Acts::BinningType bTypePhi = Acts::equidistant;
+    Acts::AxisType bTypePhi = Acts::AxisType::Equidistant;
     /// Binningtype in r
-    Acts::BinningType bTypeR = Acts::arbitrary;
+    Acts::AxisType bTypeR = Acts::AxisType::Variable;
     /// Binningtype in z
-    Acts::BinningType bTypeZ = Acts::equidistant;
+    Acts::AxisType bTypeZ = Acts::AxisType::Equidistant;
     /// The tolerance added to the geometrical extension in r
     /// of the layers contained to build the volume envelope around
     /// @note this parameter only needs to be set if the volumes containing

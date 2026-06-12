@@ -15,12 +15,9 @@
 #include "Acts/Surfaces/RegularSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceArray.hpp"
-#include "Acts/Utilities/Axis.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <functional>
@@ -78,7 +75,7 @@ class SurfaceArrayCreator {
   /// Prototype axis definition for surface binning.
   struct ProtoAxis {
     /// Binning type (equidistant or variable)
-    BinningType bType = BinningType::equidistant;
+    AxisType bType = AxisType::Equidistant;
     /// Axis direction for binning
     AxisDirection axisDir = AxisDirection::AxisX;
     /// Number of bins
@@ -185,7 +182,8 @@ class SurfaceArrayCreator {
   std::unique_ptr<SurfaceArray> surfaceArrayOnCylinder(
       const GeometryContext& gctx,
       std::vector<std::shared_ptr<const Surface>> surfaces,
-      BinningType bTypePhi = equidistant, BinningType bTypeZ = equidistant,
+      AxisType bTypePhi = AxisType::Equidistant,
+      AxisType bTypeZ = AxisType::Equidistant,
       std::optional<ProtoLayer> protoLayerOpt = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::uint8_t maxNeighborDistance = 1) const;
@@ -239,9 +237,8 @@ class SurfaceArrayCreator {
   ///       This ignores bTypePhi and produces equidistant binning in phi
   std::unique_ptr<SurfaceArray> surfaceArrayOnDisc(
       const GeometryContext& gctx,
-      std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypeR,
-      BinningType bTypePhi,
-      std::optional<ProtoLayer> protoLayerOpt = std::nullopt,
+      std::vector<std::shared_ptr<const Surface>> surfaces, AxisType bTypeR,
+      AxisType bTypePhi, std::optional<ProtoLayer> protoLayerOpt = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::uint8_t maxNeighborDistance = 1) const;
 
@@ -415,7 +412,8 @@ class SurfaceArrayCreator {
     using ISGL = SurfaceArray::ISurfaceGridLookup;
     std::unique_ptr<ISGL> ptr;
 
-    if (pAxisA.bType == equidistant && pAxisB.bType == equidistant) {
+    if (pAxisA.bType == AxisType::Equidistant &&
+        pAxisB.bType == AxisType::Equidistant) {
       Axis<AxisType::Equidistant, bdtA> axisA(pAxisA.min, pAxisA.max,
                                               pAxisA.nBins);
       Axis<AxisType::Equidistant, bdtB> axisB(pAxisB.min, pAxisB.max,
@@ -425,7 +423,8 @@ class SurfaceArrayCreator {
           std::move(surface), layerTolerance, std::tuple{axisA, axisB},
           maxNeighborDistance);
 
-    } else if (pAxisA.bType == equidistant && pAxisB.bType == arbitrary) {
+    } else if (pAxisA.bType == AxisType::Equidistant &&
+               pAxisB.bType == AxisType::Variable) {
       Axis<AxisType::Equidistant, bdtA> axisA(pAxisA.min, pAxisA.max,
                                               pAxisA.nBins);
       Axis<AxisType::Variable, bdtB> axisB(pAxisB.binEdges);
@@ -434,7 +433,8 @@ class SurfaceArrayCreator {
           std::move(surface), layerTolerance, std::tuple{axisA, axisB},
           maxNeighborDistance);
 
-    } else if (pAxisA.bType == arbitrary && pAxisB.bType == equidistant) {
+    } else if (pAxisA.bType == AxisType::Variable &&
+               pAxisB.bType == AxisType::Equidistant) {
       Axis<AxisType::Variable, bdtA> axisA(pAxisA.binEdges);
       Axis<AxisType::Equidistant, bdtB> axisB(pAxisB.min, pAxisB.max,
                                               pAxisB.nBins);
@@ -443,7 +443,9 @@ class SurfaceArrayCreator {
           std::move(surface), layerTolerance, std::tuple{axisA, axisB},
           maxNeighborDistance);
 
-    } else /*if (pAxisA.bType == arbitrary && pAxisB.bType == arbitrary)*/ {
+    } else /*if (pAxisA.bType == AxisType::Variable && pAxisB.bType ==
+              AxisType::Variable)*/
+    {
       Axis<AxisType::Variable, bdtA> axisA(pAxisA.binEdges);
       Axis<AxisType::Variable, bdtB> axisB(pAxisB.binEdges);
 

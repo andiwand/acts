@@ -10,7 +10,6 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
-#include "Acts/Utilities/BinningType.hpp"
 #include "Acts/Utilities/Helpers.hpp"
 #include "Acts/Utilities/ProtoAxis.hpp"
 #include "Acts/Utilities/ThrowAssert.hpp"
@@ -43,13 +42,13 @@ namespace Acts {
 ///
 class BinningData {
  public:
-  BinningType type{};        ///< binning type: equidistant, arbitrary
-  BinningOption option{};    ///< binning option: open, closed
-  AxisDirection binvalue{};  ///< axis direction: AxisX, AxisY, AxisZ, ...
-  float min{};               ///< minimum value
-  float max{};               ///< maximum value
-  float step{};              ///< binning step
-  bool zdim{};               ///< zero dimensional binning : direct access
+  AxisType type{};            ///< binning type: equidistant, arbitrary
+  AxisBoundaryType option{};  ///< binning option: open, closed
+  AxisDirection binvalue{};   ///< axis direction: AxisX, AxisY, AxisZ, ...
+  float min{};                ///< minimum value
+  float max{};                ///< maximum value
+  float step{};               ///< binning step
+  bool zdim{};                ///< zero dimensional binning : direct access
 
   /// sub structure: describe some sub binning
   std::unique_ptr<const BinningData> subBinningData;
@@ -62,8 +61,8 @@ class BinningData {
   /// @param bMin is the minimum value
   /// @param bMax is the maximum value
   BinningData(AxisDirection bValue, float bMin, float bMax)
-      : type(equidistant),
-        option(open),
+      : type(AxisType::Equidistant),
+        option(AxisBoundaryType::Open),
         binvalue(bValue),
         min(bMin),
         max(bMax),
@@ -87,11 +86,11 @@ class BinningData {
   /// @param bMax is the maximum value
   /// @param sBinData is (optional) sub structure
   /// @param sBinAdditive is the prescription for the sub structure
-  BinningData(BinningOption bOption, AxisDirection bValue, std::size_t bBins,
+  BinningData(AxisBoundaryType bOption, AxisDirection bValue, std::size_t bBins,
               float bMin, float bMax,
               std::unique_ptr<const BinningData> sBinData = nullptr,
               bool sBinAdditive = false)
-      : type(equidistant),
+      : type(AxisType::Equidistant),
         option(bOption),
         binvalue(bValue),
         min(bMin),
@@ -121,10 +120,10 @@ class BinningData {
   /// @param bValue is the axis direction : AxisX, AxisY, etc.
   /// @param bBoundaries are the bin boundaries
   /// @param sBinData is (optional) sub structure
-  BinningData(BinningOption bOption, AxisDirection bValue,
+  BinningData(AxisBoundaryType bOption, AxisDirection bValue,
               const std::vector<float>& bBoundaries,
               std::unique_ptr<const BinningData> sBinData = nullptr)
-      : type(arbitrary),
+      : type(AxisType::Variable),
         option(bOption),
         binvalue(bValue),
         zdim(bBoundaries.size() == 2 ? true : false),
@@ -168,7 +167,7 @@ class BinningData {
             : nullptr;
     // set the pointer depending on the type
     // set the correct function pointer
-    if (type == equidistant) {
+    if (type == AxisType::Equidistant) {
       m_functionPtr = &searchEquidistantWithBoundary;
     } else {
       m_functionPtr = &searchInVectorWithBoundary;
@@ -182,8 +181,8 @@ class BinningData {
   explicit BinningData(const DirectedProtoAxis& dpAxis)
       : binvalue(dpAxis.getAxisDirection()), subBinningData(nullptr) {
     const auto& axis = dpAxis.getAxis();
-    type = axis.getType() == AxisType::Equidistant ? equidistant : arbitrary;
-    option = axis.getBoundaryType() == AxisBoundaryType::Closed ? closed : open;
+    type = axis.getType();
+    option = axis.getBoundaryType();
     min = static_cast<float>(axis.getMin());
     max = static_cast<float>(axis.getMax());
     m_bins = axis.getNBins();
@@ -196,8 +195,9 @@ class BinningData {
     m_totalBins = m_bins;
     m_totalBoundaries = m_boundaries;
     // Set the search function pointer based on axis type
-    m_functionPtr = (type == equidistant) ? &searchEquidistantWithBoundary
-                                          : &searchInVectorWithBoundary;
+    m_functionPtr = (type == AxisType::Equidistant)
+                        ? &searchEquidistantWithBoundary
+                        : &searchInVectorWithBoundary;
   }
 
   /// Assignment operator
@@ -223,7 +223,7 @@ class BinningData {
       m_totalBins = bdata.m_totalBins;
       m_totalBoundaries = bdata.m_totalBoundaries;
       // set the correct function pointer
-      if (type == equidistant) {
+      if (type == AxisType::Equidistant) {
         m_functionPtr = &searchEquidistantWithBoundary;
       } else {
         m_functionPtr = &searchInVectorWithBoundary;
@@ -339,7 +339,7 @@ class BinningData {
   /// @return boolean if this is inside() method is true
   bool inside(const Vector3& position) const {
     // closed one is always inside
-    if (option == closed) {
+    if (option == AxisBoundaryType::Closed) {
       return true;
     }
     // all other options
@@ -355,7 +355,7 @@ class BinningData {
   /// @return boolean if this is inside() method is true
   bool inside(const Vector2& lposition) const {
     // closed one is always inside
-    if (option == closed) {
+    if (option == AxisBoundaryType::Closed) {
       return true;
     }
     // all other options
@@ -546,7 +546,7 @@ class BinningData {
 
     int bin = static_cast<int>((value - bData.min) / bData.step);
     // special treatment of the 0 bin for closed
-    if (bData.option == closed) {
+    if (bData.option == AxisBoundaryType::Closed) {
       if (value < bData.min) {
         return (bData.m_bins - 1);
       }
@@ -555,11 +555,15 @@ class BinningData {
       }
     }
     // if outside boundary : return boundary for open, opposite bin for closed
-    bin = bin < 0 ? ((bData.option == open) ? 0 : (bData.m_bins - 1)) : bin;
+    bin = bin < 0
+              ? ((bData.option == AxisBoundaryType::Open) ? 0
+                                                          : (bData.m_bins - 1))
+              : bin;
     return static_cast<std::size_t>(
         (bin <= static_cast<int>(bData.m_bins - 1))
             ? bin
-            : ((bData.option == open) ? (bData.m_bins - 1) : 0));
+            : ((bData.option == AxisBoundaryType::Open) ? (bData.m_bins - 1)
+                                                        : 0));
   }
 
   // Search in arbitrary boundary
@@ -567,11 +571,13 @@ class BinningData {
                                                 const BinningData& bData) {
     // lower boundary
     if (value <= bData.m_boundaries[0]) {
-      return (bData.option == closed) ? (bData.m_bins - 1) : 0;
+      return (bData.option == AxisBoundaryType::Closed) ? (bData.m_bins - 1)
+                                                        : 0;
     }
     // higher boundary
     if (value >= bData.max) {
-      return (bData.option == closed) ? 0 : (bData.m_bins - 1);
+      return (bData.option == AxisBoundaryType::Closed) ? 0
+                                                        : (bData.m_bins - 1);
     }
 
     auto lb = std::ranges::lower_bound(bData.m_boundaries, value);
@@ -594,7 +600,7 @@ class BinningData {
        << '\n';
     sl << indent << "  - bins       : " << bins() << '\n';
     sl << indent << "  - min/max    : " << min << " / " << max << '\n';
-    if (type == equidistant) {
+    if (type == AxisType::Equidistant) {
       sl << indent << "  - step       : " << step << '\n';
     }
     sl << indent << "  - boundaries : | ";

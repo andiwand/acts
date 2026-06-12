@@ -60,7 +60,7 @@ class LayerArrayCreator : public ILayerArrayCreator {
   /// @return unique pointer to a newly created LayerArray
   std::unique_ptr<const LayerArray> layerArray(
       const GeometryContext& gctx, const LayerVector& layersInput, double min,
-      double max, BinningType bType = arbitrary,
+      double max, AxisType bType = AxisType::Variable,
       AxisDirection aDir = AxisDirection::AxisX) const override;
 
   /// set logging instance
