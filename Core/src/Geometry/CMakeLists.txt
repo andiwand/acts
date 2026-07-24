@@ -71,4 +71,5 @@ target_sources(
         TrackingGeometryPrintVisitor.cpp
         BoundDeduplicator.cpp
         PortalPlacement.cpp
+        OverlapChecks.cpp
 )

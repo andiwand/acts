@@ -11,6 +11,7 @@
 #include "Acts/Geometry/Extent.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
+#include "Acts/Geometry/OverlapChecks.hpp"
 #include "Acts/Geometry/Portal.hpp"
 #include "Acts/Geometry/PortalLinkBase.hpp"
 #include "Acts/Geometry/PortalShell.hpp"
@@ -381,6 +382,32 @@ void addGeometry(py::module_& m) {
   }
 
   py::class_<PortalShellBase>(m, "PortalShellBase");
+
+  {
+    // Experimental overlap and containment checks
+    m.def("overlaps",
+          py::overload_cast<const GeometryContext&, const Surface&,
+                            const Surface&>(&Experimental::overlaps),
+          "gctx"_a, "surfaceA"_a, "surfaceB"_a);
+    m.def(
+        "overlaps",
+        py::overload_cast<const GeometryContext&, const Volume&, const Volume&>(
+            &Experimental::overlaps),
+        "gctx"_a, "volumeA"_a, "volumeB"_a);
+    m.def("overlaps",
+          py::overload_cast<const GeometryContext&, const Volume&,
+                            const Surface&>(&Experimental::overlaps),
+          "gctx"_a, "volume"_a, "surface"_a);
+    m.def("containsFully",
+          py::overload_cast<const GeometryContext&, const Volume&,
+                            const Surface&>(&Experimental::containsFully),
+          "gctx"_a, "volume"_a, "surface"_a);
+    m.def(
+        "containsFully",
+        py::overload_cast<const GeometryContext&, const Volume&, const Volume&>(
+            &Experimental::containsFully),
+        "gctx"_a, "volume"_a, "containedVolume"_a);
+  }
 
   py::class_<ProtoLayer>(m, "ProtoLayer")
       .def(py::init<const GeometryContext&,
