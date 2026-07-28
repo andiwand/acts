@@ -154,7 +154,7 @@ std::string makeConnectionTable(const DetectorLayout& layout,
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  std::size_t numTracks = EventConfig{}.numTracks;
+  std::size_t pileup = EventConfig{}.pileup;
   std::size_t numRuns = 10;
   bool verbose = false;
   // The synthetic event is noise free, so more of the geometric doublet
@@ -168,8 +168,8 @@ int main(int argc, char* argv[]) {
   try {
     po::options_description desc("Allowed options");
     desc.add_options()("help", "produce help message")(
-        "tracks", po::value<std::size_t>(&numTracks)->default_value(numTracks),
-        "number of generated tracks")(
+        "pileup", po::value<std::size_t>(&pileup)->default_value(pileup),
+        "number of overlaid minimum-bias interactions")(
         "runs", po::value<std::size_t>(&numRuns)->default_value(numRuns),
         "number of benchmark runs")(
         "max-edges",
@@ -193,9 +193,9 @@ int main(int argc, char* argv[]) {
   const DetectorLayout layout = makePixelLayout();
 
   EventConfig eventConfig;
-  eventConfig.numTracks = numTracks;
-  const Acts::SpacePointContainer spacePoints =
-      generateEvent(layout, eventConfig);
+  eventConfig.pileup = pileup;
+  const Event event = generateEvent(layout, eventConfig);
+  const Acts::SpacePointContainer& spacePoints = event.spacePoints;
 
   constexpr float etaBinWidth = 0.2f;
   const std::string table = makeConnectionTable(layout, etaBinWidth);
@@ -225,13 +225,25 @@ int main(int argc, char* argv[]) {
   const Exp::GraphBasedTrackSeeder::Options options(eventConfig.bFieldZ * 1_T);
   const std::vector<bool> isPixelLayer(layout.layers.size(), true);
 
-  std::size_t numSeeds = 0;
-
+  const EventSummary summary = summarize(event, cfg.minPt / 1_GeV);
   std::cout << "layers=" << layout.layers.size()
             << " etaBins=" << geometry->numBins()
-            << " binGroups=" << geometry->binGroups().size()
-            << " tracks=" << numTracks << " spacePoints=" << spacePoints.size()
-            << std::endl;
+            << " binGroups=" << geometry->binGroups().size() << "\n"
+            << "spacePoints=" << summary.spacePoints
+            << " primaryHits=" << summary.primaryHits
+            << " secondaryHits=" << summary.secondaryHits
+            << " primaries=" << summary.primaries
+            << " secondaries=" << summary.secondaries
+            << " seedable=" << summary.seedablePrimaries << std::endl;
+
+  // matched outside the timed region, so that the truth lookup does not show
+  // up in the measurement
+  Acts::SeedContainer reference;
+  reference.assignSpacePointContainer(spacePoints);
+  seeder.createSeeds(spacePoints, roi, isPixelLayer, filter, options,
+                     reference);
+  const SeedingSummary seedSummary =
+      evaluateSeeds(event, reference, cfg.minPt / 1_GeV);
 
   const auto result = microBenchmark(
       [&] {
@@ -239,12 +251,17 @@ int main(int argc, char* argv[]) {
         seeds.assignSpacePointContainer(spacePoints);
         seeder.createSeeds(spacePoints, roi, isPixelLayer, filter, options,
                            seeds);
-        numSeeds = seeds.size();
         assumeRead(seeds);
       },
       1, numRuns);
 
-  std::cout << "seeds=" << numSeeds << " " << result << std::endl;
+  std::cout << "seeds=" << seedSummary.seeds
+            << " trueSeeds=" << seedSummary.trueSeeds << " efficiency="
+            << static_cast<float>(seedSummary.matchedPrimaries) /
+                   static_cast<float>(
+                       std::max<std::size_t>(1, summary.seedablePrimaries))
+            << "\n"
+            << result << std::endl;
 
   return 0;
 }
