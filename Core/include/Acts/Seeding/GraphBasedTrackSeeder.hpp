@@ -237,14 +237,24 @@ class GraphBasedTrackSeeder {
     std::vector<std::uint32_t> spacePoints;
   };
 
-  /// Sliding window in phi used to define range used for edge creation
+  /// Sliding window in phi used to define range used for edge creation.
+  ///
+  /// The window covers one source eta bin. The bin's phi-ordered node list is
+  /// held by pointer rather than reached through the bin, because the innermost
+  /// loop reads it once per candidate node and would otherwise chase the bin on
+  /// every visit. Only non-empty bins get a window, so the loop scanning them
+  /// needs no emptiness test.
   struct SlidingWindow {
+    /// phi-ordered nodes of the bin, including the wrap-around duplicates
+    const std::pair<float, SpacePointIndex>* phiNodes{};
+    /// number of entries in @c phiNodes
+    std::uint32_t numPhiNodes{};
     /// sliding window position
     std::uint32_t firstIt{};
     /// window half-width;
     float deltaPhi{};
-    /// associated eta bin, null while the window is inactive
-    const detail::GbtsEtaBinInfo* etaBin{};
+    /// GBTS layer ID of the bin
+    std::uint32_t layerId{};
   };
   DerivedConfig m_cfg;
 
