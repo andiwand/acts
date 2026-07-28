@@ -713,6 +713,12 @@ int main(int argc, char* argv[]) {
   std::size_t pileup = EventConfig{}.pileup;
   float secondaryRate = EventConfig{}.secondaryRate;
   std::size_t numRuns = 10;
+  float minPt = ItkPixelConfig{}.minPt / 1_MeV;
+  // Efficiency is counted over a harder threshold than the seeder is cut at,
+  // which keeps the turn-on out of it: a seeder run at 900 MeV loses tracks
+  // just above its own threshold for reasons that say nothing about the seeder,
+  // and where exactly it loses them moves with the momentum resolution.
+  float truthPt = 1000.f;
   std::string gridName = "cylindrical";
   std::string dumpPrefix;
   std::vector<float> middleRange;
@@ -734,6 +740,11 @@ int main(int argc, char* argv[]) {
         "mean number of secondaries produced per primary crossing")(
         "runs", po::value<std::size_t>(&numRuns)->default_value(numRuns),
         "number of benchmark runs")(
+        "min-pt", po::value<float>(&minPt)->default_value(minPt),
+        "seed momentum threshold in MeV")(
+        "truth-pt", po::value<float>(&truthPt)->default_value(truthPt),
+        "momentum in MeV a primary has to reach to be counted in the "
+        "efficiency")(
         "cot-bin-width",
         po::value<float>(&sph.cotBinWidth)->default_value(sph.cotBinWidth),
         "spherical grid: width of the middle axis bins in cot(theta)")(
@@ -809,6 +820,9 @@ int main(int argc, char* argv[]) {
 
   ItkPixelConfig cfg;
   cfg.bFieldInZ = eventConfig.bFieldZ * 1_T;
+  // reaches the phi binning of the grid, both doublet finders and the triplet
+  // finder, so it has to be set before any of them is built
+  cfg.minPt = minPt * 1_MeV;
   if (spherical || forceDeltaZMax) {
     cfg.deltaZMax = sph.deltaZMax;
   }
@@ -870,7 +884,7 @@ int main(int argc, char* argv[]) {
         cfg, cylindricalConfig, axis, event.spacePoints, *cache.logger);
   }
 
-  const EventSummary summary = summarize(event, cfg.minPt / 1_GeV);
+  const EventSummary summary = summarize(event, truthPt * 1_MeV / 1_GeV);
   std::cout << "grid=" << gridName << "\nspacePoints=" << summary.spacePoints
             << " primaryHits=" << summary.primaryHits
             << " secondaryHits=" << summary.secondaryHits
@@ -883,7 +897,7 @@ int main(int argc, char* argv[]) {
   Acts::SeedContainer reference;
   seed(reference);
   const SeedingSummary seedSummary =
-      evaluateSeeds(event, reference, cfg.minPt / 1_GeV);
+      evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
 
   const auto result = microBenchmark(
       [&] {

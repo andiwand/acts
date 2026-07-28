@@ -156,6 +156,12 @@ std::string makeConnectionTable(const DetectorLayout& layout,
 int main(int argc, char* argv[]) {
   std::size_t pileup = EventConfig{}.pileup;
   std::size_t numRuns = 10;
+  float minPt = 900.f;
+  // Efficiency is counted over a harder threshold than the seeder is cut at,
+  // which keeps the turn-on out of it: a seeder run at 900 MeV loses tracks
+  // just above its own threshold for reasons that say nothing about the seeder,
+  // and where exactly it loses them moves with the momentum resolution.
+  float truthPt = 1000.f;
   bool verbose = false;
   // The synthetic event is noise free, so more of the geometric doublet
   // candidates survive the cuts than in a real event and the graph outgrows the
@@ -172,6 +178,11 @@ int main(int argc, char* argv[]) {
         "number of overlaid minimum-bias interactions")(
         "runs", po::value<std::size_t>(&numRuns)->default_value(numRuns),
         "number of benchmark runs")(
+        "min-pt", po::value<float>(&minPt)->default_value(minPt),
+        "seed momentum threshold in MeV")(
+        "truth-pt", po::value<float>(&truthPt)->default_value(truthPt),
+        "momentum in MeV a primary has to reach to be counted in the "
+        "efficiency")(
         "max-edges",
         po::value<std::uint32_t>(&maxEdges)->default_value(maxEdges),
         "ceiling on the number of graph edges")(
@@ -206,7 +217,7 @@ int main(int argc, char* argv[]) {
       makeLayerDescriptions(layout), connections);
 
   Exp::GraphBasedTrackSeeder::Config cfg;
-  cfg.minPt = 1_GeV;
+  cfg.minPt = minPt * 1_MeV;
   cfg.minZ0 = -200.f;
   cfg.maxZ0 = 200.f;
   cfg.maxOuterRadius = 550.f;
@@ -225,7 +236,7 @@ int main(int argc, char* argv[]) {
   const Exp::GraphBasedTrackSeeder::Options options(eventConfig.bFieldZ * 1_T);
   const std::vector<bool> isPixelLayer(layout.layers.size(), true);
 
-  const EventSummary summary = summarize(event, cfg.minPt / 1_GeV);
+  const EventSummary summary = summarize(event, truthPt * 1_MeV / 1_GeV);
   std::cout << "layers=" << layout.layers.size()
             << " etaBins=" << geometry->numBins()
             << " binGroups=" << geometry->binGroups().size() << "\n"
@@ -243,7 +254,7 @@ int main(int argc, char* argv[]) {
   seeder.createSeeds(spacePoints, roi, isPixelLayer, filter, options,
                      reference);
   const SeedingSummary seedSummary =
-      evaluateSeeds(event, reference, cfg.minPt / 1_GeV);
+      evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
 
   const auto result = microBenchmark(
       [&] {
