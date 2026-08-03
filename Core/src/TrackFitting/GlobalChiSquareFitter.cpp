@@ -12,23 +12,29 @@
 
 void Acts::Experimental::updateGx2fParams(
     BoundTrackParameters& params, const Eigen::VectorXd& deltaParamsExtended,
-    const std::size_t nMaterialSurfaces,
-    std::unordered_map<GeometryIdentifier, ScatteringProperties>& scatteringMap,
+    const Gx2fParameterLayout& layout,
+    std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>& materialMap,
     const std::vector<GeometryIdentifier>& geoIdVector) {
+  assert(geoIdVector.size() == layout.nMaterialSurfaces() &&
+         "Number of visited material surfaces does not match the layout.");
+
   // update params
   params.parameters() +=
       deltaParamsExtended.topLeftCorner<eBoundSize, 1>().eval();
 
-  // update the scattering angles.
-  for (std::size_t matSurface = 0; matSurface < nMaterialSurfaces;
+  // update the material parameters
+  for (std::size_t matSurface = 0; matSurface < layout.nMaterialSurfaces();
        matSurface++) {
-    const std::size_t deltaPosition = eBoundSize + 2 * matSurface;
     const GeometryIdentifier geoId = geoIdVector[matSurface];
-    const auto scatteringMapId = scatteringMap.find(geoId);
-    assert(scatteringMapId != scatteringMap.end() &&
-           "No scattering angles found for material surface.");
-    scatteringMapId->second.scatteringAngles().block<2, 1>(2, 0) +=
-        deltaParamsExtended.block<2, 1>(deltaPosition, 0).eval();
+    const auto materialMapId = materialMap.find(geoId);
+    assert(materialMapId != materialMap.end() &&
+           "No material properties found for material surface.");
+
+    if (layout.fitScattering()) {
+      materialMapId->second.scatteringAngles().segment<2>(eBoundPhi) +=
+          deltaParamsExtended.segment<2>(layout.scatteringOffset(matSurface))
+              .eval();
+    }
   }
 
   return;
@@ -71,26 +77,36 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
   // TODO make dimsExtendedParams template with unrolling
   Eigen::MatrixXd extendedJacobian =
       Eigen::MatrixXd::Zero(eBoundSize, extendedSystem.nDims());
+  assert(extendedJacobian.cols() ==
+             static_cast<Eigen::Index>(extendedSystem.nDims()) &&
+         "Extended Jacobian does not match the system dimensions.");
 
   // This part of the Jacobian comes from the material-less propagation
   extendedJacobian.topLeftCorner<eBoundSize, eBoundSize>() =
       jacobianFromStart[0];
 
   // If we have material, loop here over all Jacobians. We add extra columns for
-  // their phi-theta projections. These parts account for the propagation of the
-  // scattering angles.
+  // the parameters attached to each material surface. These parts account for
+  // the propagation of the scattering angles.
+  // We hold one Jacobian per material surface passed so far, plus the one from
+  // the start of the track. Material surfaces downstream of this measurement
+  // have not been reached yet, hence the inequality.
+  const Gx2fParameterLayout& layout = extendedSystem.layout();
+  assert(jacobianFromStart.size() <= layout.nMaterialSurfaces() + 1 &&
+         "More Jacobians than fitted material surfaces.");
+
   for (std::size_t matSurface = 1; matSurface < jacobianFromStart.size();
        matSurface++) {
-    const BoundMatrix jac = jacobianFromStart[matSurface];
+    const BoundMatrix& jac = jacobianFromStart[matSurface];
 
-    const Matrix<eBoundSize, 2> jacPhiTheta =
-        jac * Gx2fConstants::phiThetaProjector;
+    // The index of the material surface this Jacobian starts from
+    const std::size_t k = matSurface - 1;
 
-    // The position, where we need to insert the values in the extended Jacobian
-    const std::size_t deltaPosition = eBoundSize + 2 * (matSurface - 1);
-
-    extendedJacobian.template block<eBoundSize, 2>(0, deltaPosition) =
-        jacPhiTheta;
+    if (layout.fitScattering()) {
+      extendedJacobian.template block<eBoundSize, 2>(
+          0, layout.scatteringOffset(k)) =
+          jac * Gx2fConstants::phiThetaProjector;
+    }
   }
 
   const Eigen::MatrixXd projJacobian = projector * extendedJacobian;
