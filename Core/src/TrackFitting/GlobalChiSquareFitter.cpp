@@ -10,6 +10,8 @@
 
 #include "Acts/Definitions/TrackParametrization.hpp"
 
+#include <cmath>
+
 void Acts::Experimental::updateGx2fParams(
     BoundTrackParameters& params, const Eigen::VectorXd& deltaParamsExtended,
     const Gx2fParameterLayout& layout,
@@ -77,9 +79,6 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
   // TODO make dimsExtendedParams template with unrolling
   Eigen::MatrixXd extendedJacobian =
       Eigen::MatrixXd::Zero(eBoundSize, extendedSystem.nDims());
-  assert(extendedJacobian.cols() ==
-             static_cast<Eigen::Index>(extendedSystem.nDims()) &&
-         "Extended Jacobian does not match the system dimensions.");
 
   // This part of the Jacobian comes from the material-less propagation
   extendedJacobian.topLeftCorner<eBoundSize, eBoundSize>() =
@@ -158,6 +157,24 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
 
 Eigen::VectorXd Acts::Experimental::computeGx2fDeltaParams(
     const Acts::Experimental::Gx2fSystem& extendedSystem) {
-  return extendedSystem.aMatrix().colPivHouseholderQr().solve(
-      extendedSystem.bVector());
+  // The blocks of the system are expressed in very different units, so their
+  // magnitudes differ by many orders. The energy loss penalty scales like p^4
+  // and the scattering penalty like p^2, while the measurement block is
+  // momentum independent. colPivHouseholderQr pivots by column norm but does
+  // not equilibrate, so scale the system symmetrically to unit diagonal first.
+  // For a well conditioned system this returns the identical solution.
+  // A zero diagonal is legitimate, e.g. q/p without a magnetic field or time
+  // without a time measurement. Replace those by one *before* inverting, so
+  // that we never divide by zero. Guarding the division with a branch instead
+  // would still raise a division-by-zero once the loop is vectorised, since
+  // both sides of the branch get evaluated.
+  Eigen::VectorXd scale = extendedSystem.aMatrix().diagonal().cwiseAbs();
+  scale = (scale.array() > 0.).select(scale, 1.);
+  scale = scale.cwiseSqrt().cwiseInverse();
+
+  const Eigen::MatrixXd aScaled =
+      scale.asDiagonal() * extendedSystem.aMatrix() * scale.asDiagonal();
+  const Eigen::VectorXd bScaled = scale.asDiagonal() * extendedSystem.bVector();
+
+  return scale.asDiagonal() * aScaled.colPivHouseholderQr().solve(bScaled);
 }
