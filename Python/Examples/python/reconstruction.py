@@ -2033,12 +2033,14 @@ def addGx2fTracks(
     clusters: str = None,
     calibrator: acts.examples.MeasurementCalibrator = acts.examples.makePassThroughCalibrator(),
     logLevel: Optional[acts.logging.Level] = None,
+    energyLossMode: acts.examples.Gx2fEnergyLossMode = acts.examples.Gx2fEnergyLossMode.mean,
 ) -> None:
     customLogLevel = acts.examples.defaultLogging(s, logLevel)
 
     gx2fOptions = {
         "multipleScattering": multipleScattering,
         "energyLoss": energyLoss,
+        "energyLossMode": energyLossMode,
         "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
         "nUpdateMax": nUpdateMax,
         "relChi2changeCutOff": relChi2changeCutOff,

@@ -312,6 +312,17 @@ BOOST_AUTO_TEST_CASE(NoFit) {
           std::uint32_t, hashString(Gx2fConstants::gx2fnUpdateColumn)>()),
       0);
 
+  // Zero updates must also disable the material fit.
+  gx2fOptions.multipleScattering = true;
+  gx2fOptions.energyLoss = true;
+  const auto noMaterialFit =
+      fitter.fit(sourceLinks.begin(), sourceLinks.end(), startParametersFit,
+                 gx2fOptions, tracks);
+  BOOST_REQUIRE(noMaterialFit.ok());
+  BOOST_CHECK_EQUAL(noMaterialFit->tipIndex(), kTrackIndexInvalid);
+  BOOST_CHECK_EQUAL(noMaterialFit->parameters(),
+                    startParametersFit.parameters());
+
   ACTS_INFO("*** Test: NoFit -- Finish");
 }
 
@@ -1106,16 +1117,44 @@ BOOST_AUTO_TEST_CASE(Material) {
   extensions.surfaceAccessor
       .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
 
-  const Gx2FitterOptions gx2fOptions(geoCtx, magCtx, calCtx, extensions,
-                                     PropagatorPlainOptions(geoCtx, magCtx),
-                                     rSurface, true, false,
-                                     FreeToBoundCorrection(false), 5, 0);
+  Gx2FitterOptions gx2fOptions(geoCtx, magCtx, calCtx, extensions,
+                               PropagatorPlainOptions(geoCtx, magCtx), rSurface,
+                               true, false, FreeToBoundCorrection(false), 5, 0);
 
   TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
 
   ACTS_DEBUG("Fit the track");
   ACTS_VERBOSE("startParameter unsmeared:\n" << parametersMeasurements);
   ACTS_VERBOSE("startParameter fit:\n" << startParametersFit);
+  // Recover the material weight from the converged fit before scattering.
+  gx2fOptions.nMaterialUpdateMax = 0;
+  TrackContainer baselineTracks{VectorTrackContainer{},
+                                VectorMultiTrajectory{}};
+  const auto baseline =
+      fitter.fit(sourceLinks.begin(), sourceLinks.end(), startParametersFit,
+                 gx2fOptions, baselineTracks);
+  BOOST_REQUIRE(baseline.ok());
+  double scatteringVariance = 0.;
+  for (const auto& state : baseline->trackStates()) {
+    if (!state.typeFlags().hasMaterial()) {
+      continue;
+    }
+    const auto free = transformBoundToFreeParameters(state.referenceSurface(),
+                                                     geoCtx, state.smoothed());
+    const auto slab = Acts::detail::evaluateMaterialSlab(
+        geoCtx, state.referenceSurface(), Direction::Forward(),
+        free.segment<3>(eFreePos0), free.segment<3>(eFreeDir0),
+        MaterialUpdateMode::FullUpdate);
+    BOOST_REQUIRE(slab.ok());
+    const auto& particle = startParametersFit.particleHypothesis();
+    const double sigma = computeMultipleScatteringTheta0(
+        *slab, particle.absolutePdg(), particle.mass(),
+        static_cast<float>(baseline->parameters()[eBoundQOverP]),
+        particle.absoluteCharge());
+    scatteringVariance = sigma * sigma;
+  }
+  BOOST_REQUIRE_GT(scatteringVariance, 0.);
+  gx2fOptions.nMaterialUpdateMax = 1;
   const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
                               startParametersFit, gx2fOptions, tracks);
 
@@ -1171,9 +1210,25 @@ BOOST_AUTO_TEST_CASE(Material) {
   BOOST_CHECK_EQUAL(track.tipIndex(), nSurfaces - 1);
   BOOST_CHECK(track.hasReferenceSurface());
 
-  // TODO Add material handling to the gx2f, to pass the 6 commented tests
-  // Track quantities
-  //  CHECK_CLOSE_ABS(track.chi2(), 8., 2.);
+  // The reported objective must describe the returned states and fitted kicks.
+  double expectedChi2 = 0.;
+  BoundVector previous = track.parameters();
+  for (const auto& state : track.trackStates()) {
+    const Vector2 residual = state.calibrated<2>() - state.smoothed().head<2>();
+    expectedChi2 +=
+        residual.dot(state.calibratedCovariance<2>().inverse() * residual);
+    if (state.typeFlags().hasMaterial()) {
+      const double phi = state.smoothed()[eBoundPhi] - previous[eBoundPhi];
+      const double theta =
+          state.smoothed()[eBoundTheta] - previous[eBoundTheta];
+      const double sinTheta = std::sin(state.smoothed()[eBoundTheta]);
+      expectedChi2 += (theta * theta + phi * phi * sinTheta * sinTheta) /
+                      scatteringVariance;
+    }
+    previous = state.smoothed();
+  }
+  CHECK_CLOSE_REL(track.chi2(), expectedChi2, 1e-9);
+
   BOOST_CHECK_EQUAL(track.nDoF(), nSurfaces * 2);
   BOOST_CHECK_EQUAL(track.nHoles(), 0u);
   BOOST_CHECK_EQUAL(track.nMeasurements(), nSurfaces);
@@ -1202,14 +1257,8 @@ BOOST_AUTO_TEST_CASE(Material) {
   ACTS_INFO("*** Test: Material -- Finish");
 }
 
-// Fit the same measurements with and without the energy loss correction. The
-// measurements are simulated without any material effects, so switching the
-// correction on forces the fit to compensate: the model now loses momentum at
-// every material surface, therefore the fitted q/p at the start of the track
-// must shrink in magnitude to reproduce the same curvature.
-//
-// A magnetic field is mandatory here. Without one, aMatrix(4, 4) == 0, q/p is
-// not fitted at all and the energy loss columns would be trivially zero.
+// Energy loss must shift the fitted momentum even without material in the
+// truth.
 BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
   ACTS_INFO("*** Test: EnergyLossSelfConsistency -- Start");
 
@@ -1254,20 +1303,37 @@ BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
       .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
 
   // Fit the same source links with the three energy loss configurations
-  const auto fitQOverP = [&](const bool energyLoss,
-                             const Gx2fEnergyLossMode mode) {
-    const Gx2FitterOptions gx2fOptions(
-        geoCtx, magCtx, calCtx, extensions,
-        PropagatorPlainOptions(geoCtx, magCtx), rSurface,
-        /*mScattering=*/false, energyLoss, FreeToBoundCorrection(false),
-        /*nUpdateMax_=*/10, /*relChi2changeCutOff_=*/1e-7, mode);
+  const auto fitQOverP =
+      [&](const bool energyLoss, const Gx2fEnergyLossMode mode,
+          const ParticleHypothesis& particle = ParticleHypothesis::pion(),
+          const std::size_t nUpdateMax = 10) {
+        const Gx2FitterOptions gx2fOptions(
+            geoCtx, magCtx, calCtx, extensions,
+            PropagatorPlainOptions(geoCtx, magCtx), rSurface,
+            /*mScattering=*/false, energyLoss, FreeToBoundCorrection(false),
+            nUpdateMax, /*relChi2changeCutOff_=*/1e-7, mode);
+        const auto& seed =
+            nUpdateMax == 1 ? parametersMeasurements : startParametersFit;
+        BoundVector seedParameters = seed.parameters();
+        seedParameters[eBoundQOverP] =
+            particle.qOverP(seed.absoluteMomentum(), particle.absoluteCharge());
+        const BoundTrackParameters start{seed.referenceSurface().getSharedPtr(),
+                                         seedParameters, seed.covariance(),
+                                         particle};
+        TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+        const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
+                                    start, gx2fOptions, tracks);
+        BOOST_REQUIRE(res.ok());
+        return (*res).parameters()[eBoundQOverP];
+      };
 
-    TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
-    const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
-                                startParametersFit, gx2fOptions, tracks);
-    BOOST_REQUIRE(res.ok());
-    return (*res).parameters()[eBoundQOverP];
-  };
+  for (const auto& particle :
+       {ParticleHypothesis::pion0().withMomentumHypothesis(2_GeV),
+        ParticleHypothesis::chargedGeantino(),
+        ParticleHypothesis::muon().withMomentumHypothesis(1_GeV)}) {
+    BOOST_CHECK_EQUAL(fitQOverP(true, Gx2fEnergyLossMode::Mean, particle, 1),
+                      fitQOverP(false, Gx2fEnergyLossMode::Mean, particle, 1));
+  }
 
   const double qOverPOff = fitQOverP(false, Gx2fEnergyLossMode::Mode);
   const double qOverPMode = fitQOverP(true, Gx2fEnergyLossMode::Mode);
@@ -1277,11 +1343,9 @@ BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
   ACTS_VERBOSE("q/p with mode:           " << qOverPMode);
   ACTS_VERBOSE("q/p with mean:           " << qOverPMean);
 
-  // The particle is positively charged, so q/p > 0 and compensating for the
-  // modelled loss pushes the fitted q/p down.
+  // Compensating for energy loss decreases the initial positive q/p.
   BOOST_CHECK_LT(qOverPMode, qOverPOff);
-  // The mean loss includes the full radiative term, the mode only 15% of it,
-  // so the mean pushes q/p further.
+  // Mean loss produces the larger correction.
   BOOST_CHECK_LT(qOverPMean, qOverPMode);
 
   // The shift should be of the order of the loss accumulated over the
@@ -1303,6 +1367,97 @@ BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
   BOOST_CHECK_LT(observedShift, 10. * expectedShift);
 
   ACTS_INFO("*** Test: EnergyLossSelfConsistency -- Finish");
+}
+
+// Match simulated Bethe energy loss to reduce the fitted momentum bias.
+BOOST_AUTO_TEST_CASE(EnergyLossTruth) {
+  ACTS_INFO("*** Test: EnergyLossTruth -- Start");
+
+  std::default_random_engine rng(42);
+
+  ACTS_DEBUG("Create the detector");
+  const std::size_t nSurfaces = 5;
+  const std::set<std::size_t> surfaceIndexWithMaterial = {2, 4};
+  Detector detector;
+  detector.geometry =
+      makeToyDetector(geoCtx, nSurfaces, surfaceIndexWithMaterial, 50_mm);
+
+  ACTS_DEBUG("Set the start parameters for measurement creation and fit");
+  const auto parametersMeasurements = makeParameters();
+  const auto startParametersFit = makeParameters(
+      7_mm, 11_mm, 15_mm, 42_ns, 10_degree, 80_degree, 1_GeV, 1_e);
+
+  ACTS_DEBUG("Create the measurements with energy loss");
+  using SimStepper = EigenStepper<>;
+  const auto simPropagator =
+      makeConstantFieldPropagator<SimStepper>(detector.geometry, 0.3_T);
+  const auto measurements =
+      createMeasurements(simPropagator, geoCtx, magCtx, parametersMeasurements,
+                         resMapAllPixel, rng,
+                         /*sourceId=*/0u,
+                         MeasurementsCreatorMaterial{
+                             .multipleScattering = false, .energyLoss = true});
+
+  const auto sourceLinks = prepareSourceLinks(measurements.sourceLinks);
+  BOOST_REQUIRE_EQUAL(sourceLinks.size(), nSurfaces);
+
+  ACTS_DEBUG("Set up the fitter");
+  const Surface* rSurface = &parametersMeasurements.referenceSurface();
+
+  using SimPropagator = decltype(simPropagator);
+  using Gx2Fitter = Gx2Fitter<SimPropagator, VectorMultiTrajectory>;
+  const Gx2Fitter fitter(simPropagator, gx2fLogger->clone());
+
+  Gx2FitterExtensions<VectorMultiTrajectory> extensions;
+  extensions.calibrator
+      .connect<&testSourceLinkCalibratorStrict<VectorMultiTrajectory>>();
+  TestSourceLink::SurfaceAccessor surfaceAccessor{*detector.geometry};
+  extensions.surfaceAccessor
+      .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
+
+  const auto fitQOverP = [&](const bool energyLoss,
+                             const Gx2fEnergyLossMode mode,
+                             const std::size_t nMaterialUpdateMax = 1) {
+    const Gx2FitterOptions gx2fOptions(
+        geoCtx, magCtx, calCtx, extensions,
+        PropagatorPlainOptions(geoCtx, magCtx), rSurface,
+        /*mScattering=*/false, energyLoss, FreeToBoundCorrection(false),
+        /*nUpdateMax_=*/10, /*relChi2changeCutOff_=*/1e-7, mode,
+        nMaterialUpdateMax);
+
+    TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+    const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
+                                startParametersFit, gx2fOptions, tracks);
+    BOOST_REQUIRE(res.ok());
+    return (*res).parameters()[eBoundQOverP];
+  };
+
+  const double qOverPTruth = parametersMeasurements.parameters()[eBoundQOverP];
+
+  const double biasOff =
+      fitQOverP(false, Gx2fEnergyLossMode::Mode) - qOverPTruth;
+  const double biasMode =
+      fitQOverP(true, Gx2fEnergyLossMode::Mode) - qOverPTruth;
+  const double biasMean =
+      fitQOverP(true, Gx2fEnergyLossMode::Mean) - qOverPTruth;
+
+  ACTS_VERBOSE("q/p truth:   " << qOverPTruth);
+  ACTS_VERBOSE("bias off:    " << biasOff);
+  ACTS_VERBOSE("bias mode:   " << biasMode);
+  ACTS_VERBOSE("bias mean:   " << biasMean);
+
+  // Mean loss most closely matches the simulated Bethe loss.
+  BOOST_CHECK_LT(std::abs(biasMean), std::abs(biasMode));
+  BOOST_CHECK_LT(std::abs(biasMode), std::abs(biasOff));
+
+  // Additional material updates must preserve the improvement.
+  const double biasMeanIterated =
+      fitQOverP(true, Gx2fEnergyLossMode::Mean, /*nMaterialUpdateMax=*/3) -
+      qOverPTruth;
+  ACTS_VERBOSE("bias mean, 3 material updates: " << biasMeanIterated);
+  BOOST_CHECK_LT(std::abs(biasMeanIterated), std::abs(biasOff));
+
+  ACTS_INFO("*** Test: EnergyLossTruth -- Finish");
 }
 BOOST_AUTO_TEST_SUITE_END()
 
