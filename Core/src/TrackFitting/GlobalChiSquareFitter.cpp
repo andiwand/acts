@@ -10,6 +10,8 @@
 
 #include "Acts/Definitions/TrackParametrization.hpp"
 
+#include <cmath>
+
 void Acts::Experimental::updateGx2fParams(
     BoundTrackParameters& params, const Eigen::VectorXd& deltaParamsExtended,
     const Gx2fParameterLayout& layout,
@@ -42,19 +44,28 @@ void Acts::Experimental::updateGx2fParams(
 
 void Acts::Experimental::updateGx2fCovarianceParams(
     BoundMatrix& fullCovariancePredicted, Gx2fSystem& extendedSystem) {
-  // make invertible
-  for (std::size_t i = 0; i < extendedSystem.nDims(); ++i) {
-    if (extendedSystem.aMatrix()(i, i) == 0.) {
-      extendedSystem.aMatrix()(i, i) = 1.;
+  // Regularize unmeasured parameters without changing the fitted system.
+  Eigen::MatrixXd aMatrix = extendedSystem.aMatrix();
+  for (Eigen::Index i = 0; i < aMatrix.rows(); ++i) {
+    if (aMatrix(i, i) == 0.) {
+      aMatrix(i, i) = 1.;
     }
   }
 
-  visit_measurement(extendedSystem.findRequiredNdf(), [&](auto N) {
-    fullCovariancePredicted.topLeftCorner<N, N>() =
-        extendedSystem.aMatrix().inverse().topLeftCorner<N, N>();
-  });
+  const Eigen::VectorXd scale = aMatrix.diagonal().cwiseSqrt().cwiseInverse();
+  const Eigen::MatrixXd aScaled =
+      scale.asDiagonal() * aMatrix * scale.asDiagonal();
+  const Eigen::MatrixXd covariance =
+      scale.asDiagonal() * aScaled.inverse() * scale.asDiagonal();
 
-  return;
+  for (Eigen::Index i = 0; i < eBoundSize; ++i) {
+    for (Eigen::Index j = 0; j < eBoundSize; ++j) {
+      if (extendedSystem.aMatrix()(i, i) != 0. &&
+          extendedSystem.aMatrix()(j, j) != 0.) {
+        fullCovariancePredicted(i, j) = covariance(i, j);
+      }
+    }
+  }
 }
 
 void Acts::Experimental::addMeasurementToGx2fSumsBackend(
@@ -77,9 +88,6 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
   // TODO make dimsExtendedParams template with unrolling
   Eigen::MatrixXd extendedJacobian =
       Eigen::MatrixXd::Zero(eBoundSize, extendedSystem.nDims());
-  assert(extendedJacobian.cols() ==
-             static_cast<Eigen::Index>(extendedSystem.nDims()) &&
-         "Extended Jacobian does not match the system dimensions.");
 
   // This part of the Jacobian comes from the material-less propagation
   extendedJacobian.topLeftCorner<eBoundSize, eBoundSize>() =
@@ -158,6 +166,14 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
 
 Eigen::VectorXd Acts::Experimental::computeGx2fDeltaParams(
     const Acts::Experimental::Gx2fSystem& extendedSystem) {
-  return extendedSystem.aMatrix().colPivHouseholderQr().solve(
-      extendedSystem.bVector());
+  // Equilibrate the mixed parameter units, leaving zero diagonals unscaled.
+  Eigen::VectorXd scale = extendedSystem.aMatrix().diagonal().cwiseAbs();
+  scale = (scale.array() > 0.).select(scale, 1.);
+  scale = scale.cwiseSqrt().cwiseInverse();
+
+  const Eigen::MatrixXd aScaled =
+      scale.asDiagonal() * extendedSystem.aMatrix() * scale.asDiagonal();
+  const Eigen::VectorXd bScaled = scale.asDiagonal() * extendedSystem.bVector();
+
+  return scale.asDiagonal() * aScaled.colPivHouseholderQr().solve(bScaled);
 }
