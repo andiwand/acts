@@ -239,21 +239,21 @@ struct Gx2FitterResult {
   std::size_t surfaceCount = 0;
 };
 
-/// @brief A container to store scattering properties for each material surface
+/// @brief A container to store the material properties of a surface
 ///
 /// This struct holds the scattering angles, the inverse covariance of the
 /// material, and a validity flag indicating whether the material is valid for
 /// the scattering process.
-struct ScatteringProperties {
+struct Gx2fMaterialProperties {
  public:
-  /// @brief Constructor to initialize scattering properties.
+  /// @brief Constructor to initialize the material properties.
   ///
   /// @param scatteringAngles_ The vector of scattering angles.
   /// @param invCovarianceMaterial_ The inverse covariance of the material.
   /// @param materialIsValid_ A boolean flag indicating whether the material is valid.
-  ScatteringProperties(const BoundVector& scatteringAngles_,
-                       const double invCovarianceMaterial_,
-                       const bool materialIsValid_)
+  Gx2fMaterialProperties(const BoundVector& scatteringAngles_,
+                         const double invCovarianceMaterial_,
+                         const bool materialIsValid_)
       : m_scatteringAngles(scatteringAngles_),
         m_invCovarianceMaterial(invCovarianceMaterial_),
         m_materialIsValid(materialIsValid_) {}
@@ -288,22 +288,112 @@ struct ScatteringProperties {
   bool m_materialIsValid;
 };
 
+/// @brief Describes which per-material-surface parameters are fitted, and where
+///        they live in the extended parameter vector
+///
+/// The extended parameter vector is laid out as
+///   [0, eBoundSize)                      the bound track parameters
+///   [eBoundSize + stride() * k, ...)     the parameters of material surface k
+/// where each fitted material surface contributes stride() parameters:
+///   phi, theta      if fitScattering()
+///   delta(q/p)      if fitEnergyLoss()
+class Gx2fParameterLayout {
+ public:
+  /// @brief Default constructor for a system without any material parameters
+  Gx2fParameterLayout() = default;
+
+  /// @brief Constructor
+  ///
+  /// @param fitScattering_ Fit two scattering angles per material surface
+  /// @param fitEnergyLoss_ Fit one q/p deviation per material surface
+  /// @param nMaterialSurfaces_ Number of fitted material surfaces
+  Gx2fParameterLayout(bool fitScattering_, bool fitEnergyLoss_,
+                      std::size_t nMaterialSurfaces_)
+      : m_fitScattering{fitScattering_},
+        m_fitEnergyLoss{fitEnergyLoss_},
+        m_nMaterialSurfaces{
+            fitScattering_ || fitEnergyLoss_ ? nMaterialSurfaces_ : 0u} {}
+
+  /// @brief Whether the scattering angles are fitted
+  /// @return True if each material surface contributes two angle parameters
+  bool fitScattering() const { return m_fitScattering; }
+
+  /// @brief Whether the energy loss deviation is fitted
+  /// @return True if each material surface contributes one q/p parameter
+  bool fitEnergyLoss() const { return m_fitEnergyLoss; }
+
+  /// @brief Whether any material parameters are fitted at all
+  /// @return True if material surfaces contribute to the extended system
+  bool fitMaterial() const { return m_fitScattering || m_fitEnergyLoss; }
+
+  /// @brief Number of extended parameters contributed by one material surface
+  /// @return The stride between two consecutive material surface blocks
+  std::size_t stride() const {
+    return (m_fitScattering ? 2u : 0u) + (m_fitEnergyLoss ? 1u : 0u);
+  }
+
+  /// @brief Accessor for the number of fitted material surfaces
+  /// @return Number of material surfaces contributing to the extended system
+  std::size_t nMaterialSurfaces() const { return m_nMaterialSurfaces; }
+
+  /// @brief Total dimension of the extended system
+  /// @return eBoundSize plus the parameters of all fitted material surfaces
+  std::size_t nDims() const {
+    return eBoundSize + stride() * m_nMaterialSurfaces;
+  }
+
+  /// @brief Index of the phi column of the k-th fitted material surface
+  ///
+  /// The theta column is at scatteringOffset(k) + 1.
+  ///
+  /// @param k Index of the fitted material surface
+  /// @return Position of the phi parameter in the extended system
+  std::size_t scatteringOffset(std::size_t k) const {
+    assert(m_fitScattering && k < m_nMaterialSurfaces);
+    return eBoundSize + stride() * k;
+  }
+
+  /// @brief Index of the delta(q/p) column of the k-th fitted material surface
+  ///
+  /// @param k Index of the fitted material surface
+  /// @return Position of the energy loss parameter in the extended system
+  std::size_t energyLossOffset(std::size_t k) const {
+    assert(m_fitEnergyLoss && k < m_nMaterialSurfaces);
+    return eBoundSize + stride() * k + (m_fitScattering ? 2u : 0u);
+  }
+
+ private:
+  /// Whether two scattering angles per material surface are fitted
+  bool m_fitScattering = false;
+
+  /// Whether one q/p deviation per material surface is fitted
+  bool m_fitEnergyLoss = false;
+
+  /// Number of fitted material surfaces
+  std::size_t m_nMaterialSurfaces = 0;
+};
+
 /// @brief A container to manage all properties of a gx2f system
 ///
 /// This struct manages the mathematical infrastructure for the gx2f. It
 /// initializes and maintains the extended aMatrix and extended bVector.
 struct Gx2fSystem {
  public:
-  /// @brief Constructor to initialize matrices and vectors to zero based on specified dimensions.
+  /// @brief Constructor to initialize matrices and vectors to zero based on the parameter layout.
   ///
-  /// @param nDims Number of dimensions for the extended matrix and vector.
-  explicit Gx2fSystem(std::size_t nDims)
-      : m_nDims{nDims},
-        m_aMatrix{Eigen::MatrixXd::Zero(nDims, nDims)},
-        m_bVector{Eigen::VectorXd::Zero(nDims)} {}
+  /// @param layout Describes which material parameters are fitted and where they live.
+  explicit Gx2fSystem(const Gx2fParameterLayout& layout)
+      : m_layout{layout},
+        m_nDims{layout.nDims()},
+        m_aMatrix{Eigen::MatrixXd::Zero(m_nDims, m_nDims)},
+        m_bVector{Eigen::VectorXd::Zero(m_nDims)} {}
+
+  /// @brief Accessor for the parameter layout of the extended system
+  /// @return The layout describing which material parameters are fitted
+  const Gx2fParameterLayout& layout() const { return m_layout; }
 
   /// @brief Accessor for the number of dimensions of the extended system
-  /// @return Number of dimensions for the aMatrix and bVector (bound parameters + scattering angles)
+  /// @return Number of dimensions for the aMatrix and bVector (bound parameters + material parameters)
   std::size_t nDims() const { return m_nDims; }
 
   /// @brief Accessor for the accumulated chi-squared value (const version)
@@ -365,6 +455,9 @@ struct Gx2fSystem {
   bool isWellDefined() { return m_ndf > findRequiredNdf(); }
 
  private:
+  /// Layout of the material parameters within the extended system
+  Gx2fParameterLayout m_layout;
+
   /// Number of dimensions of the (extended) system
   std::size_t m_nDims;
 
@@ -448,31 +541,37 @@ void addMeasurementToGx2fSums(Gx2fSystem& extendedSystem,
 ///
 /// @param extendedSystem All parameters of the current equation system
 /// @param nMaterialsHandled How many materials we already handled. Used for the offset.
-/// @param scatteringMap The scattering map, containing all scattering angles and covariances
+/// @param materialMap The material map, containing all material properties
 /// @param trackState The track state to analyse
 /// @param logger A logger instance
 template <typename track_state_t>
 void addMaterialToGx2fSums(
     Gx2fSystem& extendedSystem, const std::size_t nMaterialsHandled,
-    const std::unordered_map<GeometryIdentifier, ScatteringProperties>&
-        scatteringMap,
+    const std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>&
+        materialMap,
     const track_state_t& trackState, const Logger& logger) {
   // Get and store geoId for the current material surface
   const GeometryIdentifier geoId = trackState.referenceSurface().geometryId();
-  const auto scatteringMapId = scatteringMap.find(geoId);
-  if (scatteringMapId == scatteringMap.end()) {
-    ACTS_ERROR("No scattering angles found for material surface " << geoId);
+  const auto materialMapId = materialMap.find(geoId);
+  if (materialMapId == materialMap.end()) {
+    ACTS_ERROR("No material properties found for material surface " << geoId);
     throw std::runtime_error(
-        "No scattering angles found for material surface.");
+        "No material properties found for material surface.");
+  }
+
+  const Gx2fParameterLayout& layout = extendedSystem.layout();
+
+  if (!layout.fitScattering()) {
+    return;
   }
 
   // The position, where we need to insert the values in aMatrix and bVector
-  const std::size_t deltaPosition = eBoundSize + 2 * nMaterialsHandled;
+  const std::size_t deltaPosition = layout.scatteringOffset(nMaterialsHandled);
 
   const BoundVector& scatteringAngles =
-      scatteringMapId->second.scatteringAngles();
+      materialMapId->second.scatteringAngles();
 
-  const double invCovTheta = scatteringMapId->second.invCovarianceMaterial();
+  const double invCovTheta = materialMapId->second.invCovarianceMaterial();
   const double sinThetaLoc = std::sin(trackState.smoothed()[eBoundTheta]);
   const double invCovPhi = invCovTheta * sinThetaLoc * sinThetaLoc;
 
@@ -520,25 +619,36 @@ void addMaterialToGx2fSums(
 /// @brief Fill the GX2F system with data from a track
 ///
 /// This function processes a track proxy and updates the aMatrix, bVector, and
-/// chi2 values for the GX2F fitting system. It considers material only if
-/// multiple scattering is enabled.
+/// chi2 values for the GX2F fitting system.
+///
+/// @note @p handleMaterial must match what the actor did during the
+/// propagation that produced @p track, and is therefore independent of whether
+/// material parameters are actually fitted (which is described by the layout of
+/// @p extendedSystem). The actor resets the transport Jacobian on every surface
+/// where it handles material, so such states must be chained here even when
+/// they contribute no free parameters. If the two ever disagree, the Jacobians
+/// of all downstream measurements are silently wrong.
 ///
 /// @tparam track_proxy_t The type of the track proxy
 ///
 /// @param track A constant track proxy to inspect
 /// @param extendedSystem All parameters of the current equation system
-/// @param multipleScattering Flag to consider multiple scattering in the calculation
-/// @param scatteringMap Map of geometry identifiers to scattering properties,
+/// @param handleMaterial Whether the actor handled material during the propagation
+/// @param materialMap Map of geometry identifiers to material properties,
 ///        containing scattering angles and validation status
 /// @param geoIdVector A vector to store geometry identifiers for tracking processed elements
 /// @param logger A logger instance
 template <TrackProxyConcept track_proxy_t>
 void fillGx2fSystem(
     const track_proxy_t track, Gx2fSystem& extendedSystem,
-    const bool multipleScattering,
-    const std::unordered_map<GeometryIdentifier, ScatteringProperties>&
-        scatteringMap,
+    const bool handleMaterial,
+    const std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>&
+        materialMap,
     std::vector<GeometryIdentifier>& geoIdVector, const Logger& logger) {
+  assert((handleMaterial || !extendedSystem.layout().fitMaterial()) &&
+         "Cannot fit material parameters on surfaces the actor did not "
+         "handle.");
+
   std::vector<BoundMatrix> jacobianFromStart;
   jacobianFromStart.emplace_back(BoundMatrix::Identity());
 
@@ -554,12 +664,12 @@ void fillGx2fSystem(
     // surfaces at all. Later, we also check, if the material slab is
     // valid, otherwise we modify this flag to ignore the material
     // completely.
-    bool doMaterial = multipleScattering && stateHasMaterial;
+    bool doMaterial = handleMaterial && stateHasMaterial;
     if (doMaterial) {
-      const auto scatteringMapId = scatteringMap.find(geoId);
-      assert(scatteringMapId != scatteringMap.end() &&
-             "No scattering angles found for material surface.");
-      doMaterial = doMaterial && scatteringMapId->second.materialIsValid();
+      const auto materialMapId = materialMap.find(geoId);
+      assert(materialMapId != materialMap.end() &&
+             "No material properties found for material surface.");
+      doMaterial = doMaterial && materialMapId->second.materialIsValid();
     }
 
     // We only consider states with a measurement (and/or material)
@@ -594,14 +704,15 @@ void fillGx2fSystem(
       });
     }
 
-    // Handle material
-    if (doMaterial) {
+    // Handle material. Only surfaces that contribute free parameters open a
+    // new Jacobian and a new block of columns.
+    if (doMaterial && extendedSystem.layout().fitMaterial()) {
       ACTS_DEBUG("    Handle material");
       // Add for this material a new Jacobian, starting from this surface.
       jacobianFromStart.emplace_back(BoundMatrix::Identity());
 
       // Add the material contribution to the system
-      addMaterialToGx2fSums(extendedSystem, geoIdVector.size(), scatteringMap,
+      addMaterialToGx2fSums(extendedSystem, geoIdVector.size(), materialMap,
                             trackState, logger);
 
       geoIdVector.emplace_back(geoId);
@@ -609,25 +720,25 @@ void fillGx2fSystem(
   }
 }
 
-/// @brief Count the valid material states in a track for scattering calculations.
+/// @brief Count the valid material states in a track for material calculations.
 ///
 /// This function counts the valid material surfaces encountered in a track
 /// by examining each track state. The count is based on the presence of
-/// material flags and the availability of scattering information for each
+/// material flags and the availability of material information for each
 /// surface.
 ///
 /// @tparam track_proxy_t The type of the track proxy
 ///
 /// @param track A constant track proxy to inspect
-/// @param scatteringMap Map of geometry identifiers to scattering properties,
+/// @param materialMap Map of geometry identifiers to material properties,
 ///        containing scattering angles and validation status
 /// @param logger A logger instance
 /// @return Number of valid material states in the track
 template <TrackProxyConcept track_proxy_t>
 std::size_t countMaterialStates(
     const track_proxy_t track,
-    const std::unordered_map<GeometryIdentifier, ScatteringProperties>&
-        scatteringMap,
+    const std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>&
+        materialMap,
     const Logger& logger) {
   std::size_t nMaterialSurfaces = 0;
   ACTS_DEBUG("Count the valid material surfaces.");
@@ -642,10 +753,10 @@ std::size_t countMaterialStates(
     // Get and store geoId for the current material surface
     const GeometryIdentifier geoId = trackState.referenceSurface().geometryId();
 
-    const auto scatteringMapId = scatteringMap.find(geoId);
-    assert(scatteringMapId != scatteringMap.end() &&
-           "No scattering angles found for material surface.");
-    if (!scatteringMapId->second.materialIsValid()) {
+    const auto materialMapId = materialMap.find(geoId);
+    assert(materialMapId != materialMap.end() &&
+           "No material properties found for material surface.");
+    if (!materialMapId->second.materialIsValid()) {
       continue;
     }
 
@@ -668,15 +779,15 @@ Eigen::VectorXd computeGx2fDeltaParams(const Gx2fSystem& extendedSystem);
 /// @brief Update parameters (and scattering angles if applicable)
 ///
 /// @param params Parameters to be updated
-/// @param deltaParamsExtended Delta parameters for bound parameter and scattering angles
-/// @param nMaterialSurfaces Number of material surfaces in the track
-/// @param scatteringMap Map of geometry identifiers to scattering properties,
+/// @param deltaParamsExtended Delta parameters for bound parameter and material parameters
+/// @param layout Layout of the material parameters in the extended system
+/// @param materialMap Map of geometry identifiers to material properties,
 ///        containing all scattering angles and covariances
 /// @param geoIdVector Vector of geometry identifiers corresponding to material surfaces
 void updateGx2fParams(
     BoundTrackParameters& params, const Eigen::VectorXd& deltaParamsExtended,
-    const std::size_t nMaterialSurfaces,
-    std::unordered_map<GeometryIdentifier, ScatteringProperties>& scatteringMap,
+    const Gx2fParameterLayout& layout,
+    std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>& materialMap,
     const std::vector<GeometryIdentifier>& geoIdVector);
 
 /// @brief Calculate and update the covariance of the fitted parameters
@@ -785,10 +896,10 @@ class Gx2Fitter {
     /// The particle hypothesis is needed for estimating scattering angles
     const BoundTrackParameters* parametersWithHypothesis = nullptr;
 
-    /// The scatteringMap stores for each visited surface their scattering
+    /// The materialMap stores for each visited surface their material
     /// properties
-    std::unordered_map<GeometryIdentifier, ScatteringProperties>*
-        scatteringMap = nullptr;
+    std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties>*
+        materialMap = nullptr;
 
     /// @brief Gx2f actor operation
     ///
@@ -849,8 +960,8 @@ class Gx2Fitter {
       if (doMaterial) {
         ACTS_DEBUG("    The surface contains material, ...");
 
-        auto scatteringMapId = scatteringMap->find(geoId);
-        if (scatteringMapId == scatteringMap->end()) {
+        auto materialMapId = materialMap->find(geoId);
+        if (materialMapId == materialMap->end()) {
           ACTS_DEBUG("    ... create entry in scattering map.");
 
           const Result<MaterialSlab> slabResult =
@@ -885,15 +996,15 @@ class Gx2Fitter {
             ACTS_VERBOSE("        Material slab is not valid.");
           }
 
-          scatteringMap->emplace(
-              geoId, ScatteringProperties{BoundVector::Zero(), invSigma2,
-                                          slabIsValid});
-          scatteringMapId = scatteringMap->find(geoId);
+          materialMap->emplace(
+              geoId, Gx2fMaterialProperties{BoundVector::Zero(), invSigma2,
+                                            slabIsValid});
+          materialMapId = materialMap->find(geoId);
         } else {
           ACTS_DEBUG("    ... found entry in scattering map.");
         }
 
-        doMaterial = doMaterial && scatteringMapId->second.materialIsValid();
+        doMaterial = doMaterial && materialMapId->second.materialIsValid();
       }
 
       // Here we handle all measurements
@@ -932,14 +1043,14 @@ class Gx2Fitter {
           // available scattering information
           if (doMaterial) {
             ACTS_DEBUG("    Update parameters with scattering angles.");
-            const auto scatteringMapId = scatteringMap->find(geoId);
+            const auto materialMapId = materialMap->find(geoId);
             ACTS_VERBOSE(
                 "        scatteringAngles: "
-                << scatteringMapId->second.scatteringAngles().transpose());
+                << materialMapId->second.scatteringAngles().transpose());
             ACTS_VERBOSE("        boundParams before the update: "
                          << boundParams.parameters().transpose());
             boundParams.parameters() +=
-                scatteringMapId->second.scatteringAngles();
+                materialMapId->second.scatteringAngles();
             ACTS_VERBOSE("        boundParams after the update: "
                          << boundParams.parameters().transpose());
           }
@@ -1035,14 +1146,12 @@ class Gx2Fitter {
           // We can skip the if here, since we already know, that we do
           // multipleScattering and have material
           ACTS_DEBUG("    Update parameters with scattering angles.");
-          const auto scatteringMapId = scatteringMap->find(geoId);
-          ACTS_VERBOSE(
-              "        scatteringAngles: "
-              << scatteringMapId->second.scatteringAngles().transpose());
+          const auto materialMapId = materialMap->find(geoId);
+          ACTS_VERBOSE("        scatteringAngles: "
+                       << materialMapId->second.scatteringAngles().transpose());
           ACTS_VERBOSE("        boundParams before the update: "
                        << boundParams.parameters().transpose());
-          boundParams.parameters() +=
-              scatteringMapId->second.scatteringAngles();
+          boundParams.parameters() += materialMapId->second.scatteringAngles();
           ACTS_VERBOSE("        boundParams after the update: "
                        << boundParams.parameters().transpose());
 
@@ -1244,9 +1353,9 @@ class Gx2Fitter {
     // and used for the final track
     std::size_t tipIndex = kInvalid;
 
-    // The scatteringMap stores for each visited surface their scattering
+    // The materialMap stores for each visited surface their material
     // properties
-    std::unordered_map<GeometryIdentifier, ScatteringProperties> scatteringMap;
+    std::unordered_map<GeometryIdentifier, Gx2fMaterialProperties> materialMap;
 
     // This will be filled during the updates with the final covariance of the
     // track parameters.
@@ -1279,7 +1388,7 @@ class Gx2Fitter {
       gx2fActor.extensions = gx2fOptions.extensions;
       gx2fActor.calibrationContext = &gx2fOptions.calibrationContext.get();
       gx2fActor.actorLogger = m_actorLogger.get();
-      gx2fActor.scatteringMap = &scatteringMap;
+      gx2fActor.materialMap = &materialMap;
       gx2fActor.parametersWithHypothesis = &params;
 
       auto propagatorState = m_propagator.makeState(propagatorOptions);
@@ -1331,26 +1440,24 @@ class Gx2Fitter {
       track.tipIndex() = tipIndex;
       track.linkForward();
 
-      // Count the material surfaces, to set up the system. In the multiple
-      // scattering case, we need to extend our system.
-      const std::size_t nMaterialSurfaces = 0u;
-
-      // We need 6 dimensions for the bound parameters and 2 * nMaterialSurfaces
-      // dimensions for the scattering angles.
-      const std::size_t dimsExtendedParams = eBoundSize + 2 * nMaterialSurfaces;
+      // No material parameters are fitted in the main loop: the scattering
+      // angles are held at 0.
+      const Gx2fParameterLayout layout{/*fitScattering_=*/false,
+                                       /*fitEnergyLoss_=*/false,
+                                       /*nMaterialSurfaces_=*/0u};
 
       // System that we fill with the information gathered by the actor and
       // evaluate later
-      Gx2fSystem extendedSystem{dimsExtendedParams};
+      Gx2fSystem extendedSystem{layout};
 
       // This vector stores the IDs for each visited material in order. We use
       // it later for updating the scattering angles. We cannot use
-      // scatteringMap directly, since we cannot guarantee, that we will visit
+      // materialMap directly, since we cannot guarantee, that we will visit
       // all stored material in each propagation.
       std::vector<GeometryIdentifier> geoIdVector;
 
-      fillGx2fSystem(track, extendedSystem, false, scatteringMap, geoIdVector,
-                     *m_addToSumLogger);
+      fillGx2fSystem(track, extendedSystem, /*handleMaterial=*/false,
+                     materialMap, geoIdVector, *m_addToSumLogger);
 
       chi2sum = extendedSystem.chi2();
 
@@ -1417,8 +1524,8 @@ class Gx2Fitter {
         break;
       }
 
-      updateGx2fParams(params, deltaParamsExtended, nMaterialSurfaces,
-                       scatteringMap, geoIdVector);
+      updateGx2fParams(params, deltaParamsExtended, layout, materialMap,
+                       geoIdVector);
       ACTS_VERBOSE("Updated parameters: " << params.parameters().transpose());
 
       oldChi2sum = extendedSystem.chi2();
@@ -1445,7 +1552,7 @@ class Gx2Fitter {
       gx2fActor.extensions = gx2fOptions.extensions;
       gx2fActor.calibrationContext = &gx2fOptions.calibrationContext.get();
       gx2fActor.actorLogger = m_actorLogger.get();
-      gx2fActor.scatteringMap = &scatteringMap;
+      gx2fActor.materialMap = &materialMap;
       gx2fActor.parametersWithHypothesis = &params;
 
       auto propagatorState = m_propagator.makeState(propagatorOptions);
@@ -1499,24 +1606,26 @@ class Gx2Fitter {
       // Count the material surfaces, to set up the system. In the multiple
       // scattering case, we need to extend our system.
       const std::size_t nMaterialSurfaces =
-          countMaterialStates(track, scatteringMap, *m_addToSumLogger);
+          countMaterialStates(track, materialMap, *m_addToSumLogger);
 
-      // We need 6 dimensions for the bound parameters and 2 * nMaterialSurfaces
-      // dimensions for the scattering angles.
-      const std::size_t dimsExtendedParams = eBoundSize + 2 * nMaterialSurfaces;
+      // We need 6 dimensions for the bound parameters and additional dimensions
+      // for the parameters of each material surface.
+      const Gx2fParameterLayout layout{/*fitScattering_=*/multipleScattering,
+                                       /*fitEnergyLoss_=*/false,
+                                       nMaterialSurfaces};
 
       // System that we fill with the information gathered by the actor and
       // evaluate later
-      Gx2fSystem extendedSystem{dimsExtendedParams};
+      Gx2fSystem extendedSystem{layout};
 
       // This vector stores the IDs for each visited material in order. We use
       // it later for updating the scattering angles. We cannot use
-      // scatteringMap directly, since we cannot guarantee, that we will visit
+      // materialMap directly, since we cannot guarantee, that we will visit
       // all stored material in each propagation.
       std::vector<GeometryIdentifier> geoIdVector;
 
-      fillGx2fSystem(track, extendedSystem, true, scatteringMap, geoIdVector,
-                     *m_addToSumLogger);
+      fillGx2fSystem(track, extendedSystem, /*handleMaterial=*/true,
+                     materialMap, geoIdVector, *m_addToSumLogger);
 
       chi2sum = extendedSystem.chi2();
 
@@ -1550,8 +1659,8 @@ class Gx2Fitter {
 
       chi2sum = extendedSystem.chi2();
 
-      updateGx2fParams(params, deltaParamsExtended, nMaterialSurfaces,
-                       scatteringMap, geoIdVector);
+      updateGx2fParams(params, deltaParamsExtended, layout, materialMap,
+                       geoIdVector);
       ACTS_VERBOSE("Updated parameters: " << params.parameters().transpose());
 
       updateGx2fCovarianceParams(fullCovariancePredicted, extendedSystem);
@@ -1562,7 +1671,7 @@ class Gx2Fitter {
     /// Finish MATERIAL Fitting ////////////////////////////////////////////////
 
     ACTS_VERBOSE("Final scattering angles:");
-    for (const auto& [key, value] : scatteringMap) {
+    for (const auto& [key, value] : materialMap) {
       if (!value.materialIsValid()) {
         continue;
       }
@@ -1591,7 +1700,7 @@ class Gx2Fitter {
       gx2fActor.extensions = gx2fOptions.extensions;
       gx2fActor.calibrationContext = &gx2fOptions.calibrationContext.get();
       gx2fActor.actorLogger = m_actorLogger.get();
-      gx2fActor.scatteringMap = &scatteringMap;
+      gx2fActor.materialMap = &materialMap;
       gx2fActor.parametersWithHypothesis = &params;
 
       auto propagatorState = m_propagator.makeState(propagatorOptions);
