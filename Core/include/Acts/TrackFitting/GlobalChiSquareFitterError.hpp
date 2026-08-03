@@ -26,6 +26,8 @@ enum class GlobalChiSquareFitterError {
   NotEnoughMeasurements = 3,
   /// Update pushed the parameters to a new volume.
   UpdatePushedToNewVolume = 4,
+  /// Material parameters have no finite, positive variance.
+  InvalidMaterial = 5,
 
 };
 

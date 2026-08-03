@@ -8,8 +8,15 @@
 
 #include "Acts/TrackFitting/GlobalChiSquareFitter.hpp"
 
+#include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/Definitions/Units.hpp"
+#include "Acts/EventData/ParticleHypothesis.hpp"
+#include "Acts/Material/Interactions.hpp"
+#include "Acts/Material/MaterialSlab.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 void Acts::Experimental::updateGx2fParams(
@@ -36,6 +43,11 @@ void Acts::Experimental::updateGx2fParams(
       materialMapId->second.scatteringAngles().segment<2>(eBoundPhi) +=
           deltaParamsExtended.segment<2>(layout.scatteringOffset(matSurface))
               .eval();
+    }
+
+    if (layout.fitEnergyLoss()) {
+      materialMapId->second.qOverPOffset() +=
+          deltaParamsExtended(layout.energyLossOffset(matSurface));
     }
   }
 
@@ -74,8 +86,7 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
     const Eigen::MatrixXd& covarianceMeasurement, const BoundVector& predicted,
     const Eigen::VectorXd& measurement, const Eigen::MatrixXd& projector,
     const Logger& logger) {
-  // First, w try to invert the covariance matrix. If the inversion fails, we
-  // can already abort.
+  // Skip measurements with a non-invertible covariance.
   const auto safeInvCovMeasurement = safeInverse(covarianceMeasurement);
   if (!safeInvCovMeasurement) {
     ACTS_WARNING("addMeasurementToGx2fSums: safeInvCovMeasurement failed.");
@@ -83,22 +94,15 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
     return;
   }
 
-  // Create an extended Jacobian. This one contains only eBoundSize rows,
-  // because the rest is irrelevant. We fill it in the next steps.
-  // TODO make dimsExtendedParams template with unrolling
+  // Map all fitted parameters to this state.
   Eigen::MatrixXd extendedJacobian =
       Eigen::MatrixXd::Zero(eBoundSize, extendedSystem.nDims());
 
-  // This part of the Jacobian comes from the material-less propagation
+  // Transport from the reference surface.
   extendedJacobian.topLeftCorner<eBoundSize, eBoundSize>() =
       jacobianFromStart[0];
 
-  // If we have material, loop here over all Jacobians. We add extra columns for
-  // the parameters attached to each material surface. These parts account for
-  // the propagation of the scattering angles.
-  // We hold one Jacobian per material surface passed so far, plus the one from
-  // the start of the track. Material surfaces downstream of this measurement
-  // have not been reached yet, hence the inequality.
+  // Include only material surfaces reached before or at this measurement.
   const Gx2fParameterLayout& layout = extendedSystem.layout();
   assert(jacobianFromStart.size() <= layout.nMaterialSurfaces() + 1 &&
          "More Jacobians than fitted material surfaces.");
@@ -114,6 +118,12 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
       extendedJacobian.template block<eBoundSize, 2>(
           0, layout.scatteringOffset(k)) =
           jac * Gx2fConstants::phiThetaProjector;
+    }
+
+    if (layout.fitEnergyLoss()) {
+      // Projecting onto q/p is just picking that column of the Jacobian
+      extendedJacobian.template block<eBoundSize, 1>(
+          0, layout.energyLossOffset(k)) = jac.col(eBoundQOverP);
     }
   }
 
@@ -162,6 +172,46 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
       << "\n"
       << "    safeInvCovMeasurement:\n"
       << (*safeInvCovMeasurement));
+}
+
+double Acts::Experimental::computeGx2fQOverPOffset(
+    const MaterialSlab& slab, const ParticleHypothesis& particleHypothesis,
+    const double qOverP, const Direction direction,
+    const Gx2fEnergyLossMode mode) {
+  const PdgParticle absPdg = particleHypothesis.absolutePdg();
+  const double mass = particleHypothesis.mass();
+  const double absQ = particleHypothesis.absoluteCharge();
+
+  if (slab.isVacuum() || particleHypothesis.hasMomentumHypothesis() ||
+      absQ <= 0. || mass <= 0. || qOverP == 0.) {
+    return 0.;
+  }
+
+  // Keep the momentum update in double precision.
+  const double eLoss =
+      (mode == Gx2fEnergyLossMode::Mean)
+          ? static_cast<double>(computeEnergyLossMean(
+                slab, absPdg, static_cast<float>(mass),
+                static_cast<float>(qOverP), static_cast<float>(absQ)))
+          : static_cast<double>(computeEnergyLossMode(
+                slab, absPdg, static_cast<float>(mass),
+                static_cast<float>(qOverP), static_cast<float>(absQ)));
+
+  const double momentum = particleHypothesis.extractMomentum(qOverP);
+
+  // in forward(backward) propagation, energy decreases(increases)
+  const double nextE = fastHypot(mass, momentum) - eLoss * direction;
+  // put the particle at rest if the energy loss is too large
+  double nextP = (mass < nextE) ? fastCathetus(nextE, mass) : 0.;
+
+  // minimum momentum below which we will not push particles via material update
+  static constexpr double minP = 10 * UnitConstants::MeV;
+  nextP = std::max(minP, nextP);
+
+  const double nextQOverP =
+      particleHypothesis.qOverP(nextP, std::copysign(absQ, qOverP));
+
+  return nextQOverP - qOverP;
 }
 
 Eigen::VectorXd Acts::Experimental::computeGx2fDeltaParams(

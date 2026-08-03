@@ -32,6 +32,8 @@ class GlobalChiSquareFitterErrorCategory : public std::error_category {
         return "Gx2f: Not enough measurements.";
       case GlobalChiSquareFitterError::UpdatePushedToNewVolume:
         return "Gx2f: Update pushed the parameters to a new volume.";
+      case GlobalChiSquareFitterError::InvalidMaterial:
+        return "Gx2f: Material variance is not finite and positive.";
       default:
         return "unknown";
     }
