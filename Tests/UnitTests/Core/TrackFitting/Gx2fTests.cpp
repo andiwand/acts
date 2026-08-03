@@ -116,7 +116,8 @@ static std::vector<SourceLink> prepareSourceLinks(
 /// @param surfaceIndexWithMaterial A set of index of the material surfaces
 std::shared_ptr<const TrackingGeometry> makeToyDetector(
     const GeometryContext& geoCtx, const std::size_t nSurfaces = 5,
-    const std::set<std::size_t>& surfaceIndexWithMaterial = {}) {
+    const std::set<std::size_t>& surfaceIndexWithMaterial = {},
+    const double materialThickness = 5_mm) {
   if (nSurfaces < 1) {
     throw std::invalid_argument("At least 1 surfaces needs to be created.");
   }
@@ -152,7 +153,7 @@ std::shared_ptr<const TrackingGeometry> makeToyDetector(
     // Add material only for selected surfaces
     if (surfaceIndexWithMaterial.contains(surfPos)) {
       // Material of the surfaces
-      MaterialSlab matProp(makeSilicon(), 5_mm);
+      MaterialSlab matProp(makeSilicon(), materialThickness);
       cfg.surMat = std::make_shared<HomogeneousSurfaceMaterial>(matProp);
     }
 
@@ -1094,6 +1095,113 @@ BOOST_AUTO_TEST_CASE(Material) {
       4);
 
   ACTS_INFO("*** Test: Material -- Finish");
+}
+
+// Fit the same measurements with and without the energy loss correction. The
+// measurements are simulated without any material effects, so switching the
+// correction on forces the fit to compensate: the model now loses momentum at
+// every material surface, therefore the fitted q/p at the start of the track
+// must shrink in magnitude to reproduce the same curvature.
+//
+// This also verifies that the correction really is applied in the material-free
+// main loop, not only in the material pass. If it were confined to the material
+// pass the shift would be far smaller.
+//
+// A magnetic field is mandatory here. Without one, aMatrix(4, 4) == 0, q/p is
+// not fitted at all and the energy loss columns would be trivially zero.
+BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
+  ACTS_INFO("*** Test: EnergyLossSelfConsistency -- Start");
+
+  std::default_random_engine rng(42);
+
+  ACTS_DEBUG("Create the detector");
+  const std::size_t nSurfaces = 5;
+  const std::set<std::size_t> surfaceIndexWithMaterial = {2, 4};
+  // Thick material, so the energy loss dominates the numerical noise
+  Detector detector;
+  detector.geometry =
+      makeToyDetector(geoCtx, nSurfaces, surfaceIndexWithMaterial, 50_mm);
+
+  ACTS_DEBUG("Set the start parameters for measurement creation and fit");
+  const auto parametersMeasurements = makeParameters();
+  const auto startParametersFit = makeParameters(
+      7_mm, 11_mm, 15_mm, 42_ns, 10_degree, 80_degree, 1_GeV, 1_e);
+
+  ACTS_DEBUG("Create the measurements");
+  using SimStepper = EigenStepper<>;
+  const auto simPropagator =
+      makeConstantFieldPropagator<SimStepper>(detector.geometry, 0.3_T);
+  const auto measurements =
+      createMeasurements(simPropagator, geoCtx, magCtx, parametersMeasurements,
+                         resMapAllPixel, rng);
+
+  const auto sourceLinks = prepareSourceLinks(measurements.sourceLinks);
+  BOOST_REQUIRE_EQUAL(sourceLinks.size(), nSurfaces);
+
+  ACTS_DEBUG("Set up the fitter");
+  const Surface* rSurface = &parametersMeasurements.referenceSurface();
+
+  using SimPropagator = decltype(simPropagator);
+  using Gx2Fitter = Gx2Fitter<SimPropagator, VectorMultiTrajectory>;
+  const Gx2Fitter fitter(simPropagator, gx2fLogger->clone());
+
+  Gx2FitterExtensions<VectorMultiTrajectory> extensions;
+  extensions.calibrator
+      .connect<&testSourceLinkCalibratorStrict<VectorMultiTrajectory>>();
+  TestSourceLink::SurfaceAccessor surfaceAccessor{*detector.geometry};
+  extensions.surfaceAccessor
+      .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
+
+  // Fit the same source links with the three energy loss configurations
+  const auto fitQOverP = [&](const bool energyLoss,
+                             const Gx2fEnergyLossMode mode) {
+    const Gx2FitterOptions gx2fOptions(
+        geoCtx, magCtx, calCtx, extensions,
+        PropagatorPlainOptions(geoCtx, magCtx), rSurface,
+        /*mScattering=*/false, energyLoss, FreeToBoundCorrection(false),
+        /*nUpdateMax_=*/10, /*relChi2changeCutOff_=*/1e-7, mode);
+
+    TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+    const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
+                                startParametersFit, gx2fOptions, tracks);
+    BOOST_REQUIRE(res.ok());
+    return (*res).parameters()[eBoundQOverP];
+  };
+
+  const double qOverPOff = fitQOverP(false, Gx2fEnergyLossMode::Mode);
+  const double qOverPMode = fitQOverP(true, Gx2fEnergyLossMode::Mode);
+  const double qOverPMean = fitQOverP(true, Gx2fEnergyLossMode::Mean);
+
+  ACTS_VERBOSE("q/p without energy loss: " << qOverPOff);
+  ACTS_VERBOSE("q/p with mode:           " << qOverPMode);
+  ACTS_VERBOSE("q/p with mean:           " << qOverPMean);
+
+  // The particle is positively charged, so q/p > 0 and compensating for the
+  // modelled loss pushes the fitted q/p down.
+  BOOST_CHECK_LT(qOverPMode, qOverPOff);
+  // The mean loss includes the full radiative term, the mode only 15% of it,
+  // so the mean pushes q/p further.
+  BOOST_CHECK_LT(qOverPMean, qOverPMode);
+
+  // The shift should be of the order of the loss accumulated over the three
+  // material surfaces. Evaluate it directly for a rough scale check.
+  const MaterialSlab slab{makeSilicon(), 50_mm};
+  const double expectedOffsetPerSurface =
+      computeGx2fQOverPOffset(slab, parametersMeasurements.particleHypothesis(),
+                              parametersMeasurements.parameters()[eBoundQOverP],
+                              Direction::Forward(), Gx2fEnergyLossMode::Mode);
+  const double expectedShift =
+      surfaceIndexWithMaterial.size() * expectedOffsetPerSurface;
+  ACTS_VERBOSE("Expected shift scale:    " << expectedShift);
+
+  BOOST_CHECK_GT(expectedShift, 0.);
+  // Order of magnitude only. The exact factor depends on the lever arms of the
+  // material surfaces relative to the measurements.
+  const double observedShift = qOverPOff - qOverPMode;
+  BOOST_CHECK_GT(observedShift, 0.1 * expectedShift);
+  BOOST_CHECK_LT(observedShift, 10. * expectedShift);
+
+  ACTS_INFO("*** Test: EnergyLossSelfConsistency -- Finish");
 }
 BOOST_AUTO_TEST_SUITE_END()
 

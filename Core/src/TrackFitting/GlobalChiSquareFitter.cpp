@@ -8,8 +8,15 @@
 
 #include "Acts/TrackFitting/GlobalChiSquareFitter.hpp"
 
+#include "Acts/Definitions/Direction.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
+#include "Acts/Definitions/Units.hpp"
+#include "Acts/EventData/ParticleHypothesis.hpp"
+#include "Acts/Material/Interactions.hpp"
+#include "Acts/Material/MaterialSlab.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 void Acts::Experimental::updateGx2fParams(
@@ -36,6 +43,11 @@ void Acts::Experimental::updateGx2fParams(
       materialMapId->second.scatteringAngles().segment<2>(eBoundPhi) +=
           deltaParamsExtended.segment<2>(layout.scatteringOffset(matSurface))
               .eval();
+    }
+
+    if (layout.fitEnergyLoss()) {
+      materialMapId->second.qOverPOffset() +=
+          deltaParamsExtended(layout.energyLossOffset(matSurface));
     }
   }
 
@@ -106,6 +118,12 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
           0, layout.scatteringOffset(k)) =
           jac * Gx2fConstants::phiThetaProjector;
     }
+
+    if (layout.fitEnergyLoss()) {
+      // Projecting onto q/p is just picking that column of the Jacobian
+      extendedJacobian.template block<eBoundSize, 1>(
+          0, layout.energyLossOffset(k)) = jac.col(eBoundQOverP);
+    }
   }
 
   const Eigen::MatrixXd projJacobian = projector * extendedJacobian;
@@ -153,6 +171,50 @@ void Acts::Experimental::addMeasurementToGx2fSumsBackend(
       << "\n"
       << "    safeInvCovMeasurement:\n"
       << (*safeInvCovMeasurement));
+}
+
+double Acts::Experimental::computeGx2fQOverPOffset(
+    const MaterialSlab& slab, const ParticleHypothesis& particleHypothesis,
+    const double qOverP, const Direction direction,
+    const Gx2fEnergyLossMode mode) {
+  const PdgParticle absPdg = particleHypothesis.absolutePdg();
+  const double mass = particleHypothesis.mass();
+  const double absQ = particleHypothesis.absoluteCharge();
+
+  // Nothing to do for vacuum, when the momentum is externally fixed, or for
+  // neutral particles, which do not lose energy by ionisation and for which the
+  // material functions are not defined
+  if (slab.isVacuum() || particleHypothesis.hasMomentumHypothesis() ||
+      absQ <= 0.) {
+    return 0.;
+  }
+
+  // Both of these return the positive magnitude of the loss. The cast to float
+  // only happens at the API boundary, all arithmetic below stays in double.
+  const double eLoss =
+      (mode == Gx2fEnergyLossMode::Mean)
+          ? static_cast<double>(computeEnergyLossMean(
+                slab, absPdg, static_cast<float>(mass),
+                static_cast<float>(qOverP), static_cast<float>(absQ)))
+          : static_cast<double>(computeEnergyLossMode(
+                slab, absPdg, static_cast<float>(mass),
+                static_cast<float>(qOverP), static_cast<float>(absQ)));
+
+  const double momentum = particleHypothesis.extractMomentum(qOverP);
+
+  // in forward(backward) propagation, energy decreases(increases)
+  const double nextE = fastHypot(mass, momentum) - eLoss * direction;
+  // put the particle at rest if the energy loss is too large
+  double nextP = (mass < nextE) ? fastCathetus(nextE, mass) : 0.;
+
+  // minimum momentum below which we will not push particles via material update
+  static constexpr double minP = 10 * UnitConstants::MeV;
+  nextP = std::max(minP, nextP);
+
+  const double nextQOverP =
+      particleHypothesis.qOverP(nextP, std::copysign(absQ, qOverP));
+
+  return nextQOverP - qOverP;
 }
 
 Eigen::VectorXd Acts::Experimental::computeGx2fDeltaParams(
