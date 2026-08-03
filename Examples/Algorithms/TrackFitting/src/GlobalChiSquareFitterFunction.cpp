@@ -55,6 +55,8 @@ struct GlobalChiSquareFitterFunctionImpl final : public TrackFitterFunction {
 
   bool multipleScattering = false;
   bool energyLoss = false;
+  Acts::Experimental::Gx2fEnergyLossMode energyLossMode =
+      Acts::Experimental::Gx2fEnergyLossMode::Mean;
   Acts::FreeToBoundCorrection freeToBoundCorrection;
   std::size_t nUpdateMax = 5;
   double relChi2changeCutOff = 1e-7;
@@ -86,7 +88,7 @@ struct GlobalChiSquareFitterFunctionImpl final : public TrackFitterFunction {
         options.geoContext, options.magFieldContext, options.calibrationContext,
         extensions, options.propOptions, options.referenceSurface,
         multipleScattering, energyLoss, freeToBoundCorrection, nUpdateMax,
-        relChi2changeCutOff);
+        relChi2changeCutOff, energyLossMode);
 
     return gx2fOptions;
   }
@@ -125,6 +127,7 @@ ActsExamples::makeGlobalChiSquareFitterFunction(
     bool multipleScattering, bool energyLoss,
     const Acts::FreeToBoundCorrection& freeToBoundCorrection,
     std::size_t nUpdateMax, double relChi2changeCutOff,
+    Acts::Experimental::Gx2fEnergyLossMode energyLossMode,
     const Acts::Logger& logger) {
   // Stepper should be copied into the fitters
   const Stepper stepper(std::move(magneticField));
@@ -153,6 +156,7 @@ ActsExamples::makeGlobalChiSquareFitterFunction(
       std::move(trackFitter), std::move(directTrackFitter), geo);
   fitterFunction->multipleScattering = multipleScattering;
   fitterFunction->energyLoss = energyLoss;
+  fitterFunction->energyLossMode = energyLossMode;
   fitterFunction->freeToBoundCorrection = freeToBoundCorrection;
   fitterFunction->nUpdateMax = nUpdateMax;
   fitterFunction->relChi2changeCutOff = relChi2changeCutOff;

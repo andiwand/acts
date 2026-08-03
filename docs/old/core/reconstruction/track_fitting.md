@@ -149,7 +149,7 @@ Therefore, the subscript $i$ stands most of the time for a measurement surface, 
 This chapter on the *GX2F* guides through:
 - Mathematical description of the base algorithm
 - Mathematical description of the multiple scattering
-- (coming soon) Mathematical description of the energy loss
+- Mathematical description of the energy loss
 - Implementation in ACTS
 - Pros/Cons
 
@@ -292,13 +292,78 @@ $$
 
 Note, that both scattering angles have the same covariance.
 
-### (coming soon) Mathematical description of the energy loss [wip]
+### Mathematical description of the energy loss
 
-:::{todo}
-Write *GX2F*: Mathematical description of the energy loss
+Energy loss is treated much like multiple scattering, but with one important
+difference. The expected scattering angle is zero, so the scattering angles can
+simply start at zero and be pulled away from it by the fit. The expected energy
+loss is *not* zero: it is a systematic shift of the track model that is present
+from the very first iteration. If we ignored it, the fit could only absorb it
+into the global $q/p$, which biases the fitted momentum.
 
-The development work on the energy loss has not finished yet.
-:::
+We therefore split the change of $q/p$ at a material surface $s$ into a
+deterministic part and a fitted deviation
+
+$$
+\Delta (q/p)_s = \Delta (q/p)^{exp}_s + \delta_s
+$$
+
+and fit only $\delta_s$. The deterministic part $\Delta (q/p)^{exp}_s$ is
+applied by the actor in *every* propagation, including the material-free main
+loop, and is re-evaluated from the local $q/p$ as the fit iterates. This is a
+fixed-point iteration nested inside the Gauss-Newton iteration: the converged
+trajectory carries exactly the energy loss that its own momentum implies.
+
+The expected loss follows the same convention as the *KF*. Starting from the
+energy in front of the slab, the energy behind it is $E' = E - \Delta E$ for
+forward propagation, so the momentum decreases and $|q/p|$ increases. Two
+estimators are available, selected by `Gx2fEnergyLossMode`:
+- *Mean*: {func}`Acts::computeEnergyLossMean`, the Bethe (ionisation) term plus
+  the radiative term.
+- *Mode*: {func}`Acts::computeEnergyLossMode`, an approximation of the most
+  probable loss following ATL-SOFT-PUB-2008-003. Note that this is *not* the
+  Landau most probable value, which is {func}`Acts::computeEnergyLossLandau`.
+
+*Mean* is the default, so that the *GX2F* agrees with the *KF* and the *CKF*,
+which both apply the mean loss. Those use {func}`Acts::computeEnergyLossBethe`,
+the mean ionisation term only, while *Mean* here additionally carries the
+radiative term.
+
+Since the residual of the deviation is $r_e = 0 - \delta_s$, the energy loss
+enters the $\chi^2$ in exactly the same shape as the scattering angles
+
+$$
+\chi^2 = \sum_{i=1}^N \frac{r_i^2}{\sigma_i^2} + \sum_{s}^S \left(\frac{\theta_s^2}{\sigma_s^2} + \frac{\sin^2{(\theta_{loc})}\phi_s^2}{\sigma_s^2}\right) + \sum_{s}^S \frac{\delta_s^2}{\sigma_{q/p,s}^2}
+$$
+
+The width $\sigma_{q/p,s}$ is the energy loss straggling, obtained from the
+Landau FWHM converted to a Gaussian $\sigma_E$ and then to $q/p$ units by
+{func}`Acts::computeEnergyLossLandauSigmaQOverP`,
+
+$$
+\sigma_{q/p} = \frac{q}{\beta} \frac{1}{p^2} \sigma_E.
+$$
+
+This is the same process noise the *KF* uses. Note that it models only
+ionisation straggling and has no bremsstrahlung term, so it underestimates the
+width for electrons.
+
+Each material surface therefore contributes up to three parameters to the
+extended parameter vector: $\phi_s$ and $\theta_s$ if multiple scattering is
+fitted, and $\delta_s$ if energy loss is fitted. They are laid out with a stride
+of `2 * fitScattering + fitEnergyLoss` after the six bound parameters. The
+derivative column belonging to $\delta_s$ is the $q/p$ column of the Jacobian
+that starts at surface $s$, since $\delta_s$ enters the propagation purely
+through $q/p$.
+
+Two approximations are worth spelling out:
+1. $\Delta (q/p)^{exp}_s$ depends on the local $q/p$ and therefore on
+   $\vec\alpha$, so the exact derivative has an extra term. We neglect it, which
+   is consistent with the omission of the second derivatives in the base
+   algorithm. It only affects the speed of convergence, not the fixed point.
+2. The deterministic part is converged by the fixed-point iteration of the main
+   loop, while the deviations $\delta_s$ are fitted in the material iterations
+   afterwards, whose number is controlled by `nMaterialUpdateMax`.
 
 ### Implementation in ACTS
 
@@ -346,16 +411,29 @@ size_t nUpdateMax = 5;
 
 /// Check for convergence (abort condition). Set to 0 to skip.
 double relChi2changeCutOff = 1e-7;
+
+/// Whether to use the mean or the most probable energy loss
+Gx2fEnergyLossMode energyLossMode = Gx2fEnergyLossMode::Mean;
+
+/// Number of iterations of the material fit
+size_t nMaterialUpdateMax = 1;
 };
 ```
 
 Common options like the geometry context or toggling of the energy loss are similar to the other fitters.
-For now there are three *GX2F* specific options:
+There are four *GX2F* specific options:
 1. `nUpdateMax` sets an abort condition for the parameter update as a maximum number of iterations allowed.
 We do not really want to use this condition, but it stops the fit in case of poor convergence.
 2. `relChi2changeCutOff` is the desired convergence criterion.
 We compare at each step of the iteration the current to the previous $\chi^2$.
 If the relative change is small enough, we finish the fit.
+3. `energyLossMode` chooses between the mean and the most probable energy loss,
+see the energy loss section above. It defaults to the mean, matching the *KF*
+and the *CKF*, and only has an effect if `energyLoss` is set.
+4. `nMaterialUpdateMax` sets how often the material parameters are fitted after
+the main loop converged. The default of one iteration is usually enough, since
+the deterministic part of the energy loss is already converged by the main loop
+and only the small deviations remain to be fitted.
 
 ### Pros/Cons
 

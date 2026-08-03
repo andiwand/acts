@@ -99,6 +99,10 @@ void addTrackFitting(py::module& mex) {
         .value("KLDistance", MixtureReductionAlgorithm::KLDistance)
         .value("KLDistanceNaive", MixtureReductionAlgorithm::KLDistanceNaive);
 
+    py::enum_<Acts::Experimental::Gx2fEnergyLossMode>(mex, "Gx2fEnergyLossMode")
+        .value("mean", Acts::Experimental::Gx2fEnergyLossMode::Mean)
+        .value("mode", Acts::Experimental::Gx2fEnergyLossMode::Mode);
+
     py::class_<BetheHeitlerApprox, std::shared_ptr<BetheHeitlerApprox>>(
         mex, "BetheHeitlerApprox");
     py::class_<PolynomialBetheHeitlerApprox, BetheHeitlerApprox,
@@ -144,16 +148,19 @@ void addTrackFitting(py::module& mex) {
            bool multipleScattering, bool energyLoss,
            const FreeToBoundCorrection& freeToBoundCorrection,
            std::size_t nUpdateMax, double relChi2changeCutOff,
+           Acts::Experimental::Gx2fEnergyLossMode energyLossMode,
            Logging::Level level) {
           return makeGlobalChiSquareFitterFunction(
               std::move(trackingGeometry), std::move(magneticField),
               multipleScattering, energyLoss, freeToBoundCorrection, nUpdateMax,
-              relChi2changeCutOff, *getDefaultLogger("Gx2f", level));
+              relChi2changeCutOff, energyLossMode,
+              *getDefaultLogger("Gx2f", level));
         },
         py::arg("trackingGeometry"), py::arg("magneticField"),
         py::arg("multipleScattering"), py::arg("energyLoss"),
         py::arg("freeToBoundCorrection"), py::arg("nUpdateMax"),
-        py::arg("relChi2changeCutOff"), py::arg("level"));
+        py::arg("relChi2changeCutOff"), py::arg("energyLossMode"),
+        py::arg("level"));
   }
 
   {

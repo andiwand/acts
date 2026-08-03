@@ -14,6 +14,7 @@
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Propagator/ActorList.hpp"
+#include "Acts/Propagator/MaterialInteractor.hpp"
 #include "Acts/Propagator/StandardAborters.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
@@ -146,17 +147,29 @@ struct MeasurementsCreator {
   }
 };
 
+/// Which material effects to apply while creating the measurements
+struct MeasurementsCreatorMaterial {
+  /// Whether to scatter the trajectory on material surfaces
+  bool multipleScattering = false;
+  /// Whether to remove energy on material surfaces
+  bool energyLoss = false;
+};
+
 /// Propagate the track create smeared measurements from local coordinates.
+///
+/// @param material Material effects to apply to the truth trajectory. By
+///        default the truth trajectory ignores material entirely.
 template <typename propagator_t, typename track_parameters_t>
-Measurements createMeasurements(const propagator_t& propagator,
-                                const Acts::GeometryContext& geoCtx,
-                                const Acts::MagneticFieldContext& magCtx,
-                                const track_parameters_t& trackParameters,
-                                const MeasurementResolutionMap& resolutions,
-                                std::default_random_engine& rng,
-                                std::size_t sourceId = 0u) {
+Measurements createMeasurements(
+    const propagator_t& propagator, const Acts::GeometryContext& geoCtx,
+    const Acts::MagneticFieldContext& magCtx,
+    const track_parameters_t& trackParameters,
+    const MeasurementResolutionMap& resolutions,
+    std::default_random_engine& rng, std::size_t sourceId = 0u,
+    const MeasurementsCreatorMaterial& material = {}) {
   using ActorList =
-      Acts::ActorList<MeasurementsCreator, Acts::EndOfWorldReached>;
+      Acts::ActorList<MeasurementsCreator, Acts::MaterialInteractor,
+                      Acts::EndOfWorldReached>;
   using PropagatorOptions = typename propagator_t::template Options<ActorList>;
 
   // Set options for propagator
@@ -165,6 +178,13 @@ Measurements createMeasurements(const propagator_t& propagator,
   creator.resolutions = resolutions;
   creator.rng = &rng;
   creator.sourceId = sourceId;
+
+  // The material interactor is always in the list, but stays inert unless it is
+  // explicitly asked for, so the default behaviour is unchanged.
+  auto& interactor = options.actorList.template get<Acts::MaterialInteractor>();
+  interactor.multipleScattering = material.multipleScattering;
+  interactor.energyLoss = material.energyLoss;
+  interactor.recordInteractions = false;
 
   // Launch and collect the measurements
   auto result = propagator.propagate(trackParameters, options).value();

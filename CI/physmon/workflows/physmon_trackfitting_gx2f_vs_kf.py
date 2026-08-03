@@ -107,6 +107,7 @@ with tempfile.TemporaryDirectory() as temp:
         nUpdateMax=17,
         relChi2changeCutOff=1e-7,
         multipleScattering=True,
+        energyLoss=True,
     )
 
     s.addAlgorithm(

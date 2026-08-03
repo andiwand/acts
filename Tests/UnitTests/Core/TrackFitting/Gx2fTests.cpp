@@ -1203,6 +1203,110 @@ BOOST_AUTO_TEST_CASE(EnergyLossSelfConsistency) {
 
   ACTS_INFO("*** Test: EnergyLossSelfConsistency -- Finish");
 }
+
+// Simulate the measurements *with* energy loss and check that the fit recovers
+// the truth momentum. Without the correction the fitted q/p is biased high,
+// because the fit sees a track that is more curved at the end than a constant
+// momentum model allows.
+//
+// The simulation uses computeEnergyLossBethe, i.e. the mean ionisation loss
+// without the radiative term, so Mean is the closest match and must give the
+// smallest bias.
+BOOST_AUTO_TEST_CASE(EnergyLossTruth) {
+  ACTS_INFO("*** Test: EnergyLossTruth -- Start");
+
+  std::default_random_engine rng(42);
+
+  ACTS_DEBUG("Create the detector");
+  const std::size_t nSurfaces = 5;
+  const std::set<std::size_t> surfaceIndexWithMaterial = {2, 4};
+  Detector detector;
+  detector.geometry =
+      makeToyDetector(geoCtx, nSurfaces, surfaceIndexWithMaterial, 50_mm);
+
+  ACTS_DEBUG("Set the start parameters for measurement creation and fit");
+  const auto parametersMeasurements = makeParameters();
+  const auto startParametersFit = makeParameters(
+      7_mm, 11_mm, 15_mm, 42_ns, 10_degree, 80_degree, 1_GeV, 1_e);
+
+  ACTS_DEBUG("Create the measurements with energy loss");
+  using SimStepper = EigenStepper<>;
+  const auto simPropagator =
+      makeConstantFieldPropagator<SimStepper>(detector.geometry, 0.3_T);
+  const auto measurements =
+      createMeasurements(simPropagator, geoCtx, magCtx, parametersMeasurements,
+                         resMapAllPixel, rng,
+                         /*sourceId=*/0u,
+                         MeasurementsCreatorMaterial{
+                             .multipleScattering = false, .energyLoss = true});
+
+  const auto sourceLinks = prepareSourceLinks(measurements.sourceLinks);
+  BOOST_REQUIRE_EQUAL(sourceLinks.size(), nSurfaces);
+
+  ACTS_DEBUG("Set up the fitter");
+  const Surface* rSurface = &parametersMeasurements.referenceSurface();
+
+  using SimPropagator = decltype(simPropagator);
+  using Gx2Fitter = Gx2Fitter<SimPropagator, VectorMultiTrajectory>;
+  const Gx2Fitter fitter(simPropagator, gx2fLogger->clone());
+
+  Gx2FitterExtensions<VectorMultiTrajectory> extensions;
+  extensions.calibrator
+      .connect<&testSourceLinkCalibratorStrict<VectorMultiTrajectory>>();
+  TestSourceLink::SurfaceAccessor surfaceAccessor{*detector.geometry};
+  extensions.surfaceAccessor
+      .connect<&TestSourceLink::SurfaceAccessor::operator()>(&surfaceAccessor);
+
+  const auto fitQOverP = [&](const bool energyLoss,
+                             const Gx2fEnergyLossMode mode,
+                             const std::size_t nMaterialUpdateMax = 1) {
+    const Gx2FitterOptions gx2fOptions(
+        geoCtx, magCtx, calCtx, extensions,
+        PropagatorPlainOptions(geoCtx, magCtx), rSurface,
+        /*mScattering=*/false, energyLoss, FreeToBoundCorrection(false),
+        /*nUpdateMax_=*/10, /*relChi2changeCutOff_=*/1e-7, mode,
+        nMaterialUpdateMax);
+
+    TrackContainer tracks{VectorTrackContainer{}, VectorMultiTrajectory{}};
+    const auto res = fitter.fit(sourceLinks.begin(), sourceLinks.end(),
+                                startParametersFit, gx2fOptions, tracks);
+    BOOST_REQUIRE(res.ok());
+    return (*res).parameters()[eBoundQOverP];
+  };
+
+  const double qOverPTruth = parametersMeasurements.parameters()[eBoundQOverP];
+
+  const double biasOff =
+      fitQOverP(false, Gx2fEnergyLossMode::Mode) - qOverPTruth;
+  const double biasMode =
+      fitQOverP(true, Gx2fEnergyLossMode::Mode) - qOverPTruth;
+  const double biasMean =
+      fitQOverP(true, Gx2fEnergyLossMode::Mean) - qOverPTruth;
+
+  ACTS_VERBOSE("q/p truth:   " << qOverPTruth);
+  ACTS_VERBOSE("bias off:    " << biasOff);
+  ACTS_VERBOSE("bias mode:   " << biasMode);
+  ACTS_VERBOSE("bias mean:   " << biasMean);
+
+  // Without the correction the fit cannot describe the momentum loss and is
+  // biased. Both corrections have to improve on that, and the mean, which
+  // matches what the simulation applied, has to be the best.
+  // Assert the ordering rather than absolute values, since the exact numbers
+  // depend on the random smearing.
+  BOOST_CHECK_LT(std::abs(biasMean), std::abs(biasMode));
+  BOOST_CHECK_LT(std::abs(biasMode), std::abs(biasOff));
+
+  // Iterating the material fit must not spoil the result. The deterministic
+  // part of the energy loss is already converged by the main loop, so the extra
+  // iterations only refine the small fitted deviations.
+  const double biasMeanIterated =
+      fitQOverP(true, Gx2fEnergyLossMode::Mean, /*nMaterialUpdateMax=*/3) -
+      qOverPTruth;
+  ACTS_VERBOSE("bias mean, 3 material updates: " << biasMeanIterated);
+  BOOST_CHECK_LT(std::abs(biasMeanIterated), std::abs(biasOff));
+
+  ACTS_INFO("*** Test: EnergyLossTruth -- Finish");
+}
 BOOST_AUTO_TEST_SUITE_END()
 
 }  // namespace ActsTests

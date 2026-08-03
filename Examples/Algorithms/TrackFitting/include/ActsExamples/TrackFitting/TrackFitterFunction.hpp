@@ -17,6 +17,7 @@
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/MagneticField/MagneticFieldProvider.hpp"
 #include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
+#include "Acts/TrackFitting/GlobalChiSquareFitterEnergyLossMode.hpp"
 #include "Acts/TrackFitting/GsfOptions.hpp"
 #include "Acts/Utilities/CalibrationContext.hpp"
 #include "ActsExamples/EventData/MeasurementCalibration.hpp"
@@ -133,6 +134,7 @@ std::shared_ptr<TrackFitterFunction> makeGsfFitterFunction(
 /// @param freeToBoundCorrection the correction for free to bound state transformations
 /// @param nUpdateMax max number of iterations during the fit
 /// @param relChi2changeCutOff Check for convergence (abort condition). Set to 0 to skip.
+/// @param energyLossMode whether to use the mean or the most probable energy loss
 /// @param logger a logger instance
 std::shared_ptr<TrackFitterFunction> makeGlobalChiSquareFitterFunction(
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry,
@@ -141,6 +143,8 @@ std::shared_ptr<TrackFitterFunction> makeGlobalChiSquareFitterFunction(
     const Acts::FreeToBoundCorrection& freeToBoundCorrection =
         Acts::FreeToBoundCorrection(),
     std::size_t nUpdateMax = 5, double relChi2changeCutOff = 1e-7,
+    Acts::Experimental::Gx2fEnergyLossMode energyLossMode =
+        Acts::Experimental::Gx2fEnergyLossMode::Mean,
     const Acts::Logger& logger = *Acts::getDefaultLogger("Gx2f",
                                                          Acts::Logging::INFO));
 

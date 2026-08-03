@@ -1854,6 +1854,7 @@ def addGx2fTracks(
     inputProtoTracks: str = "truth_particle_tracks",
     multipleScattering: bool = False,
     energyLoss: bool = False,
+    energyLossMode: acts.examples.Gx2fEnergyLossMode = acts.examples.Gx2fEnergyLossMode.mean,
     nUpdateMax: int = 5,
     relChi2changeCutOff: float = 1e-7,
     clusters: str = None,
@@ -1865,6 +1866,7 @@ def addGx2fTracks(
     gx2fOptions = {
         "multipleScattering": multipleScattering,
         "energyLoss": energyLoss,
+        "energyLossMode": energyLossMode,
         "freeToBoundCorrection": acts.examples.FreeToBoundCorrection(False),
         "nUpdateMax": nUpdateMax,
         "relChi2changeCutOff": relChi2changeCutOff,
