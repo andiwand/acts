@@ -333,6 +333,51 @@ struct SeedingCache {
 /// @param cache the reusable finders and their state
 /// @param spacePoints the space points of the event
 /// @param seeds receives the seeds
+std::vector<std::uint8_t> g_isBarrel;
+bool g_experimentSpCut = false;
+constexpr float expCutrMin = 45.f;
+
+bool athenaSpacePointSelection(const float z, const float r,
+                               const bool barrel) {
+  const float zabs = std::abs(z);
+  const float absCotTheta = zabs / r;
+  if (barrel) {
+    return !(zabs > 200 && r < 40);
+  }
+  if (absCotTheta < 1.5095f) {
+    return true;
+  }
+  if (absCotTheta < 14.9654f && r < expCutrMin) {
+    return false;
+  }
+  if (absCotTheta > 4.4571f && r > 260.f) {
+    return false;
+  }
+  if (absCotTheta > 6.6947f && r > 200.f) {
+    return false;
+  }
+  if (absCotTheta > 12.2459f && r > 140.f) {
+    return false;
+  }
+  return absCotTheta <= 27.2899f;
+}
+
+bool athenaDoubletSelection(const Acts::ConstSpacePointProxy& middle,
+                            const Acts::ConstSpacePointProxy& other,
+                            const float cotTheta,
+                            const bool isBottomCandidate) {
+  if (std::abs(middle.zr()[0]) > 1500.f && middle.zr()[1] > 100.f &&
+      middle.zr()[1] < 150.f) {
+    return false;
+  }
+  const float absCotTheta = std::abs(cotTheta);
+  if (isBottomCandidate && other.zr()[1] < expCutrMin &&
+      absCotTheta > 1.5095f && absCotTheta < 18.2855f) {
+    return false;
+  }
+  return true;
+}
+
 template <typename GridType>
 void createSeeds(const ItkPixelConfig& cfg,
                  const typename GridType::Config& gridConfig,
@@ -346,6 +391,10 @@ void createSeeds(const ItkPixelConfig& cfg,
 
   for (std::size_t i = 0; i < spacePoints.size(); ++i) {
     const auto& sp = spacePoints[i];
+    if (g_experimentSpCut &&
+        !athenaSpacePointSelection(sp.z(), sp.r(), g_isBarrel[i] != 0)) {
+      continue;
+    }
     if constexpr (spherical) {
       grid.insert(i, sp.phi(), sp.z() / sp.r(), sp.r());
     } else {
@@ -492,6 +541,10 @@ void printGridStatistics(const ItkPixelConfig& cfg,
   GridType grid(gridConfig, logger.clone());
   for (std::size_t i = 0; i < spacePoints.size(); ++i) {
     const auto& sp = spacePoints[i];
+    if (g_experimentSpCut &&
+        !athenaSpacePointSelection(sp.z(), sp.r(), g_isBarrel[i] != 0)) {
+      continue;
+    }
     if constexpr (spherical) {
       grid.insert(i, sp.phi(), sp.z() / sp.r(), sp.r());
     } else {
@@ -664,6 +717,19 @@ int main(int argc, char* argv[]) {
     writeEventCsv(events.front(), layout, dumpPrefix);
   }
 
+  g_experimentSpCut = std::getenv("EXP_CUTS") != nullptr;
+  if (g_experimentSpCut) {
+    const auto& sps = events.front().spacePoints;
+    const auto layerColumn = sps.column<std::uint32_t>("layerId");
+    g_isBarrel.resize(sps.size());
+    for (std::size_t i = 0; i < sps.size(); ++i) {
+      g_isBarrel[i] = layout.layers[sps[i].extra(layerColumn)].shape ==
+                              SurfaceShape::Cylinder
+                          ? 1
+                          : 0;
+    }
+  }
+
   ItkPixelConfig cfg;
   cfg.bFieldInZ = eventConfig.bFieldZ;
   // reaches the phi binning of the grid, both doublet finders and the triplet
@@ -673,17 +739,42 @@ int main(int argc, char* argv[]) {
     cfg.deltaZMax = sph.deltaZMax;
   }
 
+  if (std::getenv("FAST_CHAIN") != nullptr) {
+    cfg.gridRMax = 250.f;
+    cfg.deltaRMax = 200.f;
+    cfg.deltaRMaxTopSP = 220.f;
+    cfg.deltaRMaxBottomSP = 135.f;
+    cfg.collisionRegionMin = -150.f;
+    cfg.collisionRegionMax = 150.f;
+    cfg.maxSeedsPerSpM = 3;
+    cfg.zBinEdges = {-3000., -2000., -1400., -910., -500., -250.,
+                     250.,   500.,   910.,   1400., 2000., 3000.};
+    cfg.zBinsCustomLooping = {2, 10, 3, 9, 6, 4, 8, 5, 7};
+    cfg.zBinNeighborsTop = {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 1},
+                            {0, 1}, {0, 1},  {0, 1},  {0, 1},  {0, 0}};
+    cfg.zBinNeighborsBottom = {{0, 0},  {0, 1},  {0, 1},  {0, 1},
+                               {0, 1},  {0, 0},  {-1, 0}, {-1, 0},
+                               {-1, 0}, {-1, 0}, {0, 0}};
+    cfg.rRangeMiddleSP = {{0, 0},    {60, 165}, {60, 200}, {60, 200},
+                          {60, 260}, {60, 260}, {60, 260}, {60, 200},
+                          {60, 200}, {60, 165}, {0, 0}};
+    sph.middleRMin = 60.f;
+  }
+
   SeedingCache cache;
   cache.logger = Acts::getDefaultLogger(
       "GridTriplet",
       verbose ? Acts::Logging::Level::DEBUG : Acts::Logging::Level::FATAL);
   cache.filterConfig = makeFilterConfig(cfg);
-  const Acts::DoubletSeedFinder::Config bottomConfig =
-      makeBottomDoubletConfig(cfg);
+  Acts::DoubletSeedFinder::Config bottomConfig = makeBottomDoubletConfig(cfg);
   Acts::DoubletSeedFinder::Config topConfig = bottomConfig;
   topConfig.candidateDirection = Acts::Direction::Forward();
   topConfig.deltaRMin = cfg.deltaRMinTopSP;
   topConfig.deltaRMax = cfg.deltaRMaxTopSP;
+  if (g_experimentSpCut) {
+    bottomConfig.experimentCuts.connect<&athenaDoubletSelection>();
+    topConfig.experimentCuts.connect<&athenaDoubletSelection>();
+  }
   cache.bottomDoubletFinder = Acts::DoubletSeedFinder::create(
       Acts::DoubletSeedFinder::DerivedConfig(bottomConfig, cfg.bFieldInZ));
   cache.topDoubletFinder = Acts::DoubletSeedFinder::create(
