@@ -115,8 +115,9 @@ TruthEstimatedSeedingAlgorithmConfigArg = namedtuple(
     "TruthSeederConfig",
     [
         "deltaR",  # (min,max)
+        "spacePointSelection",  # acts.examples.TruthSeedSpacePointSelection
     ],
-    defaults=[(None, None)],
+    defaults=[(None, None), None],
 )
 
 TrackSelectorConfig = namedtuple(
@@ -307,6 +308,8 @@ def addSeeding(
     ] = acts.ParticleHypothesis.pion,
     inputParticles: str = "particles",
     selectedParticles: str = "particles_selected",
+    estimateFromAllSpacePoints: bool = False,
+    geometricRefineIterations: Optional[int] = None,
     outputDirRoot: Optional[Union[Path, str]] = None,
     outputDirCsv: Optional[Union[Path, str]] = None,
     trackParameterPerformance: bool = False,
@@ -362,6 +365,12 @@ def addSeeding(
         input particles name in the WhiteBoard
     selectedParticles : str, "particles_selected"
         selected particles name in the WhiteBoard
+    estimateFromAllSpacePoints : bool, False
+        fit all space points of a seed with a least-squares helix instead of
+        putting an exact helix through the first three
+    geometricRefineIterations : int, None
+        geometric refinement iterations of that fit, see
+        `TrackParamsEstimationAlgorithm`
     outputDirRoot : Path|str, path, None
         the output folder for ROOT output, None triggers no output
     trackParameterPerformance : bool, False
@@ -529,6 +538,8 @@ def addSeeding(
             trackingGeometry=trackingGeometry,
             magneticField=field,
             **acts.examples.defaultKWArgs(
+                useAllSpacePoints=estimateFromAllSpacePoints,
+                geometricRefineIterations=geometricRefineIterations,
                 initialSigmas=initialSigmas,
                 initialSigmaQoverPt=initialSigmaQoverPt,
                 initialSigmaPtRel=initialSigmaPtRel,
@@ -751,6 +762,7 @@ def addTruthEstimatedSeeding(
         **acts.examples.defaultKWArgs(
             deltaRMin=TruthEstimatedSeedingAlgorithmConfigArg.deltaR[0],
             deltaRMax=TruthEstimatedSeedingAlgorithmConfigArg.deltaR[1],
+            spacePointSelection=TruthEstimatedSeedingAlgorithmConfigArg.spacePointSelection,
             particleHypothesis=particleHypothesis,
         ),
     )
@@ -1457,6 +1469,7 @@ def addTrackParameterPerformanceWriter(
     field: acts.MagneticFieldProvider,
     targetSurface: Optional[acts.Surface] = None,
     strategy=None,
+    resPlotToolConfig=None,
     outputName: str = "trackparams",
     logLevel: acts.logging.Level = None,
     prefix: str = "",
@@ -1475,6 +1488,9 @@ def addTrackParameterPerformanceWriter(
         Which track state to start from, `first` by default. Seed tracks only
         carry parameters on their innermost state, so `firstOrLast` must not be
         used on them.
+    resPlotToolConfig : Optional[acts.examples.root.ResPlotToolConfig]
+        Residual and pull binning. The defaults are cut for fitted tracks, so a
+        seed estimate usually needs wider residual axes.
     """
     customLogLevel = acts.examples.defaultLogging(sequence, logLevel)
     RootTrackParameterPerformanceWriter = acts.examples._tryImportRoot(
@@ -1526,6 +1542,9 @@ def addTrackParameterPerformanceWriter(
             inputParticles=particles,
             inputTrackParticleMatching=trackParticleMatching,
             filePath=str(outputDirRoot / f"performance_{prefix}{outputName}.root"),
+            **acts.examples.defaultKWArgs(
+                resPlotToolConfig=resPlotToolConfig,
+            ),
         )
     )
 
