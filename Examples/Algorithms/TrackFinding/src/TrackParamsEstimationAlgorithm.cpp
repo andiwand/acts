@@ -96,13 +96,17 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
   IndexSourceLink::SurfaceAccessor surfaceAccessor{*m_cfg.trackingGeometry};
 
+  // reused across seeds by the multi-space-point estimation
+  std::vector<Acts::Vector3> spacePointPositions;
+  std::size_t nZeroQOverP = 0;
+
   // Loop over all found seeds to estimate track parameters
   for (std::size_t iseed = 0; iseed < seeds.size(); ++iseed) {
     const auto& seed = seeds[iseed];
     if (seed.spacePoints().size() < 3) {
       ACTS_WARNING("Seed " << iseed << " has less than 3 space points, skip");
       continue;
-    } else if (seed.spacePoints().size() > 3) {
+    } else if (seed.spacePoints().size() > 3 && !m_cfg.useAllSpacePoints) {
       ACTS_DEBUG(
           "Seed "
           << iseed
@@ -111,16 +115,12 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
 
     // Get the bottom space point and its reference surface
     const ConstSpacePointProxy bottomSp = seed.spacePoints()[0];
-    const ConstSpacePointProxy middleSp = seed.spacePoints()[1];
-    const ConstSpacePointProxy topSp = seed.spacePoints()[2];
     if (bottomSp.sourceLinks().empty()) {
       ACTS_WARNING("Missing source link in the space point");
       continue;
     }
 
     const Acts::Vector3 bottomSpVec{bottomSp.x(), bottomSp.y(), bottomSp.z()};
-    const Acts::Vector3 middleSpVec{middleSp.x(), middleSp.y(), middleSp.z()};
-    const Acts::Vector3 topSpVec{topSp.x(), topSp.y(), topSp.z()};
 
     const Acts::SourceLink& bottomSourceLink = bottomSp.sourceLinks()[0];
     const Acts::Surface* bottomSurface = surfaceAccessor(bottomSourceLink);
@@ -144,15 +144,41 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
       continue;
     }
 
+    const double t0 = std::isnan(bottomSp.time()) ? 0.0 : bottomSp.time();
+
     // Estimate the track parameters from seed
-    Acts::Result<Acts::BoundVector> boundParams =
-        Acts::estimateTrackParamsFromSeed(
-            ctx.geoContext, *bottomSurface, bottomSpVec,
-            std::isnan(bottomSp.time()) ? 0.0 : bottomSp.time(), middleSpVec,
-            topSpVec, field);
+    Acts::Result<Acts::BoundVector> boundParams = [&] {
+      if (m_cfg.useAllSpacePoints) {
+        spacePointPositions.clear();
+        for (const ConstSpacePointProxy& sp : seed.spacePoints()) {
+          spacePointPositions.emplace_back(sp.x(), sp.y(), sp.z());
+        }
+        return Acts::estimateTrackParamsFromSpacePoints(
+            ctx.geoContext, *bottomSurface, spacePointPositions, field, t0,
+            m_cfg.geometricRefineIterations);
+      }
+
+      const ConstSpacePointProxy middleSp = seed.spacePoints()[1];
+      const ConstSpacePointProxy topSp = seed.spacePoints()[2];
+      const Acts::Vector3 middleSpVec{middleSp.x(), middleSp.y(), middleSp.z()};
+      const Acts::Vector3 topSpVec{topSp.x(), topSp.y(), topSp.z()};
+      return Acts::estimateTrackParamsFromSeed(ctx.geoContext, *bottomSurface,
+                                               bottomSpVec, t0, middleSpVec,
+                                               topSpVec, field);
+    }();
     if (!boundParams.ok()) {
       ACTS_WARNING("Failed to estimate track parameters from seed: "
                    << boundParams.error().message());
+      continue;
+    }
+    // The multi-space-point fit falls back to a straight line when the
+    // curvature is not resolvable and then leaves q/p at zero, which is an
+    // infinite momentum no propagator can handle.
+    if ((*boundParams)[Acts::eBoundQOverP] == 0) {
+      ACTS_WARNING("Seed " << iseed
+                           << " estimated to zero q/p, i.e. infinite "
+                              "momentum, skip");
+      ++nZeroQOverP;
       continue;
     }
 
@@ -187,6 +213,10 @@ ProcessCode TrackParamsEstimationAlgorithm::execute(
   }
 
   ACTS_DEBUG("Estimated " << trackParameters.size() << " track parameters");
+  if (nZeroQOverP > 0) {
+    ACTS_DEBUG("Skipped " << nZeroQOverP << " of " << seeds.size()
+                          << " seeds with zero q/p");
+  }
 
   m_outputTrackParameters(ctx, std::move(trackParameters));
   if (m_outputSeeds.isInitialized()) {

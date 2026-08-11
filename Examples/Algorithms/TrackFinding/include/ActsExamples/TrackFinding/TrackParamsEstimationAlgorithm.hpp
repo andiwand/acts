@@ -63,6 +63,13 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
     /// The minimum magnetic field to trigger the track parameters estimation
     double bFieldMin = 0.1 * Acts::UnitConstants::T;
 
+    /// Fit all space points of the seed with a least-squares helix instead of
+    /// putting an exact helix through the first three.
+    bool useAllSpacePoints = false;
+    /// Number of geometric refinement iterations on top of the algebraic
+    /// circle fit. Only used with `useAllSpacePoints`.
+    std::size_t geometricRefineIterations = 0;
+
     /// Initial sigmas for the track parameters.
     std::array<double, 6> initialSigmas = {
         1 * Acts::UnitConstants::mm,
