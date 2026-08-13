@@ -40,6 +40,7 @@
 #include "Acts/EventData/SpacePointContainer.hpp"
 #include "Acts/Seeding/GbtsGeometry.hpp"
 #include "Acts/Seeding/GbtsLayerConnection.hpp"
+#include "Acts/Seeding/GbtsNodeStorage.hpp"
 #include "Acts/Seeding/GbtsRoiDescriptor.hpp"
 #include "Acts/Seeding/GbtsTrackingFilter.hpp"
 #include "Acts/Seeding/GraphBasedTrackSeeder.hpp"
@@ -316,7 +317,7 @@ int main(int argc, char* argv[]) {
   // ATLAS runs with the cluster width and its trained lookup table, which the
   // synthetic event has no cluster shapes to offer. It only adjusts the barrel
   // cot(theta) cuts, which is not where this event loses anything.
-  cfg.useMl = false;
+  cfg.useClusterWidthCuts = false;
   cfg.matchBeforeCreate = true;
   cfg.nMaxEdges = maxEdges;
 
@@ -330,15 +331,12 @@ int main(int argc, char* argv[]) {
                                              : Acts::Logging::Level::WARNING));
   const Exp::GbtsTrackingFilter filter(Exp::GbtsTrackingFilter::Config{},
                                        geometry);
-  const Exp::GbtsRoiDescriptor roi(0, -5., 5., 0, -std::numbers::pi,
-                                   std::numbers::pi, 0, cfg.minZ0, cfg.maxZ0);
+  const Exp::GbtsRoiDescriptor roi(-5., 5., cfg.minZ0, cfg.maxZ0);
   const Exp::GraphBasedTrackSeeder::Options options(eventConfig.bFieldZ);
   const std::vector<bool> isPixelLayer(layout.layers.size(), true);
 
   const EventSummary summary = summarize(event, truthPt * 1_MeV / 1_GeV);
-  std::cout << "layers=" << layout.layers.size()
-            << " etaBins=" << geometry->numBins()
-            << " binGroups=" << geometry->binGroups().size() << "\n"
+  std::cout << "layers=" << layout.layers.size() << "\n"
             << "spacePoints=" << summary.spacePoints
             << " primaryHits=" << summary.primaryHits
             << " secondaryHits=" << summary.secondaryHits
@@ -346,14 +344,11 @@ int main(int argc, char* argv[]) {
             << " secondaries=" << summary.secondaries
             << " seedable=" << summary.seedablePrimaries << std::endl;
 
-  const std::uint32_t maxLayers =
-      static_cast<std::uint32_t>(layout.layers.size());
-
   // matched outside the timed region, so that the truth lookup does not show
   // up in the measurement
   Acts::SeedContainer reference;
   reference.assignSpacePointContainer(spacePoints);
-  seeder.createSeeds(spacePoints, roi, isPixelLayer, maxLayers, filter, options,
+  seeder.createSeeds(spacePoints, roi, isPixelLayer, filter, options,
                      reference);
   const SeedingSummary seedSummary =
       evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
@@ -370,23 +365,26 @@ int main(int argc, char* argv[]) {
       [&] {
         Acts::SeedContainer seeds;
         seeds.assignSpacePointContainer(spacePoints);
-        seeder.createSeeds(spacePoints, roi, isPixelLayer, maxLayers, filter,
-                           options, seeds);
+        seeder.createSeeds(spacePoints, roi, isPixelLayer, filter, options,
+                           seeds);
         assumeRead(seeds);
       },
       1, numRuns);
   std::cout << "full: " << full << std::endl;
 
-  // The same without the node building, which allocates a reserved vector per
-  // layer and copies every space point into it. Hoisting it out is what makes a
-  // change to the graph stage visible.
-  const std::vector<std::vector<Exp::GbtsNode>> nodes =
-      seeder.createNodes(spacePoints, maxLayers);
+  // The same without the node building, which sorts every space point into its
+  // eta and phi bin. Hoisting it out is what makes a change to the graph stage
+  // visible.
+  Exp::GbtsNodeStorage nodeStorage = seeder.makeNodeStorage(isPixelLayer);
+  nodeStorage.extend(spacePoints, spacePoints.column<std::uint32_t>("layerId"),
+                     spacePoints.column<float>("clusterWidth"),
+                     spacePoints.column<float>("localPositionY"));
+  nodeStorage.finalize();
   const auto graph = microBenchmark(
       [&] {
         Acts::SeedContainer seeds;
         seeds.assignSpacePointContainer(spacePoints);
-        seeder.createSeeds(nodes, isPixelLayer, roi, filter, options, seeds);
+        seeder.createSeeds(nodeStorage, roi, filter, options, seeds);
         assumeRead(seeds);
       },
       1, numRuns);
