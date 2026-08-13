@@ -175,10 +175,15 @@ Two things follow, and both are why the pair is carried rather than approximated
   two measurements.
 - The **bias** is what a direction removes. Resolving from the beam spot instead
   of from the tangent walks the point along the strip by `(kappa r / 2) *
-  gap / sin(theta)`, which is nine millimetres for a GeV at the innermost ITk
-  strip barrel and falls as `1/pT`. Past the end of the strip the pair stops
-  resolving at all, so the acceptance falls with it: 98% at 100 GeV, 79% at
-  1 GeV, 58% at 500 MeV.
+  gap / sin(theta)` and falls as `1/pT`. Past the end of the strip the pair
+  stops resolving at all, so the acceptance falls with it.
+
+  @warning The separation between the two sensors of a pair is measured off the
+  ITk geometry -- 6.28 mm in the barrel, 6.43 mm in the endcap -- and at that
+  separation the bias reaches twenty-nine millimetres for a GeV against a
+  twenty-four millimetre strip, which leaves an order of magnitude fewer strip
+  space points than a GNN4ITk dump of the same event holds strip clusters. The
+  formation is therefore under review; see the note in `Fatras/README.md`.
 
 The two kinds of space point come out in two collections,
 @ref ActsFatras::Synthetic::Event::spacePoints and
