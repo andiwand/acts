@@ -118,21 +118,24 @@ void checkGeneratesAnEvent(const DetectorLayout& layout,
 
 BOOST_AUTO_TEST_SUITE(SyntheticShippedDetectorsSuite)
 
-/// The ITk pixel description as it ships: the ATLAS layout it was transcribed
-/// from, down to the number of rings, and the beam pipe outside the pixels
-/// because that is where the real geometry keeps it.
-BOOST_AUTO_TEST_CASE(ItkPixel) {
+/// The ITk description as it ships: the pixels transcribed from the ATLAS
+/// layout down to the number of rings, the strips reduced out of the geometry
+/// ACTS builds, and the beam pipe outside both because that is where the real
+/// geometry keeps it.
+BOOST_AUTO_TEST_CASE(Itk) {
   const DetectorDescription description = readShipped("itk");
 
-  BOOST_CHECK_EQUAL(description.escapeRadius, 1000.f);
+  // past the outermost strip barrel, which a track has to be allowed to cross
+  // before it counts as gone
+  BOOST_CHECK_EQUAL(description.escapeRadius, 1100.f);
   BOOST_CHECK_EQUAL(description.escapeHalfZ, 3050.f);
 
-  // the beam pipe belongs to the detector rather than to the pixels
+  // the beam pipe belongs to the detector rather than to either subsystem
   BOOST_REQUIRE_EQUAL(description.passives.size(), 1u);
   BOOST_CHECK_EQUAL(description.passives.front().refCoord, 25.f);
   BOOST_CHECK(description.passives.front().shape == SurfaceShape::Cylinder);
 
-  BOOST_REQUIRE_EQUAL(description.subsystems.size(), 1u);
+  BOOST_REQUIRE_EQUAL(description.subsystems.size(), 2u);
   const SubsystemDescription& pixels = description.subsystems.front();
   BOOST_CHECK_EQUAL(pixels.name, "itk-pixel");
   // five stave layers, and seventy-five discs per side carrying ninety-five
@@ -145,15 +148,34 @@ BOOST_AUTO_TEST_CASE(ItkPixel) {
   // the services, whose extent matters as much as their amount
   BOOST_CHECK_EQUAL(pixels.passives.size(), 4u);
 
+  const SubsystemDescription& strips = description.subsystems.back();
+  BOOST_CHECK_EQUAL(strips.name, "itk-strip");
+  // four barrel cylinders and six discs per side, each one ring: the strip
+  // endcap rings tile their disc without the supports that gap the pixel one
+  BOOST_CHECK_EQUAL(cylinderCount(strips), 4u);
+  const auto [stripDiscs, stripRings] = discAndRingCount(strips);
+  BOOST_CHECK_EQUAL(stripDiscs, 6u);
+  BOOST_CHECK_EQUAL(stripRings, 6u);
+
   const DetectorLayout layout = makeLayout(description);
   // beam pipe, three service cylinders and a service disc on both sides, the
   // staves, and every disc on both sides
-  BOOST_CHECK_EQUAL(layout.surfaces.size(), 1u + 5u + 5u + 2u * 75u);
-  BOOST_CHECK_EQUAL(layout.layers.size(), 5u + 2u * 95u);
-  BOOST_REQUIRE_EQUAL(layout.subsystems.size(), 1u);
+  BOOST_CHECK_EQUAL(layout.surfaces.size(),
+                    1u + 5u + (5u + 4u) + 2u * (75u + 6u));
+  BOOST_CHECK_EQUAL(layout.layers.size(), (5u + 4u) + 2u * (95u + 6u));
+  BOOST_REQUIRE_EQUAL(layout.subsystems.size(), 2u);
   BOOST_CHECK_EQUAL(layout.subsystems.front(), "itk-pixel");
+  BOOST_CHECK_EQUAL(layout.subsystems.back(), "itk-strip");
   // every sensitive surface and every passive carries material
   BOOST_CHECK_EQUAL(checkMaterial(layout), layout.surfaces.size());
+
+  // the pixels still build on their own, which is what a selection is for
+  const std::vector<std::string> pixelOnlyName{"itk-pixel"};
+  const DetectorLayout pixelOnly =
+      makeLayout(selectSubsystems(description, pixelOnlyName));
+  BOOST_CHECK_EQUAL(pixelOnly.layers.size(), 5u + 2u * 95u);
+  // the beam pipe survives it; it is the only material in front of layer 0
+  BOOST_CHECK_EQUAL(pixelOnly.surfaces.size(), 1u + 5u + 5u + 2u * 75u);
 }
 
 /// The configuration fitted to it, which has to be read as a whole.

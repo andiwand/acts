@@ -3,7 +3,7 @@
         "format-version": 0
     },
     "escapeHalfZ": 3050.0,
-    "escapeRadius": 1000.0,
+    "escapeRadius": 1100.0,
     "passives": [
         {
             "layer": 0,
@@ -1080,6 +1080,126 @@
                     "shape": "disc"
                 }
             ]
+        },
+        {
+            "barrels": [
+                {
+                    "cylinders": [
+                        {
+                            "halfLengthZ": 1373.1672,
+                            "layer": 0,
+                            "modules": 1,
+                            "overlapOffset": 7.9,
+                            "overlapProbability": 0.13,
+                            "radius": 399.00125
+                        },
+                        {
+                            "halfLengthZ": 1373.1672,
+                            "layer": 1,
+                            "modules": 1,
+                            "overlapOffset": 7.9,
+                            "overlapProbability": 0.13,
+                            "radius": 562.00085
+                        },
+                        {
+                            "halfLengthZ": 1373.1672,
+                            "layer": 2,
+                            "modules": 1,
+                            "overlapOffset": 7.9,
+                            "overlapProbability": 0.13,
+                            "radius": 762.00055
+                        },
+                        {
+                            "halfLengthZ": 1373.1672,
+                            "layer": 3,
+                            "modules": 1,
+                            "overlapOffset": 7.9,
+                            "overlapProbability": 0.13,
+                            "radius": 1000.00037
+                        }
+                    ]
+                }
+            ],
+            "endcaps": [
+                {
+                    "discs": [
+                        {
+                            "absZ": 1512.0,
+                            "layer": 0,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        },
+                        {
+                            "absZ": 1702.0,
+                            "layer": 1,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        },
+                        {
+                            "absZ": 1952.0,
+                            "layer": 2,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        },
+                        {
+                            "absZ": 2237.0,
+                            "layer": 3,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        },
+                        {
+                            "absZ": 2532.0,
+                            "layer": 4,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        },
+                        {
+                            "absZ": 2850.0,
+                            "layer": 5,
+                            "overlapOffset": 5.0,
+                            "overlapProbability": 0.15,
+                            "rings": [
+                                {
+                                    "rMax": 967.785,
+                                    "rMin": 384.5
+                                }
+                            ]
+                        }
+                    ],
+                    "placement": "mirrored"
+                }
+            ],
+            "name": "itk-strip"
         }
     ]
 }
