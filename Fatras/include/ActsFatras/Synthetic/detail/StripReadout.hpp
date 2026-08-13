@@ -39,6 +39,8 @@ struct StripLayer {
   float sigma{};
   /// Half the length of a strip
   float halfLength{};
+  /// How far outside the strips a crossing may still be recovered
+  float gapTolerance{};
   /// Variance of the resolved point along the strip, which is where the
   /// projection error lands: z on a barrel, r on an endcap
   float varianceAlong{};

@@ -15,18 +15,21 @@
     ],
     "sensors": {
         "itk-strip-endcap": {
+            "gapTolerance": 0.0,
             "halfLength": 15.0,
             "moduleGap": 6.43,
             "pitch": 0.0755,
             "stereoAngle": 0.04
         },
         "itk-strip-long": {
+            "gapTolerance": 0.0,
             "halfLength": 24.405,
             "moduleGap": 6.279221,
             "pitch": 0.0755,
             "stereoAngle": 0.05086016
         },
         "itk-strip-short": {
+            "gapTolerance": 0.0,
             "halfLength": 12.205,
             "moduleGap": 6.279221,
             "pitch": 0.0755,

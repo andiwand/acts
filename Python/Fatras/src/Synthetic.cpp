@@ -150,7 +150,8 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("stereoAngle", &StripSensor::stereoAngle)
       .def_readwrite("pitch", &StripSensor::pitch)
       .def_readwrite("moduleGap", &StripSensor::moduleGap)
-      .def_readwrite("halfLength", &StripSensor::halfLength);
+      .def_readwrite("halfLength", &StripSensor::halfLength)
+      .def_readwrite("gapTolerance", &StripSensor::gapTolerance);
 
   py::class_<DetectorLayer>(m, "DetectorLayer")
       .def_readonly("shape", &DetectorLayer::shape)

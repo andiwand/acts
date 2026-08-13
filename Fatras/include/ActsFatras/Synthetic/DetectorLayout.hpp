@@ -112,6 +112,13 @@ struct StripSensor {
   float moduleGap{};
   /// Half the length of a strip
   float halfLength{};
+  /// How far outside its two strips a crossing may still be recovered, as a
+  /// length. This is a tuned reconstruction parameter rather than a property of
+  /// the silicon, and it belongs here because it decides whether a pair leaves
+  /// a space point at all: the beam-spot vertex walks the crossing along the
+  /// strip in proportion to the module gap, and past the end of the strip
+  /// nothing is formed.
+  float gapTolerance{};
 
   /// @param other the sensor to compare against
   /// @return whether they are the same sensor

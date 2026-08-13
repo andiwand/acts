@@ -67,6 +67,7 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout) {
     strip.halfGap = 0.5f * sensor->moduleGap;
     strip.sigma = sensor->pitch / kSqrt12;
     strip.halfLength = sensor->halfLength;
+    strip.gapTolerance = sensor->gapTolerance;
 
     // Two strips at plus and minus half the stereo angle measure the same
     // point as u1 and u2 across themselves. Solving for the coordinate along
@@ -161,6 +162,7 @@ std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
   // that leaves is the projection error, not noise.
   Acts::StripSpacePointBuilder::ConstrainedOptions options;
   options.vertex = Acts::Vector3::Zero();
+  options.stripLengthGapTolerance = layer.gapTolerance;
   const Acts::Result<Acts::Vector3> resolved =
       Acts::StripSpacePointBuilder::computeConstrainedSpacePoint(
           ends[0], ends[1], options);
