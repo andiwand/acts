@@ -39,8 +39,10 @@ struct StripLayer {
   float sigma{};
   /// Half the length of a strip
   float halfLength{};
-  /// How far outside the strips a crossing may still be recovered
-  float gapTolerance{};
+  /// The module gap over what the stereo pair can separate,
+  /// `gap*cos(stereo)/sin(stereo)`: the distance a resolved point walks along
+  /// the strip per unit of `kappa*r/2`. See `readStrip`.
+  float gapOverStereo{};
   /// Variance of the resolved point along the strip, which is where the
   /// projection error lands: z on a barrel, r on an endcap
   float varianceAlong{};
@@ -66,8 +68,18 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout);
 /// than noise, and what leaves the pair able to give the crossing back to
 /// anything that knows the direction better.
 ///
+/// Resolving from the beam spot walks the point along the strip by
+/// `(kappa*r/2) * gap*cos(stereo)/sin(stereo)`, because the two sensors are a
+/// gap apart and the pair separates a displacement across the strips only to
+/// the stereo angle. Past the end of the strip nothing is formed, so the
+/// tolerance a layer needs is that walk evaluated at the softest track wanted:
+/// `gapParameter` is its `kappa/2` and the rest is the layer's own geometry.
+/// This is Athena's `SiSpacePointMakerTool::offset`, which derives the same
+/// thing per module pair.
+///
 /// @param rng the random engine
 /// @param layer the strip parameters of the layer crossed
+/// @param gapParameter `MeasurementConfig::stripGapParameter`
 /// @param cylinder whether the layer is a cylinder, whose strips run along z;
 ///        an endcap disc's run radially
 /// @param position where the track crosses the middle of the module
@@ -75,7 +87,7 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout);
 /// @return the space point and the pair it came from, or nothing where the pair
 ///         does not resolve, which is a strip module measuring nothing
 std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
-                                  bool cylinder,
+                                  float gapParameter, bool cylinder,
                                   const std::array<float, 3>& position,
                                   const std::array<float, 3>& direction);
 

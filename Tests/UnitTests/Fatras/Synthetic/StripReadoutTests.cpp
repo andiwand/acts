@@ -39,6 +39,10 @@ namespace ActsTests {
 
 namespace {
 
+/// `MeasurementConfig::stripGapParameter`, at the value Athena's
+/// `ITkSiSpacePointMakerToolCfg` sets.
+constexpr float kGapParameter = 0.0015f;
+
 /// The ITk's strip barrel, near enough: 26 mrad between the sensors of a
 /// module, 2 mm between them and 75.5 um strips.
 StripSensor makeSensor() {
@@ -75,10 +79,10 @@ DetectorDescription makeTestDescription(bool strips = true) {
                           .material = SurfaceMaterial{sensor}});
   stripSystem.barrels.push_back(std::move(stripBarrel));
   EndcapDescription stripEndcap;
-  stripEndcap.discs.push_back(DiscDescription{
-      .absZ = 1500.f,
-      .rings = {RingBounds{380.f, 950.f}},
-      .material = SurfaceMaterial{sensor}});
+  stripEndcap.discs.push_back(
+      DiscDescription{.absZ = 1500.f,
+                      .rings = {RingBounds{380.f, 950.f}},
+                      .material = SurfaceMaterial{sensor}});
   stripSystem.endcaps.push_back(std::move(stripEndcap));
 
   description.subsystems = {std::move(pixels), std::move(stripSystem)};
@@ -164,12 +168,11 @@ BOOST_AUTO_TEST_CASE(SensorsAreSharedByName) {
   const std::vector<std::string> stripOnly{"strip"};
   const DetectorLayout selected =
       makeLayout(selectSubsystems(description, stripOnly));
-  BOOST_CHECK_EQUAL(
-      std::ranges::count_if(selected.layers,
-                            [](const DetectorLayer& l) {
-                              return l.sensor.has_value();
-                            }),
-      3);
+  BOOST_CHECK_EQUAL(std::ranges::count_if(selected.layers,
+                                          [](const DetectorLayer& l) {
+                                            return l.sensor.has_value();
+                                          }),
+                    3);
 }
 
 /// The stereo angle sets the resolution: sharp across the strips, an order of
@@ -222,8 +225,8 @@ BOOST_AUTO_TEST_CASE(ThePairIsTheModuleGeometry) {
     const std::array<float, 3> position{radius * std::cos(phi),
                                         radius * std::sin(phi), 120.f};
 
-    const std::optional<StripHit> read =
-        readStrip(rng, strip, /*cylinder=*/true, position, direction);
+    const std::optional<StripHit> read = readStrip(
+        rng, strip, kGapParameter, /*cylinder=*/true, position, direction);
     BOOST_REQUIRE(read.has_value());
 
     std::array<float, 3> moved{};
@@ -235,8 +238,7 @@ BOOST_AUTO_TEST_CASE(ThePairIsTheModuleGeometry) {
     // the calibrated point sits on the outer sensor, half a gap out
     const float incidence =
         direction[0] * std::cos(phi) + direction[1] * std::sin(phi);
-    const float trueZ =
-        position[2] + strip.halfGap / incidence * direction[2];
+    const float trueZ = position[2] + strip.halfGap / incidence * direction[2];
     BOOST_CHECK_SMALL(moved[2] - trueZ, 1e-2f);
   }
 }
@@ -267,8 +269,8 @@ BOOST_AUTO_TEST_CASE(CalibrationRemovesTheVertexBias) {
                                           radius * std::sin(phi),
                                           2.f * static_cast<float>(trial % 97)};
 
-      const std::optional<StripHit> read =
-          readStrip(rng, strip, /*cylinder=*/true, position, direction);
+      const std::optional<StripHit> read = readStrip(
+          rng, strip, kGapParameter, /*cylinder=*/true, position, direction);
       if (!read.has_value()) {
         continue;
       }
@@ -321,9 +323,10 @@ BOOST_AUTO_TEST_CASE(CalibrationRemovesTheVertexBias) {
   const auto curved = measure(0.12f);
   BOOST_CHECK_GT(std::abs(curved.nominalBias), 5.);
   BOOST_CHECK_SMALL(curved.calibratedBias, 0.2);
-  // The bias also walks the point off the end of the strip, so a track this
-  // soft loses space points outright: the pair does not resolve at all.
-  BOOST_CHECK_LT(curved.resolvedFraction, 0.9);
+  // It costs no acceptance, though, because the tolerance the layer derives is
+  // this same walk evaluated at `stripGapParameter`: the slope it admits is
+  // `kGapParameter * radius`, 0.6 rad here, and a GeV is a fifth of it.
+  BOOST_CHECK_GT(curved.resolvedFraction, 0.9);
 
   // And the random part is the stereo-limited millimetre either way, so the
   // generator has to carry the pair: an inflated Gaussian would have the same
@@ -331,8 +334,29 @@ BOOST_AUTO_TEST_CASE(CalibrationRemovesTheVertexBias) {
   for (const double rms : {radial.nominalRms, radial.calibratedRms,
                            curved.nominalRms, curved.calibratedRms}) {
     BOOST_CHECK_GT(rms, 0.5);
-    BOOST_CHECK_LT(rms, 2.5);
+    BOOST_CHECK_LT(rms, 3.);
   }
+
+  // Softer than the tolerance was derived for and the pair stops resolving,
+  // which is the acceptance the parameter buys and what it costs.
+  const auto accepted = [&](const float slope) {
+    std::mt19937 rng{12345};
+    constexpr float radius = 400.f;
+    std::size_t resolved = 0;
+    for (std::size_t trial = 0; trial < 4000; ++trial) {
+      const float phi = 0.013f * static_cast<float>(trial % 479) - 3.1f;
+      const float theta =
+          std::numbers::pi_v<float> * (0.30f + 0.02f * (trial % 11));
+      const std::array<float, 3> position{radius * std::cos(phi),
+                                          radius * std::sin(phi),
+                                          2.f * static_cast<float>(trial % 97)};
+      resolved += readStrip(rng, strip, kGapParameter, /*cylinder=*/true,
+                            position, directionOf(phi + slope, theta))
+                      .has_value();
+    }
+    return static_cast<double>(resolved) / 4000.;
+  };
+  BOOST_CHECK_LT(accepted(1.5f), 0.05);
 }
 
 /// A track along the module resolves nothing, which is a strip measuring
@@ -346,7 +370,7 @@ BOOST_AUTO_TEST_CASE(GrazingTrackResolvesNothing) {
   std::mt19937 rng{1};
   const std::array<float, 3> position{400.f, 0.f, 0.f};
   // straight along the cylinder, so it never leaves the module plane
-  BOOST_CHECK(!readStrip(rng, strip, /*cylinder=*/true, position,
+  BOOST_CHECK(!readStrip(rng, strip, kGapParameter, /*cylinder=*/true, position,
                          std::array<float, 3>{0.f, 0.f, 1.f})
                    .has_value());
 }
@@ -420,17 +444,17 @@ BOOST_AUTO_TEST_CASE(AcceptanceAndResolutionAgainstMomentum) {
       }
       const float gamma = 2.f * std::asin(half);
       const float phiPos = phi0 + 0.5f * gamma;
-      const std::array<float, 3> position{
-          radius * std::cos(phiPos), radius * std::sin(phiPos),
-          z0 + bendRadius * gamma * cotTheta};
+      const std::array<float, 3> position{radius * std::cos(phiPos),
+                                          radius * std::sin(phiPos),
+                                          z0 + bendRadius * gamma * cotTheta};
       if (std::abs(position[2]) > 900.f) {
         continue;
       }
       const std::array<float, 3> direction = directionOf(phi0 + gamma, theta);
       ++tried;
 
-      const std::optional<StripHit> read =
-          readStrip(rng, strip, /*cylinder=*/true, position, direction);
+      const std::optional<StripHit> read = readStrip(
+          rng, strip, kGapParameter, /*cylinder=*/true, position, direction);
       if (!read.has_value()) {
         continue;
       }
@@ -444,12 +468,12 @@ BOOST_AUTO_TEST_CASE(AcceptanceAndResolutionAgainstMomentum) {
     }
     BOOST_REQUIRE_GT(tried, 100u);
     const double n = std::max<std::size_t>(1, resolved);
-    BOOST_TEST_MESSAGE(
-        "pt " << pt << " GeV: resolved "
-              << 100. * static_cast<double>(resolved) /
-                     static_cast<double>(tried)
-              << "%  bias " << sum / n << "  rms "
-              << std::sqrt(sum2 / n - (sum / n) * (sum / n)) << " mm");
+    BOOST_TEST_MESSAGE("pt " << pt << " GeV: resolved "
+                             << 100. * static_cast<double>(resolved) /
+                                    static_cast<double>(tried)
+                             << "%  bias " << sum / n << "  rms "
+                             << std::sqrt(sum2 / n - (sum / n) * (sum / n))
+                             << " mm");
   }
 }
 

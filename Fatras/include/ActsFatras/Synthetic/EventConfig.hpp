@@ -147,6 +147,18 @@ struct MeasurementConfig {
   /// Multiplier on the module overlap the layout carries; zero turns it off.
   /// See `DetectorSurface::overlapProbability`.
   float overlapScale = 1.f;
+
+  /// Half the curvature of the softest track a strip pair should still resolve,
+  /// which is what decides how far outside its strips a crossing may be
+  /// recovered. Resolving a pair from the beam spot rather than from the track
+  /// walks the point along the strip by `(kappa*r/2) * gap / sin(stereo)`, so
+  /// the tolerance a layer needs is that expression at the softest track
+  /// wanted; this is its leading factor, and the rest is geometry.
+  ///
+  /// @note This is Athena's `SiSpacePointMakerTool.SCTGapParameter`, and the
+  ///       default is the value `ITkSiSpacePointMakerToolCfg` sets. At two
+  ///       tesla it is a transverse momentum of 200 MeV.
+  float stripGapParameter = 0.0015f / Acts::UnitConstants::mm;
 };
 
 /// Where one secondary goes and how hard it is. The momentum along the parent

@@ -546,8 +546,7 @@ void to_json(nlohmann::json& j, const StripSensor& sensor) {
   j = nlohmann::json{{"stereoAngle", encodeNumber(sensor.stereoAngle)},
                      {"pitch", encodeNumber(sensor.pitch)},
                      {"moduleGap", encodeNumber(sensor.moduleGap)},
-                     {"halfLength", encodeNumber(sensor.halfLength)},
-                     {"gapTolerance", encodeNumber(sensor.gapTolerance)}};
+                     {"halfLength", encodeNumber(sensor.halfLength)}};
 }
 
 void from_json(const nlohmann::json& j, StripSensor& sensor) {
@@ -555,7 +554,6 @@ void from_json(const nlohmann::json& j, StripSensor& sensor) {
   sensor.pitch = decodeNumber(j.at("pitch"));
   sensor.moduleGap = decodeNumber(j.at("moduleGap"));
   sensor.halfLength = decodeNumber(j.at("halfLength"));
-  readOptionalNumber(j, "gapTolerance", sensor.gapTolerance);
 }
 
 }  // namespace ActsFatras::Synthetic

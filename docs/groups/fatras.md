@@ -182,12 +182,18 @@ Two things follow, and both are why the pair is carried rather than approximated
   between the two sides of a stave, 50.9 mrad between their strips, against the
   52 mrad the strip TDR quotes -- and at those values the walk is fifteen
   millimetres for a GeV against a twelve millimetre half strip. Below about a
-  GeV every pair overshoots, so what decides whether a strip layer measures
-  anything at all is `StripSensor::gapTolerance`, the recovery that slides both
-  parameters back until the worse one lands on the strip end. At the builder's
-  own default of 0.01 mm, thirteen percent of crossings leave a space point; the
-  ITk ships at 107 mm, where sixty percent do, which is what an Athena
-  reconstruction of the same event achieves.
+  GeV every pair overshoots, and what saves them is the builder's recovery
+  branch, which slides both parameters back until the worse one lands on the
+  strip end. How far out it will still do that is the walk itself, evaluated at
+  the softest track wanted: the layer contributes `r * gap / sin(stereo)` and
+  @ref ActsFatras::Synthetic::MeasurementConfig::stripGapParameter contributes
+  the `kappa / 2`. Nothing here is fitted -- it is the derivation Athena's
+  `SiSpacePointMakerTool::offset` performs per module pair, and the shipped
+  value is the one `ITkSiSpacePointMakerToolCfg` sets. At the builder's default
+  of 0.01 mm the branch is off and thirteen percent of crossings leave a space
+  point; at the derived tolerance the ITk description gives 67600 strip space
+  points an event, against the 68900 an Athena reconstruction of ttbar at
+  `mu = 200` produces.
 
 The two kinds of space point come out in two collections,
 @ref ActsFatras::Synthetic::Event::spacePoints and

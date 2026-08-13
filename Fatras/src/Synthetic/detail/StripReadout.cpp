@@ -45,9 +45,9 @@ Acts::Vector3 vector3(const std::array<float, 3>& v) {
 }  // namespace
 
 std::vector<StripLayer> stripLayers(const DetectorLayout& layout) {
-  const bool any = std::ranges::any_of(layout.layers, [](const DetectorLayer& l) {
-    return l.sensor.has_value();
-  });
+  const bool any = std::ranges::any_of(
+      layout.layers,
+      [](const DetectorLayer& l) { return l.sensor.has_value(); });
   if (!any) {
     return {};
   }
@@ -67,7 +67,12 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout) {
     strip.halfGap = 0.5f * sensor->moduleGap;
     strip.sigma = sensor->pitch / kSqrt12;
     strip.halfLength = sensor->halfLength;
-    strip.gapTolerance = sensor->gapTolerance;
+    // The pair separates a displacement across the strips only to the stereo
+    // angle, so a gap seen across them is a gap over its sine along them.
+    const float sinStereo = 2.f * strip.sinHalfStereo * strip.cosHalfStereo;
+    const float cosStereo = strip.cosHalfStereo * strip.cosHalfStereo -
+                            strip.sinHalfStereo * strip.sinHalfStereo;
+    strip.gapOverStereo = sensor->moduleGap * cosStereo / sinStereo;
 
     // Two strips at plus and minus half the stereo angle measure the same
     // point as u1 and u2 across themselves. Solving for the coordinate along
@@ -85,7 +90,7 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout) {
 }
 
 std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
-                                  const bool cylinder,
+                                  const float gapParameter, const bool cylinder,
                                   const std::array<float, 3>& position,
                                   const std::array<float, 3>& direction) {
   const float r = std::hypot(position[0], position[1]);
@@ -162,7 +167,12 @@ std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
   // that leaves is the projection error, not noise.
   Acts::StripSpacePointBuilder::ConstrainedOptions options;
   options.vertex = Acts::Vector3::Zero();
-  options.stripLengthGapTolerance = layer.gapTolerance;
+  // How far the beam spot walks the point along the strip at the softest track
+  // still wanted. A disc's two sensors are a gap apart along z, so what the
+  // pair sees of that gap is what the track's slope makes of it.
+  const float slope = cylinder ? 1.f : r / std::abs(position[2]);
+  options.stripLengthGapTolerance =
+      gapParameter * r * layer.gapOverStereo * slope;
   const Acts::Result<Acts::Vector3> resolved =
       Acts::StripSpacePointBuilder::computeConstrainedSpacePoint(
           ends[0], ends[1], options);

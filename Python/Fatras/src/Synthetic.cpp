@@ -150,8 +150,7 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("stereoAngle", &StripSensor::stereoAngle)
       .def_readwrite("pitch", &StripSensor::pitch)
       .def_readwrite("moduleGap", &StripSensor::moduleGap)
-      .def_readwrite("halfLength", &StripSensor::halfLength)
-      .def_readwrite("gapTolerance", &StripSensor::gapTolerance);
+      .def_readwrite("halfLength", &StripSensor::halfLength);
 
   py::class_<DetectorLayer>(m, "DetectorLayer")
       .def_readonly("shape", &DetectorLayer::shape)
@@ -339,8 +338,7 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("layer", &MaterialEntry::layer)
       .def_readwrite("material", &MaterialEntry::material);
 
-  m.def("decorate", &decorate, py::arg("description"),
-        py::arg("decoration"));
+  m.def("decorate", &decorate, py::arg("description"), py::arg("decoration"));
   m.def("extractMaterial", &extractMaterial, py::arg("description"));
   m.def("stripMaterial", &stripMaterial, py::arg("description"));
 
@@ -448,7 +446,9 @@ void addFatrasSynthetic(py::module_& fatras) {
   py::class_<MeasurementConfig>(m, "MeasurementConfig")
       .def(py::init<>())
       .def_readwrite("positionSmearing", &MeasurementConfig::positionSmearing)
-      .def_readwrite("overlapScale", &MeasurementConfig::overlapScale);
+      .def_readwrite("overlapScale", &MeasurementConfig::overlapScale)
+      .def_readwrite("stripGapParameter",
+                     &MeasurementConfig::stripGapParameter);
 
   py::class_<SecondarySamplingConfig>(m, "SecondarySamplingConfig")
       .def(py::init<>())

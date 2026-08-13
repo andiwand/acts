@@ -16,11 +16,11 @@
 #include "ActsFatras/Synthetic/detail/StripReadout.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numbers>
-#include <array>
 #include <optional>
 #include <random>
 #include <span>
@@ -125,10 +125,9 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
   const DetectorSurface& surface = layout.surfaces[crossing.surface];
   const bool cylinder =
       layout.layers[crossing.layer].shape == SurfaceShape::Cylinder;
-  const StripLayer* strip =
-      strips.empty() || !strips[crossing.layer].strip
-          ? nullptr
-          : &strips[crossing.layer];
+  const StripLayer* strip = strips.empty() || !strips[crossing.layer].strip
+                                ? nullptr
+                                : &strips[crossing.layer];
   // Where the track points relative to the surface it is crossing, which both
   // the displacement and the stagger below are projected onto.
   const float deltaPhi =
@@ -170,8 +169,8 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
     if (strip != nullptr) {
       const std::array<float, 3> position{atR * std::cos(atPhi),
                                           atR * std::sin(atPhi), atZ};
-      std::optional<StripHit> read =
-          readStrip(rng, *strip, cylinder, position, momentum);
+      std::optional<StripHit> read = readStrip(
+          rng, *strip, cfg.stripGapParameter, cylinder, position, momentum);
       if (!read.has_value()) {
         return false;
       }
@@ -201,10 +200,9 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
     if (!layer.has_value()) {
       return false;
     }
-    hits.push_back(SmearedHit{hitR,
-                              crossing.phi +
-                                  (offsetRPhi + smearRPhi) / crossing.r,
-                              hitZ, *layer, particle});
+    hits.push_back(
+        SmearedHit{hitR, crossing.phi + (offsetRPhi + smearRPhi) / crossing.r,
+                   hitZ, *layer, particle});
     return true;
   };
 
@@ -476,10 +474,9 @@ void ParticlePropagator::propagate(
           crossingMaterial(cfg, layout.surfaces[crossing.surface], crossing);
 
       if (crossing.sensitive()) {
-        particles[particle].numHits +=
-            recordHits(rng, layout, cfg.measurement, m_strips, track,
-                       direction, crossing, displaceU, displaceV, particle,
-                       hits, stripHits);
+        particles[particle].numHits += recordHits(
+            rng, layout, cfg.measurement, m_strips, track, direction, crossing,
+            displaceU, displaceV, particle, hits, stripHits);
       }
 
       if (scattering && material.xOverX0 > 0.f) {
@@ -596,7 +593,9 @@ void ParticlePropagator::propagate(
         const std::array<float, 3> outward{std::cos(hitPhi), std::sin(hitPhi),
                                            0.f};
         std::optional<StripHit> read =
-            readStrip(rng, m_strips[*layer], cylinder, position, outward);
+            readStrip(rng, m_strips[*layer],
+                      m_cfg.simulation.measurement.stripGapParameter, cylinder,
+                      position, outward);
         if (!read.has_value()) {
           continue;
         }
