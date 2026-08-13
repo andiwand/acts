@@ -367,6 +367,8 @@ int main(int argc, char* argv[]) {
   std::string selectionName = "pixel";
   bool calibrateStrips = true;
   float stripTolerance = 1.1f;
+  float tauRatioCorrStrip =
+      Exp::GraphBasedTrackSeeder::Config{}.tauRatioCorrStrip;
   bool verbose = false;
   // The synthetic event is noise free, so more geometric doublet candidates
   // survive the cuts than in a real event and the graph outgrows the 2000000
@@ -401,6 +403,10 @@ int main(int argc, char* argv[]) {
         "strip-tolerance",
         po::value<float>(&stripTolerance)->default_value(stripTolerance),
         "how far outside its strips a crossing may be recovered")(
+        "tau-ratio-corr-strip",
+        po::value<float>(&tauRatioCorrStrip)->default_value(tauRatioCorrStrip),
+        "extra tau ratio tolerance for a triplet through a strip node, whose "
+        "shared node the two doublets resolve separately")(
         "verbose", po::bool_switch(&verbose),
         "log the seeder's own statistics");
 
@@ -462,6 +468,7 @@ int main(int argc, char* argv[]) {
   cfg.nMaxEdges = maxEdges;
   cfg.calibrateStrips = calibrateStrips;
   cfg.stripLengthTolerance = stripTolerance;
+  cfg.tauRatioCorrStrip = tauRatioCorrStrip;
 
   const Exp::GraphBasedTrackSeeder::DerivedConfig derived(cfg);
   // Warnings are let through even when quiet: the seeder stops building the

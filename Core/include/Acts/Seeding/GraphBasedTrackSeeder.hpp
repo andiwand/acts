@@ -78,6 +78,30 @@ class GraphBasedTrackSeeder {
     /// correction applied to tau acceptance
     /// if a layer is missed during edge connecting
     float tauRatioCorr = 0.006;
+    /// The same for a triplet any of whose three nodes a strip module made.
+    ///
+    /// A strip node's along-strip coordinate is resolved against the direction
+    /// of the doublet it belongs to, and nothing is written back, so a node
+    /// shared by two doublets carries two resolutions of it. The tau ratio
+    /// compares exactly those two, which gives a triplet through a strip a
+    /// disagreement floor the pixel path does not have. Zero leaves the strips
+    /// on the pixel cut.
+    ///
+    /// Measured on an ITk-like pile-up event, seeding efficiency against this,
+    /// with every other cut left alone:
+    ///
+    ///     0.0    0.006  0.014  0.021  0.03   0.05
+    ///     0.326  0.488  0.564  0.590  0.611  0.619   strips alone
+    ///     0.944  ---    0.947  0.948  0.949  0.948   pixels and strips
+    ///
+    /// Relaxing `tauRatioCut` itself reaches the same place for the strips,
+    /// 0.62, but it also loosens the pixel triplets, which is a retune of the
+    /// operating point rather than a statement about strips.
+    ///
+    /// @note Reaches nothing on a pixel-only event, where no node has a stereo
+    ///       pair, so the pixel path is untouched whatever this is set to --
+    ///       measured byte for byte at 0, 0.03 and 0.05.
+    float tauRatioCorrStrip = 0.f;
     /// the maximum allowed eta value in which
     /// three spacepoint seeds are passed through
     float maxAbsEtaAddTripelts = 1.5;
