@@ -178,15 +178,16 @@ Two things follow, and both are why the pair is carried rather than approximated
   gap / sin(theta)` and falls as `1/pT`. Past the end of the strip the pair
   stops resolving at all, so the acceptance falls with it.
 
-  @warning Both numbers behind that walk are measured off the ITk geometry --
-  6.28 mm between the two sensors of a pair, 50.9 mrad between their strips --
-  and at those values only thirteen percent of strip crossings leave a space
-  point at all. That is far lower than the efficiency a real reconstruction
-  reaches, and what differs is not yet known: it is not the covariance
-  (acts#5847), not the one-sided overshoot recovery (acts#5860), and not the gap
-  tolerance, which would have to exceed three strip lengths to close it. Note
-  that a cluster count bounds the space point count in neither direction, so a
-  dump of clusters cannot settle it.
+  Both numbers behind that walk are measured off the ITk geometry -- 6.28 mm
+  between the two sides of a stave, 50.9 mrad between their strips, against the
+  52 mrad the strip TDR quotes -- and at those values the walk is fifteen
+  millimetres for a GeV against a twelve millimetre half strip. Below about a
+  GeV every pair overshoots, so what decides whether a strip layer measures
+  anything at all is `StripSensor::gapTolerance`, the recovery that slides both
+  parameters back until the worse one lands on the strip end. At the builder's
+  own default of 0.01 mm, thirteen percent of crossings leave a space point; the
+  ITk ships at 107 mm, where sixty percent do, which is what an Athena
+  reconstruction of the same event achieves.
 
 The two kinds of space point come out in two collections,
 @ref ActsFatras::Synthetic::Event::spacePoints and
