@@ -30,20 +30,26 @@ struct EventSummary {
   std::size_t primaries{};
   /// Number of generated secondaries
   std::size_t secondaries{};
-  /// Primaries above the momentum threshold that leave enough space points to
-  /// be seedable at all
+  /// Primaries above the momentum threshold that leave enough of the selected
+  /// space points to be seedable at all
   std::size_t seedablePrimaries{};
-  /// Space points left by primaries
+  /// Selected space points left by primaries
   std::size_t primaryHits{};
-  /// Space points left by secondaries
+  /// Selected space points left by secondaries
   std::size_t secondaryHits{};
 };
 
 /// Summarise the truth content of an event.
+///
 /// @param event the generated event
 /// @param ptThreshold the momentum threshold a primary must pass
+/// @param selection which space points count towards a primary being seedable,
+///        a primary crossing only the strips being no candidate for a
+///        pixel-only pass
 /// @return the summary
-EventSummary summarize(const Event& event, float ptThreshold);
+EventSummary summarize(
+    const Event& event, float ptThreshold,
+    SpacePointSelection selection = SpacePointSelection::Combined);
 
 /// What the seeds of an event look like against the generator truth.
 struct SeedingSummary {
@@ -58,7 +64,8 @@ struct SeedingSummary {
 
 /// Match seeds against the generator truth.
 /// @param event the generated event
-/// @param seeds the seeds found on it, indexing `event.spacePoints`
+/// @param seeds the seeds found on it, indexing the container they were made
+///        from, which is the one they carry
 /// @param ptThreshold the momentum threshold a primary must pass
 /// @param minTrueSpacePoints space points a seed has to share with one particle
 ///        to be its seed; three constrain a helix

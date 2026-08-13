@@ -15,21 +15,39 @@
 
 namespace ActsFatras {
 
-Synthetic::EventSummary Synthetic::summarize(const Event& event,
-                                             const float ptThreshold) {
+Synthetic::EventSummary Synthetic::summarize(
+    const Event& event, const float ptThreshold,
+    const SpacePointSelection selection) {
+  // Counted off the collections rather than taken from `numHits`, so that a
+  // pass seeded on one of them is scored against what it can actually see.
+  std::vector<std::uint32_t> hits(event.particles.size(), 0);
+  const auto count = [&](const Acts::SpacePointContainer& spacePoints) {
+    const auto particleColumn = spacePoints.column<std::uint32_t>("particleId");
+    for (const auto sp : spacePoints) {
+      ++hits[sp.extra(particleColumn)];
+    }
+  };
+  if (selection != SpacePointSelection::Strip) {
+    count(event.spacePoints);
+  }
+  if (selection != SpacePointSelection::Pixel) {
+    count(event.stripSpacePoints);
+  }
+
   EventSummary summary;
   summary.stripSpacePoints = event.stripSpacePoints.size();
   summary.spacePoints = event.spacePoints.size() + summary.stripSpacePoints;
-  for (const GeneratedParticle& particle : event.particles) {
+  for (std::size_t index = 0; index < event.particles.size(); ++index) {
+    const GeneratedParticle& particle = event.particles[index];
     if (particle.primary()) {
       ++summary.primaries;
-      summary.primaryHits += particle.numHits;
-      if (particle.pt >= ptThreshold && particle.numHits >= 3) {
+      summary.primaryHits += hits[index];
+      if (particle.pt >= ptThreshold && hits[index] >= 3) {
         ++summary.seedablePrimaries;
       }
     } else {
       ++summary.secondaries;
-      summary.secondaryHits += particle.numHits;
+      summary.secondaryHits += hits[index];
     }
   }
   return summary;
@@ -38,8 +56,10 @@ Synthetic::EventSummary Synthetic::summarize(const Event& event,
 Synthetic::SeedingSummary Synthetic::evaluateSeeds(
     const Event& event, const Acts::SeedContainer& seeds,
     const float ptThreshold, const std::size_t minTrueSpacePoints) {
-  const auto particleColumn =
-      event.spacePoints.column<std::uint32_t>("particleId");
+  // whichever selection the seeder was run on, see `selectSpacePoints`; every
+  // one of them indexes the same particles
+  const Acts::SpacePointContainer& spacePoints = seeds.spacePointContainer();
+  const auto particleColumn = spacePoints.column<std::uint32_t>("particleId");
 
   SeedingSummary summary;
   summary.seeds = seeds.size();
@@ -54,11 +74,10 @@ Synthetic::SeedingSummary Synthetic::evaluateSeeds(
     std::uint32_t particle = 0;
     std::size_t best = 0;
     for (const Acts::SpacePointIndex index : indices) {
-      const std::uint32_t candidate =
-          event.spacePoints[index].extra(particleColumn);
+      const std::uint32_t candidate = spacePoints[index].extra(particleColumn);
       const auto count = static_cast<std::size_t>(
           std::ranges::count_if(indices, [&](Acts::SpacePointIndex other) {
-            return event.spacePoints[other].extra(particleColumn) == candidate;
+            return spacePoints[other].extra(particleColumn) == candidate;
           }));
       if (count > best) {
         best = count;

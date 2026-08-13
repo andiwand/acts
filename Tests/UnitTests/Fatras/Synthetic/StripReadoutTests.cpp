@@ -412,6 +412,59 @@ BOOST_AUTO_TEST_CASE(TheTwoCollectionsAreSeparate) {
   BOOST_CHECK_EQUAL(pixelOnly.stripSpacePoints.size(), 0u);
 }
 
+/// A seeder takes one container, so the two are gathered into one. What the
+/// gathering has to preserve is what a caller looks a point up by: its layer,
+/// its particle, and the pair a strip point carries.
+BOOST_AUTO_TEST_CASE(TheTwoCollectionsGatherIntoOne) {
+  const DetectorLayout layout = makeTestLayout();
+  EventConfig config;
+  config.generation.pileup = 20;
+  config.simulation.propagation.maxTurns = 0.5f;
+
+  const Event event = generateEvent(layout, config);
+  const std::size_t pixels = event.spacePoints.size();
+  const std::size_t strips = event.stripSpacePoints.size();
+  BOOST_REQUIRE_GT(pixels, 0u);
+  BOOST_REQUIRE_GT(strips, 0u);
+
+  BOOST_CHECK_EQUAL(selectSpacePoints(event, SpacePointSelection::Pixel).size(),
+                    pixels);
+  BOOST_CHECK_EQUAL(selectSpacePoints(event, SpacePointSelection::Strip).size(),
+                    strips);
+
+  const Acts::SpacePointContainer both =
+      selectSpacePoints(event, SpacePointSelection::Combined);
+  BOOST_CHECK_EQUAL(both.size(), pixels + strips);
+  // the pair column comes with the strips and is dead weight on a pixel point
+  BOOST_CHECK(
+      both.hasColumns(Acts::SpacePointColumns::StripCalibrationDetails));
+  BOOST_CHECK(
+      !selectSpacePoints(event, SpacePointSelection::Pixel)
+           .hasColumns(Acts::SpacePointColumns::StripCalibrationDetails));
+
+  const auto layers = both.column<std::uint32_t>("layerId");
+  const auto particles = both.column<std::uint32_t>("particleId");
+  const auto sourceLayers =
+      event.stripSpacePoints.column<std::uint32_t>("layerId");
+  const auto sourceParticles =
+      event.stripSpacePoints.column<std::uint32_t>("particleId");
+  for (const auto sp : both) {
+    const bool strip = sp.index() >= pixels;
+    BOOST_CHECK_EQUAL(layout.layers[sp.extra(layers)].sensor.has_value(),
+                      strip);
+    if (!strip) {
+      continue;
+    }
+    // and a strip point still says which of the event's it was made from
+    const auto source = event.stripSpacePoints[sp.copiedFromIndex()];
+    BOOST_CHECK_EQUAL(sp.extra(layers), source.extra(sourceLayers));
+    BOOST_CHECK_EQUAL(sp.extra(particles), source.extra(sourceParticles));
+    BOOST_CHECK_EQUAL(sp.z(), source.z());
+    BOOST_CHECK_EQUAL(sp.outerStripCalibrationDetails().outerCenter[2],
+                      source.outerStripCalibrationDetails().outerCenter[2]);
+  }
+}
+
 /// How a real track fares: from the beam spot with a beam-spot z spread, bent
 /// by the field, met at the innermost strip barrel. The two things that decide
 /// whether strips are usable at all are how often a pair resolves and how well

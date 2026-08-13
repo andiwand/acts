@@ -525,9 +525,15 @@ void addFatrasSynthetic(py::module_& fatras) {
     return values;
   };
 
+  py::enum_<SpacePointSelection>(m, "SpacePointSelection")
+      .value("Pixel", SpacePointSelection::Pixel)
+      .value("Strip", SpacePointSelection::Strip)
+      .value("Combined", SpacePointSelection::Combined);
+
   py::class_<Event>(m, "Event")
       .def(py::init<>())
       .def_readonly("spacePoints", &Event::spacePoints)
+      .def_readonly("stripSpacePoints", &Event::stripSpacePoints)
       .def_readonly("particles", &Event::particles)
       .def_property_readonly(
           "layerIds",
@@ -550,13 +556,18 @@ void addFatrasSynthetic(py::module_& fatras) {
 
   py::class_<EventSummary>(m, "EventSummary")
       .def_readonly("spacePoints", &EventSummary::spacePoints)
+      .def_readonly("stripSpacePoints", &EventSummary::stripSpacePoints)
       .def_readonly("primaries", &EventSummary::primaries)
       .def_readonly("secondaries", &EventSummary::secondaries)
       .def_readonly("seedablePrimaries", &EventSummary::seedablePrimaries)
       .def_readonly("primaryHits", &EventSummary::primaryHits)
       .def_readonly("secondaryHits", &EventSummary::secondaryHits);
 
-  m.def("summarize", &summarize, py::arg("event"), py::arg("ptThreshold"));
+  m.def("summarize", &summarize, py::arg("event"), py::arg("ptThreshold"),
+        py::arg("selection") = SpacePointSelection::Combined);
+
+  m.def("selectSpacePoints", &selectSpacePoints, py::arg("event"),
+        py::arg("selection"));
 
   m.def("writeEventCsv", &writeEventCsv, py::arg("event"), py::arg("layout"),
         py::arg("prefix"));

@@ -496,7 +496,11 @@ int main(int argc, char* argv[]) {
   EventSummary summary;
   SeedingSummary seedSummary;
   for (const Event& event : events) {
-    const EventSummary one = summarize(event, truthPt * 1_MeV / 1_GeV);
+    // Scored on the pixels: the strips of a description are generated but not
+    // handed to this seeder, and counting them would put primaries it never
+    // saw into the denominator.
+    const EventSummary one =
+        summarize(event, truthPt * 1_MeV / 1_GeV, SpacePointSelection::Pixel);
     summary.spacePoints += one.spacePoints;
     summary.primaries += one.primaries;
     summary.secondaries += one.secondaries;

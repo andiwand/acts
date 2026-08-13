@@ -45,13 +45,6 @@ Columns ensureColumns(Acts::SpacePointContainer& spacePoints) {
                  ensureColumn<std::uint32_t>(spacePoints, "particleId")};
 }
 
-/// What both collections carry; the strip one adds the pair on top.
-constexpr Acts::SpacePointColumns kStandardColumns =
-    Acts::SpacePointColumns::CopiedFromIndex | Acts::SpacePointColumns::X |
-    Acts::SpacePointColumns::Y | Acts::SpacePointColumns::Z |
-    Acts::SpacePointColumns::R | Acts::SpacePointColumns::Phi |
-    Acts::SpacePointColumns::VarianceZ | Acts::SpacePointColumns::VarianceR;
-
 /// Append one hit, everything but the variances it carries and whatever the
 /// collection holds beyond them.
 /// @param spacePoints the collection to append to
@@ -109,7 +102,7 @@ void EventGenerator::generate(Event& event) {
 
   Acts::SpacePointContainer& spacePoints = event.spacePoints;
   spacePoints.clear();
-  spacePoints.createColumns(kStandardColumns);
+  spacePoints.createColumns(kSpacePointColumns);
   // not const: `SpacePointProxy::extra` takes a mutable column proxy by
   // non-const reference
   Columns columns = ensureColumns(spacePoints);
@@ -129,7 +122,7 @@ void EventGenerator::generate(Event& event) {
   Acts::SpacePointContainer& stripSpacePoints = event.stripSpacePoints;
   stripSpacePoints.clear();
   stripSpacePoints.createColumns(
-      kStandardColumns | Acts::SpacePointColumns::StripCalibrationDetails);
+      kSpacePointColumns | Acts::SpacePointColumns::StripCalibrationDetails);
   Columns stripColumns = ensureColumns(stripSpacePoints);
   stripSpacePoints.reserve(
       static_cast<std::uint32_t>(m_scratch.stripHits.size()));

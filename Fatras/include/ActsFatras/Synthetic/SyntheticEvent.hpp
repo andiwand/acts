@@ -53,6 +53,14 @@ struct GeneratedParticle {
   bool primary() const { return generation == 0; }
 };
 
+/// The standard columns both collections carry; the strip one adds
+/// `Acts::SpacePointColumns::StripCalibrationDetails` on top of them.
+constexpr Acts::SpacePointColumns kSpacePointColumns =
+    Acts::SpacePointColumns::CopiedFromIndex | Acts::SpacePointColumns::X |
+    Acts::SpacePointColumns::Y | Acts::SpacePointColumns::Z |
+    Acts::SpacePointColumns::R | Acts::SpacePointColumns::Phi |
+    Acts::SpacePointColumns::VarianceZ | Acts::SpacePointColumns::VarianceR;
+
 /// A generated event.
 ///
 /// Beyond the standard columns and the variances a triplet seeder needs, the
@@ -64,7 +72,8 @@ struct GeneratedParticle {
 /// what separates them is a *column*: only a strip space point has a stereo
 /// pair to carry, and a consumer that wants the pair should not have to test
 /// every point for whether its entry means anything. Both index the same
-/// `particles`, and their `layerId`s are the same index space.
+/// `particles`, and their `layerId`s are the same index space. A seeder takes
+/// one container, so see `selectSpacePoints`.
 struct Event {
   /// Space points of the pixel layers, i.e. of every layer the description
   /// gives no `StripSensor`
@@ -75,5 +84,30 @@ struct Event {
   /// The generating particles, indexed by the `particleId` column of either
   std::vector<GeneratedParticle> particles;
 };
+
+/// Which of an event's space points a seeder is to run on.
+enum class SpacePointSelection {
+  /// The pixel layers only, which is what a seeder tuned on pixels takes
+  Pixel,
+  /// The strip layers only
+  Strip,
+  /// Both of them, which is what a combined pass takes
+  Combined,
+};
+
+/// Gather a selection of an event's space points into the single container a
+/// seeder takes.
+///
+/// Columns are the union of what the selection holds, so a combined container
+/// carries a stereo pair on every point and the entry means nothing on a pixel
+/// one -- which is the price of putting both in one place, and why the event
+/// itself does not. `copiedFromIndex` keeps pointing into the collection the
+/// point came from, so a caller holding the event can find what it started as.
+///
+/// @param event the generated event
+/// @param selection which of its collections to gather
+/// @return the container
+Acts::SpacePointContainer selectSpacePoints(const Event& event,
+                                            SpacePointSelection selection);
 
 }  // namespace ActsFatras::Synthetic

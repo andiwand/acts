@@ -200,7 +200,11 @@ The two kinds of space point come out in two collections,
 @ref ActsFatras::Synthetic::Event::stripSpacePoints, because what separates them
 is a column: only the strip one carries
 `Acts::SpacePointColumns::StripCalibrationDetails`, the pair a calibration needs
-to move the point once it knows the direction better.
+to move the point once it knows the direction better. A seeder takes one
+container, so @ref ActsFatras::Synthetic::selectSpacePoints gathers whichever of
+them a caller wants into one; the combined container carries the pair column on
+every point and the entry means nothing on a pixel one, which is the cost of
+putting both in one place and the reason the event does not.
 
 ### Configuration
 
