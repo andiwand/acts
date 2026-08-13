@@ -18,19 +18,19 @@
             "halfLength": 15.0,
             "moduleGap": 6.43,
             "pitch": 0.0755,
-            "stereoAngle": 0.02
+            "stereoAngle": 0.04
         },
         "itk-strip-long": {
-            "halfLength": 24.1,
+            "halfLength": 24.405,
             "moduleGap": 6.279221,
             "pitch": 0.0755,
-            "stereoAngle": 0.026
+            "stereoAngle": 0.05086016
         },
         "itk-strip-short": {
-            "halfLength": 12.05,
+            "halfLength": 12.205,
             "moduleGap": 6.279221,
             "pitch": 0.0755,
-            "stereoAngle": 0.026
+            "stereoAngle": 0.05086016
         }
     },
     "subsystems": [
