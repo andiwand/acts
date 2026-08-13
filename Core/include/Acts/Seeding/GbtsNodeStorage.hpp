@@ -10,11 +10,13 @@
 
 #include "Acts/EventData/SpacePointColumnProxy.hpp"
 #include "Acts/EventData/SpacePointContainer.hpp"
+#include "Acts/EventData/StripSpacePointCalibrationDetails.hpp"
 #include "Acts/EventData/Types.hpp"
 #include "Acts/Seeding/GbtsLayerDescription.hpp"
 #include "Acts/Seeding/detail/GbtsGraphTypes.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -65,30 +67,39 @@ class GbtsNodeStorage final {
   /// @param layerIndex Dense GBTS layer index
   /// @param clusterWidth Pixel cluster width
   /// @param localPositionY Local y cluster position
+  /// @param strip Stereo pair the point was formed from, for a strip space
+  ///        point; null for a pixel one. Kept so that the graph can put the
+  ///        point back where the direction of a doublet says it is.
   /// @return The eta bin the node was placed in, or nullopt if it was rejected
-  std::optional<std::uint32_t> insert(SpacePointIndex index, float x, float y,
-                                      float z, float r, float phi,
-                                      std::uint32_t layerIndex,
-                                      float clusterWidth = 0.f,
-                                      float localPositionY = 0.f);
+  std::optional<std::uint32_t> insert(
+      SpacePointIndex index, float x, float y, float z, float r, float phi,
+      std::uint32_t layerIndex, float clusterWidth = 0.f,
+      float localPositionY = 0.f,
+      const OuterStripSpacePointCalibrationDetails* strip = nullptr);
 
   /// Insert a space point from an ACTS space point container.
   /// @param sp The space point to insert
   /// @param layerColumn Column holding the dense GBTS layer index
   /// @param clusterWidthColumn Column holding the pixel cluster width
   /// @param localPositionYColumn Column holding the local y cluster position
+  /// @param strips Whether the container carries the stereo pairs
   /// @return The eta bin the node was placed in, or nullopt if it was rejected
   std::optional<std::uint32_t> insert(
       const ConstSpacePointProxy& sp,
       const ConstSpacePointColumnProxy<std::uint32_t>& layerColumn,
       const ConstSpacePointColumnProxy<float>& clusterWidthColumn,
-      const ConstSpacePointColumnProxy<float>& localPositionYColumn) {
+      const ConstSpacePointColumnProxy<float>& localPositionYColumn,
+      bool strips = false) {
     return insert(sp.index(), sp.x(), sp.y(), sp.z(), sp.r(), sp.phi(),
                   sp.extra(layerColumn), sp.extra(clusterWidthColumn),
-                  sp.extra(localPositionYColumn));
+                  sp.extra(localPositionYColumn),
+                  strips ? &sp.outerStripCalibrationDetails() : nullptr);
   }
 
-  /// Insert every space point of a container.
+  /// Insert every space point of a container. A container carrying
+  /// `SpacePointColumns::StripCalibrationDetails` has its stereo pairs taken
+  /// with it, for the layers the configuration marks as strip layers.
+  ///
   /// @param spacePoints The space points to insert
   /// @param layerColumn Column holding the dense GBTS layer index
   /// @param clusterWidthColumn Column holding the pixel cluster width
@@ -152,7 +163,8 @@ class GbtsNodeStorage final {
   /// Read-only view of the node positions and layers
   /// @return Node view
   detail::GbtsNodeView nodeView() const {
-    return detail::GbtsNodeView{m_nodes.xyzrColumn().data(), m_layers};
+    return detail::GbtsNodeView{m_nodes.xyzrColumn().data(), m_layers, m_strips,
+                                m_stripIndex};
   }
 
   /// Per-node graph parameters, indexed by node index
@@ -173,6 +185,24 @@ class GbtsNodeStorage final {
     return m_edgeInfoColumn->data();
   }
 
+  /// The stereo pair of a strip node, in the form the calibration reads.
+  ///
+  /// @pre The node is one, i.e. its eta bin is not a pixel bin. There is no
+  ///      entry for a pixel node, the side array holding only what the strip
+  ///      layers put in it.
+  ///
+  /// @param node Node index
+  /// @return The pair
+  const OuterStripSpacePointCalibrationDetailsDerived& strip(
+      SpacePointIndex node) const {
+    return m_strips[m_stripIndex[node]];
+  }
+
+  /// Whether any node carries a stereo pair at all, which is what decides
+  /// whether the graph has a strip path to take.
+  /// @return Whether there are any
+  bool hasStrips() const { return !m_strips.empty(); }
+
   /// A node as recorded by `insert`, before sorting.
   struct StagedNode {
     SpacePointIndex spacePointIndex{};
@@ -184,6 +214,8 @@ class GbtsNodeStorage final {
     float clusterWidth{};
     float localPositionY{};
     std::uint16_t layer{};
+    /// Index into the staged stereo pairs, `detail::kNoStrip` for a pixel node
+    std::uint32_t strip{detail::kNoStrip};
   };
 
   /// Sort a single bin's staged nodes by phi.
@@ -219,6 +251,12 @@ class GbtsNodeStorage final {
 
   /// Dense layer index per node, in node order.
   std::vector<std::uint16_t> m_layers;
+
+  /// Stereo pairs of the strip nodes, in node order and compacted: 60 bytes
+  /// each is too much to carry for every node of a mostly pixel detector.
+  std::vector<OuterStripSpacePointCalibrationDetailsDerived> m_strips;
+  /// Index into `m_strips` per node, empty when nothing carries a pair.
+  std::vector<std::uint32_t> m_stripIndex;
 
   std::vector<detail::GbtsEtaBinInfo> m_etaBins;
 

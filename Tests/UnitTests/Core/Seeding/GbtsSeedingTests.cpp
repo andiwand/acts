@@ -272,6 +272,105 @@ SpacePointContainer makeSpacePoints(const ToyDetector& detector,
   return container;
 }
 
+/// A strip module of the toy barrel: 26 mrad between the two sensors of it,
+/// 2 mm between them and 24 mm strips, which is the ITk strip barrel near
+/// enough.
+constexpr float kStereoAngle = 26e-3f;
+constexpr float kModuleGap = 2.f;
+constexpr float kStripHalfLength = 24.f;
+
+/// The same hits, with the outer barrel layers read out as strip layers.
+///
+/// A strip space point is where two stereo strips appear to cross once the
+/// pair is resolved against the beam spot, so it lands along the strip rather
+/// than on the track: `walk` is how far. Attached to it is the pair that
+/// crossing would have made, which is what puts it back.
+///
+/// @param detector the toy detector
+/// @param tracks the tracks crossing it
+/// @param firstStripLayer index of the innermost layer to read out as strips
+/// @param walk how far along the strip the beam spot puts the point
+/// @return the space points
+SpacePointContainer makeStripSpacePoints(const ToyDetector& detector,
+                                         const std::vector<Track>& tracks,
+                                         std::size_t firstStripLayer,
+                                         float walk) {
+  SpacePointContainer container(
+      SpacePointColumns::CopiedFromIndex | SpacePointColumns::X |
+      SpacePointColumns::Y | SpacePointColumns::Z | SpacePointColumns::R |
+      SpacePointColumns::Phi | SpacePointColumns::StripCalibrationDetails);
+
+  auto layerColumn = container.createColumn<std::uint32_t>("layerId");
+  auto clusterWidthColumn = container.createColumn<float>("clusterWidth");
+  auto localPositionColumn = container.createColumn<float>("localPositionY");
+  auto trackColumn = container.createColumn<std::uint32_t>("trackId");
+
+  container.reserve(tracks.size() * detector.layers.size());
+
+  for (std::size_t track = 0; track < tracks.size(); ++track) {
+    const float cosPhi = std::cos(tracks[track].phi);
+    const float sinPhi = std::sin(tracks[track].phi);
+    // the toy tracks are straight, so this is the direction everywhere on one
+    const std::array<float, 3> direction{cosPhi, sinPhi, tracks[track].tau};
+
+    for (std::size_t layer = 0; layer < detector.layers.size(); ++layer) {
+      const auto crossing = intersect(detector.layers[layer], tracks[track]);
+      if (!crossing.has_value()) {
+        continue;
+      }
+      const auto [r, z] = *crossing;
+      const std::array<float, 3> point{r * cosPhi, r * sinPhi, z};
+      const bool strip = layer >= firstStripLayer;
+
+      auto sp = container.createSpacePoint();
+      sp.x() = point[0];
+      sp.y() = point[1];
+      sp.z() = strip ? z + walk : z;
+      sp.r() = r;
+      sp.phi() = tracks[track].phi;
+      sp.copiedFromIndex() = sp.index();
+      // the dense layer index, not the GBTS layer id
+      sp.extra(layerColumn) = static_cast<std::uint32_t>(layer);
+      sp.extra(clusterWidthColumn) = 0.f;
+      sp.extra(localPositionColumn) = 0.f;
+      sp.extra(trackColumn) = static_cast<std::uint32_t>(track);
+      if (!strip) {
+        continue;
+      }
+
+      // A barrel module faces outwards with its strips along z; the two
+      // sensors are half the gap either side of the crossing, each rotated
+      // half the stereo angle about the normal.
+      const std::array<float, 3> across{sinPhi, -cosPhi, 0.f};
+      const float half = 0.5f * kStereoAngle;
+      OuterStripSpacePointCalibrationDetails details{};
+      for (int side = 0; side < 2; ++side) {
+        const float sign = side == 0 ? -1.f : 1.f;
+        const std::array<float, 3> axis{sign * std::sin(half) * across[0],
+                                        sign * std::sin(half) * across[1],
+                                        std::cos(half)};
+        std::array<float, 3>& halfVector =
+            side == 0 ? details.innerHalfVector : details.outerHalfVector;
+        for (int i = 0; i < 3; ++i) {
+          halfVector[i] = axis[i] * kStripHalfLength;
+        }
+        if (side == 1) {
+          for (int i = 0; i < 3; ++i) {
+            // the crossing sits at the centre of its strip, and the two
+            // sensors are a whole gap apart along the track
+            details.outerCenter[i] =
+                point[i] + 0.5f * kModuleGap * direction[i];
+            details.innerToOuterSeparation[i] = kModuleGap * direction[i];
+          }
+        }
+      }
+      sp.outerStripCalibrationDetails() = details;
+    }
+  }
+
+  return container;
+}
+
 /// The seeder and everything it needs, for one toy detector.
 struct SeederSetup {
   Experimental::GraphBasedTrackSeeder seeder;
@@ -281,7 +380,8 @@ struct SeederSetup {
   std::vector<bool> isPixelLayer;
 };
 
-SeederSetup makeSeeder(const ToyDetector& detector) {
+SeederSetup makeSeeder(const ToyDetector& detector,
+                       const bool calibrateStrips = true) {
   auto geometry = makeGeometry(detector);
 
   const auto numLayers = static_cast<std::uint32_t>(detector.layers.size());
@@ -293,6 +393,7 @@ SeederSetup makeSeeder(const ToyDetector& detector) {
   config.maxOuterRadius = detector.maxOuterRadius;
   // the toy setup has no tau lookup table and no cluster widths
   config.useClusterWidthCuts = false;
+  config.calibrateStrips = calibrateStrips;
 
   return SeederSetup{
       .seeder = Experimental::GraphBasedTrackSeeder(
@@ -586,6 +687,50 @@ BOOST_AUTO_TEST_CASE(SeedsFromDenseForwardTracks) {
   BOOST_TEST_MESSAGE("dense forward seeds:\n" << formatSeeds(seeds));
 
   checkOneSeedPerTrack(seeds, spacePoints, tracks);
+}
+
+// A strip space point sits along its strips rather than on the track, so the
+// doublets it takes part in read a tau that is wrong by the walk over the
+// radial span. Resolving it against the direction of the doublet itself puts
+// it back, and the same seeds come out as if it had been a pixel.
+//
+// The walk here is a third of a millimetre, which is under what the tracking
+// filter tolerates and an order of magnitude over what the tau ratio does:
+// the doublet stage is by far the more sensitive of the two, which is why the
+// resolution belongs there.
+BOOST_AUTO_TEST_CASE(StripLayersNeedTheirPairResolved) {
+  const ToyDetector detector = barrelDetector();
+  const std::vector<Track> tracks = makeSparseTracks();
+  constexpr float kWalk = 0.3f;
+  constexpr std::size_t kFirstStripLayer = 2;
+
+  std::vector<bool> isPixelLayer(detector.layers.size(), true);
+  for (std::size_t layer = kFirstStripLayer; layer < isPixelLayer.size();
+       ++layer) {
+    isPixelLayer[layer] = false;
+  }
+
+  const auto seed = [&](const float walk, const bool calibrate) {
+    const SpacePointContainer spacePoints =
+        makeStripSpacePoints(detector, tracks, kFirstStripLayer, walk);
+    const SeederSetup setup = makeSeeder(detector, calibrate);
+    SeedContainer seeds;
+    seeds.assignSpacePointContainer(spacePoints);
+    setup.seeder.createSeeds(spacePoints, setup.roi, isPixelLayer, setup.filter,
+                             setup.options, seeds);
+    return seeds.size();
+  };
+
+  // The fixture first: a pair that has not walked is seeded either way, so
+  // neither the pair itself nor resolving it costs anything.
+  BOOST_CHECK_EQUAL(seed(0.f, false), tracks.size());
+  BOOST_CHECK_EQUAL(seed(0.f, true), tracks.size());
+
+  // Left where the beam spot put it, the walk breaks the linking stage and
+  // nothing is seeded at all.
+  BOOST_CHECK_EQUAL(seed(kWalk, false), 0u);
+  // Resolved, every track is seeded once again.
+  BOOST_CHECK_EQUAL(seed(kWalk, true), tracks.size());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

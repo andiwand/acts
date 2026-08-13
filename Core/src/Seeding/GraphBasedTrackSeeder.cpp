@@ -9,9 +9,11 @@
 #include "Acts/Seeding/GraphBasedTrackSeeder.hpp"
 
 #include "Acts/Seeding/GbtsTrackingFilter.hpp"
+#include "Acts/SpacePointFormation/detail/StripSpacePointCalibrationImpl.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -216,6 +218,28 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
   // reused across bin groups so that the windows are allocated once
   std::vector<SlidingWindow> phiSlidingWindow;
 
+  const bool calibrate = m_cfg.calibrateStrips && nodeStorage.hasStrips();
+
+  // Put a strip node back where a direction says it crossed. The nominal
+  // position sits on the inner strip of the pair and is only as good along
+  // the strips as the beam spot it was resolved against; the calibrated one
+  // sits on the outer strip, where the direction puts it. A direction that
+  // misses either strip is no crossing at all, which is a fake rejection the
+  // pixel path has no equivalent of.
+  const auto calibrateNode = [&](const SpacePointIndex node,
+                                 const std::array<float, 3>& direction,
+                                 float& r, float& z) {
+    std::array<float, 3> point{};
+    if (!Acts::detail::calibrateOuterStripSpacePoint(
+            direction, nodeStorage.strip(node), point,
+            m_cfg.stripLengthTolerance)) {
+      return false;
+    }
+    r = fastHypot(point[0], point[1]);
+    z = point[2];
+    return true;
+  };
+
   // loop over bin groups
   for (const auto& bg : m_geometry->binGroups()) {
     const detail::GbtsEtaBinInfo& B1 = nodeStorage.etaBin(bg.first);
@@ -265,7 +289,12 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
       window.numPhiNodes = static_cast<std::uint32_t>(B2.phiNodes.size());
       window.deltaPhi = deltaPhi;
       window.layerId = B2.layerId;
+      window.isPixel = B2.isPixel;
     }
+
+    // A pair takes the strip path when either end of it carries a stereo
+    // pair, which is a property of the bin and so costs nothing per pair.
+    const bool isPixel1 = B1.isPixel;
 
     // in GBTSv3 the outer loop goes over n1 nodes in the Layer 1 bin
     for (SpacePointIndex n1Idx = B1.nodes.first; n1Idx < B1.nodes.second;
@@ -286,11 +315,23 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
       const float r1 = n1pars.r;
       const float z1 = n1pars.z;
 
+      // the chord of a pair, which only the strip path below reads
+      float x1 = 0.f;
+      float y1 = 0.f;
+      if (calibrate) {
+        const std::array<float, 4>& position = nodeView.positions[n1Idx];
+        x1 = position[0];
+        y1 = position[1];
+      }
+
       // the intermediate loop over sliding windows
       for (auto& slw : phiSlidingWindow) {
         const std::uint32_t lk2 = slw.layerId;
 
         const bool isBarrel2 = (lk2 / 10000) == 8;
+
+        const bool isPixel2 = slw.isPixel;
+        const bool stripPair = calibrate && (!isPixel1 || !isPixel2);
 
         const float deltaPhi = slw.deltaPhi;
 
@@ -333,7 +374,7 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
 
           const float r2 = n2pars.r;
 
-          const float dr = r2 - r1;
+          float dr = r2 - r1;
 
           if (dr < m_cfg.minDeltaRadius) {
             continue;
@@ -341,7 +382,46 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
 
           const float z2 = n2pars.z;
 
-          const float dz = z2 - z1;
+          // Where the pair puts its two ends. The nominal positions unless a
+          // strip end is resolved against the direction the pair implies,
+          // which slides it along its strips: down z on a barrel, out in r on
+          // a disc. Azimuth is untouched either way -- a displacement along a
+          // strip is along z or along r, and neither of those turns.
+          float r1c = r1;
+          float z1c = z1;
+          float r2c = r2;
+          float z2c = z2;
+
+          if (stripPair) {
+            // The chord of the pair, turned onto the tangent at each end. A
+            // circle's chord bisects the tangent directions, and the turn
+            // between them is the azimuth difference the pair already has.
+            const std::array<float, 4>& position = nodeView.positions[n2Idx];
+            const float dx = position[0] - x1;
+            const float dy = position[1] - y1;
+            const float dzc = z2 - z1;
+            const float turn = phi2 - phi1;
+
+            bool resolved = true;
+            if (!isPixel1) {
+              resolved = calibrateNode(
+                  n1Idx, {dx + dy * turn, dy - dx * turn, dzc}, r1c, z1c);
+            }
+            if (resolved && !isPixel2) {
+              resolved = calibrateNode(
+                  n2Idx, {dx - dy * turn, dy + dx * turn, dzc}, r2c, z2c);
+            }
+            if (!resolved) {
+              continue;
+            }
+
+            dr = r2c - r1c;
+            if (dr < m_cfg.minDeltaRadius) {
+              continue;
+            }
+          }
+
+          const float dz = z2c - z1c;
           const float tau = dz / dr;
           const float ftau = std::fabs(tau);
           if (ftau > m_cfg.maxAbsTau) {
@@ -362,7 +442,7 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
             continue;
           }
 
-          const float z0 = z1 - r1 * tau;
+          const float z0 = z1c - r1c * tau;
 
           if (layerId1 == 80000) {  // check against non-empty z0 histogram
             if (!checkZ0BitMask(nodeInfo, z0, m_cfg.minZ0, z0HistoCoeff)) {
@@ -430,8 +510,8 @@ std::pair<std::int32_t, std::int32_t> GraphBasedTrackSeeder::buildTheGraph(
             }
           }
 
-          const float dPhi2 = curv * r2;
-          const float dPhi1 = curv * r1;
+          const float dPhi2 = curv * r2c;
+          const float dPhi1 = curv * r1c;
 
           if (nEdges < m_cfg.nMaxEdges) {
             edgeStorage.emplace_back(n1Idx, n2Idx, lk2, expEta, curv,

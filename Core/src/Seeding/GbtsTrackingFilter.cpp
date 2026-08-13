@@ -11,6 +11,7 @@
 #include "Acts/Seeding/GbtsGeometry.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 
@@ -28,8 +29,13 @@ void detail::GbtsEdgeState::initialize(const detail::GbtsEdge& pS,
   const detail::GbtsNodeProxy n1 = nodeView[pS.n1];
   const detail::GbtsNodeProxy n2 = nodeView[pS.n2];
 
-  const float dx = n1.x() - n2.x();
-  const float dy = n1.y() - n2.y();
+  const std::array<float, 3> p1{n1.x(), n1.y(), n1.z()};
+  const std::array<float, 3> p2{n2.x(), n2.y(), n2.z()};
+  const float r1 = n1.r();
+  const float r2 = n2.r();
+
+  const float dx = p1[0] - p2[0];
+  const float dy = p1[1] - p2[1];
   const float L = std::sqrt(dx * dx + dy * dy);
 
   s = dy / L;
@@ -39,19 +45,19 @@ void detail::GbtsEdgeState::initialize(const detail::GbtsEdge& pS,
   //  x' =  x*c + y*s
   //  y' = -x*s + y*c
 
-  refY = n2.r();
-  refX = n2.x() * c + n2.y() * s;
+  refY = r2;
+  refX = p2[0] * c + p2[1] * s;
 
   // X-state: y, dy/dx, d2y/dx2
 
-  x[0] = -n2.x() * s + n2.y() * c;
+  x[0] = -p2[0] * s + p2[1] * c;
   x[1] = 0;
   x[2] = 0;
 
   // Y-state: z, dz/dr
 
-  y[0] = n2.z();
-  y[1] = (n1.z() - n2.z()) / (n1.r() - n2.r());
+  y[0] = p2[2];
+  y[1] = (p1[2] - p2[2]) / (r1 - r2);
 
   cx = {};
   cx[0][0] = 0.25f;
@@ -272,17 +278,22 @@ bool GbtsTrackingFilter::update(const detail::GbtsNodeView& nodeView,
 
   const GbtsLayerType type = getLayerType(n1.layer());
 
+  // A stereo pair measures nothing like a pixel does: sharper across its
+  // strips and an order of magnitude coarser along them.
+  const bool isStrip = nodeView.strip(n1.index()) != nullptr;
+  const float sigmaX = isStrip ? m_cfg.sigmaXStrip : m_cfg.sigmaX;
+  const float sigmaY = isStrip ? m_cfg.sigmaYStrip : m_cfg.sigmaY;
+
   if (type == GbtsLayerType::Barrel) {
-    // barrel TODO: split into barrel Pixel and barrel SCT
-    sigma_rz = m_cfg.sigmaY * m_cfg.sigmaY;
+    sigma_rz = sigmaY * sigmaY;
   } else if (type == GbtsLayerType::Endcap) {
-    sigma_rz = m_cfg.sigmaY * ts.y[1];
+    sigma_rz = sigmaY * ts.y[1];
     sigma_rz = sigma_rz * sigma_rz;
   } else {
     throw std::runtime_error("invalid layer type");
   }
 
-  const float Dx = 1.0 / (Cx[0][0] + m_cfg.sigmaX * m_cfg.sigmaX);
+  const float Dx = 1.0 / (Cx[0][0] + sigmaX * sigmaX);
 
   const float Dy = 1.0 / (Cy[0][0] + sigma_rz);
 

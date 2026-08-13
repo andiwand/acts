@@ -365,6 +365,8 @@ int main(int argc, char* argv[]) {
   // that the turn-on stays out of it.
   float truthPt = 1000.f;
   std::string selectionName = "pixel";
+  bool calibrateStrips = true;
+  float stripTolerance = 1.1f;
   bool verbose = false;
   // The synthetic event is noise free, so more geometric doublet candidates
   // survive the cuts than in a real event and the graph outgrows the 2000000
@@ -391,8 +393,16 @@ int main(int argc, char* argv[]) {
         "space-points",
         po::value<std::string>(&selectionName)->default_value(selectionName),
         "which of the event's space points to seed on: pixel, strip or "
-        "combined")("verbose", po::bool_switch(&verbose),
-                    "log the seeder's own statistics");
+        "combined")(
+        "calibrate-strips",
+        po::value<bool>(&calibrateStrips)->default_value(calibrateStrips),
+        "resolve a strip endpoint against the direction of the doublet it is "
+        "part of before cutting on it")(
+        "strip-tolerance",
+        po::value<float>(&stripTolerance)->default_value(stripTolerance),
+        "how far outside its strips a crossing may be recovered")(
+        "verbose", po::bool_switch(&verbose),
+        "log the seeder's own statistics");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -450,6 +460,8 @@ int main(int argc, char* argv[]) {
   cfg.useClusterWidthCuts = false;
   cfg.matchBeforeCreate = true;
   cfg.nMaxEdges = maxEdges;
+  cfg.calibrateStrips = calibrateStrips;
+  cfg.stripLengthTolerance = stripTolerance;
 
   const Exp::GraphBasedTrackSeeder::DerivedConfig derived(cfg);
   // Warnings are let through even when quiet: the seeder stops building the

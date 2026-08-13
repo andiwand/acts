@@ -109,6 +109,20 @@ class GraphBasedTrackSeeder {
     /// Maximum radius of pixel detector
     float maxOuterRadius = 550.0f;
 
+    /// Whether a doublet with a strip endpoint has that endpoint resolved
+    /// against the direction the doublet itself implies before it is cut on.
+    /// A strip space point is only as good along its strips as the beam spot
+    /// it was formed against; a doublet knows the direction far better, and
+    /// the along-strip coordinate is what every cut in the RZ plane reads.
+    /// Nothing is written back to the node -- the correction belongs to the
+    /// pair, and a node shared by two pairs has two of them.
+    bool calibrateStrips = true;
+    /// How far outside its strips a crossing may still be recovered, as a
+    /// multiple of the strip half-length. Doubles as a fake rejection with no
+    /// equivalent on the pixel path: a pair whose direction misses both strips
+    /// is not a crossing.
+    float stripLengthTolerance = 1.1f;
+
     // Seed extraction options
     /// Minimum eta for edge masking.
     float edgeMaskMinEta = 1.5;
@@ -255,6 +269,8 @@ class GraphBasedTrackSeeder {
     float deltaPhi{};
     /// GBTS layer ID of the bin
     std::uint32_t layerId{};
+    /// whether the bin's layer is a pixel layer, hoisted out of the node loop
+    bool isPixel{true};
   };
   DerivedConfig m_cfg;
 
