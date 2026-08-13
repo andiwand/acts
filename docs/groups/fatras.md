@@ -96,6 +96,12 @@ inputs and either can be replaced without touching the other:
   what catches a material file left behind by a description that has been
   renumbered. @ref ActsFatras::Synthetic::extractMaterial is the inverse and how
   the two files are produced.
+- **The sensors** via @ref ActsFatras::Synthetic::readSensorDecoration, keyed
+  the same way and applied with the same
+  @ref ActsFatras::Synthetic::decorate. A layer it names is read out as a stereo
+  pair of strips; a layer it does not name is a pixel, so a detector of nothing
+  but pixels ships without the file. @ref ActsFatras::Synthetic::extractSensors
+  is the inverse.
 - **The configuration** via @ref ActsFatras::Synthetic::readEventConfig. Every
   field is required: a configuration is fitted as a whole, so a missing one
   silently taking a default would retune the rest of it.
@@ -146,6 +152,44 @@ the layers it has already crossed, bounded by
 of the enclosing tracker. Neutral long-lived particles decaying near the beam
 line are the only secondaries produced away from a surface.
 
+### Strips {#fatras_synthetic_strips}
+
+A pixel layer measures the point it was crossed at. A strip layer does not: a
+strip space point is where two stereo strips *appear* to cross once the pair is
+resolved under the assumption that the track came from the beam spot, and its
+error is a projection error rather than noise. Widening the smearing on a strip
+layer would reproduce the size of that error and none of its structure, so the
+generator synthesises the pair instead: two strip lines at plus and minus half
+the stereo angle on the two sensors of the module, each displaced across itself
+by its own pitch error, resolved through
+`Acts::StripSpacePointBuilder::computeConstrainedSpacePoint` -- the same code
+that resolves a real one.
+
+A layer is a strip layer because it carries a
+@ref ActsFatras::Synthetic::StripSensor, decorated onto the description exactly
+the way material is. Nothing else marks one, and the layout itself is unchanged:
+a strip layer is a normal layer that has been told how it is read out.
+
+Two things follow, and both are why the pair is carried rather than approximated:
+
+- The **resolution** along the strip is the stereo angle's, `pitch / (sqrt(24)
+  sin(theta/2))` -- 1.2 mm for the ITk barrel's 26 mrad -- against fifteen
+  microns across it. No knowledge of the direction improves it: two strips are
+  two measurements.
+- The **bias** is what a direction removes. Resolving from the beam spot instead
+  of from the tangent walks the point along the strip by `(kappa r / 2) *
+  gap / sin(theta)`, which is nine millimetres for a GeV at the innermost ITk
+  strip barrel and falls as `1/pT`. Past the end of the strip the pair stops
+  resolving at all, so the acceptance falls with it: 98% at 100 GeV, 79% at
+  1 GeV, 58% at 500 MeV.
+
+The two kinds of space point come out in two collections,
+@ref ActsFatras::Synthetic::Event::spacePoints and
+@ref ActsFatras::Synthetic::Event::stripSpacePoints, because what separates them
+is a column: only the strip one carries
+`Acts::SpacePointColumns::StripCalibrationDetails`, the pair a calibration needs
+to move the point once it knows the direction better.
+
 ### Configuration
 
 The detector enters the beam spot, the resolution and both yields, so a
@@ -159,14 +203,20 @@ Counting secondaries to fit against takes care -- a full simulation records one
 only above a truth-link threshold, and two thirds of the real ones fall below
 it. Compare non-primary space points rather than particle counts.
 
-### The ATLAS ITk pixels
+### The ATLAS ITk
 
-`itk-description.json` and `itk-material.json` are the ATLAS ITk pixel detector,
-transcribed from the ITKLayouts package because ACTS has no ITk geometry to
-reduce: every position is a constant in one of its `*Defines.gmx` files. Five
-stave layers, and an endcap of seventy-five discs per side carrying ninety-five
-rings, because that is what it is. `itk-ttbar-pu200.json` is the
-configuration fitted to it against a GNN4ITk Athena dump.
+`itk-description.json` and `itk-material.json` are the ATLAS ITk, two subsystems
+in one file. The pixels, `itk-pixel`, are transcribed from the ITKLayouts package
+because ACTS has no ITk pixel geometry that is not itself a reduction: every
+position is a constant in one of its `*Defines.gmx` files. Five stave layers, and
+an endcap of seventy-five discs per side carrying ninety-five rings, because that
+is what it is. The strips, `itk-strip`, are reduced out of the tracking geometry
+`acts-itk` builds, the way the ODD is: four barrel cylinders and six discs a
+side. `itk-ttbar-pu200.json` is the configuration fitted to the pixels against a
+GNN4ITk Athena dump.
+
+`itk-sensors.json` says how the strip layers are read out, and is what makes them
+strip layers. See @ref fatras_synthetic_strips.
 
 ### The Open Data Detector pixels
 

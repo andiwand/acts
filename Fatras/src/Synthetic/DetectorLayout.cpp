@@ -555,12 +555,15 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
     const SurfaceMaterial* material;
     float overlapProbability;
     float overlapOffset;
+    const std::optional<StripSensor>* sensor;
   };
   std::vector<Carried> carried;
   const auto record = [&carried](const SurfaceMaterial& material,
                                  float overlapProbability = 0.f,
-                                 float overlapOffset = 0.f) {
-    carried.emplace_back(&material, overlapProbability, overlapOffset);
+                                 float overlapOffset = 0.f,
+                                 const std::optional<StripSensor>* sensor =
+                                     nullptr) {
+    carried.emplace_back(&material, overlapProbability, overlapOffset, sensor);
   };
 
   const auto addPassives =
@@ -594,7 +597,7 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
         builder.addCylinder(cylinder.radius, cylinder.halfLengthZ,
                             cylinder.modules, cylinder.layer);
         record(cylinder.material, cylinder.overlapProbability,
-               cylinder.overlapOffset);
+               cylinder.overlapOffset, &cylinder.sensor);
       }
     }
     for (const EndcapDescription& endcap : subsystem.endcaps) {
@@ -603,7 +606,8 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
       for (const SurfaceSide side : placementSides(endcap.placement)) {
         for (const DiscDescription& disc : endcap.discs) {
           builder.addDisc(side, disc.absZ, disc.rings, disc.layer);
-          record(disc.material, disc.overlapProbability, disc.overlapOffset);
+          record(disc.material, disc.overlapProbability, disc.overlapOffset,
+                 &disc.sensor);
         }
       }
     }
@@ -621,6 +625,13 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
     layout.surfaces[s].material = *carried[s].material;
     layout.surfaces[s].overlapProbability = carried[s].overlapProbability;
     layout.surfaces[s].overlapOffset = carried[s].overlapOffset;
+    // the readout belongs to the layers, an eta module of a cylinder and a ring
+    // of a disc each being one
+    if (carried[s].sensor != nullptr) {
+      for (const std::uint32_t index : layout.surfaces[s].layers) {
+        layout.layers[index].sensor = *carried[s].sensor;
+      }
+    }
   }
   updateSurfaceExtents(layout);
 
@@ -679,6 +690,56 @@ Synthetic::MaterialDecoration Synthetic::extractMaterial(
 void Synthetic::stripMaterial(DetectorDescription& description) {
   walkLayers(description, [](const LayerId& /*id*/, auto& layer) {
     layer.material = SurfaceMaterial{};
+  });
+}
+
+void Synthetic::decorate(DetectorDescription& description,
+                         const SensorDecoration& decoration) {
+  assignLayerIndices(description);
+  for (const SensorEntry& entry : decoration) {
+    bool found = false;
+    walkLayers(description, [&](const LayerId& id, auto& layer) {
+      if (id != entry.layer) {
+        return;
+      }
+      // a passive carries material and nothing reads it out
+      if constexpr (requires { layer.sensor; }) {
+        layer.sensor = entry.sensor;
+        found = true;
+      }
+    });
+    if (!found) {
+      throw std::invalid_argument(
+          "decorate: this detector has no sensitive " +
+          describeLayer(entry.layer) +
+          "; the sensors belong to a description that has since been "
+          "renumbered");
+    }
+  }
+}
+
+Synthetic::SensorDecoration Synthetic::extractSensors(
+    const DetectorDescription& description) {
+  DetectorDescription numbered = description;
+  assignLayerIndices(numbered);
+
+  SensorDecoration decoration;
+  walkLayers(std::as_const(numbered),
+             [&decoration](const LayerId& id, const auto& layer) {
+               if constexpr (requires { layer.sensor; }) {
+                 if (layer.sensor.has_value()) {
+                   decoration.push_back(SensorEntry{id, *layer.sensor});
+                 }
+               }
+             });
+  return decoration;
+}
+
+void Synthetic::clearSensors(DetectorDescription& description) {
+  walkLayers(description, [](const LayerId& /*id*/, auto& layer) {
+    if constexpr (requires { layer.sensor; }) {
+      layer.sensor.reset();
+    }
   });
 }
 

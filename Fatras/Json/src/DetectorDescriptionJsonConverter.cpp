@@ -31,6 +31,7 @@ namespace {
 
 constexpr const char* kDescriptionHeader = "acts-fatras-synthetic-description";
 constexpr const char* kMaterialHeader = "acts-fatras-synthetic-material";
+constexpr const char* kSensorHeader = "acts-fatras-synthetic-sensors";
 constexpr int kFormatVersion = 0;
 
 /// A float as the shortest decimal that reads back as itself, and an infinity
@@ -523,6 +524,31 @@ void from_json(const nlohmann::json& j, MaterialEntry& entry) {
   entry.material = j.get<SurfaceMaterial>();
 }
 
+void to_json(nlohmann::json& j, const StripSensor& sensor) {
+  j = nlohmann::json{{"stereoAngle", encodeNumber(sensor.stereoAngle)},
+                     {"pitch", encodeNumber(sensor.pitch)},
+                     {"moduleGap", encodeNumber(sensor.moduleGap)},
+                     {"halfLength", encodeNumber(sensor.halfLength)}};
+}
+
+void from_json(const nlohmann::json& j, StripSensor& sensor) {
+  sensor.stereoAngle = decodeNumber(j.at("stereoAngle"));
+  sensor.pitch = decodeNumber(j.at("pitch"));
+  sensor.moduleGap = decodeNumber(j.at("moduleGap"));
+  sensor.halfLength = decodeNumber(j.at("halfLength"));
+}
+
+void to_json(nlohmann::json& j, const SensorEntry& entry) {
+  // as a material entry is: "this layer is read out like this", not a pair
+  j = entry.layer;
+  j.update(nlohmann::json(entry.sensor));
+}
+
+void from_json(const nlohmann::json& j, SensorEntry& entry) {
+  entry.layer = j.get<LayerId>();
+  entry.sensor = j.get<StripSensor>();
+}
+
 }  // namespace ActsFatras::Synthetic
 
 namespace ActsFatras {
@@ -590,6 +616,16 @@ Synthetic::MaterialDecoration Synthetic::readMaterialDecoration(
 void Synthetic::writeMaterialDecoration(const std::filesystem::path& path,
                                         const MaterialDecoration& decoration) {
   writeFile(path, kMaterialHeader, nlohmann::json{{"layers", decoration}});
+}
+
+Synthetic::SensorDecoration Synthetic::readSensorDecoration(
+    const std::filesystem::path& path) {
+  return readFile(path, kSensorHeader).at("layers").get<SensorDecoration>();
+}
+
+void Synthetic::writeSensorDecoration(const std::filesystem::path& path,
+                                      const SensorDecoration& decoration) {
+  writeFile(path, kSensorHeader, nlohmann::json{{"layers", decoration}});
 }
 
 }  // namespace ActsFatras

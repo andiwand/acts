@@ -21,6 +21,7 @@ acts_add_library(
     src/Synthetic/detail/PrimaryGenerator.cpp
     src/Synthetic/detail/Propagation.cpp
     src/Synthetic/detail/Sampling.cpp
+    src/Synthetic/detail/StripReadout.cpp
     src/Utilities/LandauDistribution.cpp
     ACTS_INCLUDE_FOLDER include/ActsFatras
 )

@@ -59,10 +59,20 @@ struct GeneratedParticle {
 /// space points carry `layerId` into `DetectorLayout::layers`, `particleId`
 /// into `Event::particles`, and the `clusterWidth` and `localPositionY` the
 /// GBTS seeder expects.
+///
+/// The two collections are kept apart rather than flagged within one, because
+/// what separates them is a *column*: only a strip space point has a stereo
+/// pair to carry, and a consumer that wants the pair should not have to test
+/// every point for whether its entry means anything. Both index the same
+/// `particles`, and their `layerId`s are the same index space.
 struct Event {
-  /// The space points
+  /// Space points of the pixel layers, i.e. of every layer the description
+  /// gives no `StripSensor`
   Acts::SpacePointContainer spacePoints;
-  /// The generating particles, indexed by the `particleId` column
+  /// Space points of the strip layers, which carry
+  /// `Acts::SpacePointColumns::StripCalibrationDetails` as well
+  Acts::SpacePointContainer stripSpacePoints;
+  /// The generating particles, indexed by the `particleId` column of either
   std::vector<GeneratedParticle> particles;
 };
 

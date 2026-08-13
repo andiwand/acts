@@ -145,6 +145,13 @@ void addFatrasSynthetic(py::module_& fatras) {
       .value("Mean", EnergyLossModel::Mean)
       .value("Mode", EnergyLossModel::Mode);
 
+  py::class_<StripSensor>(m, "StripSensor")
+      .def(py::init<>())
+      .def_readwrite("stereoAngle", &StripSensor::stereoAngle)
+      .def_readwrite("pitch", &StripSensor::pitch)
+      .def_readwrite("moduleGap", &StripSensor::moduleGap)
+      .def_readwrite("halfLength", &StripSensor::halfLength);
+
   py::class_<DetectorLayer>(m, "DetectorLayer")
       .def_readonly("shape", &DetectorLayer::shape)
       .def_readonly("refCoord", &DetectorLayer::refCoord)
@@ -153,7 +160,8 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readonly("side", &DetectorLayer::side)
       .def_readonly("layer", &DetectorLayer::layer)
       .def_readonly("moduleIndex", &DetectorLayer::moduleIndex)
-      .def_readonly("subsystem", &DetectorLayer::subsystem);
+      .def_readonly("subsystem", &DetectorLayer::subsystem)
+      .def_readonly("sensor", &DetectorLayer::sensor);
 
   // what `GeneratedParticle::productionSurface` says for a particle that came
   // off no surface at all
@@ -238,7 +246,8 @@ void addFatrasSynthetic(py::module_& fatras) {
                      &CylinderDescription::overlapProbability)
       .def_readwrite("overlapOffset", &CylinderDescription::overlapOffset)
       .def_readwrite("layer", &CylinderDescription::layer)
-      .def_readwrite("material", &CylinderDescription::material);
+      .def_readwrite("material", &CylinderDescription::material)
+      .def_readwrite("sensor", &CylinderDescription::sensor);
 
   py::class_<DiscDescription>(m, "DiscDescription")
       .def(py::init<>())
@@ -247,7 +256,8 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("overlapProbability", &DiscDescription::overlapProbability)
       .def_readwrite("overlapOffset", &DiscDescription::overlapOffset)
       .def_readwrite("layer", &DiscDescription::layer)
-      .def_readwrite("material", &DiscDescription::material);
+      .def_readwrite("material", &DiscDescription::material)
+      .def_readwrite("sensor", &DiscDescription::sensor);
 
   py::class_<PassiveSurfaceDescription>(m, "PassiveSurfaceDescription")
       .def(py::init<>())
@@ -326,9 +336,23 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("layer", &MaterialEntry::layer)
       .def_readwrite("material", &MaterialEntry::material);
 
-  m.def("decorate", &decorate, py::arg("description"), py::arg("decoration"));
+  py::class_<SensorEntry>(m, "SensorEntry")
+      .def(py::init<>())
+      .def_readwrite("layer", &SensorEntry::layer)
+      .def_readwrite("sensor", &SensorEntry::sensor);
+
+  m.def("decorate",
+        py::overload_cast<DetectorDescription&, const MaterialDecoration&>(
+            &decorate),
+        py::arg("description"), py::arg("decoration"));
+  m.def("decorate",
+        py::overload_cast<DetectorDescription&, const SensorDecoration&>(
+            &decorate),
+        py::arg("description"), py::arg("decoration"));
   m.def("extractMaterial", &extractMaterial, py::arg("description"));
   m.def("stripMaterial", &stripMaterial, py::arg("description"));
+  m.def("extractSensors", &extractSensors, py::arg("description"));
+  m.def("clearSensors", &clearSensors, py::arg("description"));
 
 #ifdef ACTS_FATRAS_JSON
   // Reading and writing them needs `ActsFatrasJson`, which is only built with

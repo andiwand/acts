@@ -13,14 +13,17 @@
 #include "ActsFatras/Synthetic/detail/Helix.hpp"
 #include "ActsFatras/Synthetic/detail/Propagation.hpp"
 #include "ActsFatras/Synthetic/detail/Sampling.hpp"
+#include "ActsFatras/Synthetic/detail/StripReadout.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numbers>
+#include <array>
 #include <optional>
 #include <random>
+#include <span>
 #include <stdexcept>
 #include <vector>
 
@@ -109,16 +112,23 @@ PendingStub makeStub(std::mt19937& rng, const SecondarySamplingConfig& cfg,
 /// met the module, and a second where an overlapping module measured it too.
 /// `displaceU` and `displaceV` are how far the material crossed so far has
 /// moved the track across itself, in the transverse plane and out of it.
-/// Returns how many space points were appended to `hits`.
+/// `strips` says which layers are read out as a stereo pair, empty making them
+/// all pixels. Returns how many space points were appended.
 std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
-                         const MeasurementConfig& cfg, const Helix& helix,
-                         const TrackDirection& direction,
+                         const MeasurementConfig& cfg,
+                         const std::span<const StripLayer> strips,
+                         const Helix& helix, const TrackDirection& direction,
                          const SurfaceCrossing& crossing, const float displaceU,
                          const float displaceV, const std::uint32_t particle,
-                         std::vector<SmearedHit>& hits) {
+                         std::vector<SmearedHit>& hits,
+                         std::vector<StripHit>& stripHits) {
   const DetectorSurface& surface = layout.surfaces[crossing.surface];
   const bool cylinder =
       layout.layers[crossing.layer].shape == SurfaceShape::Cylinder;
+  const StripLayer* strip =
+      strips.empty() || !strips[crossing.layer].strip
+          ? nullptr
+          : &strips[crossing.layer];
   // Where the track points relative to the surface it is crossing, which both
   // the displacement and the stagger below are projected onto.
   const float deltaPhi =
@@ -126,40 +136,79 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
   const float cosDeltaPhi = std::cos(deltaPhi);
   const float sinDeltaPhi = std::sin(deltaPhi);
 
-  // smear along the measured directions of the sensor, leaving the normal to
-  // it at the nominal surface position
-  auto [smearRZ, smearRPhi] = sampleNormalPair(rng);
-  smearRZ *= cfg.positionSmearing;
-  smearRPhi *= cfg.positionSmearing;
-  // kept apart from what the displacement adds below, an overlapping module
-  // measuring the same track with an error of its own
-  const float firstSmearRZ = smearRZ;
-  const float firstSmearRPhi = smearRPhi;
-
   // Project the displacement onto the surface; the second term is a track
-  // displaced across itself meeting the surface elsewhere.
+  // displaced across itself meeting the surface elsewhere. This is where the
+  // track truly crosses, before anything reads it out.
   const float alongRPhi =
       displaceU * cosDeltaPhi - displaceV * direction.cosTheta * sinDeltaPhi;
   const float alongR =
       -displaceU * sinDeltaPhi - displaceV * direction.cosTheta * cosDeltaPhi;
   const float alongZ = displaceV * direction.sinTheta;
   const float slide = (cylinder ? alongR : alongZ) * crossing.pathLength;
-  smearRPhi += alongRPhi - slide * direction.sinTheta * sinDeltaPhi;
-  smearRZ += cylinder ? alongZ - slide * direction.cosTheta
-                      : alongR - slide * direction.sinTheta * cosDeltaPhi;
+  const float trueRPhi = alongRPhi - slide * direction.sinTheta * sinDeltaPhi;
+  const float trueRZ = cylinder
+                           ? alongZ - slide * direction.cosTheta
+                           : alongR - slide * direction.sinTheta * cosDeltaPhi;
 
-  std::uint32_t numHits = 0;
-  // Displaced, it may land off the module that made it, or in the gap between
-  // two rings, where there is support rather than silicon.
-  const float hitR = crossing.r + (cylinder ? 0.f : smearRZ);
-  const float hitZ = crossing.z + (cylinder ? smearRZ : 0.f);
-  if (const std::optional<std::uint32_t> layer =
-          findLayer(layout, surface, hitR, hitZ);
-      layer.has_value()) {
-    hits.push_back(SmearedHit{hitR, crossing.phi + smearRPhi / crossing.r, hitZ,
-                              *layer, particle});
-    ++numHits;
-  }
+  // the momentum direction there, which a strip pair is resolved against
+  const float momentumPhi = crossing.phi + deltaPhi;
+  const std::array<float, 3> momentum{
+      direction.sinTheta * std::cos(momentumPhi),
+      direction.sinTheta * std::sin(momentumPhi), direction.cosTheta};
+
+  /// Read one module out, at `offset` from the crossing along r, z and the
+  /// azimuthal arc. A pixel measures the point it was crossed at with an error
+  /// of its own; a strip layer resolves a stereo pair, which may fail to
+  /// resolve at all.
+  /// @return whether it left a space point
+  const auto record = [&](const float offsetR, const float offsetZ,
+                          const float offsetRPhi) {
+    const float atR = crossing.r + offsetR + (cylinder ? 0.f : trueRZ);
+    const float atZ = crossing.z + offsetZ + (cylinder ? trueRZ : 0.f);
+    const float atPhi = crossing.phi + (offsetRPhi + trueRPhi) / crossing.r;
+
+    if (strip != nullptr) {
+      const std::array<float, 3> position{atR * std::cos(atPhi),
+                                          atR * std::sin(atPhi), atZ};
+      std::optional<StripHit> read =
+          readStrip(rng, *strip, cylinder, position, momentum);
+      if (!read.has_value()) {
+        return false;
+      }
+      // Resolved, not measured: it may land off the module that made it.
+      const std::optional<std::uint32_t> layer =
+          findLayer(layout, surface, read->hit.r, read->hit.z);
+      if (!layer.has_value()) {
+        return false;
+      }
+      read->hit.layer = *layer;
+      read->hit.particle = particle;
+      stripHits.push_back(*read);
+      return true;
+    }
+
+    // smear along the measured directions of the sensor, leaving the normal to
+    // it at the nominal surface position
+    const auto [errorRZ, errorRPhi] = sampleNormalPair(rng);
+    const float smearRZ = trueRZ + errorRZ * cfg.positionSmearing;
+    const float smearRPhi = trueRPhi + errorRPhi * cfg.positionSmearing;
+    const float hitR = crossing.r + offsetR + (cylinder ? 0.f : smearRZ);
+    const float hitZ = crossing.z + offsetZ + (cylinder ? smearRZ : 0.f);
+    // Displaced, it may land off the module that made it, or in the gap
+    // between two rings, where there is support rather than silicon.
+    const std::optional<std::uint32_t> layer =
+        findLayer(layout, surface, hitR, hitZ);
+    if (!layer.has_value()) {
+      return false;
+    }
+    hits.push_back(SmearedHit{hitR,
+                              crossing.phi +
+                                  (offsetRPhi + smearRPhi) / crossing.r,
+                              hitZ, *layer, particle});
+    return true;
+  };
+
+  std::uint32_t numHits = record(0.f, 0.f, 0.f) ? 1u : 0u;
 
   // A crossing near the common edge of two modules is measured by both. They
   // alternate in depth, so the second sits a stagger along the normal away at
@@ -181,19 +230,7 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
   }
 
   const float step = surface.overlapOffset / normal;
-  auto [overlapRZ, overlapRPhi] = sampleNormalPair(rng);
-  overlapRZ = smearRZ - firstSmearRZ + overlapRZ * cfg.positionSmearing;
-  overlapRPhi = smearRPhi - firstSmearRPhi + overlapRPhi * cfg.positionSmearing;
-  const float overlapR =
-      crossing.r + step * dirR + (cylinder ? 0.f : overlapRZ);
-  const float overlapZ =
-      crossing.z + step * direction.cosTheta + (cylinder ? overlapRZ : 0.f);
-  if (const std::optional<std::uint32_t> layer =
-          findLayer(layout, surface, overlapR, overlapZ);
-      layer.has_value()) {
-    hits.push_back(SmearedHit{
-        overlapR, crossing.phi + (step * dirRPhi + overlapRPhi) / crossing.r,
-        overlapZ, *layer, particle});
+  if (record(step * dirR, step * direction.cosTheta, step * dirRPhi)) {
     ++numHits;
   }
   return numHits;
@@ -316,7 +353,8 @@ ParticlePropagator::ParticlePropagator(const DetectorLayout& layout,
     : m_layout(&layout),
       m_cfg(config),
       m_absPdg(Acts::makeAbsolutePdgParticle(config.particlePdg)),
-      m_mass(config.particleMass()) {
+      m_mass(config.particleMass()),
+      m_strips(stripLayers(layout)) {
   // a track cannot lose more than it carries, and the momentum it keeps
   // divides the loss of every crossing after
   if (config.simulation.material.maxEnergyLossFraction < 0.f ||
@@ -338,6 +376,7 @@ void ParticlePropagator::propagate(
   // same loop.
   std::vector<Helix>& tracks = scratch.tracks;
   std::vector<SmearedHit>& hits = scratch.hits;
+  std::vector<StripHit>& stripHits = scratch.stripHits;
   std::vector<SurfaceCrossing>& crossings = scratch.crossings;
   std::vector<PendingStub>& stubs = scratch.stubs;
   const std::size_t numPrimaries = tracks.size();
@@ -356,6 +395,7 @@ void ParticlePropagator::propagate(
   particles.reserve(base + expectedTracks);
   hits.clear();
   hits.reserve(totalForEvent(propagation.hitsPerPrimary, numPrimaries));
+  stripHits.clear();
   stubs.clear();
 
   // The neutral parents first, so that a decay is a straight line drawn before
@@ -437,8 +477,9 @@ void ParticlePropagator::propagate(
 
       if (crossing.sensitive()) {
         particles[particle].numHits +=
-            recordHits(rng, layout, cfg.measurement, track, direction, crossing,
-                       displaceU, displaceV, particle, hits);
+            recordHits(rng, layout, cfg.measurement, m_strips, track,
+                       direction, crossing, displaceU, displaceV, particle,
+                       hits, stripHits);
       }
 
       if (scattering && material.xOverX0 > 0.f) {
@@ -544,8 +585,28 @@ void ParticlePropagator::propagate(
       if (!layer.has_value()) {
         continue;
       }
-      hits.push_back(SmearedHit{hitR, stub.phi + alongRPhi / stubR, hitZ,
-                                *layer, particle});
+      const float hitPhi = stub.phi + alongRPhi / stubR;
+      if (!m_strips.empty() && m_strips[*layer].strip) {
+        // A stub curls, so there is no direction to resolve its pair against.
+        // Outward through where it sits is the stand-in: what it is worth is
+        // the cluster it leaves, and a fake pair on a strip layer is what a
+        // real one leaves too.
+        const std::array<float, 3> position{hitR * std::cos(hitPhi),
+                                            hitR * std::sin(hitPhi), hitZ};
+        const std::array<float, 3> outward{std::cos(hitPhi), std::sin(hitPhi),
+                                           0.f};
+        std::optional<StripHit> read =
+            readStrip(rng, m_strips[*layer], cylinder, position, outward);
+        if (!read.has_value()) {
+          continue;
+        }
+        read->hit.layer = *layer;
+        read->hit.particle = particle;
+        stripHits.push_back(*read);
+        ++particles[particle].numHits;
+        continue;
+      }
+      hits.push_back(SmearedHit{hitR, hitPhi, hitZ, *layer, particle});
       ++particles[particle].numHits;
     }
   }

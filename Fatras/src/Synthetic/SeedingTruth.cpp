@@ -18,7 +18,8 @@ namespace ActsFatras {
 Synthetic::EventSummary Synthetic::summarize(const Event& event,
                                              const float ptThreshold) {
   EventSummary summary;
-  summary.spacePoints = event.spacePoints.size();
+  summary.stripSpacePoints = event.stripSpacePoints.size();
+  summary.spacePoints = event.spacePoints.size() + summary.stripSpacePoints;
   for (const GeneratedParticle& particle : event.particles) {
     if (particle.primary()) {
       ++summary.primaries;

@@ -22,8 +22,10 @@ namespace ActsFatras::Synthetic {
 /// Truth content of an event, so that a caller can report what it is running
 /// on.
 struct EventSummary {
-  /// Number of space points
+  /// Number of space points, both collections together
   std::size_t spacePoints{};
+  /// How many of them the strip layers left
+  std::size_t stripSpacePoints{};
   /// Number of generated primaries
   std::size_t primaries{};
   /// Number of generated secondaries

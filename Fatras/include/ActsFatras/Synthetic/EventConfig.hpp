@@ -138,7 +138,11 @@ struct MaterialConfig {
 /// What a sensitive crossing is read out as.
 struct MeasurementConfig {
   /// Single space point resolution, along the two directions a sensor measures:
-  /// `r*phi` and z on a cylinder, `r*phi` and r on a disc
+  /// `r*phi` and z on a cylinder, `r*phi` and r on a disc.
+  ///
+  /// @note Pixel layers only. A layer the layout gives a `StripSensor` is read
+  ///       out as the stereo pair that sensor describes, and its resolution
+  ///       follows from the pitch and the stereo angle instead.
   float positionSmearing = 15 * Acts::UnitConstants::um;
   /// Multiplier on the module overlap the layout carries; zero turns it off.
   /// See `DetectorSurface::overlapProbability`.
