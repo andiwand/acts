@@ -59,6 +59,17 @@ class GraphBasedTrackSeeder {
     /// if layer is missed in edge connecting
     bool useAdaptiveCuts = true;
     /// optionally add 3 sp seeds within a cirtain eta range
+    ///
+    /// @note Worth little at the default `maxAbsEtaAddTripelts`, which is the
+    ///       same 1.5 as `edgeMaskMinEta`: below that threshold an edge is not
+    ///       marked as collected, so the triplets it lets through are mostly
+    ///       already covered by a longer seed. Measured on an ITk-like pile-up
+    ///       event, turning this on alone cost 2.2 times the seeds for four
+    ///       ten-thousandths of efficiency; opening the reach past the masking
+    ///       threshold instead took the pixels from 0.938 to 0.977. It matters
+    ///       most to a subdetector with few layers -- a four-layer strip
+    ///       system has no redundancy at all against `minLevel`'s demand for
+    ///       four space points, and the same change took it from 0.33 to 0.82.
     bool addTriplets = false;
     /// Tau ratio cut threshold.
     float tauRatioCut = 0.007;
