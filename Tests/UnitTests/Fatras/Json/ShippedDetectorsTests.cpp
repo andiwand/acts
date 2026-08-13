@@ -150,6 +150,16 @@ BOOST_AUTO_TEST_CASE(Itk) {
 
   const SubsystemDescription& strips = description.subsystems.back();
   BOOST_CHECK_EQUAL(strips.name, "itk-strip");
+  // Three module types for ten layers: short and long strips in the barrel,
+  // one more for the endcap. Named, so that the two short-strip layers are
+  // provably the same module rather than the same numbers twice.
+  BOOST_CHECK_EQUAL(description.sensors.size(), 3u);
+  BOOST_CHECK_EQUAL(strips.barrels.front().cylinders.front().sensor,
+                    "itk-strip-short");
+  BOOST_CHECK_EQUAL(strips.barrels.front().cylinders.back().sensor,
+                    "itk-strip-long");
+  BOOST_CHECK_EQUAL(strips.endcaps.front().discs.front().sensor,
+                    "itk-strip-endcap");
   // four barrel cylinders and six discs per side, each one ring: the strip
   // endcap rings tile their disc without the supports that gap the pixel one
   BOOST_CHECK_EQUAL(cylinderCount(strips), 4u);
@@ -168,6 +178,15 @@ BOOST_AUTO_TEST_CASE(Itk) {
   BOOST_CHECK_EQUAL(layout.subsystems.back(), "itk-strip");
   // every sensitive surface and every passive carries material
   BOOST_CHECK_EQUAL(checkMaterial(layout), layout.surfaces.size());
+
+  // and every strip layer, and only a strip layer, is read out as a pair
+  std::size_t strip = 0;
+  for (const DetectorLayer& layer : layout.layers) {
+    const bool isStrip = layout.subsystems[layer.subsystem] == "itk-strip";
+    BOOST_CHECK_EQUAL(layer.sensor.has_value(), isStrip);
+    strip += isStrip ? 1 : 0;
+  }
+  BOOST_CHECK_EQUAL(strip, 4u + 2u * 6u);
 
   // the pixels still build on their own, which is what a selection is for
   const std::vector<std::string> pixelOnlyName{"itk-pixel"};

@@ -49,8 +49,8 @@ StripSensor makeSensor() {
 }
 
 /// A detector of one pixel barrel and one strip barrel, which is the least that
-/// tells the two readouts apart. `strips` decorates the strip subsystem the way
-/// a sensor file would.
+/// tells the two readouts apart. `strips` names the module the strip layers are
+/// built of, the way a shipped description does.
 DetectorDescription makeTestDescription(bool strips = true) {
   const Acts::MaterialSlab sensor =
       materialSlab(93.7f, 465.2f, 28.0855f, 14.f, 8.2925e-5f, 0.015f * 93.7f);
@@ -84,14 +84,9 @@ DetectorDescription makeTestDescription(bool strips = true) {
   description.subsystems = {std::move(pixels), std::move(stripSystem)};
 
   if (strips) {
-    SensorDecoration decoration;
-    decoration.push_back(SensorEntry{
-        LayerId{"strip", LayerKind::Barrel, EndcapPlacement::Mirrored, 0},
-        makeSensor()});
-    decoration.push_back(SensorEntry{
-        LayerId{"strip", LayerKind::Endcap, EndcapPlacement::Mirrored, 0},
-        makeSensor()});
-    decorate(description, decoration);
+    description.sensors["short"] = makeSensor();
+    description.subsystems[1].barrels[0].cylinders[0].sensor = "short";
+    description.subsystems[1].endcaps[0].discs[0].sensor = "short";
   }
   return description;
 }
@@ -110,9 +105,10 @@ std::array<float, 3> directionOf(const float phi, const float theta) {
 
 BOOST_AUTO_TEST_SUITE(FatrasSyntheticStripReadoutSuite)
 
-/// A layer is a strip layer because a sensor was decorated onto it, the way it
-/// carries material because material was. Nothing else marks one.
-BOOST_AUTO_TEST_CASE(ASensorIsWhatMakesALayerAStripLayer) {
+/// A layer is a strip layer because it names a module type the description
+/// holds. Nothing else marks one, and a name the description does not hold is a
+/// mistake rather than a layer with no readout.
+BOOST_AUTO_TEST_CASE(ANamedSensorIsWhatMakesALayerAStripLayer) {
   BOOST_CHECK(stripLayers(makeTestLayout(/*strips=*/false)).empty());
 
   const DetectorLayout layout = makeTestLayout();
@@ -129,37 +125,51 @@ BOOST_AUTO_TEST_CASE(ASensorIsWhatMakesALayerAStripLayer) {
   // one barrel cylinder and the disc on either side of the interaction point
   BOOST_CHECK_EQUAL(counted, 3u);
 
-  // a decoration naming a layer the detector does not have is a mistake, the
-  // same guard the material decoration has
-  DetectorDescription description = makeTestDescription(/*strips=*/false);
-  const SensorDecoration wrong{SensorEntry{
-      LayerId{"scintillator", LayerKind::Barrel, EndcapPlacement::Mirrored, 0},
-      makeSensor()}};
-  BOOST_CHECK_THROW(decorate(description, wrong), std::invalid_argument);
-  // and so is naming a passive, which nothing reads out
-  const SensorDecoration passive{SensorEntry{
-      LayerId{"strip", LayerKind::Passive, EndcapPlacement::Mirrored, 0},
-      makeSensor()}};
-  BOOST_CHECK_THROW(decorate(description, passive), std::invalid_argument);
+  DetectorDescription unknown = makeTestDescription();
+  unknown.subsystems[1].barrels[0].cylinders[0].sensor = "scintillator";
+  BOOST_CHECK_THROW(makeLayout(unknown), std::invalid_argument);
 }
 
-/// The decoration round-trips: what `extractSensors` reads off a description is
-/// what `decorate` put on it, and `clearSensors` leaves a pixel detector.
-BOOST_AUTO_TEST_CASE(SensorsRoundTrip) {
+/// Naming the module rather than restating it is the point: two layers of one
+/// name are one module, and a ring may still name its own.
+BOOST_AUTO_TEST_CASE(SensorsAreSharedByName) {
   DetectorDescription description = makeTestDescription();
-  const SensorDecoration read = extractSensors(description);
-  BOOST_REQUIRE_EQUAL(read.size(), 2u);
-  for (const SensorEntry& entry : read) {
-    BOOST_CHECK_EQUAL(entry.layer.subsystem, "strip");
-    BOOST_CHECK(entry.sensor == makeSensor());
+  BOOST_REQUIRE_EQUAL(description.sensors.size(), 1u);
+
+  // the barrel and the endcap both name "short", so both resolve to it
+  const DetectorLayout shared = makeLayout(description);
+  for (const DetectorLayer& layer : shared.layers) {
+    if (layer.sensor.has_value()) {
+      BOOST_CHECK(*layer.sensor == makeSensor());
+    }
   }
 
-  clearSensors(description);
-  BOOST_CHECK(extractSensors(description).empty());
-  BOOST_CHECK(stripLayers(makeLayout(description)).empty());
+  // a ring overrides its disc, which is how an endcap of unequal rings is said
+  StripSensor longer = makeSensor();
+  longer.halfLength = 2.f * makeSensor().halfLength;
+  description.sensors["long"] = longer;
+  description.subsystems[1].endcaps[0].discs[0].rings[0].sensor = "long";
 
-  decorate(description, read);
-  BOOST_CHECK_EQUAL(extractSensors(description).size(), 2u);
+  const DetectorLayout mixed = makeLayout(description);
+  for (const DetectorLayer& layer : mixed.layers) {
+    if (!layer.sensor.has_value()) {
+      continue;
+    }
+    const bool disc = layer.shape == SurfaceShape::Disc;
+    BOOST_CHECK_EQUAL(layer.sensor->halfLength,
+                      disc ? longer.halfLength : makeSensor().halfLength);
+  }
+
+  // and a selection still resolves what it kept
+  const std::vector<std::string> stripOnly{"strip"};
+  const DetectorLayout selected =
+      makeLayout(selectSubsystems(description, stripOnly));
+  BOOST_CHECK_EQUAL(
+      std::ranges::count_if(selected.layers,
+                            [](const DetectorLayer& l) {
+                              return l.sensor.has_value();
+                            }),
+      3);
 }
 
 /// The stereo angle sets the resolution: sharp across the strips, an order of
@@ -180,13 +190,8 @@ BOOST_AUTO_TEST_CASE(ResolutionFollowsTheStereoAngle) {
   BOOST_CHECK_CLOSE(std::sqrt(barrel.varianceAcross), 15.4_um, 1.);
 
   // halving the angle doubles the error along the strip and leaves the other
-  DetectorDescription narrower = makeTestDescription(/*strips=*/false);
-  StripSensor sensor = makeSensor();
-  sensor.stereoAngle = 13e-3f;
-  decorate(narrower,
-           SensorDecoration{SensorEntry{
-               LayerId{"strip", LayerKind::Barrel, EndcapPlacement::Mirrored, 0},
-               sensor}});
+  DetectorDescription narrower = makeTestDescription();
+  narrower.sensors["short"].stereoAngle = 13e-3f;
   const StripLayer narrow = barrelOf(makeLayout(narrower));
   BOOST_CHECK_CLOSE(std::sqrt(narrow.varianceAlong),
                     2.f * std::sqrt(barrel.varianceAlong), 0.1);
@@ -198,14 +203,9 @@ BOOST_AUTO_TEST_CASE(ResolutionFollowsTheStereoAngle) {
 /// direction and perfect strips, resolving it gives the crossing back exactly.
 /// This is what says the two strip lines are where they should be.
 BOOST_AUTO_TEST_CASE(ThePairIsTheModuleGeometry) {
-  DetectorDescription description = makeTestDescription(/*strips=*/false);
-  StripSensor sensor = makeSensor();
+  DetectorDescription description = makeTestDescription();
   // strips of no width, so nothing but the geometry is left
-  sensor.pitch = 0.f;
-  decorate(description,
-           SensorDecoration{SensorEntry{
-               LayerId{"strip", LayerKind::Barrel, EndcapPlacement::Mirrored, 0},
-               sensor}});
+  description.sensors["short"].pitch = 0.f;
   const std::vector<StripLayer> strips = stripLayers(makeLayout(description));
   const StripLayer& strip = *std::ranges::find_if(
       strips, [](const StripLayer& s) { return s.strip; });

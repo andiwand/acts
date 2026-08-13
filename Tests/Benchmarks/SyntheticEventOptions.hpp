@@ -102,8 +102,8 @@ inline std::filesystem::path layoutPath(const Values& values,
   return ActsFatras::dataPath(values.layout + suffix);
 }
 
-/// Build the detector the options select, out of the description, the material
-/// and the sensors it ships as.
+/// Build the detector the options select, out of the description and the
+/// material it ships as.
 ///
 /// @param values the parsed options
 /// @return the layout
@@ -115,11 +115,6 @@ inline ActsFatras::Synthetic::DetectorLayout makeLayout(const Values& values) {
       readDetectorDescription(layoutPath(values, "-description.json"));
   decorate(description,
            readMaterialDecoration(layoutPath(values, "-material.json")));
-  // a detector of nothing but pixels ships without one
-  const std::filesystem::path sensors = layoutPath(values, "-sensors.json");
-  if (std::filesystem::exists(sensors)) {
-    decorate(description, readSensorDecoration(sensors));
-  }
 
   if (!values.subsystems.empty()) {
     std::vector<std::string> names;

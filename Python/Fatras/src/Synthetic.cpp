@@ -235,7 +235,8 @@ void addFatrasSynthetic(py::module_& fatras) {
                [](float rMin, float rMax) { return RingBounds{rMin, rMax}; }),
            py::arg("rMin"), py::arg("rMax"))
       .def_readwrite("rMin", &RingBounds::rMin)
-      .def_readwrite("rMax", &RingBounds::rMax);
+      .def_readwrite("rMax", &RingBounds::rMax)
+      .def_readwrite("sensor", &RingBounds::sensor);
 
   py::class_<CylinderDescription>(m, "CylinderDescription")
       .def(py::init<>())
@@ -287,6 +288,7 @@ void addFatrasSynthetic(py::module_& fatras) {
 
   py::class_<DetectorDescription>(m, "DetectorDescription")
       .def(py::init<>())
+      .def_readwrite("sensors", &DetectorDescription::sensors)
       .def_readwrite("passives", &DetectorDescription::passives)
       .def_readwrite("subsystems", &DetectorDescription::subsystems)
       .def_readwrite("escapeRadius", &DetectorDescription::escapeRadius)
@@ -336,23 +338,10 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readwrite("layer", &MaterialEntry::layer)
       .def_readwrite("material", &MaterialEntry::material);
 
-  py::class_<SensorEntry>(m, "SensorEntry")
-      .def(py::init<>())
-      .def_readwrite("layer", &SensorEntry::layer)
-      .def_readwrite("sensor", &SensorEntry::sensor);
-
-  m.def("decorate",
-        py::overload_cast<DetectorDescription&, const MaterialDecoration&>(
-            &decorate),
-        py::arg("description"), py::arg("decoration"));
-  m.def("decorate",
-        py::overload_cast<DetectorDescription&, const SensorDecoration&>(
-            &decorate),
-        py::arg("description"), py::arg("decoration"));
+  m.def("decorate", &decorate, py::arg("description"),
+        py::arg("decoration"));
   m.def("extractMaterial", &extractMaterial, py::arg("description"));
   m.def("stripMaterial", &stripMaterial, py::arg("description"));
-  m.def("extractSensors", &extractSensors, py::arg("description"));
-  m.def("clearSensors", &clearSensors, py::arg("description"));
 
 #ifdef ACTS_FATRAS_JSON
   // Reading and writing them needs `ActsFatrasJson`, which is only built with

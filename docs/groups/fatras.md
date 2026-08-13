@@ -96,12 +96,6 @@ inputs and either can be replaced without touching the other:
   what catches a material file left behind by a description that has been
   renumbered. @ref ActsFatras::Synthetic::extractMaterial is the inverse and how
   the two files are produced.
-- **The sensors** via @ref ActsFatras::Synthetic::readSensorDecoration, keyed
-  the same way and applied with the same
-  @ref ActsFatras::Synthetic::decorate. A layer it names is read out as a stereo
-  pair of strips; a layer it does not name is a pixel, so a detector of nothing
-  but pixels ships without the file. @ref ActsFatras::Synthetic::extractSensors
-  is the inverse.
 - **The configuration** via @ref ActsFatras::Synthetic::readEventConfig. Every
   field is required: a configuration is fitted as a whole, so a missing one
   silently taking a default would retune the rest of it.
@@ -165,10 +159,13 @@ by its own pitch error, resolved through
 `Acts::StripSpacePointBuilder::computeConstrainedSpacePoint` -- the same code
 that resolves a real one.
 
-A layer is a strip layer because it carries a
-@ref ActsFatras::Synthetic::StripSensor, decorated onto the description exactly
-the way material is. Nothing else marks one, and the layout itself is unchanged:
-a strip layer is a normal layer that has been told how it is read out.
+A layer is a strip layer because it names a @ref ActsFatras::Synthetic::StripSensor
+the description holds in @ref ActsFatras::Synthetic::DetectorDescription::sensors.
+Nothing else marks one, and the layout itself is unchanged: a strip layer is a
+normal layer that has been told what module it is built of. Naming rather than
+restating is what keeps a detector honest -- the ITk's whole strip barrel is two
+module types across four layers, and a ring may still name one of its own where
+an endcap's rings differ.
 
 Two things follow, and both are why the pair is carried rather than approximated:
 
@@ -215,8 +212,10 @@ is what it is. The strips, `itk-strip`, are reduced out of the tracking geometry
 side. `itk-ttbar-pu200.json` is the configuration fitted to the pixels against a
 GNN4ITk Athena dump.
 
-`itk-sensors.json` says how the strip layers are read out, and is what makes them
-strip layers. See @ref fatras_synthetic_strips.
+Three module types make the ten strip layers strip layers: short and long strips
+in the barrel and one more for the endcap, named in the description's own
+`sensors` table and referenced by the layers built of them. See
+@ref fatras_synthetic_strips.
 
 ### The Open Data Detector pixels
 

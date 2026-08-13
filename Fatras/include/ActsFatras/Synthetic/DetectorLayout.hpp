@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -92,12 +93,15 @@ struct BandComposition {
 
 /// What the two sensors of one strip module look like.
 ///
-/// A layer that carries one of these is read out as a stereo pair: two strips
-/// at plus and minus half the angle on the two sensors, whose apparent crossing
-/// is the space point. A layer that carries none is a pixel, which measures the
-/// point it was crossed at. Decorated onto a description the way material is,
-/// so that where the layers are, what they are made of and how they are read
-/// out are three things written down apart from each other.
+/// A layer built of one of these is read out as a stereo pair: two strips at
+/// plus and minus half the angle on the two sensors, whose apparent crossing is
+/// the space point. A layer built of none is a pixel, which measures the point
+/// it was crossed at.
+///
+/// Named in `DetectorDescription::sensors` and referenced by name, because a
+/// detector is built of a handful of module types and dozens of layers: the
+/// ITk's whole strip barrel is two of these, its endcap one more, and saying so
+/// once is what keeps the two short-strip layers provably the same module.
 struct StripSensor {
   /// Angle between the two sensors of a module
   float stereoAngle{};
@@ -224,6 +228,9 @@ struct RingBounds {
   float rMin{};
   /// Outer radius
   float rMax{};
+  /// The `DetectorDescription::sensors` entry this ring is built of, overriding
+  /// whatever its disc says. Empty takes the disc's, which is the usual case.
+  std::string sensor;
 };
 
 /// One described layer of a barrel: a cylinder and the eta modules along it.
@@ -248,8 +255,9 @@ struct CylinderDescription {
   std::optional<std::uint32_t> layer;
   /// What a crossing meets, resolved in |z|
   SurfaceMaterial material;
-  /// How a crossing is read out; absent makes it a pixel layer
-  std::optional<StripSensor> sensor;
+  /// The `DetectorDescription::sensors` entry it is built of; empty makes it a
+  /// pixel layer, which is what a layer that says nothing is
+  std::string sensor;
 };
 
 /// One described layer of an endcap: a disc and the rings across it.
@@ -268,8 +276,9 @@ struct DiscDescription {
   std::optional<std::uint32_t> layer;
   /// What a crossing meets, resolved in r
   SurfaceMaterial material;
-  /// @copydoc CylinderDescription::sensor
-  std::optional<StripSensor> sensor;
+  /// The `DetectorDescription::sensors` entry its rings are built of, unless a
+  /// ring names one of its own; see `RingBounds::sensor`
+  std::string sensor;
 };
 
 /// A passive surface the detector carries away from any sensitive layer: a
@@ -330,6 +339,11 @@ struct SubsystemDescription {
 /// are selected out of. `makeLayout` expands it into the `DetectorLayout` the
 /// generator runs on.
 struct DetectorDescription {
+  /// The module types this detector is built of, by the name its layers
+  /// reference. A layer naming none is a pixel layer, so a detector of nothing
+  /// but pixels leaves this empty.
+  std::map<std::string, StripSensor> sensors;
+
   /// Passives belonging to no subsystem, the beam pipe being the one that
   /// matters: the only material in front of the innermost layer, and hence the
   /// only source of secondaries there. Kept whichever subsystems are selected.
@@ -399,20 +413,6 @@ struct MaterialEntry {
 /// generated and reviewed apart from each other.
 using MaterialDecoration = std::vector<MaterialEntry>;
 
-/// How one layer of a detector is read out, away from the description of where
-/// that layer is.
-struct SensorEntry {
-  /// The layer it belongs on, which has to be a sensitive one
-  LayerId layer;
-  /// The strip module it is built of
-  StripSensor sensor;
-};
-
-/// The strip modules of a whole detector, keyed the way its material is. A
-/// layer no entry names is a pixel layer, so a detector with no decoration at
-/// all is a pixel detector.
-using SensorDecoration = std::vector<SensorEntry>;
-
 /// Write down every layer index a description leaves to the position of its
 /// layer in a list, so that what material keys onto is stated rather than
 /// derived twice.
@@ -448,26 +448,6 @@ MaterialDecoration extractMaterial(const DetectorDescription& description);
 /// are made of.
 /// @param description the detector to strip in place
 void stripMaterial(DetectorDescription& description);
-
-/// Make the layers a decoration names strip layers, replacing whatever they
-/// were read out as. Every layer it does not name is left a pixel layer.
-///
-/// @param description the detector to decorate in place
-/// @param decoration the strip modules of its layers
-/// @throws std::invalid_argument if an entry names a layer the description does
-///         not have, or names a passive one, which nothing reads out
-void decorate(DetectorDescription& description,
-              const SensorDecoration& decoration);
-
-/// Read the strip modules off a description, the inverse of `decorate`.
-///
-/// @param description the detector to read
-/// @return the module of every layer of it that has one
-SensorDecoration extractSensors(const DetectorDescription& description);
-
-/// Leave every layer of a description a pixel layer.
-/// @param description the detector to clear in place
-void clearSensors(DetectorDescription& description);
 
 /// Stands for "no surface" where an index into `DetectorLayout::surfaces` is
 /// optional.

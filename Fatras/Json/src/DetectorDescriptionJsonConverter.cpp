@@ -31,7 +31,6 @@ namespace {
 
 constexpr const char* kDescriptionHeader = "acts-fatras-synthetic-description";
 constexpr const char* kMaterialHeader = "acts-fatras-synthetic-material";
-constexpr const char* kSensorHeader = "acts-fatras-synthetic-sensors";
 constexpr int kFormatVersion = 0;
 
 /// A float as the shortest decimal that reads back as itself, and an infinity
@@ -268,11 +267,16 @@ void from_json(const nlohmann::json& j, LayerKind& kind) {
 void to_json(nlohmann::json& j, const RingBounds& ring) {
   j = nlohmann::json{{"rMin", encodeNumber(ring.rMin)},
                      {"rMax", encodeNumber(ring.rMax)}};
+  // stated only where a ring is a different module from the rest of its disc
+  if (!ring.sensor.empty()) {
+    j["sensor"] = ring.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, RingBounds& ring) {
   ring.rMin = decodeNumber(j.at("rMin"));
   ring.rMax = decodeNumber(j.at("rMax"));
+  readOptional(j, "sensor", ring.sensor);
 }
 
 void to_json(nlohmann::json& j, const SurfaceMaterial& material) {
@@ -377,6 +381,10 @@ void to_json(nlohmann::json& j, const CylinderDescription& cylinder) {
   if (!cylinder.material.bands.empty()) {
     j["material"] = cylinder.material;
   }
+  // a layer that says nothing is a pixel layer
+  if (!cylinder.sensor.empty()) {
+    j["sensor"] = cylinder.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, CylinderDescription& cylinder) {
@@ -387,6 +395,7 @@ void from_json(const nlohmann::json& j, CylinderDescription& cylinder) {
   readOptionalNumber(j, "overlapOffset", cylinder.overlapOffset);
   readOptional(j, "layer", cylinder.layer);
   readOptional(j, "material", cylinder.material);
+  readOptional(j, "sensor", cylinder.sensor);
 }
 
 void to_json(nlohmann::json& j, const DiscDescription& disc) {
@@ -401,6 +410,9 @@ void to_json(nlohmann::json& j, const DiscDescription& disc) {
   if (!disc.material.bands.empty()) {
     j["material"] = disc.material;
   }
+  if (!disc.sensor.empty()) {
+    j["sensor"] = disc.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, DiscDescription& disc) {
@@ -410,6 +422,7 @@ void from_json(const nlohmann::json& j, DiscDescription& disc) {
   readOptionalNumber(j, "overlapOffset", disc.overlapOffset);
   readOptional(j, "layer", disc.layer);
   readOptional(j, "material", disc.material);
+  readOptional(j, "sensor", disc.sensor);
 }
 
 void to_json(nlohmann::json& j, const PassiveSurfaceDescription& passive) {
@@ -483,12 +496,17 @@ void to_json(nlohmann::json& j, const DetectorDescription& description) {
   if (!description.passives.empty()) {
     j["passives"] = description.passives;
   }
+  // a detector of nothing but pixels says nothing about sensors
+  if (!description.sensors.empty()) {
+    j["sensors"] = description.sensors;
+  }
 }
 
 void from_json(const nlohmann::json& j, DetectorDescription& description) {
   readOptionalNumber(j, "escapeRadius", description.escapeRadius);
   readOptionalNumber(j, "escapeHalfZ", description.escapeHalfZ);
   readOptional(j, "passives", description.passives);
+  readOptional(j, "sensors", description.sensors);
   description.subsystems =
       j.at("subsystems").get<std::vector<SubsystemDescription>>();
 }
@@ -536,17 +554,6 @@ void from_json(const nlohmann::json& j, StripSensor& sensor) {
   sensor.pitch = decodeNumber(j.at("pitch"));
   sensor.moduleGap = decodeNumber(j.at("moduleGap"));
   sensor.halfLength = decodeNumber(j.at("halfLength"));
-}
-
-void to_json(nlohmann::json& j, const SensorEntry& entry) {
-  // as a material entry is: "this layer is read out like this", not a pair
-  j = entry.layer;
-  j.update(nlohmann::json(entry.sensor));
-}
-
-void from_json(const nlohmann::json& j, SensorEntry& entry) {
-  entry.layer = j.get<LayerId>();
-  entry.sensor = j.get<StripSensor>();
 }
 
 }  // namespace ActsFatras::Synthetic
@@ -616,16 +623,6 @@ Synthetic::MaterialDecoration Synthetic::readMaterialDecoration(
 void Synthetic::writeMaterialDecoration(const std::filesystem::path& path,
                                         const MaterialDecoration& decoration) {
   writeFile(path, kMaterialHeader, nlohmann::json{{"layers", decoration}});
-}
-
-Synthetic::SensorDecoration Synthetic::readSensorDecoration(
-    const std::filesystem::path& path) {
-  return readFile(path, kSensorHeader).at("layers").get<SensorDecoration>();
-}
-
-void Synthetic::writeSensorDecoration(const std::filesystem::path& path,
-                                      const SensorDecoration& decoration) {
-  writeFile(path, kSensorHeader, nlohmann::json{{"layers", decoration}});
 }
 
 }  // namespace ActsFatras

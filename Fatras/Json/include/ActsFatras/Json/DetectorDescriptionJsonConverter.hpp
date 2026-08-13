@@ -173,15 +173,6 @@ void to_json(nlohmann::json& j, const StripSensor& sensor);
 /// @param sensor Destination StripSensor to populate
 void from_json(const nlohmann::json& j, StripSensor& sensor);
 
-/// Convert SensorEntry to JSON
-/// @param j Destination JSON object
-/// @param entry Source SensorEntry to convert
-void to_json(nlohmann::json& j, const SensorEntry& entry);
-/// Convert JSON to SensorEntry
-/// @param j Source JSON object
-/// @param entry Destination SensorEntry to populate
-void from_json(const nlohmann::json& j, SensorEntry& entry);
-
 /// Read a detector description from file.
 /// @param path the file to read
 /// @return the description
@@ -206,18 +197,6 @@ MaterialDecoration readMaterialDecoration(const std::filesystem::path& path);
 /// @param decoration the material to write
 void writeMaterialDecoration(const std::filesystem::path& path,
                              const MaterialDecoration& decoration);
-
-/// Read how the layers of a detector are read out, from file.
-/// @param path the file to read
-/// @return the decoration, to be applied with `decorate`
-/// @throws std::runtime_error if the file is not there or is not one of these
-SensorDecoration readSensorDecoration(const std::filesystem::path& path);
-
-/// Write how the layers of a detector are read out, to file.
-/// @param path the file to write
-/// @param decoration the sensors to write
-void writeSensorDecoration(const std::filesystem::path& path,
-                           const SensorDecoration& decoration);
 
 /// @}
 

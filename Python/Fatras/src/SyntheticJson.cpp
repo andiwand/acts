@@ -52,16 +52,6 @@ void addFatrasSyntheticJson(py::module_& m) {
       },
       py::arg("path"), py::arg("decoration"));
   m.def(
-      "readSensorDecoration",
-      [](const std::string& path) { return readSensorDecoration(path); },
-      py::arg("path"));
-  m.def(
-      "writeSensorDecoration",
-      [](const std::string& path, const SensorDecoration& decoration) {
-        writeSensorDecoration(path, decoration);
-      },
-      py::arg("path"), py::arg("decoration"));
-  m.def(
       "readEventConfig",
       [](const std::string& path) { return readEventConfig(path); },
       py::arg("path"));

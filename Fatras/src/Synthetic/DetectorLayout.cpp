@@ -555,15 +555,35 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
     const SurfaceMaterial* material;
     float overlapProbability;
     float overlapOffset;
-    const std::optional<StripSensor>* sensor;
+    /// One per layer of the surface, in the order they were added: the eta
+    /// modules of a cylinder share a module type, the rings of a disc need not
+    std::vector<std::optional<StripSensor>> sensors;
   };
   std::vector<Carried> carried;
   const auto record = [&carried](const SurfaceMaterial& material,
                                  float overlapProbability = 0.f,
                                  float overlapOffset = 0.f,
-                                 const std::optional<StripSensor>* sensor =
-                                     nullptr) {
-    carried.emplace_back(&material, overlapProbability, overlapOffset, sensor);
+                                 std::vector<std::optional<StripSensor>>
+                                     sensors = {}) {
+    carried.emplace_back(&material, overlapProbability, overlapOffset,
+                         std::move(sensors));
+  };
+
+  /// The module type a layer names, or nothing where it names none.
+  /// @param name the entry of `sensors` to look up
+  /// @return the sensor
+  const auto sensorNamed =
+      [&description](const std::string& name) -> std::optional<StripSensor> {
+    if (name.empty()) {
+      return std::nullopt;
+    }
+    const auto found = description.sensors.find(name);
+    if (found == description.sensors.end()) {
+      throw std::invalid_argument("makeLayout: no sensor is called '" + name +
+                                  "', so a layer built of it cannot be read "
+                                  "out");
+    }
+    return found->second;
   };
 
   const auto addPassives =
@@ -596,8 +616,11 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
       for (const CylinderDescription& cylinder : barrel.cylinders) {
         builder.addCylinder(cylinder.radius, cylinder.halfLengthZ,
                             cylinder.modules, cylinder.layer);
+        // every eta module of a cylinder is the same module type
         record(cylinder.material, cylinder.overlapProbability,
-               cylinder.overlapOffset, &cylinder.sensor);
+               cylinder.overlapOffset,
+               std::vector<std::optional<StripSensor>>(
+                   cylinder.modules, sensorNamed(cylinder.sensor)));
       }
     }
     for (const EndcapDescription& endcap : subsystem.endcaps) {
@@ -606,8 +629,14 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
       for (const SurfaceSide side : placementSides(endcap.placement)) {
         for (const DiscDescription& disc : endcap.discs) {
           builder.addDisc(side, disc.absZ, disc.rings, disc.layer);
+          std::vector<std::optional<StripSensor>> rings;
+          rings.reserve(disc.rings.size());
+          for (const RingBounds& ring : disc.rings) {
+            rings.push_back(sensorNamed(
+                ring.sensor.empty() ? disc.sensor : ring.sensor));
+          }
           record(disc.material, disc.overlapProbability, disc.overlapOffset,
-                 &disc.sensor);
+                 std::move(rings));
         }
       }
     }
@@ -627,9 +656,11 @@ Synthetic::DetectorLayout Synthetic::makeLayout(
     layout.surfaces[s].overlapOffset = carried[s].overlapOffset;
     // the readout belongs to the layers, an eta module of a cylinder and a ring
     // of a disc each being one
-    if (carried[s].sensor != nullptr) {
-      for (const std::uint32_t index : layout.surfaces[s].layers) {
-        layout.layers[index].sensor = *carried[s].sensor;
+    const std::vector<std::optional<StripSensor>>& sensors =
+        carried[s].sensors;
+    for (std::size_t k = 0; k < layout.surfaces[s].layers.size(); ++k) {
+      if (k < sensors.size()) {
+        layout.layers[layout.surfaces[s].layers[k]].sensor = sensors[k];
       }
     }
   }
@@ -693,56 +724,6 @@ void Synthetic::stripMaterial(DetectorDescription& description) {
   });
 }
 
-void Synthetic::decorate(DetectorDescription& description,
-                         const SensorDecoration& decoration) {
-  assignLayerIndices(description);
-  for (const SensorEntry& entry : decoration) {
-    bool found = false;
-    walkLayers(description, [&](const LayerId& id, auto& layer) {
-      if (id != entry.layer) {
-        return;
-      }
-      // a passive carries material and nothing reads it out
-      if constexpr (requires { layer.sensor; }) {
-        layer.sensor = entry.sensor;
-        found = true;
-      }
-    });
-    if (!found) {
-      throw std::invalid_argument(
-          "decorate: this detector has no sensitive " +
-          describeLayer(entry.layer) +
-          "; the sensors belong to a description that has since been "
-          "renumbered");
-    }
-  }
-}
-
-Synthetic::SensorDecoration Synthetic::extractSensors(
-    const DetectorDescription& description) {
-  DetectorDescription numbered = description;
-  assignLayerIndices(numbered);
-
-  SensorDecoration decoration;
-  walkLayers(std::as_const(numbered),
-             [&decoration](const LayerId& id, const auto& layer) {
-               if constexpr (requires { layer.sensor; }) {
-                 if (layer.sensor.has_value()) {
-                   decoration.push_back(SensorEntry{id, *layer.sensor});
-                 }
-               }
-             });
-  return decoration;
-}
-
-void Synthetic::clearSensors(DetectorDescription& description) {
-  walkLayers(description, [](const LayerId& /*id*/, auto& layer) {
-    if constexpr (requires { layer.sensor; }) {
-      layer.sensor.reset();
-    }
-  });
-}
-
 Synthetic::DetectorDescription Synthetic::selectSubsystems(
     const DetectorDescription& description,
     const std::span<const std::string> names) {
@@ -752,6 +733,9 @@ Synthetic::DetectorDescription Synthetic::selectSubsystems(
   selected.passives = description.passives;
   selected.escapeRadius = description.escapeRadius;
   selected.escapeHalfZ = description.escapeHalfZ;
+  // the whole table, so that a selection still resolves whatever its layers
+  // name; an unreferenced module type costs four floats
+  selected.sensors = description.sensors;
 
   selected.subsystems.reserve(names.size());
   for (const std::string& name : names) {
@@ -790,6 +774,14 @@ Synthetic::DetectorDescription Synthetic::merge(
   merged.escapeHalfZ = descriptions.front().escapeHalfZ;
 
   for (const DetectorDescription& description : descriptions) {
+    for (const auto& [name, sensor] : description.sensors) {
+      const auto [entry, added] = merged.sensors.emplace(name, sensor);
+      if (!added && !(entry->second == sensor)) {
+        throw std::invalid_argument(
+            "merge: two of these detectors call a sensor '" + name +
+            "' and mean different modules by it");
+      }
+    }
     for (const SubsystemDescription& subsystem : description.subsystems) {
       if (holdsName(subsystemNames(merged.subsystems), subsystem.name)) {
         throw std::invalid_argument(

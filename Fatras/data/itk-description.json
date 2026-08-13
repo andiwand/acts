@@ -13,6 +13,26 @@
             "shape": "cylinder"
         }
     ],
+    "sensors": {
+        "itk-strip-endcap": {
+            "halfLength": 15.0,
+            "moduleGap": 2.0,
+            "pitch": 0.0755,
+            "stereoAngle": 0.02
+        },
+        "itk-strip-long": {
+            "halfLength": 24.1,
+            "moduleGap": 2.0,
+            "pitch": 0.0755,
+            "stereoAngle": 0.026
+        },
+        "itk-strip-short": {
+            "halfLength": 12.05,
+            "moduleGap": 2.0,
+            "pitch": 0.0755,
+            "stereoAngle": 0.026
+        }
+    },
     "subsystems": [
         {
             "barrels": [
@@ -1091,7 +1111,8 @@
                             "modules": 1,
                             "overlapOffset": 7.9,
                             "overlapProbability": 0.13,
-                            "radius": 399.00125
+                            "radius": 399.00125,
+                            "sensor": "itk-strip-short"
                         },
                         {
                             "halfLengthZ": 1373.1672,
@@ -1099,7 +1120,8 @@
                             "modules": 1,
                             "overlapOffset": 7.9,
                             "overlapProbability": 0.13,
-                            "radius": 562.00085
+                            "radius": 562.00085,
+                            "sensor": "itk-strip-short"
                         },
                         {
                             "halfLengthZ": 1373.1672,
@@ -1107,7 +1129,8 @@
                             "modules": 1,
                             "overlapOffset": 7.9,
                             "overlapProbability": 0.13,
-                            "radius": 762.00055
+                            "radius": 762.00055,
+                            "sensor": "itk-strip-long"
                         },
                         {
                             "halfLengthZ": 1373.1672,
@@ -1115,7 +1138,8 @@
                             "modules": 1,
                             "overlapOffset": 7.9,
                             "overlapProbability": 0.13,
-                            "radius": 1000.00037
+                            "radius": 1000.00037,
+                            "sensor": "itk-strip-long"
                         }
                     ]
                 }
@@ -1133,7 +1157,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         },
                         {
                             "absZ": 1702.0,
@@ -1145,7 +1170,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         },
                         {
                             "absZ": 1952.0,
@@ -1157,7 +1183,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         },
                         {
                             "absZ": 2237.0,
@@ -1169,7 +1196,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         },
                         {
                             "absZ": 2532.0,
@@ -1181,7 +1209,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         },
                         {
                             "absZ": 2850.0,
@@ -1193,7 +1222,8 @@
                                     "rMax": 967.785,
                                     "rMin": 384.5
                                 }
-                            ]
+                            ],
+                            "sensor": "itk-strip-endcap"
                         }
                     ],
                     "placement": "mirrored"
