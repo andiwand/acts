@@ -182,11 +182,13 @@ Result<void> recoverConstrainedFormationState(
   const double magSecondBtmToTop = state.secondBtmToTop.norm();
   // Increase the limits. This allows a check if the point is just slightly
   // outside the SDE. The tolerance is a length, so it is expressed in units of
-  // the strip it applies to.
+  // the strip it applies to -- and those units are *half* the strip, `m` and
+  // `n` reaching one at an end of it, so a tolerance of `g` has to move the
+  // limit by `g` over the half length and not over the whole of it.
   const double relaxedLimitFirst =
-      state.limit + stripLengthGapTolerance / magFirstBtmToTop;
+      state.limit + 2 * stripLengthGapTolerance / magFirstBtmToTop;
   const double relaxedLimitSecond =
-      state.limit + stripLengthGapTolerance / magSecondBtmToTop;
+      state.limit + 2 * stripLengthGapTolerance / magSecondBtmToTop;
 
   // Check if m is just slightly outside
   if (std::abs(state.m) > relaxedLimitFirst) {

@@ -55,7 +55,6 @@ StripEnds outerStripFor(double m, double n, double halfLengthInner,
   return outerStrip(y, z, halfLengthOuter);
 }
 
-
 const GeometryContext gctx = GeometryContext::dangerouslyDefaultConstruct();
 
 // two different strip pitches, so that the two directions cannot be confused
@@ -173,6 +172,34 @@ BOOST_AUTO_TEST_CASE(ConstrainedRecoversOneSidedOvershoot) {
       computeConstrainedSpacePoint(first, second, options);
   BOOST_REQUIRE(relaxed.ok());
   CHECK_CLOSE_ABS(relaxed->z(), 30., 1e-6);
+}
+
+// The gap tolerance is a length in its own right: a crossing exactly that far
+// beyond the end of a strip is the last one recovered. `m` reaches one at the
+// end of the strip rather than at the far end of it, so reading the tolerance
+// against the whole bottom-to-top length would recover only half of what it
+// asks for -- and half a tolerance derived from a momentum is a detector that
+// silently loses its soft tracks.
+BOOST_AUTO_TEST_CASE(GapToleranceIsALengthPastTheStripEnd) {
+  constexpr double halfLength = 30.;
+  constexpr double overshoot = 3.;
+
+  const StripEnds first = innerStrip(halfLength);
+  const StripEnds second =
+      outerStripFor(1. + overshoot / halfLength, -0.5, halfLength, halfLength);
+
+  ConstrainedOptions options;
+  options.stripLengthTolerance = 0.;
+
+  options.stripLengthGapTolerance = overshoot * 1.001;
+  BOOST_CHECK(computeConstrainedSpacePoint(first, second, options).ok());
+
+  options.stripLengthGapTolerance = overshoot * 0.999;
+  const Result<Vector3> tight =
+      computeConstrainedSpacePoint(first, second, options);
+  BOOST_CHECK(!tight.ok());
+  BOOST_CHECK_EQUAL(tight.error(),
+                    SpacePointFormationError::OutsideRelaxedLimits);
 }
 
 // The gap tolerance is a length, so a short strip gets a proportionally larger

@@ -515,11 +515,12 @@ void addFatrasSynthetic(py::module_& fatras) {
   // the two dynamic columns that carry the generator truth are pulled out here.
   // Without them the space points cannot be related back to the layout or to
   // the particles that made them.
-  const auto column = [](const Event& event, const std::string& name) {
-    const auto proxy = event.spacePoints.column<std::uint32_t>(name);
+  const auto column = [](const Acts::SpacePointContainer& spacePoints,
+                         const std::string& name) {
+    const auto proxy = spacePoints.column<std::uint32_t>(name);
     std::vector<std::uint32_t> values;
-    values.reserve(event.spacePoints.size());
-    for (const auto sp : event.spacePoints) {
+    values.reserve(spacePoints.size());
+    for (const auto sp : spacePoints) {
       values.push_back(sp.extra(proxy));
     }
     return values;
@@ -537,12 +538,28 @@ void addFatrasSynthetic(py::module_& fatras) {
       .def_readonly("particles", &Event::particles)
       .def_property_readonly(
           "layerIds",
-          [column](const Event& event) { return column(event, "layerId"); },
+          [column](const Event& event) {
+            return column(event.spacePoints, "layerId");
+          },
           "Index into `DetectorLayout.layers` of each space point's layer")
       .def_property_readonly(
           "particleIds",
-          [column](const Event& event) { return column(event, "particleId"); },
-          "Index into `Event.particles` of each space point's particle");
+          [column](const Event& event) {
+            return column(event.spacePoints, "particleId");
+          },
+          "Index into `Event.particles` of each space point's particle")
+      .def_property_readonly(
+          "stripLayerIds",
+          [column](const Event& event) {
+            return column(event.stripSpacePoints, "layerId");
+          },
+          "@copydoc layerIds, for `stripSpacePoints`")
+      .def_property_readonly(
+          "stripParticleIds",
+          [column](const Event& event) {
+            return column(event.stripSpacePoints, "particleId");
+          },
+          "@copydoc particleIds, for `stripSpacePoints`");
 
   py::class_<EventGenerator>(m, "EventGenerator")
       .def(py::init<const DetectorLayout&, const EventConfig&>(),
