@@ -36,12 +36,11 @@ class GbtsTrackingFilter final {
     /// Measurement uncertainty in y direction.
     float sigmaY = 0.25 * Acts::UnitConstants::mm;
 
-    /// The same for a node the stereo pair of a strip module made. Across the
-    /// strips a pair does better than one of them; along them it does an order
-    /// of magnitude worse, and no amount of knowing the direction changes that.
+    /// Across the strips, a stereo pair does better than a pixel does. Along
+    /// them it does far worse, but by how much is not a number to carry here:
+    /// the strip a node was formed on says it, so it is derived per node from
+    /// the half vector rather than configured. See `update`.
     float sigmaXStrip = 0.03 * Acts::UnitConstants::mm;
-    /// @copydoc sigmaXStrip
-    float sigmaYStrip = 1.5 * Acts::UnitConstants::mm;
 
     /// Measurement weight in x direction.
     float weightX = 0.5;

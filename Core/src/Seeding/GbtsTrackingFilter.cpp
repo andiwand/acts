@@ -9,6 +9,7 @@
 #include "Acts/Seeding/GbtsTrackingFilter.hpp"
 
 #include "Acts/Seeding/GbtsGeometry.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
 #include <array>
@@ -278,11 +279,27 @@ bool GbtsTrackingFilter::update(const detail::GbtsNodeView& nodeView,
 
   const GbtsLayerType type = getLayerType(n1.layer());
 
-  // A stereo pair measures nothing like a pixel does: sharper across its
-  // strips and an order of magnitude coarser along them.
-  const bool isStrip = nodeView.strip(n1.index()) != nullptr;
-  const float sigmaX = isStrip ? m_cfg.sigmaXStrip : m_cfg.sigmaX;
-  const float sigmaY = isStrip ? m_cfg.sigmaYStrip : m_cfg.sigmaY;
+  // A stereo pair measures nothing like a pixel does. Across its strips it is
+  // sharper; along them it is only as good as the beam spot it was formed
+  // against, which is to say not at all for a track that did not come from
+  // there. Nothing here knows how far the crossing walked, so the coordinate
+  // is taken as unconstrained over the strip, giving a half length over
+  // sqrt(3). That is the strip's own half vector, so there is no constant to
+  // tune: a barrel strip lies along z and a disc strip along r, and the two
+  // enter this fit through different terms.
+  float sigmaX = m_cfg.sigmaX;
+  float sigmaY = m_cfg.sigmaY;
+  if (const auto* strip = nodeView.strip(n1.index()); strip != nullptr) {
+    constexpr float invSqrt3 = 0.5773503f;
+    const std::array<float, 3>& half = strip->outerHalfVector;
+    // the walk displaces the point along the strip, so its reach in each of
+    // this fit's two coordinates is that half vector projected onto them
+    const float alongX = -half[0] * ts.s + half[1] * ts.c;
+    sigmaX = fastHypot(m_cfg.sigmaXStrip, alongX * invSqrt3);
+    sigmaY = (type == GbtsLayerType::Barrel ? std::abs(half[2])
+                                            : fastHypot(half[0], half[1])) *
+             invSqrt3;
+  }
 
   if (type == GbtsLayerType::Barrel) {
     sigma_rz = sigmaY * sigmaY;
