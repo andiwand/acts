@@ -178,12 +178,15 @@ Two things follow, and both are why the pair is carried rather than approximated
   gap / sin(theta)` and falls as `1/pT`. Past the end of the strip the pair
   stops resolving at all, so the acceptance falls with it.
 
-  @warning The separation between the two sensors of a pair is measured off the
-  ITk geometry -- 6.28 mm in the barrel, 6.43 mm in the endcap -- and at that
-  separation the bias reaches twenty-nine millimetres for a GeV against a
-  twenty-four millimetre strip, which leaves an order of magnitude fewer strip
-  space points than a GNN4ITk dump of the same event holds strip clusters. The
-  formation is therefore under review; see the note in `Fatras/README.md`.
+  @warning Both numbers behind that walk are measured off the ITk geometry --
+  6.28 mm between the two sensors of a pair, 50.9 mrad between their strips --
+  and at those values only thirteen percent of strip crossings leave a space
+  point at all. That is far lower than the efficiency a real reconstruction
+  reaches, and what differs is not yet known: it is not the covariance
+  (acts#5847), not the one-sided overshoot recovery (acts#5860), and not the gap
+  tolerance, which would have to exceed three strip lengths to close it. Note
+  that a cluster count bounds the space point count in neither direction, so a
+  dump of clusters cannot settle it.
 
 The two kinds of space point come out in two collections,
 @ref ActsFatras::Synthetic::Event::spacePoints and
