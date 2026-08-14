@@ -27,7 +27,10 @@
 ///
 /// `--space-points` picks which of the two collections the event holds to seed
 /// on. GBTS is a pixel seeder; running it on the strips of a detector, or on
-/// both at once, is what the strip work is measuring against.
+/// both at once, is what the strip work is measuring against. Seeding the
+/// strips alone also turns on the three space point seeds a four-layer detector
+/// cannot do without, which is the one cut that does not carry over from the
+/// pixel working point; a combined pass has the layers to do without them.
 ///
 /// @note A connection table belongs to the layout it was written for. A layout
 ///       describing the rings of an endcap has many more discs per side than
@@ -369,6 +372,14 @@ int main(int argc, char* argv[]) {
   float stripTolerance = 1.1f;
   float tauRatioCorrStrip =
       Exp::GraphBasedTrackSeeder::Config{}.tauRatioCorrStrip;
+  // Defaulted below against the selection rather than here: a detector with
+  // four layers has to emit three space point seeds, and one with nine has to
+  // be asked before it does.
+  bool addTriplets = Exp::GraphBasedTrackSeeder::Config{}.addTriplets;
+  float maxAbsEtaAddTriplets =
+      Exp::GraphBasedTrackSeeder::Config{}.maxAbsEtaAddTripelts;
+  bool forceAddTriplets = false;
+  bool forceMaxAbsEtaAddTriplets = false;
   bool verbose = false;
   // The synthetic event is noise free, so more geometric doublet candidates
   // survive the cuts than in a real event and the graph outgrows the 2000000
@@ -407,6 +418,14 @@ int main(int argc, char* argv[]) {
         po::value<float>(&tauRatioCorrStrip)->default_value(tauRatioCorrStrip),
         "extra tau ratio tolerance for a triplet through a strip node, whose "
         "shared node the two doublets resolve separately")(
+        "add-triplets",
+        po::value<bool>(&addTriplets)->default_value(addTriplets),
+        "also return three space point seeds, which a subdetector with four "
+        "layers has to have to seed a track missing one of them")(
+        "max-abs-eta-add-triplets",
+        po::value<float>(&maxAbsEtaAddTriplets)
+            ->default_value(maxAbsEtaAddTriplets),
+        "how far in |eta| those three space point seeds are returned")(
         "verbose", po::bool_switch(&verbose),
         "log the seeder's own statistics");
 
@@ -417,6 +436,8 @@ int main(int argc, char* argv[]) {
       std::cout << desc << std::endl;
       return 0;
     }
+    forceAddTriplets = !vm["add-triplets"].defaulted();
+    forceMaxAbsEtaAddTriplets = !vm["max-abs-eta-add-triplets"].defaulted();
   } catch (const std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
@@ -435,6 +456,27 @@ int main(int argc, char* argv[]) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
   }
+  // The strips of the ITk are four layers deep and GBTS asks a chain for four
+  // space points, so a track missing one of them has nothing left to be seeded
+  // from unless three space point seeds are returned as well -- and returned
+  // over the whole acceptance, the default reach of 1.5 being the threshold
+  // below which an edge is not masked as collected and the extra seeds only
+  // duplicate longer ones. Worth 0.61 to 0.93 on the strips alone.
+  //
+  // Strips alone and not a combined pass: what makes this necessary is a
+  // detector with as many layers as a chain needs, and the pixels bring nine
+  // more. It is also a global cut and would loosen the pixel triplets of a
+  // combined graph, which is a retune of the pixel seeder rather than a strip
+  // fix -- it costs 2.7 times the seeds there for three points of efficiency.
+  if (selection == SpacePointSelection::Strip) {
+    if (!forceAddTriplets) {
+      addTriplets = true;
+    }
+    if (!forceMaxAbsEtaAddTriplets) {
+      maxAbsEtaAddTriplets = 4.f;
+    }
+  }
+
   const Event event = generateEvent(layout, eventConfig);
   // The seeder takes one container, so the two collections the generator emits
   // are gathered into the one the selection asks for.
@@ -469,6 +511,8 @@ int main(int argc, char* argv[]) {
   cfg.calibrateStrips = calibrateStrips;
   cfg.stripLengthTolerance = stripTolerance;
   cfg.tauRatioCorrStrip = tauRatioCorrStrip;
+  cfg.addTriplets = addTriplets;
+  cfg.maxAbsEtaAddTripelts = maxAbsEtaAddTriplets;
 
   const Exp::GraphBasedTrackSeeder::DerivedConfig derived(cfg);
   // Warnings are let through even when quiet: the seeder stops building the
