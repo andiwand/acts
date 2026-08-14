@@ -92,7 +92,19 @@ class GraphBasedTrackSeeder {
     ///
     ///     0.0    0.006  0.014  0.021  0.03   0.05
     ///     0.326  0.488  0.564  0.590  0.611  0.619   strips alone
-    ///     0.944  ---    0.947  0.948  0.949  0.948   pixels and strips
+    ///     0.944  0.947  0.947  0.948  0.949  0.948   pixels and strips
+    ///
+    /// The default is where both curves flatten: the strips have taken all but
+    /// the last hundredth of what the correction can give them, and the
+    /// combined pass is at its best.
+    ///
+    /// @note It is free on the strips alone and it is not free on a combined
+    ///       pass, where the triplets it lets through are chains the filter
+    ///       then has to follow: same 47 ms either way for the strips, and
+    ///       378 ms -> 396, 422, 439, 461 for the combined pass along the row
+    ///       above. Three quarters of that cost buys the last two hundredths
+    ///       of combined efficiency, so a combined pass that is short of time
+    ///       should run this at 0.006.
     ///
     /// Relaxing `tauRatioCut` itself reaches the same place for the strips,
     /// 0.62, but it also loosens the pixel triplets, which is a retune of the
@@ -101,7 +113,7 @@ class GraphBasedTrackSeeder {
     /// @note Reaches nothing on a pixel-only event, where no node has a stereo
     ///       pair, so the pixel path is untouched whatever this is set to --
     ///       measured byte for byte at 0, 0.03 and 0.05.
-    float tauRatioCorrStrip = 0.f;
+    float tauRatioCorrStrip = 0.03f;
     /// the maximum allowed eta value in which
     /// three spacepoint seeds are passed through
     float maxAbsEtaAddTripelts = 1.5;
