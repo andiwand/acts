@@ -1,9 +1,10 @@
 from collections import namedtuple
+from collections.abc import Callable, Sequence
 
 import numpy as np
 
 import sympy as sym
-from sympy import Symbol, Matrix, ImmutableMatrix, MatrixSymbol
+from sympy import Basic, Symbol, Matrix, ImmutableMatrix, MatrixSymbol
 from sympy.utilities.iterables import numbered_symbols
 from sympy.codegen.ast import Assignment
 from sympy.printing.cxx import CXX17CodePrinter
@@ -11,11 +12,11 @@ from sympy.printing.cxx import CXX17CodePrinter
 NamedExpr = namedtuple("NamedExpr", ["name", "expr"])
 
 
-def make_vector(name, dim, **kwargs):
+def make_vector(name: str, dim: int, **kwargs) -> Matrix:
     return Matrix([[Symbol(f"{name}[{i}]", **kwargs)] for i in range(dim)])
 
 
-def make_matrix(name, rows, cols, **kwargs):
+def make_matrix(name: str, rows: int, cols: int, **kwargs) -> Matrix:
     return Matrix(
         [
             [Symbol(f"{name}[{i},{j}]", **kwargs) for j in range(cols)]
@@ -24,7 +25,7 @@ def make_matrix(name, rows, cols, **kwargs):
     )
 
 
-def name_expr(name, expr):
+def name_expr(name: str, expr: Basic) -> NamedExpr:
     if hasattr(expr, "shape"):
         s = sym.MatrixSymbol(name, *expr.shape)
     else:
@@ -32,10 +33,108 @@ def name_expr(name, expr):
     return NamedExpr(s, expr)
 
 
-def find_by_name(name_exprs, name):
+def find_by_name(name_exprs: Sequence[NamedExpr], name: str) -> NamedExpr | None:
     return next(
         (name_expr for name_expr in name_exprs if str(name_expr[0]) == name), None
     )
+
+
+def explicit(x: Basic) -> Basic:
+    """Explicit matrix view of a MatrixSymbol, passing anything else through.
+
+    A named matrix expression is referred to by its ``MatrixSymbol`` elsewhere
+    in a derivation, but has to be expanded into its elements to be
+    differentiated or multiplied out.
+    """
+    return x.as_explicit() if hasattr(x, "as_explicit") else x
+
+
+class Derivation:
+    """An ordered derivation of named intermediate expressions.
+
+    Generators build a straight-line sequence of named quantities, each in
+    terms of the ones before it, which is what the printer later turns into
+    C++ locals. Collecting them here rather than in a bare list buys
+    ``check_same``: a hand-derived shortcut can be resolved back to closed
+    form and compared against what the plain chain rule produces, so an
+    algebraic simplification is verified before it is allowed into generated
+    code rather than trusted.
+    """
+
+    def __init__(self) -> None:
+        self.name_exprs: list[NamedExpr] = []
+        self._by_name: dict[Basic, Basic] = {}
+        self._at_cache: tuple[int | None, list[Basic]] = (None, [])
+
+    def add(self, name: str, expr: Basic) -> NamedExpr:
+        """Name an expression and append it to the derivation.
+
+        @param name is the C++ identifier the expression will be emitted as
+        @param expr is the sympy expression it stands for
+        @return the NamedExpr, whose ``.name`` refers to it downstream
+        """
+        if isinstance(expr, Matrix):
+            expr = ImmutableMatrix(expr)
+        ne = name_expr(name, expr)
+        self.name_exprs.append(ne)
+        self._by_name[ne.name] = ne.expr
+        return ne
+
+    def record(self, named_expr: NamedExpr) -> NamedExpr:
+        """Adopt an already-built NamedExpr, so `resolve` can see through it.
+
+        For derivations assembled elsewhere -- `rk4_subexpr` hands back its own
+        named intermediates -- that still need resolving back to closed form.
+
+        @param named_expr is the pair to adopt
+        @return the same pair, for chaining
+        """
+        self.name_exprs.append(named_expr)
+        self._by_name[named_expr.name] = named_expr.expr
+        return named_expr
+
+    def resolve(self, expr: Basic, at: dict | None = None) -> Basic:
+        """Substitute every named intermediate away, down to the inputs.
+
+        With @p at given, each definition is evaluated at that point as it is
+        substituted, so nothing ever grows to its closed form. For anything
+        derivative-sized that is the difference between milliseconds and a
+        minute, and an identity that holds symbolically holds at every point.
+
+        The definitions are already in dependency order, so walking them
+        backwards resolves everything in a single pass: by the time a name is
+        substituted, every name its body mentions is still ahead of it. A
+        fixpoint loop over the whole substitution list instead costs minutes
+        on the dense derivation for the same answer.
+
+        @param expr is the expression to expand
+        @return the closed form of @p expr in terms of the derivation's inputs
+        """
+        bodies = None
+        if at is not None:
+            # the same point is used for every resolve of a derivation, so
+            # evaluate each definition once rather than per call
+            key = id(at)
+            if self._at_cache[0] != key:
+                self._at_cache = (key, [ne.expr.subs(at) for ne in self.name_exprs])
+            bodies = self._at_cache[1]
+        for i in range(len(self.name_exprs) - 1, -1, -1):
+            ne = self.name_exprs[i]
+            expr = expr.subs(ne.name, ne.expr if bodies is None else bodies[i])
+        if any(expr.has(ne.name) for ne in self.name_exprs):
+            raise RuntimeError("named expressions did not resolve")
+        return expr if at is None else expr.subs(at)
+
+    def check_same(self, what: str, expr_a: Basic, expr_b: Basic) -> None:
+        """Fail unless two expressions agree once fully resolved.
+
+        @param what names the shortcut, for the error message
+        @param expr_a is one form, typically the shortcut
+        @param expr_b is the other, typically the plain chain rule
+        """
+        diff = sym.simplify(sym.expand(self.resolve(expr_a) - self.resolve(expr_b)))
+        if any(e != 0 for e in diff):
+            raise AssertionError(f"{what}: shortcut does not match chain rule\n{diff}")
 
 
 # Matrix-element access strategies. A strategy is a callable
@@ -289,8 +388,13 @@ def my_cse(name_exprs, inflate_deflate=True, simplify=True):
 
 
 def my_expression_print(
-    printer, name_exprs, outputs, run_cse=True, pre_expr_hook=None, post_expr_hook=None
-):
+    printer: CXX17CodePrinter,
+    name_exprs: Sequence[NamedExpr],
+    outputs: Sequence[Basic],
+    run_cse: bool = True,
+    pre_expr_hook: Callable[[Basic], str | None] | None = None,
+    post_expr_hook: Callable[[Basic], str | None] | None = None,
+) -> str:
     if run_cse:
         name_exprs = my_cse(name_exprs, inflate_deflate=True)
     name_exprs = order_exprs_by_output(name_exprs, outputs)
@@ -306,15 +410,17 @@ def my_expression_print(
         code = printer.doprint(Assignment(var, expr))
         if var not in outputs:
             if hasattr(expr, "shape"):
-                lines.append(f"T {var}[{np.prod(expr.shape)}];")
+                # std::array rather than a C array: same layout and the same
+                # `x[i]` access in every expression the printer emits, but it
+                # carries its own size and cannot decay to a pointer.
+                lines.append(f"std::array<T, {np.prod(expr.shape)}> {var};")
                 lines.extend(code.split("\n"))
             else:
                 lines.append("const auto " + code)
         else:
-            if hasattr(expr, "shape"):
-                lines.extend(code.split("\n"))
-            else:
-                lines.append("*" + code)
+            # A scalar output is a reference parameter, so it is assigned
+            # directly; only a matrix output is written through its span.
+            lines.extend(code.split("\n"))
 
         if post_expr_hook is not None:
             code = post_expr_hook(var)
@@ -324,14 +430,34 @@ def my_expression_print(
     return "\n".join(lines)
 
 
-def my_function_print(printer, name, inputs, name_exprs, outputs, run_cse=True):
+def my_function_print(
+    printer: CXX17CodePrinter,
+    name: str,
+    inputs: Sequence[Basic],
+    name_exprs: Sequence[NamedExpr],
+    outputs: Sequence[Basic],
+    run_cse: bool = True,
+) -> str:
+    """Emit a whole function, signature included, in the ACTS dialect.
+
+    The detray backend spells its own signatures in ``gen_cxx_code``; this is
+    the equivalent for buffers indexed flatly. Matrices are passed as sized
+    spans and scalars by reference, so a caller cannot silently hand over the
+    wrong extent and the callee cannot decay one.
+    """
+
+    def extent(sym):
+        return int(np.prod(sym.shape))
+
     def input_param(input):
         if isinstance(input, MatrixSymbol):
-            return f"const T* {input.name}"
+            return f"std::span<const T, {extent(input)}> {input.name}"
         return f"const T {input.name}"
 
-    def output_param(name):
-        return f"T* {name}"
+    def output_param(output):
+        if isinstance(output, MatrixSymbol):
+            return f"std::span<T, {extent(output)}> {output.name}"
+        return f"T& {output.name}"
 
     lines = []
 
