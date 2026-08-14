@@ -58,12 +58,11 @@ Result<bool> sympyDenseStep(const SympyStepper& stepper,
       std::span<const double, 3>(pos.data(), 3),
       std::span<const double, 3>(dir.data(), 3), t, h, qop, m, q, pabs,
       std::span<const double, 3>(state.field.data(), 3), getB, getG,
-      &errorEstimate, errTol,
+      errorEstimate, errTol,
       std::span<double, 3>(state.pars.segment<3>(eFreePos0).data(), 3),
-      state.pars.segment<1>(eFreeTime).data(),
+      state.pars[eFreeTime],
       std::span<double, 3>(state.pars.segment<3>(eFreeDir0).data(), 3),
-      state.pars.segment<1>(eFreeQOverP).data(),
-      std::span<double, 3>(lastField.data(), 3),
+      state.pars[eFreeQOverP], std::span<double, 3>(lastField.data(), 3),
       std::span<double, 8>(state.derivative.data(), 8), jac);
 }
 
