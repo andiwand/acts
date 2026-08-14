@@ -162,7 +162,10 @@ struct EigenStepperDefaultExtension {
     auto dir = stepper.direction(state);
     auto qop = stepper.qOverP(state);
     auto p = stepper.absoluteMomentum(state);
-    auto dtds = fastHypot(1, m / p);
+    // m/p is what dt/ds is built from, and d(dt/ds)/d(q/p) needs its square,
+    // so keep it rather than forming m^2/p^2 again below.
+    const auto mOverP = m / p;
+    auto dtds = fastHypot(1, mOverP);
 
     D = FreeMatrix::Identity();
 
@@ -225,7 +228,7 @@ struct EigenStepperDefaultExtension {
     // for unit charge. Writing it over p rather than q keeps the charge out
     // of this expression. Verified against a finite difference of the free
     // time for |q| = 1, 2 and 3; the previous form was off by exactly q^2.
-    D(3, 7) = h * m * m / (p * p * qop * dtds);
+    D(3, 7) = h * mOverP * mOverP / (qop * dtds);
     return true;
   }
 };

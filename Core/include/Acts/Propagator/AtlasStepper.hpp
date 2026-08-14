@@ -1409,7 +1409,10 @@ class AtlasStepper {
       double momentum = absoluteMomentum(state);
 
       // Evaluate the time propagation
-      double dtds = std::sqrt(1 + mass * mass / (momentum * momentum));
+      // m/p is what dt/ds is built from, and d(dt/ds)/d(q/p) needs its
+      // square, so keep it rather than forming m^2/p^2 again below.
+      const double mOverP = mass / momentum;
+      double dtds = std::sqrt(1 + mOverP * mOverP);
       state.pVector[3] += h * dtds;
       state.pVector[59] = dtds;
       state.field = f;
@@ -1418,8 +1421,7 @@ class AtlasStepper {
       if (Jac) {
         // p = |q| / |q/p|, so this carries a 1/q^2 that is invisible for
         // unit charge. Over p it keeps the charge out of the expression.
-        double dtdl =
-            h * mass * mass / (momentum * momentum * qOverP(state) * dtds);
+        double dtdl = h * mOverP * mOverP / (qOverP(state) * dtds);
         state.pVector[43] += dtdl;
 
         // Jacobian calculation
