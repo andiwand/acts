@@ -32,6 +32,7 @@
 #include "Acts/Utilities/Result.hpp"
 #include "ActsTests/CommonHelpers/FloatComparisons.hpp"
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -443,13 +444,20 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_covariance_matches_eigen) {
   cov(eBoundLoc1, eBoundLoc1) = 10_mm;
   cov(eBoundQOverP, eBoundQOverP) = 1e-4;
 
+  // The doubly charged hypothesis is not decoration: p = |q| / |q/p|, so the
+  // time row of the transport jacobian carries a 1/q^2 that is invisible as
+  // long as every test particle has unit charge.
+  const std::array particles = {ParticleHypothesis::pion(),
+                                ParticleHypothesis::pionLike(2.f)};
+
   for (int track = 0; track < 4; ++track) {
     const double phi = 0.3 * track;
     const double theta = 0.7 + 0.25 * track;
     const double qop = (track % 2 == 0 ? 1. : -1.) / ((1. + track) * 1_GeV);
+    const ParticleHypothesis& particle = particles.at(track % particles.size());
 
     auto start = BoundTrackParameters::createCurvilinear(
-        Vector4::Zero(), phi, theta, qop, cov, ParticleHypothesis::pion());
+        Vector4::Zero(), phi, theta, qop, cov, particle);
 
     auto sympyState = sympyStepper.makeState(sympyOptions);
     sympyStepper.initialize(sympyState, start);
@@ -499,7 +507,8 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_dense_kernel_matches_vacuum_kernel) {
         state, BoundTrackParameters::createCurvilinear(
                    Vector4::Zero(), 0.4 + 0.6 * track, 0.7 + 0.35 * track,
                    (track % 2 == 0 ? 1. : -1.) / ((1. + track) * 1_GeV), cov,
-                   ParticleHypothesis::pion()));
+                   track % 2 == 0 ? ParticleHypothesis::pion()
+                                  : ParticleHypothesis::pionLike(2.f)));
     for (int i = 0; i < 60; ++i) {
       const IVolumeMaterial* material =
           (mode == 1 || (mode == 2 && i % 2 == 0)) ? &vacuum : nullptr;

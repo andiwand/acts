@@ -679,7 +679,11 @@ def rk4_vacuum_b2f_atlasexpr(taylor_norm=False):
     # The extra l is the scaling the stored column carries; the division by the
     # q/p row that goes with it has already cancelled, since the plain entry is
     # dtdl times that row.
-    dtdl = b.add("dtdl", h * m**2 * l**2 / dtds.name)
+    # Written over p_abs rather than l: `l * d(h*dtds)/dl` is
+    # `h m^2 / (p_abs^2 dtds)`, and the `h m^2 l^2 / dtds` it used to be is
+    # only the same thing when the charge is one, since p_abs = |q| / |l|.
+    # Same operation count, and no need for `q` as an input.
+    dtdl = b.add("dtdl", h * m**2 / (p_abs**2 * dtds.name))
     new_time = M[3, 4] + dtdl.name
 
     b.add("new_Mp", Matrix.vstack(phi_pos, phi_dir))
