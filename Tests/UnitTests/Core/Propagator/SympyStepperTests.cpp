@@ -32,6 +32,7 @@
 #include "Acts/Utilities/Result.hpp"
 #include "ActsTests/CommonHelpers/FloatComparisons.hpp"
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -439,10 +440,17 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_covariance_matches_eigen) {
   eigenOptions.maxStepSize = 100_mm;
   eigenOptions.initialStepSize = 30_mm;
 
+  // The doubly charged hypothesis is not decoration: p = |q| / |q/p|, so the
+  // time row of the transport jacobian carries a 1/q^2 that is invisible as
+  // long as every test particle has unit charge.
+  const std::array particles = {ParticleHypothesis::pion(),
+                                ParticleHypothesis::pionLike(2.f)};
+
   for (int track = 0; track < 4; ++track) {
     const double phi = 0.3 * track;
     const double theta = 0.7 + 0.25 * track;
     const double qop = (track % 2 == 0 ? 1. : -1.) / ((1. + track) * 1_GeV);
+    const ParticleHypothesis& particle = particles.at(track % particles.size());
 
     Covariance cov = Covariance::Identity();
     cov(eBoundLoc0, eBoundLoc0) = 10_mm;
@@ -450,7 +458,7 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_covariance_matches_eigen) {
     cov(eBoundQOverP, eBoundQOverP) = 1e-4;
 
     auto start = BoundTrackParameters::createCurvilinear(
-        Vector4::Zero(), phi, theta, qop, cov, ParticleHypothesis::pion());
+        Vector4::Zero(), phi, theta, qop, cov, particle);
 
     auto sympyState = sympyStepper.makeState(sympyOptions);
     sympyStepper.initialize(sympyState, start);
@@ -503,7 +511,8 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_dense_kernel_matches_vacuum_kernel) {
         state, BoundTrackParameters::createCurvilinear(
                    Vector4::Zero(), 0.4 + 0.6 * track, 0.7 + 0.35 * track,
                    (track % 2 == 0 ? 1. : -1.) / ((1. + track) * 1_GeV), cov,
-                   ParticleHypothesis::pion()));
+                   track % 2 == 0 ? ParticleHypothesis::pion()
+                                  : ParticleHypothesis::pionLike(2.f)));
     for (int i = 0; i < 60; ++i) {
       const IVolumeMaterial* material =
           (mode == 1 || (mode == 2 && i % 2 == 0)) ? &vacuum : nullptr;
@@ -518,13 +527,6 @@ BOOST_AUTO_TEST_CASE(sympy_stepper_dense_kernel_matches_vacuum_kernel) {
       const BoundMatrix jacobian = run(track, mode);
       for (std::size_t i = 0; i < eBoundSize; ++i) {
         for (std::size_t j = 0; j < eBoundSize; ++j) {
-          // FIXME d(time)/d(q/p) does not agree between the two kernels, by
-          // tens of percent and already before the q/p column was given its
-          // storage convention.  Every other entry agrees to round-off, so
-          // check those and leave this one to be fixed separately.
-          if (i == eBoundTime && j == eBoundQOverP) {
-            continue;
-          }
           BOOST_CHECK_LE(std::abs(jacobian(i, j) - reference(i, j)),
                          1e-11 * std::max({std::abs(jacobian(i, j)),
                                            std::abs(reference(i, j)), 1e-12}));

@@ -221,7 +221,11 @@ struct EigenStepperDefaultExtension {
 
     dGdL = h / 6. * (dk1dL + 2. * (dk2dL + dk3dL) + dk4dL);
 
-    D(3, 7) = h * m * m * qop / dtds;
+    // p = |q| / |q/p|, so d(dt/ds)/d(q/p) carries a 1/q^2 that is invisible
+    // for unit charge. Writing it over p rather than q keeps the charge out
+    // of this expression. Verified against a finite difference of the free
+    // time for |q| = 1, 2 and 3; the previous form was off by exactly q^2.
+    D(3, 7) = h * m * m / (p * p * qop * dtds);
     return true;
   }
 };

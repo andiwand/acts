@@ -1416,7 +1416,10 @@ class AtlasStepper {
       state.newfield = false;
 
       if (Jac) {
-        double dtdl = h * mass * mass * qOverP(state) / dtds;
+        // p = |q| / |q/p|, so this carries a 1/q^2 that is invisible for
+        // unit charge. Over p it keeps the charge out of the expression.
+        double dtdl =
+            h * mass * mass / (momentum * momentum * qOverP(state) * dtds);
         state.pVector[43] += dtdl;
 
         // Jacobian calculation
