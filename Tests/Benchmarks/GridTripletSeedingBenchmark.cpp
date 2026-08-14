@@ -13,10 +13,15 @@
 /// SyntheticEventOptions.hpp and the triplet cuts from
 /// TripletSeedingConfig.hpp, both shared with the other seeding benchmarks.
 /// What is added here is the grid and the driving loop, taken from how ATLAS
-/// runs this seeder on the ITk pixel detector:
-/// `ActsTrk::GridTripletSeedingTool` with the overrides
-/// `ActsPixelSeedingToolCfg` applies, at the ITk main pass values of the
-/// tracking flags it reads (900 MeV, 5 mm).
+/// runs this seeder on the ITk: `ActsTrk::GridTripletSeedingTool` with the
+/// overrides `ActsPixelSeedingToolCfg` or `ActsStripSeedingToolCfg` applies, at
+/// the ITk main pass values of the tracking flags they read (900 MeV, 5 mm,
+/// 1100 mm).
+///
+/// `--space-points` picks which of the two collections the event holds to seed
+/// on, and with it which of the two configurations to run. ATLAS seeds the two
+/// detectors in separate passes, so there is no combined one to copy: what a
+/// combined number means here is the two runs added up.
 ///
 /// The same loop runs on either space point grid, so that they can be compared
 /// on equal terms:
@@ -170,7 +175,7 @@ struct MiddleAxis {
 };
 
 Acts::CylindricalSpacePointGrid::Config makeCylindricalGridConfig(
-    const ItkPixelConfig& cfg) {
+    const ItkSeedingConfig& cfg) {
   Acts::CylindricalSpacePointGrid::Config gridCfg;
   gridCfg.minPt = cfg.minPt;
   gridCfg.rMin = 0;
@@ -201,7 +206,7 @@ Acts::CylindricalSpacePointGrid::Config makeCylindricalGridConfig(
 /// ATLAS takes middle candidates from in each of them.
 /// @param cfg the seeding configuration
 /// @return the middle axis binning
-MiddleAxis makeCylindricalMiddleAxis(const ItkPixelConfig& cfg) {
+MiddleAxis makeCylindricalMiddleAxis(const ItkSeedingConfig& cfg) {
   return {cfg.zBinEdges, cfg.rRangeMiddleSP};
 }
 
@@ -239,7 +244,7 @@ std::vector<float> makeEtaBinEdges(const SphericalGridConfig& sph) {
 }
 
 Exp::SphericalSpacePointGrid::Config makeSphericalGridConfig(
-    const ItkPixelConfig& cfg, const SphericalGridConfig& sph) {
+    const ItkSeedingConfig& cfg, const SphericalGridConfig& sph) {
   Exp::SphericalSpacePointGrid::Config gridCfg;
   gridCfg.minPt = cfg.minPt;
   gridCfg.rMin = 0;
@@ -292,6 +297,18 @@ MiddleAxis makeSphericalMiddleAxis(const SphericalGridConfig& sph) {
   return {edges, ranges};
 }
 
+/// The radial range middle space point candidates are taken from when it
+/// follows the extent of the event rather than a table, i.e. under
+/// `useVariableMiddleSPRange`.
+/// @param cfg the seeding configuration
+/// @param rRange the radial extent of the event in mm
+/// @return the radial range in mm
+Acts::Range1D<float> makeVariableMiddleRange(
+    const ItkSeedingConfig& cfg, const Acts::Range1D<float>& rRange) {
+  return {std::floor(rRange.min() / 2) * 2 + cfg.deltaRMiddleMinSPRange,
+          std::floor(rRange.max() / 2) * 2 - cfg.deltaRMiddleMaxSPRange};
+}
+
 /// The radial range middle space point candidates are taken from, looked up in
 /// the middle axis bin the candidates sit in.
 /// @param cfg the seeding configuration
@@ -300,7 +317,7 @@ MiddleAxis makeSphericalMiddleAxis(const SphericalGridConfig& sph) {
 /// @param variableRange the range derived from the extent of the event
 /// @return the radial range in mm
 std::pair<float, float> radiusRangeForMiddle(
-    const ItkPixelConfig& cfg, const MiddleAxis& axis, float coordinate,
+    const ItkSeedingConfig& cfg, const MiddleAxis& axis, float coordinate,
     const Acts::Range1D<float>& variableRange) {
   if (cfg.useVariableMiddleSPRange) {
     return {variableRange.min(), variableRange.max()};
@@ -334,7 +351,7 @@ struct SeedingCache {
 /// @param spacePoints the space points of the event
 /// @param seeds receives the seeds
 template <typename GridType>
-void createSeeds(const ItkPixelConfig& cfg,
+void createSeeds(const ItkSeedingConfig& cfg,
                  const typename GridType::Config& gridConfig,
                  const MiddleAxis& axis, SeedingCache& cache,
                  const Acts::SpacePointContainer& spacePoints,
@@ -366,7 +383,9 @@ void createSeeds(const ItkPixelConfig& cfg,
   Acts::SpacePointContainer gridSpacePoints(
       Acts::SpacePointColumns::CopiedFromIndex |
       Acts::SpacePointColumns::PackedXY | Acts::SpacePointColumns::PackedZR |
-      Acts::SpacePointColumns::VarianceZ | Acts::SpacePointColumns::VarianceR);
+      Acts::SpacePointColumns::VarianceZ | Acts::SpacePointColumns::VarianceR |
+      (cfg.useStripInfo ? Acts::SpacePointColumns::StripCalibrationDetails
+                        : Acts::SpacePointColumns::None));
   gridSpacePoints.reserve(grid.numberOfSpacePoints());
   std::vector<Acts::SpacePointIndexRange> gridSpacePointRanges;
   gridSpacePointRanges.reserve(grid.numberOfBins());
@@ -380,6 +399,10 @@ void createSeeds(const ItkPixelConfig& cfg,
       newSp.zr() = std::array<float, 2>{sp.z(), sp.r()};
       newSp.varianceZ() = sp.varianceZ();
       newSp.varianceR() = sp.varianceR();
+      if (cfg.useStripInfo) {
+        newSp.outerStripCalibrationDetails() =
+            sp.outerStripCalibrationDetails();
+      }
     }
     gridSpacePointRanges.emplace_back(begin, gridSpacePoints.size());
   }
@@ -399,9 +422,8 @@ void createSeeds(const ItkPixelConfig& cfg,
     }
     return {minRange, maxRange};
   }();
-  const Acts::Range1D<float> variableMiddleRange(
-      std::floor(rRange.min() / 2) * 2 + cfg.deltaRMiddleMinSPRange,
-      std::floor(rRange.max() / 2) * 2 - cfg.deltaRMiddleMaxSPRange);
+  const Acts::Range1D<float> variableMiddleRange =
+      makeVariableMiddleRange(cfg, rRange);
 
   Acts::BroadTripletSeedFilter::State filterState;
   Acts::BroadTripletSeedFilter::Cache filterCache;
@@ -481,7 +503,7 @@ void createSeeds(const ItkPixelConfig& cfg,
 /// @param spacePoints the space points of the event
 /// @param logger the logger to build the grid with
 template <typename GridType>
-void printGridStatistics(const ItkPixelConfig& cfg,
+void printGridStatistics(const ItkSeedingConfig& cfg,
                          const typename GridType::Config& gridConfig,
                          const MiddleAxis& axis,
                          const Acts::SpacePointContainer& spacePoints,
@@ -504,6 +526,17 @@ void printGridStatistics(const ItkPixelConfig& cfg,
     occupied += grid.at(i).empty() ? 0 : 1;
   }
 
+  // as in the seeding pass, which takes the extent from the space points it is
+  // given
+  float minRadius = std::numeric_limits<float>::max();
+  float maxRadius = std::numeric_limits<float>::lowest();
+  for (const auto sp : spacePoints) {
+    minRadius = std::min(minRadius, sp.r());
+    maxRadius = std::max(maxRadius, sp.r());
+  }
+  const Acts::Range1D<float> variableMiddleRange =
+      makeVariableMiddleRange(cfg, {minRadius, maxRadius});
+
   std::size_t middles = 0;
   std::size_t bottomPairs = 0;
   std::size_t topPairs = 0;
@@ -516,7 +549,7 @@ void printGridStatistics(const ItkPixelConfig& cfg,
     for (const Acts::SpacePointIndex index : grid.at(middle)) {
       const auto& sp = spacePoints[index];
       const std::pair<float, float> range = radiusRangeForMiddle(
-          cfg, axis, spherical ? sp.z() / sp.r() : sp.z(), {0, 0});
+          cfg, axis, spherical ? sp.z() / sp.r() : sp.z(), variableMiddleRange);
       numMiddle += (sp.r() >= range.first && sp.r() <= range.second) ? 1 : 0;
     }
     middles += numMiddle;
@@ -543,15 +576,18 @@ int main(int argc, char* argv[]) {
   // the way a repeated measurement does; more averages over the event-to-event
   // spread in multiplicity at the cost of a larger working set.
   std::size_t numEvents = 1;
-  float minPt = ItkPixelConfig{}.minPt / 1_MeV;
+  float minPt = ItkSeedingConfig{}.minPt / 1_MeV;
   // Efficiency is counted over a harder threshold than the seeder is cut at, so
   // that the turn-on stays out of it.
   float truthPt = 1000.f;
   std::string gridName = "cylindrical";
+  std::string selectionName = "pixel";
   std::string dumpPrefix;
   std::vector<float> middleRange;
   bool allMiddleBins = false;
   bool forceDeltaZMax = false;
+  bool forceRBins = false;
+  bool stripInfo = true;
   bool verbose = false;
 
   SphericalGridConfig sph;
@@ -563,6 +599,14 @@ int main(int argc, char* argv[]) {
     desc.add_options()(
         "grid", po::value<std::string>(&gridName)->default_value(gridName),
         "space point grid to bin the event in, cylindrical or spherical")(
+        "space-points",
+        po::value<std::string>(&selectionName)->default_value(selectionName),
+        "which of the event's space points to seed on, and with them which "
+        "configuration to run: pixel or strip")(
+        "strip-info", po::value<bool>(&stripInfo)->default_value(stripInfo),
+        "strips: fit the triplet against the strips of its three space points, "
+        "each of them free to move along its own, rather than through their "
+        "nominal crossings")(
         "runs", po::value<std::size_t>(&numRuns)->default_value(numRuns),
         "number of benchmark runs")(
         "events", po::value<std::size_t>(&numEvents)->default_value(numEvents),
@@ -612,6 +656,9 @@ int main(int argc, char* argv[]) {
     // the cut belongs to the spherical setup, but asking for it explicitly
     // applies it to either grid, so that the two can be told apart from it
     forceDeltaZMax = !vm["delta-z-max"].defaulted();
+    // the radial extent of the spherical grid otherwise follows the detector
+    // the selected configuration is written for
+    forceRBins = vm.count("r-bins") > 0;
   } catch (const std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
@@ -622,6 +669,14 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   const bool spherical = gridName == "spherical";
+
+  if (selectionName != "pixel" && selectionName != "strip") {
+    std::cerr << "error: --space-points takes pixel or strip" << std::endl;
+    return 1;
+  }
+  const bool strips = selectionName == "strip";
+  const SpacePointSelection selection =
+      strips ? SpacePointSelection::Strip : SpacePointSelection::Pixel;
 
   // the middle axis is walked outwards one bin at a time, so a width that does
   // not advance would never terminate
@@ -664,7 +719,16 @@ int main(int argc, char* argv[]) {
     writeEventCsv(events.front(), layout, dumpPrefix);
   }
 
-  ItkPixelConfig cfg;
+  // The seeder takes one container, so the collection the selection asks for is
+  // gathered into one per event, up front like the events themselves.
+  std::vector<Acts::SpacePointContainer> spacePoints;
+  spacePoints.reserve(numEvents);
+  for (const Event& event : events) {
+    spacePoints.push_back(selectSpacePoints(event, selection));
+  }
+
+  ItkSeedingConfig cfg = strips ? makeItkStripConfig() : ItkSeedingConfig{};
+  cfg.useStripInfo = cfg.useStripInfo && stripInfo;
   cfg.bFieldInZ = eventConfig.bFieldZ;
   // reaches the phi binning of the grid, both doublet finders and the triplet
   // finder, so it has to be set before any of them is built
@@ -696,6 +760,13 @@ int main(int argc, char* argv[]) {
   if (allMiddleBins) {
     cfg.zBinsCustomLooping.clear();
   }
+  // The spherical grid was scanned on the pixels; what does not carry over to
+  // the strips is how far out it reaches. Its radial range of middle candidates
+  // does carry over unread, the strip configuration taking that range from the
+  // extent of the event instead.
+  if (strips && !forceRBins) {
+    sph.rBinEdges = {cfg.rBinEdges.front(), cfg.rBinEdges.back()};
+  }
   const Acts::CylindricalSpacePointGrid::Config cylindricalConfig =
       makeCylindricalGridConfig(cfg);
   const Exp::SphericalSpacePointGrid::Config sphericalConfig =
@@ -712,35 +783,36 @@ int main(int argc, char* argv[]) {
 
   // dispatch once, so that the grid type is a compile time property of the
   // seeding pass and not a branch inside it
-  const auto seed = [&](const Event& event, Acts::SeedContainer& seeds) {
+  const auto seed = [&](const Acts::SpacePointContainer& eventSpacePoints,
+                        Acts::SeedContainer& seeds) {
     if (spherical) {
-      createSeeds<Exp::SphericalSpacePointGrid>(
-          cfg, sphericalConfig, axis, cache, event.spacePoints, seeds);
+      createSeeds<Exp::SphericalSpacePointGrid>(cfg, sphericalConfig, axis,
+                                                cache, eventSpacePoints, seeds);
     } else {
       createSeeds<Acts::CylindricalSpacePointGrid>(
-          cfg, cylindricalConfig, axis, cache, event.spacePoints, seeds);
+          cfg, cylindricalConfig, axis, cache, eventSpacePoints, seeds);
     }
   };
 
   if (spherical) {
     printGridStatistics<Exp::SphericalSpacePointGrid>(
-        cfg, sphericalConfig, axis, events.front().spacePoints, *cache.logger);
+        cfg, sphericalConfig, axis, spacePoints.front(), *cache.logger);
   } else {
     printGridStatistics<Acts::CylindricalSpacePointGrid>(
-        cfg, cylindricalConfig, axis, events.front().spacePoints,
-        *cache.logger);
+        cfg, cylindricalConfig, axis, spacePoints.front(), *cache.logger);
   }
 
   // Truth and efficiency are accumulated over every event, and outside the
   // timed region so that the truth lookup does not show up in the measurement.
   EventSummary summary;
   SeedingSummary seedSummary;
-  for (const Event& event : events) {
-    // Scored on the pixels: the strips of a description are generated but not
-    // handed to this seeder, and counting them would put primaries it never
-    // saw into the denominator.
+  for (std::size_t index = 0; index < events.size(); ++index) {
+    const Event& event = events[index];
+    // Scored on the selected collection alone: the other one is generated but
+    // not handed to this seeder, and counting it would put primaries the seeder
+    // never saw into the denominator.
     const EventSummary one =
-        summarize(event, truthPt * 1_MeV / 1_GeV, SpacePointSelection::Pixel);
+        summarize(event, truthPt * 1_MeV / 1_GeV, selection);
     summary.spacePoints += one.spacePoints;
     summary.primaries += one.primaries;
     summary.secondaries += one.secondaries;
@@ -749,7 +821,7 @@ int main(int argc, char* argv[]) {
     summary.secondaryHits += one.secondaryHits;
 
     Acts::SeedContainer reference;
-    seed(event, reference);
+    seed(spacePoints[index], reference);
     const SeedingSummary oneSeeding =
         evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
     seedSummary.seeds += oneSeeding.seeds;
@@ -758,7 +830,8 @@ int main(int argc, char* argv[]) {
   }
 
   const auto perEvent = [&](std::size_t value) { return value / numEvents; };
-  std::cout << "grid=" << gridName << " events=" << numEvents
+  std::cout << "grid=" << gridName << " selection=" << selectionName
+            << " events=" << numEvents
             << "\nmean/event: spacePoints=" << perEvent(summary.spacePoints)
             << " primaryHits=" << perEvent(summary.primaryHits)
             << " secondaryHits=" << perEvent(summary.secondaryHits)
@@ -772,7 +845,7 @@ int main(int argc, char* argv[]) {
   const auto result = microBenchmark(
       [&] {
         Acts::SeedContainer seeds;
-        seed(events[next], seeds);
+        seed(spacePoints[next], seeds);
         next = (next + 1) % numEvents;
         assumeRead(seeds);
       },

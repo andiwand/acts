@@ -105,7 +105,7 @@ struct OrthogonalConfig {
 };
 
 Exp::CylindricalSpacePointKDTree::Options makeTreeOptions(
-    const ItkPixelConfig& cfg, const OrthogonalConfig& ortho) {
+    const ItkSeedingConfig& cfg, const OrthogonalConfig& ortho) {
   Exp::CylindricalSpacePointKDTree::Options options;
   options.rMax = ortho.rMax;
   options.zMin = ortho.zMin;
@@ -173,7 +173,7 @@ Exp::CylindricalSpacePointKDTree buildTree(
 /// @param variableMiddleRange the radial range derived from the event extent
 /// @param nTopSeedConf receives the required number of top candidates
 /// @return whether the space point is an acceptable middle one
-bool acceptMiddle(const ItkPixelConfig& cfg, const OrthogonalConfig& ortho,
+bool acceptMiddle(const ItkSeedingConfig& cfg, const OrthogonalConfig& ortho,
                   const Acts::ConstSpacePointProxy& spM,
                   const Acts::Range1D<float>& variableMiddleRange,
                   std::size_t& nTopSeedConf) {
@@ -217,7 +217,7 @@ bool acceptMiddle(const ItkPixelConfig& cfg, const OrthogonalConfig& ortho,
 /// @param cache the reusable finders and their state
 /// @param spacePoints the space points of the event
 /// @param seeds receives the seeds
-void createSeeds(const ItkPixelConfig& cfg, const OrthogonalConfig& ortho,
+void createSeeds(const ItkSeedingConfig& cfg, const OrthogonalConfig& ortho,
                  SeedingCache& cache,
                  const Acts::SpacePointContainer& spacePoints,
                  Acts::SeedContainer& seeds) {
@@ -321,7 +321,7 @@ void createSeeds(const ItkPixelConfig& cfg, const OrthogonalConfig& ortho,
 /// @param ortho the k-d tree configuration
 /// @param spacePoints the space points of the event
 /// @param logger the logger to build the tree with
-void printTreeStatistics(const ItkPixelConfig& cfg,
+void printTreeStatistics(const ItkSeedingConfig& cfg,
                          const OrthogonalConfig& ortho,
                          const Acts::SpacePointContainer& spacePoints,
                          const Acts::Logger& logger) {
@@ -382,7 +382,7 @@ int main(int argc, char* argv[]) {
   SyntheticEventOptions::Values shared;
   std::size_t numRuns = 10;
   std::size_t numEvents = 1;
-  float minPt = ItkPixelConfig{}.minPt / 1_MeV;
+  float minPt = ItkSeedingConfig{}.minPt / 1_MeV;
   // Efficiency is counted over a harder threshold than the seeder is cut at, so
   // that the turn-on stays out of it.
   float truthPt = 1000.f;
@@ -462,7 +462,7 @@ int main(int argc, char* argv[]) {
     writeEventCsv(events.front(), layout, dumpPrefix);
   }
 
-  ItkPixelConfig cfg;
+  ItkSeedingConfig cfg;
   cfg.bFieldInZ = eventConfig.bFieldZ;
   cfg.minPt = minPt * 1_MeV;
   cfg.deltaZMax = deltaZMax;
