@@ -181,10 +181,18 @@ void SympyStepper::transportCovarianceToBound(
 
 Result<double> SympyStepper::step(State& state, Direction propDir,
                                   const IVolumeMaterial* material) const {
+  // Everything about material lives in the other translation unit, including
+  // the branch: what stayed behind here used to share a stack frame and a
+  // register allocation with the vacuum path, which is the one that runs
+  // almost everywhere.
+  if (state.options.doDense &&
+      (material != nullptr || !state.materialEffectsAccumulator.isVacuum())) {
+    return detail::sympyDenseStepFull(*this, state, propDir, material);
+  }
+
   double h = state.stepSize.value() * propDir;
 
   const double initialH = h;
-  const Direction timeDirection = Direction::fromScalarZeroAsPositive(h);
 
   const Vector3 pos = position(state);
   const Vector3 dir = direction(state);
@@ -192,11 +200,6 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
   const double qop = qOverP(state);
   const double pabs = absoluteMomentum(state);
   const double m = particleHypothesis(state).mass();
-
-  if (state.options.doDense && material != nullptr &&
-      pabs < state.options.dense.momentumCutOff) {
-    return EigenStepperError::StepInvalid;
-  }
 
   const auto getB = [&](std::span<const double, 3> p) -> Result<Vector3> {
     return getField(state, {p[0], p[1], p[2]});
@@ -210,7 +213,11 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
     state.field = *fieldRes;
     state.fieldIsValid = true;
   }
-  Vector3 lastField = state.field;
+  // The kernel writes nothing until it has accepted a trial, so its last field
+  // sample can go straight into the state instead of into a local that is
+  // copied over afterwards.  That copy sat on the loop-carried chain: the field
+  // at the end of one step is the first thing the next one multiplies.
+  Vector3& lastField = state.field;
 
   // `state.options.stepTolerance` is read once per trial to form the error
   // bound, and again afterwards to scale the step size for the next one. The
@@ -262,29 +269,18 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
         state.covTransport ? std::span<double>(state.jacToGlobal.data(),
                                                state.jacToGlobal.size())
                            : std::span<double>();
-    if (!state.options.doDense || material == nullptr) {
-      // A status code rather than a `Result<bool>`: a variant returned across
-      // the kernel boundary is read back through the stack on the accepted
-      // path, which is every path that matters.
-      const int status = rk4_vacuum(
-          startPos, startDir, t, h, qop, m, pabs,
-          std::span<const double, 3>(state.field.data(), 3), getB,
-          errorEstimate, 4 * stepTolerance, fieldError, endPos,
-          state.pars[eFreeTime], endDir,
-          std::span<double, 3>(lastField.data(), 3), derivative, jac);
-      if (status == 2) {
-        return fieldError;
-      }
-      accepted = status != 0;
-    } else {
-      Result<bool> res = detail::sympyDenseStep(
-          *this, state, *material, timeDirection, h, 4 * stepTolerance,
-          errorEstimate, lastField, jac);
-      if (!res.ok()) {
-        return res.error();
-      }
-      accepted = *res;
+    // A status code rather than a `Result<bool>`: a variant returned across
+    // the kernel boundary is read back through the stack on the accepted
+    // path, which is every path that matters.
+    const int status = rk4_vacuum(
+        startPos, startDir, t, h, qop, m, pabs,
+        std::span<const double, 3>(state.field.data(), 3), getB, errorEstimate,
+        4 * stepTolerance, fieldError, endPos, state.pars[eFreeTime], endDir,
+        std::span<double, 3>(lastField.data(), 3), derivative, jac);
+    if (status == 2) {
+      return fieldError;
     }
+    accepted = status != 0;
     // Protect against division by zero
     errorEstimate = std::max(1e-20, errorEstimate);
 
@@ -312,10 +308,6 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
     }
   }
 
-  // the last field sample of an accepted step is O(h^3) away from the step
-  // end point, close enough to seed the next step with
-  state.field = lastField;
-
   state.pathAccumulated += h;
   ++state.nSteps;
   state.nStepTrials += nStepTrials;
@@ -333,20 +325,6 @@ Result<double> SympyStepper::step(State& state, Direction propDir,
   const double initialStepLength = std::abs(initialH);
   if (nextAccuracy < initialStepLength || nextAccuracy > previousAccuracy) {
     state.stepSize.setAccuracy(nextAccuracy);
-  }
-
-  if (state.options.doDense &&
-      (material != nullptr || !state.materialEffectsAccumulator.isVacuum())) {
-    if (state.materialEffectsAccumulator.isVacuum()) {
-      state.materialEffectsAccumulator.initialize(
-          state.options.maxXOverX0Step, particleHypothesis(state), pabs);
-    }
-
-    Material mat =
-        material != nullptr ? material->material(pos) : Material::Vacuum();
-
-    state.materialEffectsAccumulator.accumulate(mat, propDir * h, qop,
-                                                qOverP(state));
   }
 
   return h;
