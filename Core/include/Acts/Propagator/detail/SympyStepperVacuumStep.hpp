@@ -18,6 +18,7 @@
 #include "Acts/Propagator/SympyStepper.hpp"
 #include "Acts/Utilities/Result.hpp"
 
+#include <cassert>
 #include <cmath>
 #include <span>
 
@@ -97,6 +98,17 @@ Result<double> sympyVacuumStep(const SympyStepper& stepper,
     return std::clamp(x, lower, upper);
   };
 
+  // If a future path changes q/p without refreshing dt/ds, the times come out
+  // silently wrong.  Catch it where it would happen rather than downstream.
+  // Guarded on NDEBUG rather than left to `assert`: ACTS' assert_include shim
+  // keeps asserts live in release builds, and this one costs the very sqrt and
+  // divide the cached value exists to avoid.
+#ifndef NDEBUG
+  assert(std::abs(state.dtds - std::sqrt(1 + m * m / (pabs * pabs))) <
+             1e-12 * state.dtds &&
+         "cached dt/ds is stale: q/p changed without refreshing it");
+#endif
+
   std::size_t nStepTrials = 0;
   double errorEstimate = 0.;
 
@@ -116,25 +128,29 @@ Result<double> sympyVacuumStep(const SympyStepper& stepper,
     // A status code rather than a `Result<bool>`: a variant returned across
     // the kernel boundary is read back through the stack on the accepted
     // path, which is every path that matters.
+    // A status code rather than a `Result<bool>`: a variant returned across
+    // the kernel boundary is read back through the stack on the accepted
+    // path, which is every path that matters.
     int status = 0;
     if constexpr (WithJac) {
-      status = rk4_vacuum_jac(startPos, startDir, t, h, qop, m, pabs,
-                              std::span<const double, 3>(state.field.data(), 3),
-                              getB, errorEstimate, 4 * stepTolerance,
-                              fieldError, endPos, state.pars[eFreeTime], endDir,
-                              std::span<double, 3>(lastField.data(), 3),
-                              std::span<double, 8>(state.derivative.data(), 8),
-                              std::span<double>(state.jacToGlobal.data(),
-                                                state.jacToGlobal.size()));
+      status =
+          rk4_vacuum_jac(startPos, startDir, t, h, qop, m, pabs,
+                         std::span<const double, 3>(state.field.data(), 3),
+                         getB, errorEstimate, 4 * stepTolerance, fieldError,
+                         endPos, state.pars[eFreeTime], endDir,
+                         std::span<double, 3>(lastField.data(), 3), state.dtds,
+                         std::span<double, 8>(state.derivative.data(), 8),
+                         std::span<double>(state.jacToGlobal.data(),
+                                           state.jacToGlobal.size()));
     } else {
       // The caller has already decided there is no jacobian, so neither the
       // jacobian span nor the path derivatives are formed at all.
-      status =
-          rk4_vacuum_nojac(startPos, startDir, t, h, qop, m, pabs,
-                           std::span<const double, 3>(state.field.data(), 3),
-                           getB, errorEstimate, 4 * stepTolerance, fieldError,
-                           endPos, state.pars[eFreeTime], endDir,
-                           std::span<double, 3>(lastField.data(), 3));
+      status = rk4_vacuum_nojac(
+          startPos, startDir, t, h, qop, m, pabs,
+          std::span<const double, 3>(state.field.data(), 3), getB,
+          errorEstimate, 4 * stepTolerance, fieldError, endPos,
+          state.pars[eFreeTime], endDir,
+          std::span<double, 3>(lastField.data(), 3), state.dtds);
     }
     if (status == 2) {
       return fieldError;

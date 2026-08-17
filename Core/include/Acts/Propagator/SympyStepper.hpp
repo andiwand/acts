@@ -21,6 +21,8 @@
 #include "Acts/Propagator/detail/MaterialEffectsAccumulator.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 
+#include <array>
+
 namespace Acts {
 
 class IVolumeMaterial;
@@ -112,6 +114,13 @@ class SympyStepper final {
 
     /// Particle hypothesis
     ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
+
+    /// Measurement knob: per-propagation scalars, so the vacuum step does not
+    /// re-derive them every step.  Only valid while q/p is unchanged.
+    /// dt/ds, which the vacuum kernel is handed rather than forming from mass
+    /// and momentum itself.  Constant while q/p is, so it is refreshed exactly
+    /// where q/p moves: initialize(), update() and a dense step.
+    double dtds = 1;
 
     /// Adaptive step size of the runge-kutta integration
     ConstrainedStep stepSize;
