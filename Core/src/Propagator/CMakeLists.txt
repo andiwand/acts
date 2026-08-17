@@ -5,7 +5,8 @@ target_sources(
         MultiStepperError.cpp
         NavigatorError.cpp
         SympyStepper.cpp
-        SympyStepperDenseStep.cpp
+        SympyStepperDenseStepJac.cpp
+        SympyStepperDenseStepNoJac.cpp
         SympyStepperVacuumStepJac.cpp
         SympyStepperVacuumStepNoJac.cpp
         NavigationTarget.cpp
