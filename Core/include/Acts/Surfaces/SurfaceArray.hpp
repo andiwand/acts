@@ -149,6 +149,24 @@ class SurfaceArray {
     /// Which axis is an angle and therefore has to be compared modulo 2*pi
     std::array<bool, 2> wrap{};
 
+    /// Fold a difference of two angles, each in (-pi, pi], back into that
+    /// range. Both inputs are already in range so the difference is in
+    /// (-2pi, 2pi) and a pair of comparisons is enough -- this runs once per
+    /// candidate of every pack, where a divide and a round were showing up.
+    /// @param d the difference
+    /// @return the folded difference
+    constexpr static double foldToPi(double d) noexcept {
+      constexpr double pi = std::numbers::pi_v<double>;
+      constexpr double twoPi = 2 * pi;
+      if (d > pi) {
+        return d - twoPi;
+      }
+      if (d < -pi) {
+        return d + twoPi;
+      }
+      return d;
+    }
+
     /// Conservative pre-rejection.
     /// @param i index into @c surfaces
     /// @return false only if the trajectory provably cannot cross the surface
@@ -157,19 +175,16 @@ class SurfaceArray {
         return true;
       }
       const SurfaceExtent& e = extents[i];
-      // The extent of a surface next to the +-pi seam and a query point on the
-      // other side of it are 2*pi apart in raw coordinates.
-      constexpr double twoPi = 2 * std::numbers::pi_v<double>;
       double du = gridLocal[0] - e.u0;
       if (wrap[0]) {
-        du -= twoPi * std::round(du / twoPi);
+        du = foldToPi(du);
       }
       if (std::abs(du) > e.hu + margin[0]) {
         return false;
       }
       double dv = gridLocal[1] - e.v0;
       if (wrap[1]) {
-        dv -= twoPi * std::round(dv / twoPi);
+        dv = foldToPi(dv);
       }
       return std::abs(dv) <= e.hv + margin[1];
     }

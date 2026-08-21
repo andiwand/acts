@@ -176,14 +176,21 @@ void SurfaceArrayNavigationPolicy::initializeCandidates(
   ACTS_VERBOSE("SrfArrNavPol (volume=" << m_volume.volumeName() << ")");
 
   ACTS_VERBOSE("Querying sensitive surfaces at " << args.position.transpose());
-  const auto sensitiveSurfaces =
-      m_surfaceArray->neighbors(gctx, args.position, args.direction);
-  ACTS_VERBOSE("~> Surface array reports " << sensitiveSurfaces.size()
+  // The pack of a bin covers everything reachable from anywhere in that bin, so
+  // most of it is nowhere near this trajectory. Reject those against their
+  // precomputed grid-local extent rather than pushing them into the stream for
+  // it to intersect and sort.
+  const SurfaceArray::NeighborQuery query =
+      m_surfaceArray->neighborQuery(gctx, args.position, args.direction);
+  ACTS_VERBOSE("~> Surface array reports " << query.surfaces.size()
                                            << " sensitive surfaces");
 
-  for (const Surface* surface : sensitiveSurfaces) {
-    stream.addSurfaceCandidate(*surface, args.tolerance);
-  };
+  for (std::size_t i = 0; i < query.surfaces.size(); ++i) {
+    if (!query.mayCross(i)) {
+      continue;
+    }
+    stream.addSurfaceCandidate(*query.surfaces[i], args.tolerance);
+  }
 }
 
 const Acts::SurfaceArray& SurfaceArrayNavigationPolicy::surfaceArray() const {

@@ -299,10 +299,13 @@ class MultiIntersection {
   /// Get closest intersection with its index
   /// @return Pair of intersection and its index
   constexpr IndexedIntersection closestWithIndex() const noexcept {
-    auto min = std::ranges::min_element(m_intersections,
-                                        IntersectionType::closestOrder);
-    return {*min, static_cast<IntersectionIndex>(
-                      std::distance(m_intersections.begin(), min))};
+    // Only the first m_size slots are filled. Planar surfaces fill one, so
+    // ranging over the whole array costs an extra closestOrder comparison on
+    // every intersection the navigator does.
+    const auto begin = m_intersections.begin();
+    auto min =
+        std::min_element(begin, begin + m_size, IntersectionType::closestOrder);
+    return {*min, static_cast<IntersectionIndex>(std::distance(begin, min))};
   }
 
   /// Get closest forward intersection
