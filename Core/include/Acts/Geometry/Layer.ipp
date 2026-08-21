@@ -52,6 +52,14 @@ inline const Layer* Layer::nextLayer(const GeometryContext& /*gctx*/,
              : m_nextLayers.second;
 }
 
+inline int Layer::nextLayerDirection(const Vector3& position,
+                                     const Vector3& direction) const {
+  if (m_nextLayerUtility == nullptr) {
+    return 0;
+  }
+  return m_nextLayerUtility->nextDirection(position, direction) < 0 ? -1 : 1;
+}
+
 inline bool Layer::resolve(bool resolveSensitive, bool resolveMaterial,
                            bool resolvePassive) const {
   if (resolvePassive) {
@@ -60,9 +68,9 @@ inline bool Layer::resolve(bool resolveSensitive, bool resolveMaterial,
   if (resolveSensitive && m_surfaceArray) {
     return true;
   }
-  if (resolveMaterial &&
-      (m_ssSensitiveSurfaces > 1 || m_ssApproachSurfaces > 1 ||
-       surfaceRepresentation().hasMaterial())) {
+  // surfaceRepresentation().hasMaterial() is a virtual call on a hot walk, and
+  // the answer is fixed once the geometry is closed.
+  if (resolveMaterial && m_hasResolvableMaterial) {
     return true;
   }
   return false;

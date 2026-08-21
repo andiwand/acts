@@ -196,6 +196,24 @@ class Layer : public virtual GeometryObject {
   const Layer* nextLayer(const GeometryContext& gctx, const Vector3& position,
                          const Vector3& direction) const;
 
+  /// Sign of the next-layer direction for a position and direction. Constant
+  /// for a whole layer walk, so callers can compute it once.
+  /// @param position the global position
+  /// @param direction the global direction
+  /// @return -1 or +1, or 0 if this layer has no next-layer utility
+  int nextLayerDirection(const Vector3& position,
+                         const Vector3& direction) const;
+
+  /// Next layer for a precomputed direction sign
+  /// @param sign as returned by nextLayerDirection
+  /// @return the next layer, or nullptr
+  const Layer* nextLayer(int sign) const {
+    if (sign == 0) {
+      return nullptr;
+    }
+    return sign < 0 ? m_nextLayers.first : m_nextLayers.second;
+  }
+
   /// Get the confining TrackingVolume
   ///
   /// @return the pointer to the enclosing volume
@@ -267,6 +285,8 @@ class Layer : public virtual GeometryObject {
   /// make a passive/active either way
   LayerType m_layerType;
 
+  /// cached predicate behind resolve(): fixed at geometry closure
+  bool m_hasResolvableMaterial = false;
   /// sub structure indication
   /// Substructure flag indicating representing surface configuration
   int m_ssRepresentingSurface = 0;

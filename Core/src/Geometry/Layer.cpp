@@ -111,6 +111,14 @@ void Layer::closeGeometry(const IMaterialDecorator* materialDecorator,
       }
     }
   }
+
+  // Cache the material predicate behind resolve(). It is fixed from here on,
+  // and computing it involves a virtual call on the representing surface which
+  // resolve() would otherwise pay on every step of every layer walk. Must come
+  // after the loops above, which are what set the sub-structure flags.
+  m_hasResolvableMaterial = m_ssSensitiveSurfaces > 1 ||
+                            m_ssApproachSurfaces > 1 ||
+                            surfaceRepresentation().hasMaterial();
 }
 
 boost::container::small_vector<NavigationTarget, 10> Layer::compatibleSurfaces(

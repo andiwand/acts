@@ -205,6 +205,16 @@ class NavigationTarget {
   /// @return the status
   constexpr IntersectionStatus status() const noexcept { return m_status; }
 
+  /// Whether the path length and status were computed at the position the
+  /// navigator was last called with, so the caller does not have to redo the
+  /// intersection to find out where this target is.
+  /// @return true if the intersection is current
+  constexpr bool isCurrent() const noexcept { return m_current; }
+
+  /// Mark the intersection as computed at the caller's current position
+  /// @param current whether the intersection is current
+  constexpr void setCurrent(bool current) noexcept { m_current = current; }
+
   /// Returns whether this is a none target
   /// @return true if this is a none target
   constexpr bool isNone() const noexcept {
@@ -281,6 +291,8 @@ class NavigationTarget {
   IntersectionStatus m_status = IntersectionStatus::unreachable;
   /// The intersection index
   IntersectionIndex m_intersectionIndex = 0;
+  /// Whether the intersection is current, see isCurrent()
+  bool m_current = false;
   /// The target that was intersected
   TargetVariant m_target;
   /// The surface representation of the target

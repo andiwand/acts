@@ -53,11 +53,30 @@ Result<void> Propagator<S, N>::propagate(propagator_state_t& state) const {
       if (nextTarget.isNone()) {
         return NavigationTarget::None();
       }
-      IntersectionStatus preStepSurfaceStatus = m_stepper.updateSurfaceStatus(
-          state.stepping, nextTarget.surface(), nextTarget.intersectionIndex(),
-          state.options.direction, nextTarget.boundaryTolerance(),
-          state.options.surfaceTolerance, ConstrainedStep::Type::Navigator,
-          logger());
+      IntersectionStatus preStepSurfaceStatus;
+      if (nextTarget.isCurrent()) {
+        // The navigator resolved this candidate at exactly this position and
+        // direction; re-intersecting the surface would reproduce the path
+        // length it already carries. Two thirds of the targets handed out are
+        // of this kind.
+        preStepSurfaceStatus = nextTarget.status();
+        if (preStepSurfaceStatus == IntersectionStatus::onSurface) {
+          m_stepper.releaseStepSize(state.stepping,
+                                    ConstrainedStep::Type::Navigator);
+        } else {
+          m_stepper.releaseStepSize(state.stepping,
+                                    ConstrainedStep::Type::Navigator);
+          preStepSurfaceStatus = IntersectionStatus::reachable;
+        }
+        m_stepper.updateStepSize(state.stepping, nextTarget.pathLength(),
+                                 ConstrainedStep::Type::Navigator);
+      } else {
+        preStepSurfaceStatus = m_stepper.updateSurfaceStatus(
+            state.stepping, nextTarget.surface(),
+            nextTarget.intersectionIndex(), state.options.direction,
+            nextTarget.boundaryTolerance(), state.options.surfaceTolerance,
+            ConstrainedStep::Type::Navigator, logger());
+      }
       if (preStepSurfaceStatus == IntersectionStatus::onSurface) {
         // This indicates a geometry overlap which is not handled by the
         // navigator, so we skip this target.

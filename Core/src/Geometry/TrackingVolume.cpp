@@ -455,6 +455,11 @@ TrackingVolume::compatibleLayers(
   const Layer* layer = options.startObject != nullptr
                            ? options.startObject
                            : associatedLayer(gctx, position);
+  // The walk direction comes from the volume's layer bin utility and the
+  // position and direction, all three constant for the whole walk, but
+  // nextLayer() recomputed it on every step.
+  const int walkSign =
+      layer != nullptr ? layer->nextLayerDirection(position, direction) : 0;
   while (layer != nullptr) {
     // check if the layer needs resolving
     // - resolveSensitive -> always take layer if it has a surface array
@@ -473,9 +478,7 @@ TrackingVolume::compatibleLayers(
       }
     }
     // move to next one or break because you reached the end layer
-    layer = layer == options.endObject
-                ? nullptr
-                : layer->nextLayer(gctx, position, direction);
+    layer = layer == options.endObject ? nullptr : layer->nextLayer(walkSign);
   }
 
   // In case of cylindrical layers we might resolve far intersection solutions
@@ -483,8 +486,13 @@ TrackingVolume::compatibleLayers(
   // against the minimum path length.
   auto min =
       std::ranges::min_element(targets, NavigationTarget::pathLengthOrder);
-  std::ranges::rotate(targets, min);
-  targets.resize(std::distance(min, targets.end()), NavigationTarget::None());
+  // The walk produces the layers in path order already, so the minimum is the
+  // first element in all but a handful of calls; rotating and resizing then
+  // shuffles 120-byte targets for nothing.
+  if (min != targets.begin()) {
+    std::ranges::rotate(targets, min);
+    targets.resize(std::distance(min, targets.end()), NavigationTarget::None());
+  }
 
   return targets;
 }
