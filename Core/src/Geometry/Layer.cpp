@@ -206,14 +206,20 @@ boost::container::small_vector<NavigationTarget, 10> Layer::compatibleSurfaces(
   // check the sensitive surfaces if you have some
   if (m_surfaceArray && (options.resolveMaterial || options.resolvePassive ||
                          options.resolveSensitive)) {
-    // get the candidates
-    const auto sensitiveSurfaces =
-        m_surfaceArray->neighbors(gctx, position, direction);
+    // get the candidates. The pack of a bin covers everything reachable from
+    // anywhere in that bin, so most of it is nowhere near this trajectory --
+    // reject those against their precomputed extent before paying for a 3D
+    // intersection.
+    const SurfaceArray::NeighborQuery query =
+        m_surfaceArray->neighborQuery(gctx, position, direction);
     // loop through and veto
     // - if the approach surface is the parameter surface
     // - if the surface is not compatible with the type(s) that are collected
-    for (const Surface* sSurface : sensitiveSurfaces) {
-      processSurface(*sSurface, true);
+    for (std::size_t i = 0; i < query.surfaces.size(); ++i) {
+      if (!query.mayCross(i)) {
+        continue;
+      }
+      processSurface(*query.surfaces[i], true);
     }
   }
 

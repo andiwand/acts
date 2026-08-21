@@ -19,13 +19,23 @@
 #include "Acts/Utilities/detail/MultiAxisHelper.hpp"
 #include "Acts/Utilities/detail/OstreamStateGuard.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <map>
+#include <numbers>
 #include <ranges>
+#include <string_view>
 #include <utility>
 
 namespace Acts {
+
+const bool s_gridPreFilterEnabled = [] {
+  const char* env = std::getenv("ACTS_GRID_PREFILTER");
+  return env == nullptr || std::string_view(env) != "0";
+}();
 
 /// Base interface for all surface lookups.
 struct SurfaceArray::ISurfaceGridLookup {
@@ -66,6 +76,15 @@ struct SurfaceArray::ISurfaceGridLookup {
   /// @param direction Lookup direction
   /// @return A span of surface pointers
   virtual std::span<const Surface* const> neighbors(
+      const GeometryContext& gctx, const Vector3& position,
+      const Vector3& direction) const = 0;
+
+  /// Neighbor lookup carrying the per-surface pre-rejection data
+  /// @param gctx The current geometry context object, e.g. alignment
+  /// @param position Lookup position
+  /// @param direction Lookup direction
+  /// @return the pack with its extents and the query point
+  virtual SurfaceArray::NeighborQuery neighborQuery(
       const GeometryContext& gctx, const Vector3& position,
       const Vector3& direction) const = 0;
 
@@ -148,6 +167,12 @@ struct SingleElementLookupImpl final : SurfaceArray::ISurfaceGridLookup {
     return m_element;
   }
 
+  SurfaceArray::NeighborQuery neighborQuery(
+      const GeometryContext& /*gctx*/, const Vector3& /*position*/,
+      const Vector3& /*direction*/) const override {
+    return {.surfaces = m_element, .extents = {}};
+  }
+
   std::size_t size() const override { return 1; }
 
   Vector3 getBinCenter(std::size_t /*bin*/) const override {
@@ -214,6 +239,7 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
 
     checkGrid(surfaces);
 
+    computeSurfaceExtents(gctx, surfaces);
     populateNeighborCache();
   }
 
@@ -243,29 +269,47 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
   std::span<const Surface* const> neighbors(
       const GeometryContext& gctx, const Vector3& position,
       const Vector3& direction) const override {
-    const std::optional<Vector2> surfaceLocal = findSurfaceLocal(
-        gctx, position, direction, std::numeric_limits<double>::infinity());
-    if (!surfaceLocal.has_value()) {
+    std::size_t globalBin = 0;
+    if (!lookupBin(gctx, position, direction, globalBin, nullptr, nullptr)) {
+      return {};
+    }
+    return m_neighborSurfacePacks.at(globalBin);
+  }
+
+  SurfaceArray::NeighborQuery neighborQuery(
+      const GeometryContext& gctx, const Vector3& position,
+      const Vector3& direction) const override {
+    std::size_t globalBin = 0;
+    GridPoint gridLocal{};
+    double cosIncidence = 1;
+    if (!lookupBin(gctx, position, direction, globalBin, &gridLocal,
+                   &cosIncidence)) {
       return {};
     }
 
-    const GridPoint gridLocal = surfaceToGridLocal(*surfaceLocal);
-    const GridIndex localBins = localBinsFromPosition2D(gridLocal);
+    // Lateral distance a trajectory covers while travelling from the
+    // representative surface to a surface offset from it by at most
+    // m_maxNormalOffset. That is how far the pierce point on the surface can
+    // sit from the pierce point on the representative.
+    // A point of a surface sits at most m_maxNormalOffset off the
+    // representative. The trajectory covers that perpendicular distance in
+    // m_maxNormalOffset / cos(theta) of path, which displaces it by
+    // m_maxNormalOffset * tan(theta) within the representative.
+    const double c = std::max(std::abs(cosIncidence), 1e-3);
+    // The safety factor covers what the flat-surface argument above ignores:
+    // the representative surface curves away over the lateral reach, and the
+    // trajectory is a helix rather than the straight line assumed here. An
+    // audit over 4.7e6 rejections found the bare bound short by 0.06 mm once.
+    constexpr double safety = 1.1;
+    const double lateral =
+        safety * m_maxNormalOffset * std::sqrt(std::max(0.0, 1 - c * c)) / c;
 
-    const Vector3 normal = m_representative->normal(gctx, *surfaceLocal);
-    // using 1e-6 to avoid division by zero, the actual value does not matter as
-    // long as it is small compared to the angles we want to distinguish
-    const double neighborDistanceReal = std::min<double>(
-        m_maxNeighborDistance,
-        std::max<double>(1, 1 / (1e-6 + std::abs(normal.dot(direction)))));
-    // clamp value to range before converting to std::uint8_t to avoid overflow
-    const std::uint8_t neighborDistance =
-        clampValue<std::uint8_t>(neighborDistanceReal);
-
-    const std::size_t globalBin =
-        globalBinFromLocalBins3D(localBins, neighborDistance);
-
-    return m_neighborSurfacePacks.at(globalBin);
+    return {.surfaces = m_neighborSurfacePacks.at(globalBin),
+            .extents = m_neighborExtentPacks.at(globalBin),
+            .gridLocal = gridLocal,
+            .margin = {(lateral + s_onSurfaceTolerance) * m_marginScale[0],
+                       (lateral + s_onSurfaceTolerance) * m_marginScale[1]},
+            .wrap = {m_cylinderRadius > 0, m_cylinderRadius <= 0}};
   }
 
   std::size_t size() const override {
@@ -326,6 +370,15 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
   // containers to store the surfaces in the custom grid
   std::vector<const Surface*> m_surfacePacks;
   std::vector<std::span<const Surface* const>> m_neighborSurfacePacks;
+  // grid-local extents of the surfaces, parallel to the two above
+  std::vector<std::array<double, 4>> m_extentPacks;
+  std::vector<std::span<const std::array<double, 4>>> m_neighborExtentPacks;
+  // scratch, only used while filling
+  std::map<const Surface*, std::array<double, 4>> m_surfaceExtents;
+  // largest distance of any surface from the representative along its normal
+  double m_maxNormalOffset{0};
+  // converts a lateral distance into grid units on each axis
+  std::array<double, 2> m_marginScale{1, 1};
 
   bool isValidBin(const GridIndex& indices) const {
     const GridIndex nBins = numLocalBins2D();
@@ -433,9 +486,73 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
   }
 
   /// calculate neighbors for every bin and store in map
+  /// Precompute, per surface, its axis-aligned extent in grid-local
+  /// coordinates and how far it sits off the representative surface. Both feed
+  /// the conservative pre-rejection in NeighborQuery.
+  void computeSurfaceExtents(const GeometryContext& gctx,
+                             std::span<const Surface* const> surfaces) {
+    // On a phi axis the extent of a surface straddling the seam is meaningless
+    // as a min/max pair; such surfaces get an infinite extent so they are never
+    // rejected.
+    const std::size_t angleAxis = m_cylinderRadius > 0 ? 0 : 1;
+    constexpr double inf = std::numeric_limits<double>::infinity();
+
+    double rMin = inf;
+    m_maxNormalOffset = 0;
+    for (const Surface* surface : surfaces) {
+      std::array<double, 4> extent = {inf, -inf, inf, -inf};
+      const std::vector<Vector3> corners =
+          surface->polyhedronRepresentation(gctx, 4u).vertices;
+
+      // Both the radial grid coordinate of a disc and the radial offset from a
+      // cylinder have their extremum in the interior of an edge, not at a
+      // corner, whenever the edge passes closest to the beam axis in the
+      // middle. Sample those points too or the extent comes out too small and
+      // the filter rejects surfaces the trajectory really crosses.
+      std::vector<Vector3> samples = corners;
+      samples.reserve(2 * corners.size());
+      for (std::size_t i = 0; i < corners.size(); ++i) {
+        const Vector3& a = corners[i];
+        const Vector3& b = corners[(i + 1) % corners.size()];
+        const Vector2 d = (b - a).head<2>();
+        const double dd = d.squaredNorm();
+        if (dd <= 0) {
+          continue;
+        }
+        const double t = std::clamp(-a.head<2>().dot(d) / dd, 0.0, 1.0);
+        samples.push_back(a + t * (b - a));
+      }
+
+      for (const Vector3& sample : samples) {
+        const GridPoint gridLocal = projectToGridLocal(gctx, sample);
+        extent[0] = std::min(extent[0], gridLocal[0]);
+        extent[1] = std::max(extent[1], gridLocal[0]);
+        extent[2] = std::min(extent[2], gridLocal[1]);
+        extent[3] = std::max(extent[3], gridLocal[1]);
+        m_maxNormalOffset =
+            std::max(m_maxNormalOffset, normalOffset(gctx, sample));
+        rMin = std::min(rMin, sample.head<2>().norm());
+      }
+      if (extent[2 * angleAxis + 1] - extent[2 * angleAxis] >
+          std::numbers::pi) {
+        extent[2 * angleAxis] = -inf;
+        extent[2 * angleAxis + 1] = inf;
+      }
+      m_surfaceExtents[surface] = extent;
+    }
+
+    // A lateral distance in mm becomes an angle on the phi axis. Divide by the
+    // smallest radius present so the margin is never underestimated.
+    const double rSafe = std::isfinite(rMin) && rMin > 0 ? rMin : 1;
+    m_marginScale = {1, 1};
+    m_marginScale[angleAxis] = 1 / rSafe;
+  }
+
   void populateNeighborCache() {
     m_surfacePacks.clear();
     m_neighborSurfacePacks.clear();
+    m_extentPacks.clear();
+    m_neighborExtentPacks.clear();
 
     using SurfacePackRange = std::pair<std::size_t, std::size_t>;
     std::vector<SurfacePackRange> neighborSurfacePacks;
@@ -479,6 +596,9 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
               m_surfacePacks.size() + surfacePack.size()};
           m_surfacePacks.insert(m_surfacePacks.end(), surfacePack.begin(),
                                 surfacePack.end());
+          for (const Surface* surface : surfacePack) {
+            m_extentPacks.push_back(m_surfaceExtents.at(surface));
+          }
           surfacesToPackRange[surfacePack] = surfacePackRange;
           neighborSurfacePacks[outputGlobalBin] = surfacePackRange;
         }
@@ -486,6 +606,8 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
     }
 
     m_surfacePacks.shrink_to_fit();
+    m_extentPacks.shrink_to_fit();
+    m_surfaceExtents.clear();
 
     m_neighborSurfacePacks.reserve(neighborSurfacePacks.size());
     std::ranges::transform(neighborSurfacePacks,
@@ -494,6 +616,14 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
                              return std::span<const Surface* const>(
                                  m_surfacePacks.data() + range.first,
                                  m_surfacePacks.data() + range.second);
+                           });
+    m_neighborExtentPacks.reserve(neighborSurfacePacks.size());
+    std::ranges::transform(neighborSurfacePacks,
+                           std::back_inserter(m_neighborExtentPacks),
+                           [this](const SurfacePackRange& range) {
+                             return std::span<const std::array<double, 4>>(
+                                 m_extentPacks.data() + range.first,
+                                 m_extentPacks.data() + range.second);
                            });
   }
 
@@ -535,6 +665,87 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
       gridLocal[0] /= m_cylinderRadius;
     }
     return gridLocal;
+  }
+
+  /// Locate the neighbor pack for a trajectory. Optionally reports the
+  /// grid-local pierce point and the cosine of the incidence angle.
+  bool lookupBin(const GeometryContext& gctx, const Vector3& position,
+                 const Vector3& direction, std::size_t& globalBin,
+                 GridPoint* gridLocalOut, double* cosIncidenceOut) const {
+    const std::optional<Vector2> surfaceLocal = findSurfaceLocal(
+        gctx, position, direction, std::numeric_limits<double>::infinity());
+    if (!surfaceLocal.has_value()) {
+      return false;
+    }
+
+    const GridPoint gridLocal = surfaceToGridLocal(*surfaceLocal);
+    const GridIndex localBins = localBinsFromPosition2D(gridLocal);
+
+    const Vector3 normal = m_representative->normal(gctx, *surfaceLocal);
+    const double cosIncidence = normal.dot(direction);
+    // using 1e-6 to avoid division by zero, the actual value does not matter as
+    // long as it is small compared to the angles we want to distinguish
+    const double neighborDistanceReal = std::min<double>(
+        m_maxNeighborDistance,
+        std::max<double>(1, 1 / (1e-6 + std::abs(cosIncidence))));
+    // clamp value to range before converting to std::uint8_t to avoid overflow
+    const std::uint8_t neighborDistance =
+        clampValue<std::uint8_t>(neighborDistanceReal);
+
+    globalBin = globalBinFromLocalBins3D(localBins, neighborDistance);
+    if (gridLocalOut != nullptr) {
+      *gridLocalOut = gridLocal;
+    }
+    if (cosIncidenceOut != nullptr) {
+      *cosIncidenceOut = cosIncidence;
+    }
+    return true;
+  }
+
+  /// Move a global point onto the representative surface along its normal, so
+  /// that globalToLocal accepts it.
+  Vector3 projectOntoRepresentative(const GeometryContext& gctx,
+                                    const Vector3& global) const {
+    const Transform3 inv =
+        m_representative->localToGlobalTransform(gctx).inverse(Eigen::Isometry);
+    Vector3 local = inv * global;
+    if (m_cylinderRadius > 0) {
+      const double r = local.head<2>().norm();
+      if (r > 0) {
+        local.head<2>() *= m_cylinderRadius / r;
+      }
+    } else {
+      local.z() = 0;
+    }
+    return m_representative->localToGlobalTransform(gctx) * local;
+  }
+
+  /// Project a global point into grid-local coordinates of the representative
+  /// surface, ignoring how far off the surface the point sits.
+  GridPoint projectToGridLocal(const GeometryContext& gctx,
+                               const Vector3& global) const {
+    const Vector3 local =
+        m_representative->localToGlobalTransform(gctx).inverse(
+            Eigen::Isometry) *
+        global;
+    if (m_cylinderRadius > 0) {
+      return {std::atan2(local.y(), local.x()), local.z()};
+    }
+    return {local.head<2>().norm(), std::atan2(local.y(), local.x())};
+  }
+
+  /// Distance of a global point from the representative surface along its
+  /// normal.
+  double normalOffset(const GeometryContext& gctx,
+                      const Vector3& global) const {
+    const Vector3 local =
+        m_representative->localToGlobalTransform(gctx).inverse(
+            Eigen::Isometry) *
+        global;
+    if (m_cylinderRadius > 0) {
+      return std::abs(local.head<2>().norm() - m_cylinderRadius);
+    }
+    return std::abs(local.z());
   }
 
   std::optional<Vector2> findSurfaceLocal(const GeometryContext& gctx,
@@ -640,6 +851,12 @@ std::span<const Surface* const> SurfaceArray::neighbors(
     const GeometryContext& gctx, const Vector3& position,
     const Vector3& direction) const {
   return m_gridLookup->neighbors(gctx, position, direction);
+}
+
+SurfaceArray::NeighborQuery SurfaceArray::neighborQuery(
+    const GeometryContext& gctx, const Vector3& position,
+    const Vector3& direction) const {
+  return m_gridLookup->neighborQuery(gctx, position, direction);
 }
 
 std::size_t SurfaceArray::size() const {

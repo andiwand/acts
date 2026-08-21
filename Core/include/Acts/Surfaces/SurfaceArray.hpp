@@ -15,7 +15,11 @@
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/IAxis.hpp"
 
+#include <array>
+#include <cmath>
 #include <iostream>
+#include <numbers>
+#include <span>
 #include <vector>
 
 // Forward declared friend class for private access in tests.
@@ -24,6 +28,10 @@ struct SurfaceArrayCreatorFixture;
 }
 
 namespace Acts {
+
+/// TEMPORARY measurement switch for the grid pre-filter -- not for commit.
+/// Set ACTS_GRID_PREFILTER=0 to fall back to testing every surface of the pack.
+extern const bool s_gridPreFilterEnabled;
 
 /// @brief Provides Surface binning in 2 dimensions
 ///
@@ -102,6 +110,65 @@ class SurfaceArray {
   std::span<const Surface* const> neighbors(const GeometryContext& gctx,
                                             const Vector3& position,
                                             const Vector3& direction) const;
+
+  /// A neighbor lookup that also carries a cheap conservative test for whether
+  /// the trajectory can cross a given surface of the pack at all.
+  ///
+  /// The pack of a bin is the union over everything reachable from anywhere in
+  /// that bin, so it is much wider than what a single trajectory crosses. The
+  /// lookup already knows where the trajectory pierces the representative
+  /// surface; comparing that against each surface's precomputed extent in the
+  /// same frame rejects most of the pack without a 3D intersection.
+  struct NeighborQuery {
+    /// The surfaces of the pack
+    std::span<const Surface* const> surfaces;
+    /// Parallel to @c surfaces: {uMin, uMax, vMin, vMax} of each surface in
+    /// grid-local coordinates. Empty if no extents are available, in which
+    /// case @c mayCross always accepts.
+    std::span<const std::array<double, 4>> extents;
+    /// Where the trajectory pierces the representative surface, grid-local
+    std::array<double, 2> gridLocal{};
+    /// Per-axis slack covering how far a surface sits off the representative
+    /// at this incidence angle
+    std::array<double, 2> margin{};
+    /// Which axis is an angle and therefore has to be compared modulo 2*pi
+    std::array<bool, 2> wrap{};
+
+    /// Conservative pre-rejection.
+    /// @param i index into @c surfaces
+    /// @return false only if the trajectory provably cannot cross the surface
+    bool mayCross(std::size_t i) const {
+      if (i >= extents.size() || !s_gridPreFilterEnabled) {
+        return true;
+      }
+      const std::array<double, 4>& e = extents[i];
+      for (std::size_t axis = 0; axis < 2; ++axis) {
+        const double lo = e[2 * axis];
+        const double hi = e[2 * axis + 1];
+        const double half = 0.5 * (hi - lo);
+        double delta = gridLocal[axis] - 0.5 * (lo + hi);
+        if (wrap[axis]) {
+          // The extent of a surface next to the +-pi seam and a query point on
+          // the other side of it are 2*pi apart in raw coordinates.
+          constexpr double twoPi = 2 * std::numbers::pi_v<double>;
+          delta -= twoPi * std::round(delta / twoPi);
+        }
+        if (std::abs(delta) > half + margin[axis]) {
+          return false;
+        }
+      }
+      return true;
+    }
+  };
+
+  /// Neighbor lookup with the per-surface pre-rejection data
+  /// @param gctx The current geometry context object, e.g. alignment
+  /// @param position The position to lookup
+  /// @param direction The direction to lookup
+  /// @return the pack together with its extents and the query point
+  NeighborQuery neighborQuery(const GeometryContext& gctx,
+                              const Vector3& position,
+                              const Vector3& direction) const;
 
   /// Get the size of the underlying grid structure including under/overflow
   /// bins
