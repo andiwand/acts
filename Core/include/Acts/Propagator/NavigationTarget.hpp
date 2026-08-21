@@ -13,7 +13,9 @@
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <variant>
 
 namespace Acts {
@@ -29,8 +31,6 @@ class NavigationTarget {
  public:
   /// Type alias for the intersection object
   using Intersection = Intersection3D;
-  /// Type alias for the intersection position
-  using Position = Intersection::Position;
 
   /// Create a surface intersection from a 3D intersection, intersection index,
   /// and a surface
@@ -44,7 +44,8 @@ class NavigationTarget {
       const Intersection3D& intersection, IntersectionIndex intersectionIndex,
       const Surface& target,
       const BoundaryTolerance& boundaryTolerance) noexcept
-      : m_intersection(intersection),
+      : m_pathLength(intersection.pathLength()),
+        m_status(intersection.status()),
         m_intersectionIndex(intersectionIndex),
         m_target(&target),
         m_surfaceRepresentation(&target),
@@ -63,7 +64,8 @@ class NavigationTarget {
       const Intersection3D& intersection, IntersectionIndex intersectionIndex,
       const Layer& target, const Surface& surfaceRepresentation,
       const BoundaryTolerance& boundaryTolerance) noexcept
-      : m_intersection(intersection),
+      : m_pathLength(intersection.pathLength()),
+        m_status(intersection.status()),
         m_intersectionIndex(intersectionIndex),
         m_target(&target),
         m_surfaceRepresentation(&surfaceRepresentation),
@@ -81,7 +83,8 @@ class NavigationTarget {
       const Intersection3D& intersection, IntersectionIndex intersectionIndex,
       const BoundarySurface& target,
       const BoundaryTolerance& boundaryTolerance) noexcept
-      : m_intersection(intersection),
+      : m_pathLength(intersection.pathLength()),
+        m_status(intersection.status()),
         m_intersectionIndex(intersectionIndex),
         m_target(&target),
         m_surfaceRepresentation(&target.surfaceRepresentation()),
@@ -98,7 +101,8 @@ class NavigationTarget {
   NavigationTarget(const Intersection3D& intersection,
                    IntersectionIndex intersectionIndex, const Portal& target,
                    const BoundaryTolerance& boundaryTolerance) noexcept
-      : m_intersection(intersection),
+      : m_pathLength(intersection.pathLength()),
+        m_status(intersection.status()),
         m_intersectionIndex(intersectionIndex),
         m_target(&target),
         m_surfaceRepresentation(&target.surface()),
@@ -119,15 +123,12 @@ class NavigationTarget {
   /// @return Reference to this object
   constexpr NavigationTarget& operator=(NavigationTarget&&) noexcept = default;
 
-  /// Returns the intersection
-  /// @return the intersection
-  constexpr const Intersection3D& intersection() const {
-    return m_intersection;
+  /// Overwrite path length and status from an intersection
+  /// @param intersection the intersection to take them from
+  constexpr void setIntersection(const Intersection3D& intersection) noexcept {
+    m_pathLength = intersection.pathLength();
+    m_status = intersection.status();
   }
-
-  /// Mutable access to the intersection
-  /// @return the intersection
-  constexpr Intersection3D& intersection() { return m_intersection; }
 
   /// Returns the intersection index
   /// @return the intersection index
@@ -192,23 +193,17 @@ class NavigationTarget {
 
   /// Returns whether the intersection was successful or not
   /// @return true if the intersection is valid
-  constexpr bool isValid() const noexcept { return m_intersection.isValid(); }
-
-  /// Returns the position of the interseciton
-  /// @return the position
-  Position position() const noexcept { return m_intersection.position(); }
+  constexpr bool isValid() const noexcept {
+    return m_status != IntersectionStatus::unreachable;
+  }
 
   /// Returns the path length to the interseciton
   /// @return the path length
-  constexpr double pathLength() const noexcept {
-    return m_intersection.pathLength();
-  }
+  constexpr double pathLength() const noexcept { return m_pathLength; }
 
   /// Returns the status of the interseciton
   /// @return the status
-  constexpr IntersectionStatus status() const noexcept {
-    return m_intersection.status();
-  }
+  constexpr IntersectionStatus status() const noexcept { return m_status; }
 
   /// Returns whether this is a none target
   /// @return true if this is a none target
@@ -229,8 +224,7 @@ class NavigationTarget {
   constexpr static bool pathLengthOrder(
       const NavigationTarget& aIntersection,
       const NavigationTarget& bIntersection) noexcept {
-    return Intersection3D::pathLengthOrder(aIntersection.intersection(),
-                                           bIntersection.intersection());
+    return aIntersection.pathLength() < bIntersection.pathLength();
   }
 
   /// Comparison operator by closest distance to the reference point
@@ -240,8 +234,15 @@ class NavigationTarget {
   constexpr static bool closestOrder(
       const NavigationTarget& aIntersection,
       const NavigationTarget& bIntersection) noexcept {
-    return Intersection3D::closestOrder(aIntersection.intersection(),
-                                        bIntersection.intersection());
+    using enum IntersectionStatus;
+    if (aIntersection.status() == unreachable) {
+      return false;
+    }
+    if (bIntersection.status() == unreachable) {
+      return true;
+    }
+    return std::abs(aIntersection.pathLength()) <
+           std::abs(bIntersection.pathLength());
   }
 
   /// Comparison operator by closest distance to the reference point in the
@@ -251,8 +252,10 @@ class NavigationTarget {
   constexpr static bool closestForwardOrder(
       const NavigationTarget& aIntersection,
       const NavigationTarget& bIntersection) noexcept {
-    return Intersection3D::closestForwardOrder(aIntersection.intersection(),
-                                               bIntersection.intersection());
+    const double a = aIntersection.pathLength();
+    const double b = bIntersection.pathLength();
+    return std::signbit(a) == std::signbit(b) ? std::abs(a) < std::abs(b)
+                                              : a > b;
   }
   /// @brief Define the ostream operator to print the object
   /// @param ostr: Reference to the ostream
@@ -269,8 +272,13 @@ class NavigationTarget {
       std::variant<std::monostate, const Surface*, const Layer*,
                    const BoundarySurface*, const Portal*>;
 
-  /// The intersection itself
-  Intersection3D m_intersection = Intersection3D::Invalid();
+  /// Signed path length to the target. Only the path length and the status of
+  /// an intersection are ever read here, so the position that Intersection3D
+  /// also carries is not stored -- that is 24 of its 40 bytes and nothing on
+  /// the navigation or stepping path reads it.
+  double m_pathLength = std::numeric_limits<double>::infinity();
+  /// The status of the intersection
+  IntersectionStatus m_status = IntersectionStatus::unreachable;
   /// The intersection index
   IntersectionIndex m_intersectionIndex = 0;
   /// The target that was intersected

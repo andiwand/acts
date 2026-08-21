@@ -161,7 +161,10 @@ boost::container::small_vector<NavigationTarget, 10> Layer::compatibleSurfaces(
       return;
     }
     BoundaryTolerance boundaryTolerance = options.boundaryTolerance;
-    if (rangeContainsValue(options.externalSurfaces, surface.geometryId())) {
+    // Scanned per candidate, and empty on every call that has no external
+    // surfaces -- which is all of them outside of targeted track finding.
+    if (!options.externalSurfaces.empty() &&
+        rangeContainsValue(options.externalSurfaces, surface.geometryId())) {
       boundaryTolerance = BoundaryTolerance::Infinite();
     }
     // the surface intersection

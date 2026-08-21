@@ -388,7 +388,9 @@ ProcessCode RootTrackSummaryWriter::writeT(const AlgorithmContext& ctx,
                               particle.direction(),
                               Acts::BoundaryTolerance::Infinite())
                   .closest();
-          auto position = intersection.position();
+          const Acts::Vector3 position =
+              particle.position() +
+              intersection.pathLength() * particle.direction();
 
           // get the truth perigee parameter
           auto lpResult = pSurface->globalToLocal(ctx.geoContext, position,

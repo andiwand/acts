@@ -129,8 +129,11 @@ void EffPlotTool::fill(const Acts::GeometryContext& gctx,
           .closest();
   Acts::Vector2 d0z0{nan, nan};
   if (intersection.isValid()) {
-    auto localRes = m_cfg.beamline->globalToLocal(gctx, intersection.position(),
-                                                  truthParticle.direction());
+    auto localRes = m_cfg.beamline->globalToLocal(
+        gctx,
+        truthParticle.position() +
+            intersection.pathLength() * truthParticle.direction(),
+        truthParticle.direction());
     if (localRes.ok()) {
       d0z0 = localRes.value();
     }

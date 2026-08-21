@@ -61,40 +61,30 @@ class BoundaryTolerance {
   /// Parameters for chi2 boundary tolerance in bound coordinates.
   struct Chi2BoundParams {
     /// Maximum chi2 value
-    double maxChi2{};
+    float maxChi2{};
     /// Weight matrix stored as flat array
-    std::array<double, 4> weight{};
+    std::array<float, 4> weight{};
 
     /// Get weight matrix as Eigen matrix
-    /// @return Mapped weight matrix
-    Eigen::Map<SquareMatrix2> weightMatrix() {
-      return Eigen::Map<SquareMatrix2>(weight.data());
-    }
-
-    /// Get weight matrix as const Eigen matrix
-    /// @return Mapped weight matrix
-    Eigen::Map<const SquareMatrix2> weightMatrix() const {
-      return Eigen::Map<const SquareMatrix2>(weight.data());
+    /// @return Weight matrix
+    SquareMatrix2 weightMatrix() const {
+      return Eigen::Map<const Eigen::Matrix<float, 2, 2>>(weight.data())
+          .cast<double>();
     }
   };
 
   /// Parameters for chi2 boundary tolerance in Cartesian coordinates.
   struct Chi2CartesianParams {
     /// Maximum chi2 value
-    double maxChi2{};
+    float maxChi2{};
     /// Weight matrix stored as flat array
-    std::array<double, 4> weight{};
+    std::array<float, 4> weight{};
 
     /// Get weight matrix as Eigen matrix
-    /// @return Mapped weight matrix
-    Eigen::Map<SquareMatrix2> weightMatrix() {
-      return Eigen::Map<SquareMatrix2>(weight.data());
-    }
-
-    /// Get weight matrix as const Eigen matrix
-    /// @return Mapped weight matrix
-    Eigen::Map<const SquareMatrix2> weightMatrix() const {
-      return Eigen::Map<const SquareMatrix2>(weight.data());
+    /// @return Weight matrix
+    SquareMatrix2 weightMatrix() const {
+      return Eigen::Map<const Eigen::Matrix<float, 2, 2>>(weight.data())
+          .cast<double>();
     }
   };
 
@@ -135,8 +125,9 @@ class BoundaryTolerance {
   /// @param maxChi2 The maximum chi2 value allowed
   /// @return BoundaryTolerance configured for chi2 tolerance in bound coordinates
   static auto Chi2Bound(const SquareMatrix2& weight, double maxChi2) noexcept {
-    Chi2BoundParams tolerance{maxChi2, {}};
-    tolerance.weightMatrix() = weight;
+    Chi2BoundParams tolerance{static_cast<float>(maxChi2), {}};
+    Eigen::Map<Eigen::Matrix<float, 2, 2>>(tolerance.weight.data()) =
+        weight.cast<float>();
     return BoundaryTolerance{tolerance};
   }
 
@@ -146,8 +137,9 @@ class BoundaryTolerance {
   /// @return BoundaryTolerance configured for chi2 tolerance in Cartesian coordinates
   static auto Chi2Cartesian(const SquareMatrix2& weight,
                             double maxChi2) noexcept {
-    Chi2CartesianParams tolerance{maxChi2, {}};
-    tolerance.weightMatrix() = weight;
+    Chi2CartesianParams tolerance{static_cast<float>(maxChi2), {}};
+    Eigen::Map<Eigen::Matrix<float, 2, 2>>(tolerance.weight.data()) =
+        weight.cast<float>();
     return BoundaryTolerance{tolerance};
   }
 

@@ -371,10 +371,11 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
   std::vector<const Surface*> m_surfacePacks;
   std::vector<std::span<const Surface* const>> m_neighborSurfacePacks;
   // grid-local extents of the surfaces, parallel to the two above
-  std::vector<std::array<double, 4>> m_extentPacks;
-  std::vector<std::span<const std::array<double, 4>>> m_neighborExtentPacks;
+  std::vector<SurfaceArray::SurfaceExtent> m_extentPacks;
+  std::vector<std::span<const SurfaceArray::SurfaceExtent>>
+      m_neighborExtentPacks;
   // scratch, only used while filling
-  std::map<const Surface*, std::array<double, 4>> m_surfaceExtents;
+  std::map<const Surface*, SurfaceArray::SurfaceExtent> m_surfaceExtents;
   // largest distance of any surface from the representative along its normal
   double m_maxNormalOffset{0};
   // converts a lateral distance into grid units on each axis
@@ -538,7 +539,25 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
         extent[2 * angleAxis] = -inf;
         extent[2 * angleAxis + 1] = inf;
       }
-      m_surfaceExtents[surface] = extent;
+      // Round the half-width up when narrowing to float so the test can only
+      // ever become more permissive, never less.
+      const auto toCentre = [](double lo, double hi) {
+        return static_cast<float>(0.5 * (lo + hi));
+      };
+      const auto toHalf = [](double lo, double hi) {
+        const double half = 0.5 * (hi - lo);
+        if (!std::isfinite(half)) {
+          return std::numeric_limits<float>::max();
+        }
+        return std::nextafter(static_cast<float>(half),
+                              std::numeric_limits<float>::max());
+      };
+      SurfaceArray::SurfaceExtent packed;
+      packed.u0 = std::isfinite(extent[0]) ? toCentre(extent[0], extent[1]) : 0;
+      packed.hu = toHalf(extent[0], extent[1]);
+      packed.v0 = std::isfinite(extent[2]) ? toCentre(extent[2], extent[3]) : 0;
+      packed.hv = toHalf(extent[2], extent[3]);
+      m_surfaceExtents[surface] = packed;
     }
 
     // A lateral distance in mm becomes an angle on the phi axis. Divide by the
@@ -618,13 +637,13 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
                                  m_surfacePacks.data() + range.second);
                            });
     m_neighborExtentPacks.reserve(neighborSurfacePacks.size());
-    std::ranges::transform(neighborSurfacePacks,
-                           std::back_inserter(m_neighborExtentPacks),
-                           [this](const SurfacePackRange& range) {
-                             return std::span<const std::array<double, 4>>(
-                                 m_extentPacks.data() + range.first,
-                                 m_extentPacks.data() + range.second);
-                           });
+    std::ranges::transform(
+        neighborSurfacePacks, std::back_inserter(m_neighborExtentPacks),
+        [this](const SurfacePackRange& range) {
+          return std::span<const SurfaceArray::SurfaceExtent>(
+              m_extentPacks.data() + range.first,
+              m_extentPacks.data() + range.second);
+        });
   }
 
   void checkGrid(std::span<const Surface* const> surfaces) {
@@ -763,7 +782,9 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
     }
     const Vector2 surfaceLocal =
         m_representative
-            ->globalToLocal(gctx, intersection.position(), direction)
+            ->globalToLocal(gctx,
+                            position + intersection.pathLength() * direction,
+                            direction)
             .value();
     return surfaceLocal;
   }

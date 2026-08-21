@@ -39,14 +39,15 @@ auto MultiStepperLoop<S, R>::boundState(
     // propagation when the mean of all components reached the destination
     // surface. Thus, it is not garantueed that all states are actually
     // onSurface.
-    cmpState.pars.template segment<3>(eFreePos0) =
+    cmpState.pars.template segment<3>(eFreePos0) +=
         surface
             .intersect(state.options.geoContext,
                        cmpState.pars.template segment<3>(eFreePos0),
                        cmpState.pars.template segment<3>(eFreeDir0),
                        BoundaryTolerance::Infinite())
             .closest()
-            .position();
+            .pathLength() *
+        cmpState.pars.template segment<3>(eFreeDir0);
 
     auto bs = m_singleStepper.boundState(cmpState, surface, transportCov,
                                          freeToBoundCorrection);

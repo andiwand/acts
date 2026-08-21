@@ -208,7 +208,8 @@ ProcessCode RootParticleWriter::writeT(const AlgorithmContext& ctx,
       auto perigeeD0 = NaNfloat;
       auto perigeeZ0 = NaNfloat;
 
-      const auto position = intersection.position();
+      const Acts::Vector3 position =
+          particle.position() + intersection.pathLength() * startDir;
 
       // get the truth perigee parameter
       auto lpResult =

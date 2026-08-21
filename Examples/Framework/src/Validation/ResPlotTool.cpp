@@ -132,7 +132,10 @@ void ResPlotTool::fill(const Acts::GeometryContext& gctx,
           .closest();
   if (intersection.isValid()) {
     const Acts::Result<Acts::Vector2> lpResult = pSurface.globalToLocal(
-        gctx, intersection.position(), truthParticle.direction());
+        gctx,
+        truthParticle.position() +
+            intersection.pathLength() * truthParticle.direction(),
+        truthParticle.direction());
     assert(lpResult.ok());
 
     truthParameters[eBoundLoc0] = lpResult.value()[eBoundLoc0];

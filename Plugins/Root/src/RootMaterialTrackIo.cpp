@@ -251,9 +251,11 @@ void RootMaterialTrackIo::write(const GeometryContext& gctx,
                 .closest();
         m_surfacePayload.surfaceId.push_back(surface->geometryId().value());
         m_surfacePayload.surfacePathCorrection.push_back(1.0);
-        m_surfacePayload.surfaceX.push_back(sfIntersection.position().x());
-        m_surfacePayload.surfaceY.push_back(sfIntersection.position().y());
-        m_surfacePayload.surfaceZ.push_back(sfIntersection.position().z());
+        const Vector3 sfPosition =
+            mint.position + sfIntersection.pathLength() * mint.direction;
+        m_surfacePayload.surfaceX.push_back(sfPosition.x());
+        m_surfacePayload.surfaceY.push_back(sfPosition.y());
+        m_surfacePayload.surfaceZ.push_back(sfPosition.z());
       } else {
         m_surfacePayload.surfaceId.push_back(GeometryIdentifier().value());
         m_surfacePayload.surfaceX.push_back(0);

@@ -118,7 +118,7 @@ std::vector<Vector2> MultiLayerNavigationPolicy::generatePath(
       continue;
     }
 
-    path.push_back(intersection.position());
+    path.push_back(startPoint + intersection.pathLength() * startDir);
   }
   return path;
 }

@@ -728,8 +728,8 @@ void Navigator::resolveCandidates(State& state, const Vector3& position,
     farLimit = state.options.nearLimit;
     for (const auto& candidate : state.stream.candidates()) {
       if (candidate.isPortalTarget()) {
-        farLimit = std::max(farLimit, candidate.intersection().pathLength() +
-                                          state.options.surfaceTolerance);
+        farLimit = std::max(
+            farLimit, candidate.pathLength() + state.options.surfaceTolerance);
       }
     }
   }

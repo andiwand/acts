@@ -76,7 +76,8 @@ IntersectionMaterialAssigner::assignmentCandidates(
   candidates.first.reserve(sIntersections.size());
   for (auto& sIntersection : sIntersections) {
     candidates.first.push_back(IAssignmentFinder::SurfaceAssignment{
-        sIntersection.surface, sIntersection.intersection.position(),
+        sIntersection.surface,
+        position + sIntersection.intersection.pathLength() * direction,
         direction});
   }
 
@@ -96,8 +97,9 @@ IntersectionMaterialAssigner::assignmentCandidates(
       if (tIntersections.size() == 2u) {
         candidates.second.push_back(IAssignmentFinder::VolumeAssignment{
             InteractionVolume(trackingVolume),
-            tIntersections[0u].intersection.position(),
-            tIntersections[1u].intersection.position()});
+            position + tIntersections[0u].intersection.pathLength() * direction,
+            position +
+                tIntersections[1u].intersection.pathLength() * direction});
       }
     }
   }

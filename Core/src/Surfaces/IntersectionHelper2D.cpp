@@ -124,7 +124,7 @@ Intersection2D IntersectionHelper2D::intersectCircleSegment(
   auto intersections = intersectCircle(R, origin, dir);
   for (const auto& candidate : intersections) {
     if (candidate.pathLength() > 0.) {
-      double phi = VectorHelpers::phi(candidate.position());
+      double phi = VectorHelpers::phi(origin + candidate.pathLength() * dir);
       if (phi > phiMin && phi < phiMax) {
         return candidate;
       }

@@ -41,42 +41,77 @@ inline std::ostream& operator<<(std::ostream& os, IntersectionStatus status) {
   return os;
 }
 
-/// Intersection struct containing the position, path length and status of an
-/// intersection.
+namespace detail {
+/// Storage for the intersection position, present only where it is read. The
+/// 3D intersection is on the navigation and stepping hot path, where only the
+/// path length and the status are ever used; carrying a position there made
+/// the type 40 bytes and MultiIntersection 88, returned by value out of every
+/// virtual Surface::intersect. The 2D intersection is a geometry helper whose
+/// consumers (Fatras digitization and masking) want the point itself.
+template <unsigned int DIM, bool Store>
+struct IntersectionPosition {};
+
 template <unsigned int DIM>
-class Intersection {
+struct IntersectionPosition<DIM, true> {
+  /// Position of the intersection
+  std::array<double, DIM> storedPosition{};
+};
+}  // namespace detail
+
+/// Intersection struct containing the path length and status of an
+/// intersection, plus its position where that is used.
+template <unsigned int DIM, bool StorePosition = (DIM == 2)>
+class Intersection : private detail::IntersectionPosition<DIM, StorePosition> {
  public:
+  /// Whether this intersection carries its position
+  static constexpr bool hasPosition = StorePosition;
+
   /// Position type
   using Position = Eigen::Map<const Vector<DIM>>;
 
   /// Constructor with arguments
-  ///
-  /// @param position is the position of the intersection
+  /// @param position is the position of the intersection, stored only if @c hasPosition
   /// @param pathLength is the path length to the intersection
   /// @param status is an enum indicating the status of the intersection
   constexpr Intersection(const Vector<DIM>& position, double pathLength,
                          IntersectionStatus status) noexcept
-      : Intersection(std::span<const double, DIM>{position.data(), DIM},
-                     pathLength, status) {}
+      : m_pathLength(pathLength), m_status(status) {
+    if constexpr (hasPosition) {
+      std::ranges::copy(std::span<const double, DIM>{position.data(), DIM},
+                        this->storedPosition.begin());
+    } else {
+      static_cast<void>(position);
+    }
+  }
 
-  /// Constructor from position vector, path length, and status
+  /// Constructor from a mapped position, path length, and status
   /// @param position The intersection position
   /// @param pathLength The path length to the intersection
   /// @param status The intersection status
   constexpr Intersection(const Position& position, double pathLength,
                          IntersectionStatus status) noexcept
-      : Intersection(std::span<const double, DIM>{position.data(), DIM},
-                     pathLength, status) {}
+      : m_pathLength(pathLength), m_status(status) {
+    if constexpr (hasPosition) {
+      std::ranges::copy(std::span<const double, DIM>{position.data(), DIM},
+                        this->storedPosition.begin());
+    } else {
+      static_cast<void>(position);
+    }
+  }
 
-  /// Constructor from position span, path length, and status
-  /// @param position Span of position coordinates
+  /// Returns the position of the intersection
+  /// @return Position vector of the intersection point
+  Position position() const noexcept
+    requires(hasPosition)
+  {
+    return Position{this->storedPosition.data()};
+  }
+
+  /// Constructor from path length and status
   /// @param pathLength The path length to the intersection
   /// @param status The intersection status
-  constexpr Intersection(std::span<const double, DIM> position,
-                         double pathLength, IntersectionStatus status) noexcept
-      : m_pathLength(pathLength), m_status(status) {
-    std::ranges::copy(position, m_position.begin());
-  }
+  constexpr Intersection(double pathLength, IntersectionStatus status) noexcept
+      : m_pathLength(pathLength), m_status(status) {}
 
   /// Copy constructor
   constexpr Intersection(const Intersection&) noexcept = default;
@@ -94,10 +129,6 @@ class Intersection {
   constexpr bool isValid() const noexcept {
     return m_status != IntersectionStatus::unreachable;
   }
-
-  /// Returns the position of the interseciton
-  /// @return Position vector of the intersection point
-  Position position() const noexcept { return Position{m_position.data()}; }
 
   /// Returns the path length to the intersection
   /// @return Signed path length from origin to intersection point
@@ -163,8 +194,6 @@ class Intersection {
   }
 
  private:
-  /// Position of the intersection
-  std::array<double, DIM> m_position{};
   /// Signed path length to the intersection (if valid)
   double m_pathLength = std::numeric_limits<double>::infinity();
   /// The Status of the intersection
@@ -175,8 +204,13 @@ class Intersection {
 
 /// Type alias for 2D intersection
 using Intersection2D = Intersection<2>;
-/// Type alias for 3D intersection
+/// Type alias for 3D intersection. Carries no position -- see
+/// @c detail::IntersectionPosition.
 using Intersection3D = Intersection<3>;
+/// An intersection that does carry its position, for the consumers that need
+/// the point rather than the path length.
+template <unsigned int DIM>
+using PositionedIntersection = Intersection<DIM, true>;
 
 static_assert(std::is_trivially_copy_constructible_v<Intersection2D>);
 static_assert(std::is_trivially_move_constructible_v<Intersection2D>);

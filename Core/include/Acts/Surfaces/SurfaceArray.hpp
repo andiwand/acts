@@ -119,13 +119,28 @@ class SurfaceArray {
   /// lookup already knows where the trajectory pierces the representative
   /// surface; comparing that against each surface's precomputed extent in the
   /// same frame rejects most of the pack without a 3D intersection.
+  /// Centre and half-width of a surface on both grid axes. Floats and a
+  /// centre/half form rather than doubles and a min/max pair: this is streamed
+  /// once per candidate in the rejection loop, so halving it to 16 bytes halves
+  /// that loop's memory traffic, and the comparison needs no arithmetic. The
+  /// precision is irrelevant against margins of millimetre scale.
+  struct SurfaceExtent {
+    /// Centre on the first grid axis
+    float u0{};
+    /// Half-width on the first grid axis
+    float hu{};
+    /// Centre on the second grid axis
+    float v0{};
+    /// Half-width on the second grid axis
+    float hv{};
+  };
+
   struct NeighborQuery {
     /// The surfaces of the pack
     std::span<const Surface* const> surfaces;
-    /// Parallel to @c surfaces: {uMin, uMax, vMin, vMax} of each surface in
-    /// grid-local coordinates. Empty if no extents are available, in which
+    /// Parallel to @c surfaces. Empty if no extents are available, in which
     /// case @c mayCross always accepts.
-    std::span<const std::array<double, 4>> extents;
+    std::span<const SurfaceExtent> extents;
     /// Where the trajectory pierces the representative surface, grid-local
     std::array<double, 2> gridLocal{};
     /// Per-axis slack covering how far a surface sits off the representative
@@ -141,23 +156,22 @@ class SurfaceArray {
       if (i >= extents.size() || !s_gridPreFilterEnabled) {
         return true;
       }
-      const std::array<double, 4>& e = extents[i];
-      for (std::size_t axis = 0; axis < 2; ++axis) {
-        const double lo = e[2 * axis];
-        const double hi = e[2 * axis + 1];
-        const double half = 0.5 * (hi - lo);
-        double delta = gridLocal[axis] - 0.5 * (lo + hi);
-        if (wrap[axis]) {
-          // The extent of a surface next to the +-pi seam and a query point on
-          // the other side of it are 2*pi apart in raw coordinates.
-          constexpr double twoPi = 2 * std::numbers::pi_v<double>;
-          delta -= twoPi * std::round(delta / twoPi);
-        }
-        if (std::abs(delta) > half + margin[axis]) {
-          return false;
-        }
+      const SurfaceExtent& e = extents[i];
+      // The extent of a surface next to the +-pi seam and a query point on the
+      // other side of it are 2*pi apart in raw coordinates.
+      constexpr double twoPi = 2 * std::numbers::pi_v<double>;
+      double du = gridLocal[0] - e.u0;
+      if (wrap[0]) {
+        du -= twoPi * std::round(du / twoPi);
       }
-      return true;
+      if (std::abs(du) > e.hu + margin[0]) {
+        return false;
+      }
+      double dv = gridLocal[1] - e.v0;
+      if (wrap[1]) {
+        dv -= twoPi * std::round(dv / twoPi);
+      }
+      return std::abs(dv) <= e.hv + margin[1];
     }
   };
 

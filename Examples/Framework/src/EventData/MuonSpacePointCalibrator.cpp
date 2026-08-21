@@ -36,7 +36,7 @@ void MuonSpacePointCalibrator::calibrate(
     const MuonSpacePoint& spacePoint, CalibSpCont_t& outContainer) const {
   using namespace Acts::detail::LineHelper;
   auto calibSp = std::make_unique<MuonSpacePoint>(spacePoint);
-  const Acts::Intersection3D closePoint =
+  const auto closePoint =
       lineIntersect<3>(trackPos, trackDir, spacePoint.localPosition(),
                        spacePoint.sensorDirection());
 

@@ -21,10 +21,10 @@ namespace Acts::detail::LineHelper {
 /// @param linePosB: Arbitrary point on the second line
 /// @param lineDirB: Direction of the second line (Unit-length)
 template <int N>
-inline Intersection<N> lineIntersect(const Vector<N>& linePosA,
-                                     const Vector<N>& lineDirA,
-                                     const Vector<N>& linePosB,
-                                     const Vector<N>& lineDirB)
+inline PositionedIntersection<N> lineIntersect(const Vector<N>& linePosA,
+                                               const Vector<N>& lineDirA,
+                                               const Vector<N>& linePosB,
+                                               const Vector<N>& lineDirB)
   requires(N >= 2)
 {
   static_assert(N >= 2, "One dimensional intersect not sensible");
@@ -44,19 +44,19 @@ inline Intersection<N> lineIntersect(const Vector<N>& linePosA,
   /// If the two directions are parallel to each other there's no way of
   /// intersection
   if (std::abs(divisor) < std::numeric_limits<double>::epsilon()) {
-    return Intersection<N>::Invalid();
+    return PositionedIntersection<N>::Invalid();
   }
   const Vector<N> aMinusB = linePosA - linePosB;
   const double pathLength =
       (aMinusB.dot(lineDirB) - aMinusB.dot(lineDirA) * dirDots) / divisor;
 
-  return Intersection<N>{linePosB + pathLength * lineDirB, pathLength,
-                         IntersectionStatus::onSurface};
+  return PositionedIntersection<N>{linePosB + pathLength * lineDirB, pathLength,
+                                   IntersectionStatus::onSurface};
 }
 /// @brief Intersect the lines of two line surfaces using their respective transforms.
 /// @param lineSurfTrf1: local -> global transform of the first surface
 /// @param lineSurfTrf2: local -> global transform of the second surface
-inline Intersection3D lineSurfaceIntersect(
+inline PositionedIntersection<3> lineSurfaceIntersect(
     const Acts::Transform3& lineSurfTrf1,
     const Acts::Transform3& lineSurfTrf2) {
   return lineIntersect<3>(

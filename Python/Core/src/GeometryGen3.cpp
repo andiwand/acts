@@ -161,13 +161,15 @@ void pseudoNavigation(const TrackingGeometry& trackingGeometry,
       while (main.remainingCandidates() > 0) {
         const auto& candidate = main.currentCandidate();
 
-        ACTS_VERBOSE(candidate.position().transpose());
+        const Vector3 candidatePosition =
+            position + candidate.pathLength() * direction;
+        ACTS_VERBOSE(candidatePosition.transpose());
 
         ACTS_VERBOSE("moving to position: " << position.transpose() << " (r="
                                             << VectorHelpers::perp(position)
                                             << ")");
 
-        Vector3 delta = candidate.position() - position;
+        Vector3 delta = candidatePosition - position;
 
         std::size_t substeps =
             std::max(1l, std::lround(delta.norm() / 10_cm * substepsPerCm));
@@ -181,7 +183,7 @@ void pseudoNavigation(const TrackingGeometry& trackingGeometry,
           csv << std::endl;
         }
 
-        position = candidate.position();
+        position = candidatePosition;
         ACTS_VERBOSE("                 -> "
                      << position.transpose()
                      << " (r=" << VectorHelpers::perp(position) << ")");

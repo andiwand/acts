@@ -73,13 +73,13 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
       if (multiIntersection.at(0).pathLength() < -onSurfaceTolerance) {
         continue;
       }
-      candidate.intersection() = multiIntersection.at(0);
+      candidate.setIntersection(multiIntersection.at(0));
       candidate.intersectionIndex() = 0;
     } else if (!firstValid && secondValid) {
       if (multiIntersection.at(1).pathLength() < -onSurfaceTolerance) {
         continue;
       }
-      candidate.intersection() = multiIntersection.at(1);
+      candidate.setIntersection(multiIntersection.at(1));
       candidate.intersectionIndex() = 1;
     } else {
       // Split them into valid intersections, keep track of potentially
@@ -94,12 +94,12 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
         // Valid solution is either on surface or updates the distance
         if (intersection.isValid()) {
           if (!originalCandidateUpdated) {
-            candidate.intersection() = intersection;
+            candidate.setIntersection(intersection);
             candidate.intersectionIndex() = intersectionIndex;
             originalCandidateUpdated = true;
           } else {
             NavigationTarget additionalCandidate = candidate;
-            additionalCandidate.intersection() = intersection;
+            additionalCandidate.setIntersection(intersection);
             additionalCandidate.intersectionIndex() = intersectionIndex;
             additionalCandidates.emplace_back(additionalCandidate);
           }
@@ -128,8 +128,7 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
 
   // The we find the first invalid candidate
   auto firstInvalid = std::ranges::find_if(
-      m_candidates,
-      [](const NavigationTarget& a) { return !a.intersection().isValid(); });
+      m_candidates, [](const NavigationTarget& a) { return !a.isValid(); });
 
   // Set the range and initialize
   m_candidates.resize(std::distance(m_candidates.begin(), firstInvalid),
@@ -164,7 +163,7 @@ bool NavigationStream::update(const GeometryContext& gctx,
       }
       // Valid solution is either on surface or updates the distance
       if (intersection.isValid()) {
-        candidate.intersection() = intersection;
+        candidate.setIntersection(intersection);
         return true;
       }
     }

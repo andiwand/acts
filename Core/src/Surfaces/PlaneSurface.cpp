@@ -180,14 +180,14 @@ MultiIntersection3D PlaneSurface::intersect(
     // Built-in local to global for speed reasons
     const auto& tMatrix = gctxTransform.matrix();
     // Create the reference vector in local
-    const Vector3 vecLocal(intersection.position() - tMatrix.block<3, 1>(0, 3));
+    const Vector3 vecLocal(position + intersection.pathLength() * direction -
+                           tMatrix.block<3, 1>(0, 3));
     if (!insideBounds(tMatrix.block<3, 2>(0, 0).transpose() * vecLocal,
                       boundaryTolerance)) {
       status = IntersectionStatus::unreachable;
     }
   }
-  return MultiIntersection3D(Intersection3D(intersection.position(),
-                                            intersection.pathLength(), status));
+  return MultiIntersection3D(Intersection3D(intersection.pathLength(), status));
 }
 
 Matrix<2, 3> PlaneSurface::localCartesianToBoundLocalDerivative(

@@ -61,7 +61,9 @@ const std::vector<Acts::Vector3> Acts::ProjectedReferenceGenerator::references(
       auto refMultiIntersections =
           referenceSurface->intersect(gctx, lp, rayDirection);
       // Take the closest intersection point in forward direction
-      rPositions.push_back(refMultiIntersections.closestForward().position());
+      rPositions.push_back(lp +
+                           refMultiIntersections.closestForward().pathLength() *
+                               rayDirection);
       rCog += rPositions.back();
     }
   }

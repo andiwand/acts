@@ -283,8 +283,9 @@ MultiIntersection3D DiscSurface::intersect(
   }
   // Built-in local to global for speed reasons
   const auto& tMatrix = gctxTransform.matrix();
-  const Vector3 fromCenter =
-      intersection.position() - tMatrix.block<3, 1>(0, 3);
+  const Vector3 intersectionPosition =
+      position + intersection.pathLength() * direction;
+  const Vector3 fromCenter = intersectionPosition - tMatrix.block<3, 1>(0, 3);
   if (m_bounds->coversFullAzimuth() && boundaryTolerance.isNone()) {
     // avoids `atan2` in case of full phi coverage
     const double r2 = fromCenter.squaredNorm();
@@ -302,8 +303,7 @@ MultiIntersection3D DiscSurface::intersect(
       status = IntersectionStatus::unreachable;
     }
   }
-  return MultiIntersection3D(Intersection3D(intersection.position(),
-                                            intersection.pathLength(), status));
+  return MultiIntersection3D(Intersection3D(intersection.pathLength(), status));
 }
 
 Matrix<2, 3> DiscSurface::localCartesianToBoundLocalDerivative(

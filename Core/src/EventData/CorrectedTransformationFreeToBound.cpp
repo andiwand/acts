@@ -151,7 +151,11 @@ detail::CorrectedFreeToBoundTransformer::operator()(
                        navDir * params.segment<3>(eFreeDir0),
                        BoundaryTolerance::Infinite())
             .closest();
-    correctedFreeParams.segment<3>(eFreePos0) = intersection.position();
+    // Intersection no longer carries the position; it is the ray evaluated at
+    // the path length.
+    correctedFreeParams.segment<3>(eFreePos0) =
+        params.segment<3>(eFreePos0) +
+        intersection.pathLength() * navDir * params.segment<3>(eFreeDir0);
 
     // Transform the free to bound
     auto result = transformFreeToBoundParameters(correctedFreeParams, surface,

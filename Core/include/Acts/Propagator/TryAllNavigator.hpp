@@ -392,9 +392,7 @@ class TryAllNavigator final {
     NavigationTarget nextTarget = NavigationTarget::None();
 
     for (const auto& target : state.activeTargetsAhead) {
-      const Intersection3D& intersection = target.intersection();
-
-      if (intersection.status() == IntersectionStatus::onSurface) {
+      if (target.status() == IntersectionStatus::onSurface) {
         ACTS_ERROR(volInfo(state)
                    << "We are on surface " << target.surface().geometryId()
                    << " before trying to reach it. This should not happen. "
@@ -402,7 +400,7 @@ class TryAllNavigator final {
         continue;
       }
 
-      if (intersection.status() == IntersectionStatus::reachable) {
+      if (target.status() == IntersectionStatus::reachable) {
         nextTarget = target;
         break;
       }

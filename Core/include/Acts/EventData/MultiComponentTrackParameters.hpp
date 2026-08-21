@@ -87,7 +87,8 @@ class MultiComponentBoundTrackParameters {
           s->intersect(geoCtx, pos4.template segment<3>(eFreePos0), dir,
                        BoundaryTolerance::Infinite())
               .closest();
-      const Vector3& newPos = closestIntersection.position();
+      const Vector3 newPos = pos4.template segment<3>(eFreePos0) +
+                             closestIntersection.pathLength() * dir;
 
       BoundVector bv =
           transformFreeToCurvilinearParameters(pos4[eTime], dir, qop);
