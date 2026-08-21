@@ -325,15 +325,27 @@ void printCheckPathLength(double pathLength, double nearLimit, double farLimit,
 /// @param logger A optionally supplied logger which prints out a lot of infos
 ///               at VERBOSE level
 inline bool checkPathLength(double pathLength, double nearLimit,
-                            double farLimit,
-                            const Logger& logger = getDummyLogger()) {
-  if (logger.doPrint(Logging::VERBOSE)) [[unlikely]] {
-    printCheckPathLength(pathLength, nearLimit, farLimit, logger);
-  }
-
+                            double farLimit) {
   // TODO why?
   const double tolerance = s_onSurfaceTolerance;
   return pathLength > nearLimit && pathLength < farLimit + tolerance;
+}
+
+/// Logging overload of the above. Kept separate so the common no-logger call
+/// does not pay for materialising the dummy logger and gating on it.
+///
+/// @param pathLength The path length of the intersection
+/// @param nearLimit The minimum path length for an intersection to be considered
+/// @param farLimit The maximum path length for an intersection to be considered
+/// @param logger A optionally supplied logger which prints out a lot of infos
+///               at VERBOSE level
+/// @return true if the path length is within the limits
+inline bool checkPathLength(double pathLength, double nearLimit,
+                            double farLimit, const Logger& logger) {
+  if (logger.doPrint(Logging::VERBOSE)) [[unlikely]] {
+    printCheckPathLength(pathLength, nearLimit, farLimit, logger);
+  }
+  return checkPathLength(pathLength, nearLimit, farLimit);
 }
 
 }  // namespace detail

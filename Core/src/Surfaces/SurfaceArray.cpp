@@ -182,6 +182,14 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
         m_axes(std::move(axes)),
         m_binValues(std::move(binValues)),
         m_maxNeighborDistance(maxNeighborDistance) {
+    // The representative surface is fixed for the lifetime of the lookup, so
+    // resolve the cylinder case once instead of dynamic_cast-ing on every
+    // grid lookup.
+    if (const auto* cylinderBounds =
+            dynamic_cast<const CylinderBounds*>(&m_representative->bounds());
+        cylinderBounds != nullptr) {
+      m_cylinderRadius = cylinderBounds->get(CylinderBounds::eR);
+    }
     m_fillingGrid.resize(size());
   }
 
@@ -307,6 +315,8 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
   std::tuple<Axis1, Axis2> m_axes;
   std::vector<AxisDirection> m_binValues;
   std::uint8_t m_maxNeighborDistance{};
+  // radius of the representative surface if it is a cylinder, 0 otherwise
+  double m_cylinderRadius{0};
 
   // legacy grid for filling and for deprecated lookup methods.
   // TODO: remove this once deprecated lookup methods are removed and filling is
@@ -511,22 +521,18 @@ struct SurfaceGridLookupImpl final : SurfaceArray::ISurfaceGridLookup {
     }
   }
 
-  const CylinderBounds* getCylinderBounds() const {
-    return dynamic_cast<const CylinderBounds*>(&m_representative->bounds());
-  }
-
   Vector2 gridToSurfaceLocal(const GridPoint& gridLocal) const {
     Vector2 surfaceLocal = {gridLocal[0], gridLocal[1]};
-    if (const CylinderBounds* bounds = getCylinderBounds(); bounds != nullptr) {
-      surfaceLocal[0] *= bounds->get(CylinderBounds::eR);
+    if (m_cylinderRadius > 0) {
+      surfaceLocal[0] *= m_cylinderRadius;
     }
     return surfaceLocal;
   }
 
   GridPoint surfaceToGridLocal(const Vector2& local) const {
     GridPoint gridLocal = {local[0], local[1]};
-    if (const CylinderBounds* bounds = getCylinderBounds(); bounds != nullptr) {
-      gridLocal[0] /= bounds->get(CylinderBounds::eR);
+    if (m_cylinderRadius > 0) {
+      gridLocal[0] /= m_cylinderRadius;
     }
     return gridLocal;
   }

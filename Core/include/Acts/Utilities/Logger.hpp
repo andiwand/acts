@@ -701,16 +701,16 @@ class Logger {
   /// @param [in] pFilter policy for filtering debug messages
   Logger(std::unique_ptr<Logging::OutputPrintPolicy> pPrint,
          std::unique_ptr<Logging::OutputFilterPolicy> pFilter)
-      : m_printPolicy(std::move(pPrint)), m_filterPolicy(std::move(pFilter)) {}
+      : m_printPolicy(std::move(pPrint)),
+        m_filterPolicy(std::move(pFilter)),
+        m_level(m_filterPolicy->level()) {}
 
   /// @brief decide whether a message with a given debug level has to be printed
   ///
   /// @param [in] lvl debug level of debug message
   ///
   /// @return @c true if debug message should be printed, otherwise @c false
-  bool doPrint(const Logging::Level& lvl) const {
-    return m_filterPolicy->doPrint(lvl);
-  }
+  bool doPrint(const Logging::Level& lvl) const { return m_level <= lvl; }
 
   /// @brief log a debug message
   ///
@@ -784,6 +784,10 @@ class Logger {
 
   /// policy object for filtering debug messages
   std::unique_ptr<Logging::OutputFilterPolicy> m_filterPolicy;
+
+  /// threshold of the filter policy, cached so the log-level gate on every
+  /// ACTS_* macro is a compare instead of a virtual call through the policy
+  Logging::Level m_level;
 };
 
 /// @brief get default debug output logger

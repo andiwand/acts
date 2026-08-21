@@ -183,8 +183,13 @@ boost::container::small_vector<NavigationTarget, 10> Layer::compatibleSurfaces(
   // the approach surfaces are in principle always testSurfaces
   // - the surface on approach is excluded via the veto
   // - the surfaces are only collected if needed
+  // An approach surface can only be accepted if it carries material and
+  // material is being resolved (m_ssApproachSurfaces > 1 flags that at geometry
+  // closure), or if everything is being resolved. Otherwise the loop below
+  // intersects nothing and only burns the veto.
   if (m_approachDescriptor &&
-      (options.resolveMaterial || options.resolvePassive)) {
+      ((options.resolveMaterial && m_ssApproachSurfaces > 1) ||
+       options.resolvePassive)) {
     // the approach surfaces
     const std::vector<const Surface*>& approachSurfaces =
         m_approachDescriptor->containedSurfaces();

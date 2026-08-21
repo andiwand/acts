@@ -92,7 +92,9 @@ Result<Vector2> DiscSurface::globalToLocal(const GeometryContext& gctx,
                                            const Vector3& position,
                                            double tolerance) const {
   // transport it to the globalframe
-  Vector3 loc3Dframe = (localToGlobalTransform(gctx).inverse()) * position;
+  // Surface placements are rigid, so the affine inverse is the transpose
+  Vector3 loc3Dframe =
+      localToGlobalTransform(gctx).inverse(Eigen::Isometry) * position;
   if (std::abs(loc3Dframe.z()) > std::abs(tolerance)) {
     return Result<Vector2>::failure(SurfaceError::GlobalPositionNotOnSurface);
   }

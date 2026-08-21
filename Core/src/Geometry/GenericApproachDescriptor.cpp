@@ -29,27 +29,29 @@ NavigationTarget GenericApproachDescriptor::approachSurface(
     const GeometryContext& gctx, const Vector3& position,
     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
     double nearLimit, double farLimit) const {
-  // almost always 2
-  boost::container::small_vector<NavigationTarget, 4> targets;
-  targets.reserve(m_surfaceCache.size());
+  // Almost always 2 surfaces with 2 solutions each, and only the closest one
+  // is ever returned, so keep a running minimum instead of materialising every
+  // candidate into a container.
+  NavigationTarget best = NavigationTarget::None();
   for (const Surface* surface : m_surfaceCache) {
     auto multiIntersection =
         surface->intersect(gctx, position, direction, boundaryTolerance);
     for (auto [intersectionIndex, intersection] :
          Acts::enumerate(multiIntersection)) {
-      if (intersection.isValid() &&
-          detail::checkPathLength(intersection.pathLength(), nearLimit,
-                                  farLimit)) {
-        targets.emplace_back(intersection, intersectionIndex,
-                             *surface->associatedLayer(), *surface,
-                             boundaryTolerance);
+      if (!intersection.isValid() ||
+          !detail::checkPathLength(intersection.pathLength(), nearLimit,
+                                   farLimit)) {
+        continue;
+      }
+      NavigationTarget candidate(intersection, intersectionIndex,
+                                 *surface->associatedLayer(), *surface,
+                                 boundaryTolerance);
+      if (best.isNone() || NavigationTarget::pathLengthOrder(candidate, best)) {
+        best = candidate;
       }
     }
   }
-  if (targets.empty()) {
-    return NavigationTarget::None();
-  }
-  return *std::ranges::min_element(targets, NavigationTarget::pathLengthOrder);
+  return best;
 }
 
 const std::vector<const Surface*>&

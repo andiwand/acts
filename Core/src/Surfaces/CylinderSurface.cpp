@@ -135,7 +135,8 @@ Result<Vector2> CylinderSurface::globalToLocal(const GeometryContext& gctx,
     inttol = 0.01;
   }
   const Transform3& sfTransform = localToGlobalTransform(gctx);
-  Transform3 inverseTrans(sfTransform.inverse());
+  // Surface placements are rigid, so the affine inverse is the transpose
+  Transform3 inverseTrans(sfTransform.inverse(Eigen::Isometry));
   Vector3 loc3Dframe(inverseTrans * position);
   if (std::abs(perp(loc3Dframe) - bounds().get(CylinderBounds::eR)) > inttol) {
     return Result<Vector2>::failure(SurfaceError::GlobalPositionNotOnSurface);

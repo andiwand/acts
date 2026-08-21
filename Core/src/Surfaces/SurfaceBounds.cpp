@@ -17,6 +17,11 @@ bool SurfaceBounds::inside(const Vector2& lposition,
   if (boundaryTolerance.isInfinite()) {
     return true;
   }
+  // The overwhelmingly common navigation case. Short-circuited here so the
+  // strict check does not pay for the tolerance-mode dispatch.
+  if (boundaryTolerance.isNone()) {
+    return inside(lposition);
+  }
 
   BoundaryTolerance::ToleranceMode toleranceMode =
       boundaryTolerance.toleranceMode();
