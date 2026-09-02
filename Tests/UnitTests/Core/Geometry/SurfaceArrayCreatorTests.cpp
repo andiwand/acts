@@ -313,7 +313,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
     // CHECK_CLOSE_REL(bdExp, axis->getBinEdges(), 0.001);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), -0.5 * step, 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), 0.5 * step, 1e-3);
     // case 3: two modules sit asymmetrically around pi / -pi shifted up
     angleShift = step / -4.;
     surfaces = fullPhiTestSurfacesEC(30, angleShift, z);
@@ -329,7 +329,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMax(), std::numbers::pi, 1e-6);
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / -4., 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / 4., 1e-3);
 
     // case 4: two modules sit asymmetrically around pi / -pi shifted down
     angleShift = step / 4.;
@@ -348,7 +348,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMax(), std::numbers::pi, 1e-6);
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / 4., 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / -4., 1e-3);
   }
 
   for (int i = -1; i <= 2; i += 2) {
@@ -386,7 +386,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
     // CHECK_CLOSE_REL(bdExp, axis->getBinEdges(), 0.001);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), -0.5 * step, 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), 0.5 * step, 1e-3);
 
     // case 3: two modules sit asymmetrically around pi / -pi shifted up
     angleShift = step / -4.;
@@ -404,7 +404,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
     // CHECK_CLOSE_REL(bdExp, axis->getBinEdges(), 0.001);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / -4., 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / 4., 1e-3);
 
     // case 4: two modules sit asymmetrically around pi / -pi shifted down
     angleShift = step / 4.;
@@ -422,7 +422,7 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
     CHECK_CLOSE_REL(axis->getMin(), -std::numbers::pi, 1e-6);
     BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
     // CHECK_CLOSE_REL(bdExp, axis->getBinEdges(), 0.001);
-    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / 4., 1e-3);
+    CHECK_CLOSE_REL(phi(tr * Vector3::UnitX()), step / -4., 1e-3);
   }
 
   SrfVec surfaces;
@@ -442,6 +442,44 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Phi,
   CHECK_CLOSE_ABS(axis->getMax(), std::numbers::pi, 1e-3);
   CHECK_CLOSE_ABS(axis->getMin(), -std::numbers::pi, 1e-3);
   BOOST_CHECK_EQUAL(axis->getType(), AxisType::Equidistant);
+}
+
+// The point of the phi rotation is that module centres end up in the middle of
+// their bin, whatever phi the detector happens to start at. Checking the
+// rotation angle alone cannot tell the intended sign from its opposite: both
+// agree when the detector starts at a multiple of half a bin, and the opposite
+// sign doubles the offset everywhere else.
+BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_phiAxisAlignsModuleCentres,
+                        SurfaceArrayCreatorFixture) {
+  constexpr std::size_t nModules = 30;
+  const double step = 2 * std::numbers::pi / nModules;
+
+  // scan the phi origin of the detector over a full bin
+  for (std::size_t i = 0; i <= 8; ++i) {
+    const double shift = step * static_cast<double>(i) / 8.;
+
+    auto surfaces = fullPhiTestSurfacesEC(nModules, shift);
+    auto surfacesRaw = unpackSmartPointers(surfaces);
+    ProtoLayer pl(tgContext, surfacesRaw);
+    auto tr = Transform3::Identity();
+    auto axis =
+        createEquidistantAxis(tgContext, surfacesRaw, AxisBoundaryType::Closed,
+                              AxisDirection::AxisPhi, pl, tr);
+
+    // `tr` is the local-to-global transform of the representative surface
+    const Transform3 toLocal = tr.inverse();
+    const double lo = axis->getMin();
+    const double binWidth = (axis->getMax() - lo) / axis->getNBins();
+
+    for (const Surface* surface : surfacesRaw) {
+      const double localPhi = phi(toLocal * surface->center(tgContext));
+      const double u = (localPhi - lo) / binWidth;
+      const double fractionInBin = u - std::floor(u);
+      // 0.5 is the bin centre; the inverted sign lands on 0.0 / 1.0 for
+      // shift = step / 4
+      CHECK_CLOSE_ABS(fractionInBin, 0.5, 1e-3);
+    }
+  }
 }
 
 BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_createEquidistantAxis_Z,
@@ -645,9 +683,10 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_barrelStagger,
   double R = 10.;
   Transform3 itr = tr.inverse();
 
-  auto cylinder =
-      Surface::makeShared<CylinderSurface>(Transform3::Identity(), R, 100);
-  SurfaceArray sa(tgContext, brl, cylinder, 1., {*pAxisPhi, *pAxisZ});
+  // the axes are expressed in the frame of the representative surface, so it
+  // has to be built with the transform the axis creation handed back
+  auto cylinderEq = Surface::makeShared<CylinderSurface>(tr, R, 100);
+  SurfaceArray sa(tgContext, brl, cylinderEq, 1., {*pAxisPhi, *pAxisZ});
 
   auto axes = sa.getAxes();
   BOOST_CHECK_EQUAL(axes.at(0)->getNBins(), 30u);
@@ -659,11 +698,13 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_barrelStagger,
 
     Vector3 ctr = A->referencePosition(tgContext, AxisDirection::AxisR);
     auto binContent = sa.at(tgContext, ctr, ctr.normalized());
-    BOOST_CHECK_EQUAL(binContent.size(), 4u);
+    // the grid is aligned to the module centres, so the bin a module centre
+    // falls into holds exactly that module's stagger pair
+    BOOST_CHECK_EQUAL(binContent.size(), 2u);
     std::set<const Surface*> act(binContent.begin(), binContent.end());
 
     std::set<const Surface*> exp({A, B});
-    BOOST_CHECK(std::ranges::includes(act, exp));
+    BOOST_CHECK(act == exp);
   }
 
   // VARIABLE
@@ -679,7 +720,10 @@ BOOST_FIXTURE_TEST_CASE(SurfaceArrayCreator_barrelStagger,
 
     itr = tr.inverse();
 
-    SurfaceArray sa2(tgContext, brl, cylinder, 1., {*pAxisPhiVar, *pAxisZVar});
+    auto cylinderVar =
+        Surface::makeShared<CylinderSurface>(Transform3::Identity(), R, 100);
+    SurfaceArray sa2(tgContext, brl, cylinderVar, 1.,
+                     {*pAxisPhiVar, *pAxisZVar});
 
     axes = sa2.getAxes();
     BOOST_CHECK_EQUAL(axes.at(0)->getNBins(), 30u);
