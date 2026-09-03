@@ -63,7 +63,8 @@ SurfaceArray SurfaceArrayCreator::surfaceArrayOnCylinder(
     const GeometryContext& gctx,
     std::vector<std::shared_ptr<const Surface>> surfaces, std::size_t binsPhi,
     std::size_t binsZ, std::optional<ProtoLayer> protoLayerOpt,
-    const Transform3& transform, std::uint8_t maxNeighborDistance) const {
+    const Transform3& transform,
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   using enum AxisDirection;
 
   const std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
@@ -100,7 +101,8 @@ SurfaceArray SurfaceArrayCreator::surfaceArrayOnCylinder(
     const GeometryContext& gctx,
     std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypePhi,
     BinningType bTypeZ, std::optional<ProtoLayer> protoLayerOpt,
-    const Transform3& transform, std::uint8_t maxNeighborDistance) const {
+    const Transform3& transform,
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   using enum AxisDirection;
 
   const std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
@@ -152,7 +154,8 @@ SurfaceArray SurfaceArrayCreator::surfaceArrayOnDisc(
     const GeometryContext& gctx,
     std::vector<std::shared_ptr<const Surface>> surfaces, std::size_t binsR,
     std::size_t binsPhi, std::optional<ProtoLayer> protoLayerOpt,
-    const Transform3& transform, std::uint8_t maxNeighborDistance) const {
+    const Transform3& transform,
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   using enum AxisDirection;
 
   const std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
@@ -202,7 +205,8 @@ SurfaceArray SurfaceArrayCreator::surfaceArrayOnDisc(
     const GeometryContext& gctx,
     std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypeR,
     BinningType bTypePhi, std::optional<ProtoLayer> protoLayerOpt,
-    const Transform3& transform, std::uint8_t maxNeighborDistance) const {
+    const Transform3& transform,
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   using enum AxisDirection;
 
   const std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);
@@ -310,7 +314,7 @@ SurfaceArray SurfaceArrayCreator::surfaceArrayOnPlane(
     std::vector<std::shared_ptr<const Surface>> surfaces, std::size_t bins1,
     std::size_t bins2, AxisDirection aDir,
     std::optional<ProtoLayer> protoLayerOpt, const Transform3& transform,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   using enum AxisDirection;
 
   const std::vector<const Surface*> surfacesRaw = unpackSmartPointers(surfaces);

@@ -45,12 +45,13 @@ class SurfaceArray {
   /// @param representative The surface which is used as representative
   /// @param tolerance The tolerance used for intersection checks
   /// @param axes The axes used for the grid
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis
   SurfaceArray(const GeometryContext& gctx,
                std::vector<std::shared_ptr<const Surface>> surfaces,
                std::shared_ptr<RegularSurface> representative, double tolerance,
                std::tuple<const IAxis&, const IAxis&> axes,
-               std::uint8_t maxNeighborDistance = 1);
+               std::array<std::uint8_t, 2> maxNeighborDistance = {2, 2});
 
   // non-copyable but movable due to unique_ptr member. deferred implementation
   // to source since the pimpl is not fully defined in the header.
@@ -88,11 +89,22 @@ class SurfaceArray {
   /// Get all surfaces in bin given by local grid indices and neighbor
   /// distance.
   /// @param gridIndices the local grid indices
-  /// @param neighborDistance the neighbor distance to include in the lookup
+  /// @param neighborDistance the neighbor distance to include in the lookup,
+  ///        the same along both axes
   /// @return span of surface pointers of the bin at that position and its neighbors
   std::span<const Surface* const> neighbors(
       std::array<std::size_t, 2> gridIndices,
       std::uint8_t neighborDistance) const;
+
+  /// Get all surfaces in bin given by local grid indices and a neighbor
+  /// distance per axis.
+  /// @param gridIndices the local grid indices
+  /// @param neighborDistance the neighbor distance to include in the lookup,
+  ///        per axis
+  /// @return span of surface pointers of the bin at that position and its neighbors
+  std::span<const Surface* const> neighbors(
+      std::array<std::size_t, 2> gridIndices,
+      std::array<std::uint8_t, 2> neighborDistance) const;
 
   /// Get all surfaces in bin at @p pos and its neighbors
   /// @param gctx The current geometry context object, e.g. alignment
@@ -155,10 +167,11 @@ class SurfaceArray {
   /// @return Array of number of local bins in each dimension
   std::array<std::size_t, 2> numLocalBins() const;
 
-  /// Get the maximum neighbor distance that is supported by this lookup. This
-  /// is used to determine how many neighbors to include in neighbor lookups.
-  /// @return Maximum neighbor distance
-  std::uint8_t maxNeighborDistance() const;
+  /// Get the upper bound on the neighbor window this lookup can serve, per
+  /// axis. The window itself is derived per axis from the crossing angle and
+  /// is capped at these values.
+  /// @return Maximum neighbor distance per axis
+  std::array<std::uint8_t, 2> maxNeighborDistance() const;
 
   /// Forward declaration of the internal lookup struct. The actual definition
   /// is in the source file.

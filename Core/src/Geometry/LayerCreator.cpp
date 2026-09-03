@@ -49,7 +49,7 @@ MutableLayerPtr LayerCreator::cylinderLayer(
     std::vector<std::shared_ptr<const Surface>> surfaces, std::size_t binsPhi,
     std::size_t binsZ, std::optional<ProtoLayer> _protoLayer,
     const Transform3& transform, std::unique_ptr<ApproachDescriptor> ad,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   ProtoLayer protoLayer =
       _protoLayer ? *_protoLayer : ProtoLayer(gctx, surfaces);
   if (!_protoLayer) {
@@ -127,7 +127,7 @@ MutableLayerPtr LayerCreator::cylinderLayer(
     std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypePhi,
     BinningType bTypeZ, std::optional<ProtoLayer> _protoLayer,
     const Transform3& transform, std::unique_ptr<ApproachDescriptor> ad,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   ProtoLayer protoLayer =
       _protoLayer ? *_protoLayer : ProtoLayer(gctx, surfaces);
   if (!_protoLayer) {
@@ -206,7 +206,7 @@ MutableLayerPtr LayerCreator::discLayer(
     std::vector<std::shared_ptr<const Surface>> surfaces, std::size_t binsR,
     std::size_t binsPhi, std::optional<ProtoLayer> _protoLayer,
     const Transform3& transform, std::unique_ptr<ApproachDescriptor> ad,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   ProtoLayer protoLayer =
       _protoLayer ? *_protoLayer : ProtoLayer(gctx, surfaces);
   if (!_protoLayer) {
@@ -277,7 +277,7 @@ MutableLayerPtr LayerCreator::discLayer(
     std::vector<std::shared_ptr<const Surface>> surfaces, BinningType bTypeR,
     BinningType bTypePhi, std::optional<ProtoLayer> _protoLayer,
     const Transform3& transform, std::unique_ptr<ApproachDescriptor> ad,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   ProtoLayer protoLayer =
       _protoLayer ? *_protoLayer : ProtoLayer(gctx, surfaces);
   if (!_protoLayer) {
@@ -346,7 +346,7 @@ MutableLayerPtr LayerCreator::planeLayer(
     std::size_t bins2, AxisDirection aDir,
     std::optional<ProtoLayer> _protoLayer, const Transform3& transform,
     std::unique_ptr<ApproachDescriptor> ad,
-    std::uint8_t maxNeighborDistance) const {
+    std::array<std::uint8_t, 2> maxNeighborDistance) const {
   ProtoLayer protoLayer =
       _protoLayer ? *_protoLayer : ProtoLayer(gctx, surfaces);
   if (!_protoLayer) {

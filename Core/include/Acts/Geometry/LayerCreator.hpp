@@ -81,7 +81,8 @@ class LayerCreator {
   /// @param ad possibility to hand over a specific ApproachDescriptor, which is
   /// needed for material mapping. Otherwise the default ApproachDescriptor will
   /// be taken used for this layer
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis (phi, z)
   ///
   /// @return shared pointer to a newly created layer
   MutableLayerPtr cylinderLayer(
@@ -90,7 +91,7 @@ class LayerCreator {
       std::size_t binsZ, std::optional<ProtoLayer> _protoLayer = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::unique_ptr<ApproachDescriptor> ad = nullptr,
-      std::uint8_t maxNeighborDistance = 1) const;
+      std::array<std::uint8_t, 2> maxNeighborDistance = {1, 2}) const;
 
   /// returning a cylindrical layer
   ///
@@ -107,7 +108,8 @@ class LayerCreator {
   /// @param ad possibility to hand over a specific ApproachDescriptor, which is
   /// needed for material mapping. Otherwise the default ApproachDescriptor will
   /// be taken used for this layer
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis (phi, z)
   ///
   /// @return shared pointer to a newly created layer
   MutableLayerPtr cylinderLayer(
@@ -117,7 +119,7 @@ class LayerCreator {
       std::optional<ProtoLayer> _protoLayer = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::unique_ptr<ApproachDescriptor> ad = nullptr,
-      std::uint8_t maxNeighborDistance = 1) const;
+      std::array<std::uint8_t, 2> maxNeighborDistance = {1, 2}) const;
 
   /// returning a disc layer
   ///
@@ -134,7 +136,8 @@ class LayerCreator {
   /// @param ad possibility to hand over a specific ApproachDescriptor, which is
   /// needed for material mapping. Otherwise the default ApproachDescriptor will
   /// be taken used for this layer
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis (r, phi)
   ///
   /// @return shared pointer to a newly created layer
   MutableLayerPtr discLayer(
@@ -143,7 +146,7 @@ class LayerCreator {
       std::size_t binsPhi, std::optional<ProtoLayer> _protoLayer = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::unique_ptr<ApproachDescriptor> ad = nullptr,
-      std::uint8_t maxNeighborDistance = 1) const;
+      std::array<std::uint8_t, 2> maxNeighborDistance = {2, 1}) const;
 
   /// returning a disc layer
   ///
@@ -160,7 +163,8 @@ class LayerCreator {
   /// @param ad possibility to hand over a specific ApproachDescriptor, which is
   /// needed for material mapping. Otherwise the default ApproachDescriptor will
   /// be taken used for this layer
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis (r, phi)
   ///
   /// @return shared pointer to a newly created layer
   MutableLayerPtr discLayer(
@@ -170,7 +174,7 @@ class LayerCreator {
       std::optional<ProtoLayer> _protoLayer = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::unique_ptr<ApproachDescriptor> ad = nullptr,
-      std::uint8_t maxNeighborDistance = 1) const;
+      std::array<std::uint8_t, 2> maxNeighborDistance = {2, 1}) const;
 
   /// returning a plane layer
   ///
@@ -191,7 +195,8 @@ class LayerCreator {
   /// @param [in] ad possibility to hand over a specific ApproachDescriptor,
   /// which is needed for material mapping. Otherwise the default
   /// ApproachDescriptor will be taken used for this layer
-  /// @param maxNeighborDistance Maximum next neighbor distance to be included in neighbor lookups
+  /// @param maxNeighborDistance Upper bound on the neighbor window the lookup
+  ///        derives from the crossing angle, one entry per grid axis
   ///
   /// @return shared pointer to a newly created layer
   MutableLayerPtr planeLayer(
@@ -201,7 +206,7 @@ class LayerCreator {
       std::optional<ProtoLayer> _protoLayer = std::nullopt,
       const Transform3& transform = Transform3::Identity(),
       std::unique_ptr<ApproachDescriptor> ad = nullptr,
-      std::uint8_t maxNeighborDistance = 1) const;
+      std::array<std::uint8_t, 2> maxNeighborDistance = {2, 2}) const;
 
   /// Set the configuration object
   /// @param lcConfig is the configuration struct
