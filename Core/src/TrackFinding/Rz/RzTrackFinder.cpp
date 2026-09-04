@@ -43,7 +43,14 @@ double alongCoordinate(const RzSurface& surface, const RzVector& v) {
 
 RzTrackFinder::RzTrackFinder(const RzTrackFinderConfig& config,
                              const RzLayout& layout, double bz)
-    : m_cfg(config), m_layout(&layout), m_helix{bz} {}
+    : m_cfg(config), m_layout(&layout), m_bz(bz) {}
+
+namespace {
+/// A surface's field at a crossing, or the constant one
+double bzAt(const RzSurface& surface, double along, double fallback) {
+  return surface.bzAt(along).value_or(fallback);
+}
+}  // namespace
 
 bool RzTrackFinder::applyMaterial(State& state, const MaterialSlab& slab,
                                   const Vector3& normal,
@@ -155,9 +162,11 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
     return std::nullopt;
   }
   const double s0 = m.normal.dot(m.position - p0) / along;
-  if (std::abs(s0) > m_cfg.maxModuleDistance) {
+  const double maxDistance = std::max(m_cfg.maxModuleDistance, m.maxDistance);
+  if (std::abs(s0) > maxDistance) {
     return std::nullopt;
   }
+  const RzHelix helix = helixAt(state.bz);
   // Most candidates in the window are nowhere near: a straight-line residual
   // against the covariance at the stop, widened by what the direction
   // uncertainty does over the module distance, is enough to drop them before
@@ -181,12 +190,12 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
     }
   }
   const std::optional<double> s =
-      m_helix.pathToPlane(state.v, m.position, m.normal);
-  if (!s.has_value() || std::abs(*s) > m_cfg.maxModuleDistance) {
+      helix.pathToPlane(state.v, m.position, m.normal);
+  if (!s.has_value() || std::abs(*s) > maxDistance) {
     return std::nullopt;
   }
   RzVector w = state.v;
-  m_helix.step(w, *s);
+  helix.step(w, *s);
   const Vector3 d = m.position - w.segment<3>(eRzPos0);
   const double ru = m.u.dot(d);
   const double rv = m.v.dot(d);
@@ -198,7 +207,7 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // formed, and C (H J)^T is what the update needs too
   Evaluation e;
   const Eigen::Matrix<double, 3, eRzSize> jPos =
-      m_helix.stepJacobianOnto(state.v, *s, w, m.normal).positionRows();
+      helix.stepJacobianOnto(state.v, *s, w, m.normal).positionRows();
   const Eigen::Matrix<double, 1, eRzSize> hu = m.u.transpose() * jPos;
   e.ch.col(0) = state.c * hu.transpose();
   const double s00 = hu.dot(e.ch.col(0)) + m.cov00;
@@ -236,7 +245,8 @@ void RzTrackFinder::update(State& state, const Evaluation& e) const {
   state.c = 0.5 * (state.c + state.c.transpose()).eval();
 }
 
-std::optional<double> RzTrackFinder::pathBackward(const RzVector& v,
+std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
+                                                  const RzVector& v,
                                                   const RzSurface& surface,
                                                   double guess) const {
   if (surface.shape == RzShape::Disc) {
@@ -249,7 +259,7 @@ std::optional<double> RzTrackFinder::pathBackward(const RzVector& v,
   double s = guess;
   for (int i = 0; i < 6; ++i) {
     RzVector w = v;
-    m_helix.step(w, s);
+    helix.step(w, s);
     const double f = w[eRzPos0] * w[eRzPos0] + w[eRzPos1] * w[eRzPos1] -
                      surface.refCoord * surface.refCoord;
     const double df = 2. * (w[eRzPos0] * w[eRzDir0] + w[eRzPos1] * w[eRzDir1]);
@@ -268,8 +278,7 @@ std::optional<double> RzTrackFinder::pathBackward(const RzVector& v,
   }
   // the closed form the other way round, as a fallback
   const RzVector r = RzHelix::reversed(v);
-  const std::optional<double> back =
-      m_helix.pathToCylinder(r, surface.refCoord);
+  const std::optional<double> back = helix.pathToCylinder(r, surface.refCoord);
   if (!back.has_value()) {
     return std::nullopt;
   }
@@ -290,7 +299,9 @@ bool RzTrackFinder::onModule(std::uint32_t layerIndex,
   // the module distance as the allowance on top of the edge tolerance
   const Vector3 p = v.segment<3>(eRzPos0);
   const Vector3 dir = v.segment<3>(eRzDir0);
-  const double kappa = std::abs(m_helix.kappa(v));
+  const double kappa = std::abs(helixAt(state.bz).kappa(v));
+  const double maxDistance =
+      std::max(m_cfg.maxModuleDistance, layer.moduleDistance);
   bool hit = false;
   RzMeasurementGrid::visitBins(
       layout, layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
@@ -305,7 +316,7 @@ bool RzTrackFinder::onModule(std::uint32_t layerIndex,
             continue;
           }
           const double s = m.normal.dot(m.center - p) / alongNormal;
-          if (std::abs(s) > m_cfg.maxModuleDistance) {
+          if (std::abs(s) > maxDistance) {
             continue;
           }
           const Vector3 d = p + s * dir - m.center;
@@ -444,6 +455,8 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
   State state;
   state.v = startV;
   state.anchor = startV;
+  state.bz = forward.bz;
+  state.anchorBz = forward.bz;
   {
     const Vector3 d = startV.segment<3>(eRzDir0);
     const Vector3 n = grid.entry(hit->measurement).normal;
@@ -513,15 +526,17 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
     for (std::ptrdiff_t j = static_cast<std::ptrdiff_t>(stop); j >= 0; --j) {
       const RzSurface& surface = m_layout->surfaces[candidate.stopSurfaces[j]];
       if (static_cast<std::uint32_t>(j) != stop) {
+        const RzHelix helix = helixAt(state.bz);
         const std::optional<double> s =
-            pathBackward(state.v, surface, -candidate.stopPaths[j + 1]);
+            pathBackward(helix, state.v, surface, -candidate.stopPaths[j + 1]);
         if (!s.has_value()) {
           candidate.backwardFailure = 1;
           return;
         }
-        m_helix.step(state.v, *s);
+        helix.step(state.v, *s);
         const Vector3 normal = surfaceNormal(surface, state.v);
         state.travel(*s);
+        state.bz = bzAt(surface, candidate.stopAlong[j], m_bz);
         state.pending.advance(-*s);
         // The covariance is needed where there is something to update, and
         // where scattering is waiting to be put in: materialising it at the
@@ -530,7 +545,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
         if (!state.pending.empty() ||
             (hit != candidate.hits.rend() &&
              hit->stop == static_cast<std::uint32_t>(j))) {
-          state.moveCovariance(m_helix, normal);
+          state.moveCovariance(helixAt(state.anchorBz), normal);
           materialise(state, normal);
         }
       }
@@ -553,15 +568,16 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
   while (hit != candidate.hits.rend()) {
     if (!hit->isHole()) {
       const RzMeasurement& m = grid.entry(hit->measurement);
+      const RzHelix helix = helixAt(state.bz);
       const std::optional<double> s =
-          m_helix.pathToPlane(state.v, m.position, m.normal);
+          helix.pathToPlane(state.v, m.position, m.normal);
       if (!s.has_value()) {
         candidate.backwardFailure = 1;
         return;
       }
-      m_helix.step(state.v, *s);
+      helix.step(state.v, *s);
       state.travel(*s);
-      state.moveCovariance(m_helix, m.normal);
+      state.moveCovariance(helixAt(state.anchorBz), m.normal);
       state.pending.advance(std::abs(*s));
       materialise(state, m.normal);
       const std::optional<Evaluation> e = evaluate(state, m, false);
@@ -591,12 +607,18 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
   state.v = start;
   state.anchor = start;
   state.c = startCovariance;
+  state.bz = m_bz;
+  state.anchorBz = m_bz;
 
   const RzLayout& layout = *m_layout;
   std::uint32_t startSurface = kRzNone;
   if (startModule != kRzNone) {
     const std::uint32_t layer = layout.modules[startModule].layer;
     startSurface = layout.layers[layer].surface;
+    state.bz =
+        bzAt(layout.surfaces[startSurface],
+             alongCoordinate(layout.surfaces[startSurface], state.v), m_bz);
+    state.anchorBz = state.bz;
     if (searchLayer(grid, layer, kRzNone, state, candidate) == 0 &&
         onModule(layer, state)) {
       candidate.hits.push_back({layer, kRzNone, kRzNone, kRzNone, 0.});
@@ -640,7 +662,8 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
   while (true) {
     // how far the track may still go before it has turned the whole budget;
     // a stop beyond that is not reached, whatever the geometry says
-    const double kappa = std::abs(m_helix.kappa(state.v));
+    const RzHelix helix = helixAt(state.bz);
+    const double kappa = std::abs(helix.kappa(state.v));
     const double maxPath =
         kappa > 0. ? (m_cfg.maxTurningAngle - state.turned) / kappa
                    : 2. * (layout.escapeRadius + layout.escapeHalfZ);
@@ -650,8 +673,8 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
 
     std::optional<double> sDisc;
     while (discsLeft && discValid()) {
-      sDisc = m_helix.pathToDisc(state.v,
-                                 layout.surfaces[layout.discs[disc]].refCoord);
+      sDisc = helix.pathToDisc(state.v,
+                               layout.surfaces[layout.discs[disc]].refCoord);
       if (sDisc.has_value() && *sDisc > maxPath) {
         // z grows monotonically, so every disc beyond is out of reach too
         sDisc.reset();
@@ -680,7 +703,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
         tryCylinder = rAtDisc + sagitta + 1. >= rCyl;
       }
       if (tryCylinder) {
-        sCyl = m_helix.pathToCylinder(state.v, rCyl);
+        sCyl = helix.pathToCylinder(state.v, rCyl);
         if (!sCyl.has_value() || *sCyl > maxPath) {
           // the helix never reaches this radius, so none beyond it either
           sCyl.reset();
@@ -705,7 +728,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
 
     // land there: a stop off the surface's extent costs no covariance work
     RzVector landed = state.v;
-    m_helix.step(landed, s);
+    helix.step(landed, s);
     const double along = alongCoordinate(surface, landed);
     if (!surface.contains(along)) {
       // the state itself stays put; the next candidate is measured from here
@@ -723,7 +746,8 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(s);
     state.pending.advance(s);
-    state.turned += std::abs(m_helix.kappa(state.v)) * s;
+    state.turned += std::abs(helix.kappa(state.v)) * s;
+    state.bz = bzAt(surface, along, m_bz);
     candidate.pathLength += s;
 
     const double r = norm2(state.v[eRzPos0], state.v[eRzPos1]);
@@ -747,7 +771,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     if (surface.layer == kRzNone) {
       continue;
     }
-    state.moveCovariance(m_helix, normal);
+    state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
     if (searchLayer(grid, surface.layer, stop, state, candidate) > 0) {
       consecutiveHoles = 0;

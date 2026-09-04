@@ -21,12 +21,14 @@
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -86,6 +88,24 @@ struct RzSurface {
   std::vector<MaterialSlab> materialBands;
   /// The bands' effects tabulated, one per band, or empty
   std::vector<RzMaterialTable> materialTables;
+  /// `Bz` along the surface, one value per `fieldBinWidth` from `minBound`,
+  /// averaged over azimuth; empty for a constant field
+  std::vector<double> bzTable;
+  double fieldBinWidth{};
+
+  /// The field at a crossing, or nothing if the surface carries no table
+  /// @param along z on a cylinder, r on a disc
+  /// @return `Bz`
+  std::optional<double> bzAt(double along) const {
+    if (bzTable.empty()) {
+      return std::nullopt;
+    }
+    const auto bin =
+        static_cast<std::int64_t>((along - minBound) / fieldBinWidth);
+    const std::size_t i = static_cast<std::size_t>(std::clamp<std::int64_t>(
+        bin, 0, static_cast<std::int64_t>(bzTable.size()) - 1));
+    return bzTable[i];
+  }
   /// Index into `RzLayout::layers` if sensitive
   std::uint32_t layer{kRzNone};
   /// Where it came from
@@ -123,6 +143,8 @@ struct RzModule {
   /// the coordinate a strip does not measure
   double halfU{};
   double halfV{};
+  /// Local coordinates are polar (r, phi) in the surface frame: an annulus
+  bool polar{false};
   std::uint32_t layer{kRzNone};
   GeometryIdentifier geometryId;
   std::shared_ptr<const Surface> surface;
@@ -145,6 +167,10 @@ struct RzLayer {
   /// Largest half diagonal of a module, the room a module lookup by centre
   /// has to leave
   double maxHalfExtent{};
+  /// How far from the RZ surface a module of this layer may be met: the
+  /// finder's own limit, or three half thicknesses for a layer whose
+  /// modules spread (the ITk inclined section)
+  double moduleDistance{};
   /// First global bin of this layer
   std::uint32_t binOffset{};
 
@@ -197,6 +223,12 @@ struct RzLayoutOptions {
   /// Measured to buy nothing once the rest is in, so off.
   bool materialTables = false;
   ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
+  /// The field, sampled once per surface into `RzSurface::bzTable`; empty
+  /// for a constant field
+  std::function<Vector3(const Vector3&)> fieldSampler;
+  double fieldBinWidth = 100 * UnitConstants::mm;
+  /// Floor of `RzLayer::moduleDistance`
+  double moduleDistance = 50 * UnitConstants::mm;
 };
 
 /// Reduce a Gen1 tracking geometry to its RZ skeleton.
