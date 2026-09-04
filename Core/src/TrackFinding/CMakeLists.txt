@@ -4,4 +4,8 @@ target_sources(
         CombinatorialKalmanFilterError.cpp
         MeasurementSelector.cpp
         AmbiguityTrackClustering.cpp
+        Rz/RzTransport.cpp
+        Rz/RzLayout.cpp
+        Rz/RzMeasurementGrid.cpp
+        Rz/RzTrackFinder.cpp
 )
