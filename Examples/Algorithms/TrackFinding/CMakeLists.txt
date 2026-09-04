@@ -4,6 +4,7 @@ acts_add_library(
     src/SpacePointMaker.cpp
     src/TrackFindingAlgorithm.cpp
     src/TrackFindingAlgorithmFunction.cpp
+    src/RzTrackFindingAlgorithm.cpp
     src/HoughTransformSeeder.cpp
     src/AdaptiveHoughTransformSeeder.cpp
     src/TrackParamsEstimationAlgorithm.cpp
