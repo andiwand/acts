@@ -16,6 +16,7 @@
 #include "Acts/Geometry/TrackingVolume.hpp"
 #include "Acts/Material/ISurfaceMaterial.hpp"
 #include "Acts/Material/Interactions.hpp"
+#include "Acts/Surfaces/AnnulusBounds.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/DiscBounds.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
@@ -165,26 +166,50 @@ void sampleMaterial(const Surface& surface, RzSurface& out,
 
 /// A sensitive plane as the finder sees it, or nothing for a shape it cannot
 /// project onto.
+/// A planar module, or an annulus-bounded disc (ITk strip endcaps): the
+/// frame is the surface's, the box the vertices' in that frame, and the
+/// centre the box's, which for an annulus is not the surface origin.
 std::optional<RzModule> describeModule(const Surface& surface,
                                        const GeometryContext& gctx) {
-  if (surface.type() != Surface::Plane) {
+  std::vector<Vector2> vertices;
+  if (surface.type() == Surface::Plane) {
+    if (const auto* planar =
+            dynamic_cast<const PlanarBounds*>(&surface.bounds());
+        planar != nullptr) {
+      vertices = planar->vertices(1);
+    }
+  } else if (surface.type() == Surface::Disc) {
+    if (const auto* annulus =
+            dynamic_cast<const AnnulusBounds*>(&surface.bounds());
+        annulus != nullptr) {
+      vertices = annulus->vertices(1);
+    } else {
+      return std::nullopt;
+    }
+  } else {
     return std::nullopt;
   }
+  Vector2 lo = Vector2::Zero();
+  Vector2 hi = Vector2::Zero();
+  if (!vertices.empty()) {
+    lo = hi = vertices.front();
+    for (const Vector2& vertex : vertices) {
+      lo = lo.cwiseMin(vertex);
+      hi = hi.cwiseMax(vertex);
+    }
+  }
   RzModule m;
+  m.polar = surface.type() == Surface::Disc;
   const Transform3& transform = surface.localToGlobalTransform(gctx);
-  m.center = transform.translation();
+  const Vector2 centre = 0.5 * (lo + hi);
+  m.center = transform * Vector3(centre.x(), centre.y(), 0.);
   m.u = transform.rotation().col(0);
   m.v = transform.rotation().col(1);
   m.normal = transform.rotation().col(2);
+  m.halfU = 0.5 * (hi.x() - lo.x());
+  m.halfV = 0.5 * (hi.y() - lo.y());
   m.geometryId = surface.geometryId();
   m.surface = surface.getSharedPtr();
-  if (const auto* planar = dynamic_cast<const PlanarBounds*>(&surface.bounds());
-      planar != nullptr) {
-    for (const Vector2& vertex : planar->vertices(1)) {
-      m.halfU = std::max(m.halfU, std::abs(vertex.x()));
-      m.halfV = std::max(m.halfV, std::abs(vertex.y()));
-    }
-  }
   return m;
 }
 
@@ -380,6 +405,8 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
             std::max(rzLayer.halfThickness, std::abs(offset));
         rzLayer.maxHalfExtent = std::max(
             rzLayer.maxHalfExtent, std::hypot(module.halfU, module.halfV));
+        rzLayer.moduleDistance =
+            std::max(options.moduleDistance, 3. * rzLayer.halfThickness);
         layout.moduleIndex.emplace(
             module.geometryId,
             static_cast<std::uint32_t>(layout.modules.size()));
@@ -402,6 +429,34 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
   };
   std::ranges::sort(layout.cylinders, byRef);
   std::ranges::sort(layout.discs, byRef);
+
+  if (options.fieldSampler) {
+    // Bz along each surface, the mean over four azimuths
+    for (RzSurface& surface : layout.surfaces) {
+      surface.fieldBinWidth = options.fieldBinWidth;
+      const auto bins = static_cast<std::size_t>(
+          std::max(1., std::ceil((surface.maxBound - surface.minBound) /
+                                 options.fieldBinWidth)));
+      surface.bzTable.resize(bins);
+      for (std::size_t i = 0; i < bins; ++i) {
+        const double along =
+            surface.minBound + (i + 0.5) * options.fieldBinWidth;
+        double sum = 0.;
+        for (const double phi : {0., 0.5 * std::numbers::pi, std::numbers::pi,
+                                 1.5 * std::numbers::pi}) {
+          const double r =
+              surface.shape == RzShape::Cylinder ? surface.refCoord : along;
+          const double z =
+              surface.shape == RzShape::Cylinder ? along : surface.refCoord;
+          sum += options
+                     .fieldSampler(
+                         Vector3(r * std::cos(phi), r * std::sin(phi), z))
+                     .z();
+        }
+        surface.bzTable[i] = 0.25 * sum;
+      }
+    }
+  }
 
   if (options.materialTables) {
     for (RzSurface& surface : layout.surfaces) {

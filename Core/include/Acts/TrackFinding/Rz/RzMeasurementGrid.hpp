@@ -37,6 +37,8 @@ struct RzMeasurement {
   double cov11{};
   /// Half extent of a strip along `v`
   double halfV{};
+  /// How far from the RZ stop the module may be met, from its layer
+  double maxDistance{};
   /// 1 for a strip measuring `u`, 2 for a pixel
   std::uint8_t dim{};
   std::uint32_t module{kRzNone};
@@ -65,6 +67,25 @@ class RzMeasurementGrid {
            std::span<const std::uint8_t> localIndices,
            std::span<const double> localParams,
            std::span<const double> localCov, std::uint32_t source);
+
+  /// Add a measurement given in the global frame: the point, the unit
+  /// directions the residual is taken along and the covariance in length
+  /// units along them. This is the form for a module whose local
+  /// coordinates are not cartesian (an annulus strip measures an angle) and
+  /// what an experiment framework with its own local-to-global would call.
+  /// @param module index into `RzLayout::modules`
+  /// @param dim 1 or 2
+  /// @param position the measured point, the unmeasured coordinate at the
+  ///        module centre
+  /// @param u the direction of the (first) measured coordinate
+  /// @param v the second one, or for a strip the unmeasured one in the plane
+  /// @param cov00 variance along `u`
+  /// @param cov01 covariance, unused for a strip
+  /// @param cov11 variance along `v`, unused for a strip
+  /// @param source the caller's index of the measurement
+  void add(std::uint32_t module, std::uint8_t dim, const Vector3& position,
+           const Vector3& u, const Vector3& v, double cov00, double cov01,
+           double cov11, std::uint32_t source);
 
   /// Sort what was added into the bins. Nothing can be searched before.
   void finalize();
