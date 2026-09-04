@@ -41,6 +41,9 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     std::shared_ptr<const Acts::MagneticFieldProvider> magneticField;
 
     /// Measurement binning per layer, see `Acts::Experimental::RzLayoutOptions`
+    /// Volumes whose sensitive surfaces are not searched (their material
+    /// stays), e.g. the HGTD behind the ITk
+    std::vector<unsigned int> excludeVolumes;
     std::uint32_t phiBins = 64;
     double alongBinWidth = 20 * Acts::UnitConstants::mm;
 

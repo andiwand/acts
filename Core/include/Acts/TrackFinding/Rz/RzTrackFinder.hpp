@@ -143,7 +143,12 @@ class RzTrackFinder {
                 double bz);
 
   const RzTrackFinderConfig& config() const { return m_cfg; }
-  const RzHelix& helix() const { return m_helix; }
+  /// The helix for a field value
+  /// @param bz the field along z
+  /// @return the helix
+  RzHelix helixAt(double bz) const { return RzHelix{bz}; }
+  /// The field the finder falls back on where a surface has no table
+  double bz() const { return m_bz; }
 
   /// Follow a track outward from a start state.
   /// @param grid the measurements of the event
@@ -186,6 +191,9 @@ class RzTrackFinder {
     /// too little to matter for a Jacobian.
     RzVector anchor;
     double pathSince{};
+    /// `Bz` the state moves in from here, and the one at the anchor
+    double bz{};
+    double anchorBz{};
 
     /// Walk on without the covariance
     void travel(double s) { pathSince += s; }
@@ -196,6 +204,7 @@ class RzTrackFinder {
       }
       c = helix.stepJacobianOnto(anchor, pathSince, v, normal).transport(c);
       anchor = v;
+      anchorBz = bz;
       pathSince = 0.;
     }
   };
@@ -257,13 +266,13 @@ class RzTrackFinder {
   /// Path length back to an RZ surface, negative, or nothing
   /// @param guess where to start looking, the forward path with its sign
   ///        flipped
-  std::optional<double> pathBackward(const RzVector& v,
+  std::optional<double> pathBackward(const RzHelix& helix, const RzVector& v,
                                      const RzSurface& surface,
                                      double guess) const;
 
   RzTrackFinderConfig m_cfg;
   const RzLayout* m_layout{};
-  RzHelix m_helix;
+  double m_bz{};
 };
 
 }  // namespace Acts::Experimental
