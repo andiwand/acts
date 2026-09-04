@@ -14,6 +14,7 @@
 #include "ActsExamples/TrackFinding/MeasurementFilterAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/MuonHoughSeeder.hpp"
 #include "ActsExamples/TrackFinding/OrthogonalTripletSeedingAlgorithm.hpp"
+#include "ActsExamples/TrackFinding/RzTrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/SpacePointMaker.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 #include "ActsExamples/TrackFinding/TrackParamsEstimationAlgorithm.hpp"
@@ -119,6 +120,14 @@ void addTrackFinding(py::module& mex) {
       magneticField, bFieldMin, spacePointSelection, minTransverseDistance,
       initialSigmas, initialSigmaQoverPt, initialSigmaPtRel,
       initialVarInflation, noTimeVarInflation, particleHypothesis);
+
+  ACTS_PYTHON_DECLARE_ALGORITHM(
+      RzTrackFindingAlgorithm, mex, "RzTrackFindingAlgorithm",
+      inputMeasurements, inputInitialTrackParameters, outputTracks,
+      trackingGeometry, magneticField, phiBins, alongBinWidth, chi2Cut,
+      windowSigmas, windowMin, maxHoles, maxConsecutiveHoles, minMeasurements,
+      maxMeasurementsPerLayer, applyMaterial, backwardInflation, backwardLayers,
+      backwardQOverPScale);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       TrackParamsLookupEstimation, mex, "TrackParamsLookupEstimation",
