@@ -38,6 +38,7 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
   e.v = m.v;
   e.normal = m.normal;
   e.halfV = m.halfV;
+  e.maxDistance = m_layout->layers[m.layer].moduleDistance;
   e.module = module;
   e.source = source;
   e.dim = dim;
@@ -74,6 +75,41 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
                            : std::hypot(e.position.x(), e.position.y());
   const std::uint32_t bin = m_layout->bin(m.layer, phi, along);
 
+  m_entries.push_back(e);
+  m_binOf.push_back(bin);
+}
+
+void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
+                            const Vector3& position, const Vector3& u,
+                            const Vector3& v, double cov00, double cov01,
+                            double cov11, std::uint32_t source) {
+  const RzModule& m = m_layout->modules[module];
+  RzMeasurement e;
+  e.position = position;
+  e.u = u;
+  e.v = v;
+  e.normal = m.normal;
+  // the room along a strip: the module's box in either direction, the
+  // strip's own direction not being a module axis in general
+  e.halfV = std::max(m.halfU, m.halfV);
+  e.maxDistance = m_layout->layers[m.layer].moduleDistance;
+  e.module = module;
+  e.source = source;
+  e.dim = dim;
+  e.cov00 = cov00;
+  e.cov01 = cov01;
+  e.cov11 = cov11;
+
+  const RzLayer& layer = m_layout->layers[m.layer];
+  if (dim == 1) {
+    m_layerHasStrips[m.layer] = true;
+  }
+  const RzSurface& surface = m_layout->surfaces[layer.surface];
+  const double phi = std::atan2(e.position.y(), e.position.x());
+  const double along = surface.shape == RzShape::Cylinder
+                           ? e.position.z()
+                           : std::hypot(e.position.x(), e.position.y());
+  const std::uint32_t bin = m_layout->bin(m.layer, phi, along);
   m_entries.push_back(e);
   m_binOf.push_back(bin);
 }
