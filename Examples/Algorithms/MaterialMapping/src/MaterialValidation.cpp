@@ -14,10 +14,8 @@
 
 namespace ActsExamples {
 
-MaterialValidation::MaterialValidation(
-    const MaterialValidation::Config& cfg,
-    std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("MaterialValidation", std::move(logger)), m_cfg(cfg) {
+MaterialValidation::MaterialValidation(const MaterialValidation::Config& cfg)
+    : IAlgorithm("MaterialValidation", cfg.logger), m_cfg(cfg) {
   // Prepare the I/O collections
   m_inputTrackParameters.initialize(m_cfg.inputTrackParameters);
   m_outputMaterialTracks.initialize(m_cfg.outputMaterialTracks);

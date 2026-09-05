@@ -13,12 +13,17 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 namespace ActsExamples {
 
 class ProtoTracksToSeeds final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::string inputProtoTracks;
     std::string inputSpacePoints;
     std::string outputSeeds = "seeds-from-protoTracks";
@@ -29,8 +34,7 @@ class ProtoTracksToSeeds final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit ProtoTracksToSeeds(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit ProtoTracksToSeeds(Config cfg);
 
   /// Run the algorithm.
   ///

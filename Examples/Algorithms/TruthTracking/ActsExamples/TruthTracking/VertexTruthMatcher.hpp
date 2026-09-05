@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <string>
@@ -26,6 +27,10 @@ namespace ActsExamples {
 class VertexTruthMatcher final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input vertex collection.
     std::string inputVertices;
     /// Tracks object from track finding.
@@ -46,9 +51,7 @@ class VertexTruthMatcher final : public IAlgorithm {
     double minTrkWeight = 0.1;
   };
 
-  explicit VertexTruthMatcher(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit VertexTruthMatcher(const Config& config);
 
   ProcessCode execute(const AlgorithmContext& ctx) const final;
 

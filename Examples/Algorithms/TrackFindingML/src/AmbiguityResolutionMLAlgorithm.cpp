@@ -33,8 +33,8 @@ static bool sourceLinkEquality(const SourceLink& a, const SourceLink& b) {
 }  // namespace
 
 AmbiguityResolutionMLAlgorithm::AmbiguityResolutionMLAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("AmbiguityResolutionMLAlgorithm", std::move(logger)),
+    const Config& cfg)
+    : IAlgorithm("AmbiguityResolutionMLAlgorithm", cfg.logger),
       m_cfg(cfg),
       m_ambiML(m_cfg.toAmbiguityResolutionMLConfig(), this->logger().clone()) {
   if (m_cfg.inputTracks.empty()) {

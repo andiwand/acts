@@ -30,9 +30,8 @@
 
 namespace ActsExamples {
 
-TrackExtrapolationAlgorithm::TrackExtrapolationAlgorithm(
-    Config config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackExtrapolationAlgorithm", std::move(logger)),
+TrackExtrapolationAlgorithm::TrackExtrapolationAlgorithm(Config config)
+    : IAlgorithm("TrackExtrapolationAlgorithm", config.logger),
       m_cfg(std::move(config)) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input track collection");

@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsFatras/Digitization/Channelizer.hpp"
@@ -36,6 +37,10 @@ class DigitizationAlgorithm final : public IAlgorithm {
  public:
   class Config {
    public:
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input collection of simulated hits.
     std::string inputSimHits = "simhits";
     /// Output measurements collection.
@@ -89,9 +94,7 @@ class DigitizationAlgorithm final : public IAlgorithm {
   /// Construct the smearing algorithm.
   ///
   /// @param config is the algorithm configuration
-  /// @param level is the logging level
-  explicit DigitizationAlgorithm(
-      Config config, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit DigitizationAlgorithm(Config config);
 
   /// Build measurement from simulation hits at input.
   ///

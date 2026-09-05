@@ -27,9 +27,8 @@
 
 namespace ActsExamples {
 
-MillePedeAlignmentSandbox::MillePedeAlignmentSandbox(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("MillePedeAlignmentSandbox", std::move(logger)),
+MillePedeAlignmentSandbox::MillePedeAlignmentSandbox(Config cfg)
+    : IAlgorithm("MillePedeAlignmentSandbox", cfg.logger),
       m_cfg(std::move(cfg)) {
   // initialize our handles
   if (m_cfg.inputMeasurements.empty()) {

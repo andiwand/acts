@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <string>
@@ -27,6 +28,10 @@ class GbtsTrainingAlgorithm final : public IAlgorithm {
  public:
   /// Configuration for GBTS training algorithm
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The input truth particles that should be used to create proto tracks.
     std::string inputParticles;
     /// The input particle-measurements map collection.
@@ -51,9 +56,7 @@ class GbtsTrainingAlgorithm final : public IAlgorithm {
   /// Constructor for GBTS training algorithm
   /// @param config config for GBTS training algorithm
   /// @param logger acts logger
-  explicit GbtsTrainingAlgorithm(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit GbtsTrainingAlgorithm(const Config& config);
 
   /// run time execution per event
   /// @param ctx event context

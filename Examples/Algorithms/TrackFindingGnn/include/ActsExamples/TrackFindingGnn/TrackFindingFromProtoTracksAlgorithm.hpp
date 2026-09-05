@@ -20,6 +20,7 @@
 #include "ActsExamples/EventData/ProtoTrack.hpp"
 #include "ActsExamples/EventData/Trajectories.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/TrackFinding/TrackFindingAlgorithm.hpp"
 
@@ -37,6 +38,10 @@ namespace ActsExamples {
 class TrackFindingFromProtoTracksAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input proto tracks collection.
     std::string inputProtoTracks;
 
@@ -69,8 +74,7 @@ class TrackFindingFromProtoTracksAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the config struct to configure the algorithm
   /// @param level is the logging level
-  explicit TrackFindingFromProtoTracksAlgorithm(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackFindingFromProtoTracksAlgorithm(Config cfg);
 
   /// Filter the measurements
   ///

@@ -26,9 +26,8 @@
 
 namespace ActsExamples {
 
-TruthJetAlgorithm::TruthJetAlgorithm(const Config& cfg,
-                                     std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TruthJetAlgorithm", std::move(logger)), m_cfg(cfg) {
+TruthJetAlgorithm::TruthJetAlgorithm(const Config& cfg)
+    : IAlgorithm("TruthJetAlgorithm", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputTruthParticles.empty()) {
     throw std::invalid_argument("Input particles collection is not configured");
   }

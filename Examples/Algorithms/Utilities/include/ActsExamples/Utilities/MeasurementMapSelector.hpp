@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <string>
 #include <utility>
@@ -28,6 +29,10 @@ namespace ActsExamples {
 class MeasurementMapSelector final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input measurements
     std::string inputMeasurements;
 
@@ -44,10 +49,8 @@ class MeasurementMapSelector final : public IAlgorithm {
   /// Constructor of the track finding algorithm
   ///
   /// @param cfg is the config struct to configure the algorithm
-  /// @param level is the logging level
-  explicit MeasurementMapSelector(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr)
-      : IAlgorithm("MeasurementMapSelector", std::move(logger)),
+  explicit MeasurementMapSelector(Config cfg)
+      : IAlgorithm("MeasurementMapSelector", cfg.logger),
         m_cfg(std::move(cfg)) {
     m_inputMeasurements.initialize(m_cfg.inputMeasurements);
     m_inputMap.initialize(m_cfg.inputMeasurementParticleMap);

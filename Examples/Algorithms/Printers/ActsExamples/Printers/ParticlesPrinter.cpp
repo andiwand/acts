@@ -19,9 +19,8 @@
 
 namespace ActsExamples {
 
-ParticlesPrinter::ParticlesPrinter(const Config& cfg,
-                                   std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("ParticlesPrinter", std::move(logger)), m_cfg(cfg) {
+ParticlesPrinter::ParticlesPrinter(const Config& cfg)
+    : IAlgorithm("ParticlesPrinter", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Input particles collection is not configured");
   }

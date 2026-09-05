@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <string>
@@ -32,6 +33,10 @@ using TruthJetContainer = std::vector<ActsExamples::TruthJet>;
 class TruthJetAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particles collection.
     std::string inputTruthParticles;
     /// Input tracks collection.
@@ -60,8 +65,7 @@ class TruthJetAlgorithm final : public IAlgorithm {
     bool doTrackJetMatching = false;
   };
 
-  explicit TruthJetAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TruthJetAlgorithm(const Config& cfg);
 
   ProcessCode execute(const AlgorithmContext& ctx) const override;
   ProcessCode finalize() override;

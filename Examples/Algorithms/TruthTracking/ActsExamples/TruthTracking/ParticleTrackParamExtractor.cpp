@@ -17,10 +17,8 @@
 
 namespace ActsExamples {
 
-ParticleTrackParamExtractor::ParticleTrackParamExtractor(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("ParticleTrackParamExtractor", std::move(logger)),
-      m_cfg(config) {
+ParticleTrackParamExtractor::ParticleTrackParamExtractor(const Config& config)
+    : IAlgorithm("ParticleTrackParamExtractor", config.logger), m_cfg(config) {
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing input particles collection");
   }

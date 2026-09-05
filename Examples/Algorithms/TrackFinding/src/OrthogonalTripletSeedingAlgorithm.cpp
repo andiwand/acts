@@ -63,9 +63,8 @@ static inline bool itkFastTrackingSPselect(const ConstSpacePointProxy &sp) {
 }  // namespace
 
 OrthogonalTripletSeedingAlgorithm::OrthogonalTripletSeedingAlgorithm(
-    const Config &cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("OrthogonalTripletSeedingAlgorithm", std::move(logger)),
-      m_cfg(cfg) {
+    const Config &cfg)
+    : IAlgorithm("OrthogonalTripletSeedingAlgorithm", cfg.logger), m_cfg(cfg) {
   m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
   m_outputSeeds.initialize(m_cfg.outputSeeds);
 

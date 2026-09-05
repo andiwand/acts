@@ -32,8 +32,8 @@ using namespace Acts::UnitLiterals;
 
 namespace ActsExamples {
 
-EventGenerator::EventGenerator(const Config& cfg, Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("EventGenerator", lvl)) {
+EventGenerator::EventGenerator(const Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "EventGenerator")) {
   if (m_cfg.generators.empty()) {
     throw std::invalid_argument("No generators are configured");
   }

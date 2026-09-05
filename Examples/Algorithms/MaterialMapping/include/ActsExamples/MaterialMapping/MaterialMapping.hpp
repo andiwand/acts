@@ -12,6 +12,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/MaterialMapping/IMaterialWriter.hpp"
 
@@ -39,6 +40,10 @@ class MaterialMapping : public IAlgorithm {
   /// @class nested Config class
   /// of the MaterialMapping algorithm
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Geometry context to use for final material map finalization
     Acts::GeometryContext geoContext =
         Acts::GeometryContext::dangerouslyDefaultConstruct();
@@ -63,8 +68,7 @@ class MaterialMapping : public IAlgorithm {
   ///
   /// @param cfg The configuration struct carrying the used tools
   /// @param level The output logging level
-  explicit MaterialMapping(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit MaterialMapping(const Config& cfg);
 
   /// Framework execute method
   ///

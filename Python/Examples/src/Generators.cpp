@@ -42,8 +42,7 @@ void addGenerators(py::module& mex) {
     auto gen =
         py::class_<EventGenerator, IReader, std::shared_ptr<EventGenerator>>(
             mex, "EventGenerator")
-            .def(py::init<const Config&, Logging::Level>(), py::arg("config"),
-                 py::arg("level"))
+            .def(py::init<const Config&>(), py::arg("config"))
             .def_property_readonly("config", &EventGenerator::config);
 
     py::class_<PrimaryVertexPositionGenerator,
@@ -69,6 +68,7 @@ void addGenerators(py::module& mex) {
         .def_readwrite("particles", &Generator::particles);
 
     auto config = py::class_<Config>(gen, "Config").def(py::init<>());
+    declareLoggingConfig(config);
 
     ACTS_PYTHON_STRUCT(config, outputEvent, generators, randomNumbers,
                        printListing);

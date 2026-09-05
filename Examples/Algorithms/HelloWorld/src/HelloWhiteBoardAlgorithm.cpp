@@ -10,9 +10,8 @@
 
 namespace ActsExamples {
 
-HelloWhiteBoardAlgorithm::HelloWhiteBoardAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HelloWhiteBoardAlgorithm", std::move(logger)), m_cfg(cfg) {
+HelloWhiteBoardAlgorithm::HelloWhiteBoardAlgorithm(const Config& cfg)
+    : IAlgorithm("HelloWhiteBoard", cfg.logger), m_cfg(cfg) {
   // non-optional config settings must be checked on construction.
   if (m_cfg.input.empty()) {
     throw std::invalid_argument("Missing input collection");

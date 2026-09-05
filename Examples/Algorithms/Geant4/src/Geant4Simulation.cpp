@@ -48,10 +48,9 @@
 
 namespace ActsExamples {
 
-Geant4SimulationBase::Geant4SimulationBase(
-    const Config& cfg, const std::string& name,
-    std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm(name, std::move(logger)) {
+Geant4SimulationBase::Geant4SimulationBase(const Config& cfg,
+                                           const std::string& name)
+    : IAlgorithm(name, cfg.logger) {
   if (cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing input particle collection");
   }
@@ -177,10 +176,8 @@ std::shared_ptr<Geant4Handle> Geant4SimulationBase::geant4Handle() const {
   return m_geant4Instance;
 }
 
-Geant4Simulation::Geant4Simulation(const Config& cfg,
-                                   std::unique_ptr<const Acts::Logger> logger)
-    : Geant4SimulationBase(cfg, "Geant4Simulation", std::move(logger)),
-      m_cfg(cfg) {
+Geant4Simulation::Geant4Simulation(const Config& cfg)
+    : Geant4SimulationBase(cfg, "Geant4Simulation"), m_cfg(cfg) {
   m_geant4Instance =
       m_cfg.geant4Handle
           ? m_cfg.geant4Handle
@@ -346,10 +343,8 @@ ProcessCode Geant4Simulation::execute(const AlgorithmContext& ctx) const {
   return ProcessCode::SUCCESS;
 }
 
-Geant4MaterialRecording::Geant4MaterialRecording(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : Geant4SimulationBase(cfg, "Geant4Simulation", std::move(logger)),
-      m_cfg(cfg) {
+Geant4MaterialRecording::Geant4MaterialRecording(const Config& cfg)
+    : Geant4SimulationBase(cfg, "Geant4Simulation"), m_cfg(cfg) {
   auto physicsListName = "MaterialPhysicsList";
   m_geant4Instance =
       m_cfg.geant4Handle

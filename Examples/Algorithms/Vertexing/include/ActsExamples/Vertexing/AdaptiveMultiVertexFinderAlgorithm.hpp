@@ -25,6 +25,7 @@
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <memory>
@@ -44,6 +45,10 @@ class AdaptiveMultiVertexFinderAlgorithm final : public IAlgorithm {
   enum class SeedFinder { TruthSeeder, GaussianSeeder, AdaptiveGridSeeder };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track parameters collection
     std::string inputTrackParameters;
     /// Optional
@@ -102,9 +107,7 @@ class AdaptiveMultiVertexFinderAlgorithm final : public IAlgorithm {
     std::size_t simultaneousSeeds = 1;
   };
 
-  explicit AdaptiveMultiVertexFinderAlgorithm(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit AdaptiveMultiVertexFinderAlgorithm(const Config& config);
 
   /// Find vertices using the adaptive multi vertex finder algorithm.
   ///

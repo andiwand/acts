@@ -23,10 +23,8 @@
 
 namespace ActsExamples {
 
-TracksToTrajectories::TracksToTrajectories(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TracksToTrajectories", std::move(logger)),
-      m_cfg(std::move(cfg)) {
+TracksToTrajectories::TracksToTrajectories(Config cfg)
+    : IAlgorithm("TracksToTrajectories", cfg.logger), m_cfg(std::move(cfg)) {
   m_inputTracks.initialize(m_cfg.inputTracks);
   m_outputTrajectories.initialize(m_cfg.outputTrajectories);
 }

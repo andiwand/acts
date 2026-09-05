@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <memory>
@@ -27,6 +28,10 @@ namespace ActsExamples {
 class VertexFitterAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Optional. Input track parameters collection
     std::string inputTrackParameters;
     /// Input proto vertex collection
@@ -48,8 +53,7 @@ class VertexFitterAlgorithm final : public IAlgorithm {
             .asDiagonal();
   };
 
-  explicit VertexFitterAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit VertexFitterAlgorithm(const Config& cfg);
 
   /// Fit the input vertices.
   ///

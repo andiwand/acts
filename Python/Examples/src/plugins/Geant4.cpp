@@ -73,6 +73,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsGeant4, mod) {
 
     auto c1 = py::class_<Config, std::shared_ptr<Config>>(alg, "Config")
                   .def(py::init<>());
+    declareLoggingConfig(c1);
     ACTS_PYTHON_STRUCT(c1, inputParticles, randomNumbers, constructionOptions,
                        detector, geant4Handle, propagatorLargestAcceptableStep);
   }
@@ -125,17 +126,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsGeant4, mod) {
     auto alg =
         py::class_<Algorithm, Geant4SimulationBase, std::shared_ptr<Algorithm>>(
             mod, "Geant4Simulation")
-            .def(py::init(
-                     [](const Algorithm::Config& cfg, Logging::Level level) {
-                       return std::make_shared<Algorithm>(
-                           cfg, getDefaultLogger("Geant4Simulation", level));
-                     }),
-                 py::arg("config"), py::arg("level"))
-            .def(py::init([](const Algorithm::Config& cfg,
-                             std::unique_ptr<const Logger> logger) {
-                   return std::make_shared<Algorithm>(cfg, std::move(logger));
-                 }),
-                 py::arg("config"), py::arg("logger"))
+            .def(py::init<const Algorithm::Config&>(), py::arg("config"))
             .def_property_readonly("config", &Algorithm::config);
 
     auto c = py::class_<Algorithm::Config, Geant4SimulationBase::Config,

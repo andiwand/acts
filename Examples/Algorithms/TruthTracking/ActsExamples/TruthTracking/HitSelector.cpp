@@ -14,9 +14,8 @@
 
 namespace ActsExamples {
 
-HitSelector::HitSelector(const Config& config,
-                         std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HitSelector", std::move(logger)), m_cfg(config) {
+HitSelector::HitSelector(const Config& config)
+    : IAlgorithm("HitSelector", config.logger), m_cfg(config) {
   if (m_cfg.minX >= m_cfg.maxX || m_cfg.minY >= m_cfg.maxY ||
       m_cfg.minZ >= m_cfg.maxZ || m_cfg.minR >= m_cfg.maxR ||
       m_cfg.minTime >= m_cfg.maxTime ||

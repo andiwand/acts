@@ -27,9 +27,8 @@
 
 namespace ActsExamples {
 
-DigitizationAlgorithm::DigitizationAlgorithm(
-    Config config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("DigitizationAlgorithm", std::move(logger)),
+DigitizationAlgorithm::DigitizationAlgorithm(Config config)
+    : IAlgorithm("DigitizationAlgorithm", config.logger),
       m_cfg(std::move(config)) {
   if (m_cfg.inputSimHits.empty()) {
     throw std::invalid_argument("Missing simulated hits input collection");

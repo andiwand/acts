@@ -27,9 +27,8 @@
 namespace ActsExamples {
 
 IterativeVertexFinderAlgorithm::IterativeVertexFinderAlgorithm(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("IterativeVertexFinderAlgorithm", std::move(logger)),
-      m_cfg(config) {
+    const Config& config)
+    : IAlgorithm("IterativeVertexFinder", config.logger), m_cfg(config) {
   if (m_cfg.inputTrackParameters.empty()) {
     throw std::invalid_argument("Missing input track parameter collection");
   }

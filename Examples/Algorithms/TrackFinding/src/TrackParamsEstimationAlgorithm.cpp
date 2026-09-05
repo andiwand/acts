@@ -111,9 +111,8 @@ TrackParamsEstimationAlgorithm::inverseRadiusPowerWeight(double exponent) {
 }
 
 TrackParamsEstimationAlgorithm::TrackParamsEstimationAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackParamsEstimationAlgorithm", std::move(logger)),
-      m_cfg(cfg) {
+    const Config& cfg)
+    : IAlgorithm("TrackParamsEstimationAlgorithm", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputSeeds.empty()) {
     throw std::invalid_argument("Missing seeds input collection");
   }

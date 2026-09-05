@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 
@@ -27,6 +28,10 @@ namespace ActsExamples {
 class MuonSpacePointDigitizer final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// @brief Name of the input simulated hits collection
     std::string inputSimHits{"simhits"};
     /// @brief Name of the input simulated particles collection
@@ -67,8 +72,7 @@ class MuonSpacePointDigitizer final : public IAlgorithm {
     double rpcDeadTime{50. * Acts::UnitConstants::ns};
   };
   /// @brief Constructor
-  explicit MuonSpacePointDigitizer(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit MuonSpacePointDigitizer(const Config& cfg);
 
   /// @brief Initialize the digitizer
   ProcessCode initialize() override;

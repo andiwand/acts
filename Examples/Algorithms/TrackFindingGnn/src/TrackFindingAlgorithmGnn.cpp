@@ -51,9 +51,8 @@ struct LoopHook : public GnnHook {
 
 }  // namespace
 
-TrackFindingAlgorithmGnn::TrackFindingAlgorithmGnn(
-    Config config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackFindingAlgorithmGnn", std::move(logger)),
+TrackFindingAlgorithmGnn::TrackFindingAlgorithmGnn(Config config)
+    : IAlgorithm("TrackFindingMLBasedAlgorithm", config.logger),
       m_cfg(std::move(config)),
       m_pipeline(m_cfg.graphConstructor, m_cfg.edgeClassifiers,
                  m_cfg.trackBuilder, this->logger().clone(),

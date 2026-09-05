@@ -23,9 +23,8 @@
 
 namespace ActsExamples {
 
-VertexFitterAlgorithm::VertexFitterAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("VertexFitterAlgorithm", std::move(logger)), m_cfg(cfg) {
+VertexFitterAlgorithm::VertexFitterAlgorithm(const Config& cfg)
+    : IAlgorithm("VertexFit", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputTrackParameters.empty()) {
     throw std::invalid_argument("Missing input track parameter collection");
   }

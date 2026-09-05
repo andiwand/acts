@@ -15,6 +15,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/TrackFitting/TrackFitterFunction.hpp"
 
@@ -30,6 +31,10 @@ namespace ActsExamples {
 class TrackFittingAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input measurements collection.
     std::string inputMeasurements;
     /// Input proto tracks collection, i.e. groups of hit indices.
@@ -55,8 +60,7 @@ class TrackFittingAlgorithm final : public IAlgorithm {
   ///
   /// @param config is the config struct to configure the algorithm
   /// @param level is the logging level
-  explicit TrackFittingAlgorithm(
-      Config config, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackFittingAlgorithm(Config config);
 
   /// Framework execute method of the fitting algorithm
   ///

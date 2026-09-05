@@ -27,12 +27,11 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsPythia8, p8) {
   using Gen = Pythia8Generator;
   auto gen = py::class_<Gen, ParticlesGenerator, std::shared_ptr<Gen>>(
                  p8, "Pythia8Generator")
-                 .def(py::init<const Gen::Config&, Acts::Logging::Level>(),
-                      py::arg("config"), py::arg("level"));
+                 .def(py::init<const Gen::Config&>(), py::arg("config"));
 
-  py::class_<Gen::Config>(gen, "Config")
-      .def(py::init<>())
-      .def_readwrite("pdgBeam0", &Gen::Config::pdgBeam0)
+  auto c = py::class_<Gen::Config>(gen, "Config").def(py::init<>());
+  declareLoggingConfig(c);
+  c.def_readwrite("pdgBeam0", &Gen::Config::pdgBeam0)
       .def_readwrite("pdgBeam1", &Gen::Config::pdgBeam1)
       .def_readwrite("cmsEnergy", &Gen::Config::cmsEnergy)
       .def_readwrite("settings", &Gen::Config::settings)

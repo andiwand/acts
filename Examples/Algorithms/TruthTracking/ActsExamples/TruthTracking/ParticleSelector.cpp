@@ -57,9 +57,8 @@ bool ParticleSelector::MeasurementCounter::isValidParticle(
   return true;
 }
 
-ParticleSelector::ParticleSelector(const Config& config,
-                                   std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("ParticleSelector", std::move(logger)), m_cfg(config) {
+ParticleSelector::ParticleSelector(const Config& config)
+    : IAlgorithm("ParticleSelector", config.logger), m_cfg(config) {
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing input particles collection");
   }

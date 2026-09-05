@@ -16,9 +16,8 @@
 
 namespace ActsExamples {
 
-MeasurementFilterAlgorithm::MeasurementFilterAlgorithm(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("MeasurementFilterAlgorithm", std::move(logger)),
+MeasurementFilterAlgorithm::MeasurementFilterAlgorithm(Config cfg)
+    : IAlgorithm("MeasurementFilterAlgorithm", cfg.logger),
       m_cfg(std::move(cfg)) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks");

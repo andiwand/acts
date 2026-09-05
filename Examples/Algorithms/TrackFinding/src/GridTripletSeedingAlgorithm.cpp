@@ -98,9 +98,8 @@ struct VertexZCuts {
 
 }  // namespace
 
-GridTripletSeedingAlgorithm::GridTripletSeedingAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("GridTripletSeedingAlgorithm", std::move(logger)), m_cfg(cfg) {
+GridTripletSeedingAlgorithm::GridTripletSeedingAlgorithm(const Config& cfg)
+    : IAlgorithm("GridTripletSeedingAlgorithm", cfg.logger), m_cfg(cfg) {
   m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
   m_outputSeeds.initialize(m_cfg.outputSeeds);
   if (!m_cfg.inputVertices.empty()) {

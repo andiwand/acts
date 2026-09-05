@@ -10,6 +10,7 @@
 
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/HelloWorld/HelloData.hpp"
 
@@ -23,6 +24,10 @@ namespace ActsExamples {
 class HelloRandomAlgorithm : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::shared_ptr<RandomNumbers> randomNumbers = nullptr;
     /// Random distribution parameters.
     std::array<double, 2> gaussParameters = {{0., 1.}};
@@ -34,8 +39,7 @@ class HelloRandomAlgorithm : public IAlgorithm {
     std::string output;
   };
 
-  explicit HelloRandomAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit HelloRandomAlgorithm(const Config& cfg);
 
   // Generate random numbers from various distributions.
   ProcessCode execute(const AlgorithmContext& ctx) const override;

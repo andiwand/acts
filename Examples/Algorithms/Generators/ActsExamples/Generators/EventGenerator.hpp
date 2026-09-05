@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/Utilities/MultiplicityGenerators.hpp"
@@ -61,6 +62,10 @@ class EventGenerator final : public IReader {
   };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Name of the output event collection.
     std::optional<std::string> outputEvent = "hepmc3_event";
 
@@ -74,7 +79,7 @@ class EventGenerator final : public IReader {
     bool printListing = false;
   };
 
-  EventGenerator(const Config& cfg, Acts::Logging::Level lvl);
+  explicit EventGenerator(const Config& cfg);
 
   /// Name of the reader.
   std::string name() const final;
@@ -97,7 +102,7 @@ class EventGenerator final : public IReader {
                     std::vector<bool>& seenVertices);
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   WriteDataHandle<std::shared_ptr<HepMC3::GenEvent>> m_outputEvent{
       this, "OutputEvent"};

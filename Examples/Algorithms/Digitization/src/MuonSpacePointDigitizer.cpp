@@ -50,9 +50,8 @@ constexpr GeometryIdentifier toChamberId(const GeometryIdentifier& id) {
 
 namespace ActsExamples {
 
-MuonSpacePointDigitizer::MuonSpacePointDigitizer(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("MuonSpacePointDigitizer", std::move(logger)), m_cfg{cfg} {
+MuonSpacePointDigitizer::MuonSpacePointDigitizer(const Config& cfg)
+    : IAlgorithm("MuonSpacePointDigitizer", cfg.logger), m_cfg{cfg} {
   if (m_cfg.inputSimHits.empty()) {
     throw std::invalid_argument("No sim hits have been parsed ");
   }

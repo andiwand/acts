@@ -71,10 +71,8 @@ static void oldStyleFormatting(
   }
 }
 
-GbtsTrainingAlgorithm::GbtsTrainingAlgorithm(
-    const Config& config, std::unique_ptr<const Acts::Logger> inputLogger)
-    : IAlgorithm("GbtsTrainingAlgorithm", std::move(inputLogger)),
-      m_cfg(config) {
+GbtsTrainingAlgorithm::GbtsTrainingAlgorithm(const Config& config)
+    : IAlgorithm("GbtsTrainingAlgorithm", config.logger), m_cfg(config) {
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing input truth particles collection");
   }

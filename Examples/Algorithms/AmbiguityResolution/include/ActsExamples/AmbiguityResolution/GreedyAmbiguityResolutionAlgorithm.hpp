@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class GreedyAmbiguityResolutionAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input trajectories collection.
     std::string inputTracks;
     /// Output trajectories collection.
@@ -52,8 +57,7 @@ class GreedyAmbiguityResolutionAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit GreedyAmbiguityResolutionAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit GreedyAmbiguityResolutionAlgorithm(const Config& cfg);
 
   /// Run the ambiguity resolution algorithm.
   ///

@@ -143,9 +143,8 @@ Acts::Experimental::detail::GbtsTauLookupTable readTauLookupTable(
 
 }  // namespace
 
-GraphBasedSeedingAlgorithm::GraphBasedSeedingAlgorithm(
-    const Config &cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("GraphBasedSeedingAlgorithm", std::move(logger)), m_cfg(cfg) {
+GraphBasedSeedingAlgorithm::GraphBasedSeedingAlgorithm(const Config &cfg)
+    : IAlgorithm("GraphBasedSeedingAlgorithm", cfg.logger), m_cfg(cfg) {
   // initialise the space point, seed and cluster handles
   m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
   m_outputSeeds.initialize(m_cfg.outputSeeds);

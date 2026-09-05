@@ -82,6 +82,7 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -147,6 +148,10 @@ class HoughTransformSeeder final : public IAlgorithm {
                                 // true if measurement in slice
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input space point collections.
     std::string inputSpacePoints;
     /// Output track seed collection.
@@ -227,8 +232,7 @@ class HoughTransformSeeder final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit HoughTransformSeeder(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit HoughTransformSeeder(const Config& cfg);
 
   /// Run the seeding algorithm.
   ///

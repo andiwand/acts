@@ -43,8 +43,8 @@ bool sourceLinkEquality(const Acts::SourceLink& a, const Acts::SourceLink& b) {
 }  // namespace
 
 GreedyAmbiguityResolutionAlgorithm::GreedyAmbiguityResolutionAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("GreedyAmbiguityResolutionAlgorithm", std::move(logger)),
+    const Config& cfg)
+    : IAlgorithm("GreedyAmbiguityResolutionAlgorithm", cfg.logger),
       m_cfg(cfg),
       m_core(transformConfig(cfg), this->logger().clone()) {
   if (m_cfg.inputTracks.empty()) {

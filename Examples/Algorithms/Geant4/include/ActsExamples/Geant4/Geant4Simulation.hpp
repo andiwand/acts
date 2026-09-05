@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/Geant4/Geant4ConstructionOptions.hpp"
@@ -55,6 +56,10 @@ class Geant4SimulationBase : public IAlgorithm {
  public:
   /// Nested configuration struct for the Geant4 simulation
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     // Name of the input particle collection
     std::string inputParticles = "";
 
@@ -76,8 +81,7 @@ class Geant4SimulationBase : public IAlgorithm {
         std::numeric_limits<double>::infinity();  // mm
   };
 
-  Geant4SimulationBase(const Config& cfg, const std::string& name,
-                       std::unique_ptr<const Acts::Logger> logger = nullptr);
+  Geant4SimulationBase(const Config& cfg, const std::string& name);
 
   ~Geant4SimulationBase() override;
 
@@ -161,8 +165,7 @@ class Geant4Simulation final : public Geant4SimulationBase {
   ///
   /// @param config is the configuration struct
   /// @param level is the logging level to be used
-  explicit Geant4Simulation(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit Geant4Simulation(const Config& cfg);
 
   ~Geant4Simulation() override;
 
@@ -204,8 +207,7 @@ class Geant4MaterialRecording final : public Geant4SimulationBase {
   ///
   /// @param config is the configuration struct
   /// @param level is the logging level to be used
-  explicit Geant4MaterialRecording(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit Geant4MaterialRecording(const Config& cfg);
 
   ~Geant4MaterialRecording() override;
 

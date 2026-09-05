@@ -28,10 +28,8 @@
 
 namespace ActsExamples {
 
-ActsSolverFromMille::ActsSolverFromMille(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("ActsSolverFromMille", std::move(logger)),
-      m_cfg(std::move(cfg)) {
+ActsSolverFromMille::ActsSolverFromMille(Config cfg)
+    : IAlgorithm("ActsSolverFromMille", cfg.logger), m_cfg(std::move(cfg)) {
   // retrieve tracking geo
   m_trackingGeometry = m_cfg.trackingGeometry;
 

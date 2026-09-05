@@ -18,9 +18,8 @@
 namespace ActsExamples {
 
 PropagationAlgorithm::PropagationAlgorithm(
-    const PropagationAlgorithm::Config& config,
-    std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("PropagationAlgorithm", std::move(logger)), m_cfg(config) {
+    const PropagationAlgorithm::Config& config)
+    : IAlgorithm("PropagationAlgorithm", config.logger), m_cfg(config) {
   if (!m_cfg.propagatorImpl) {
     throw std::invalid_argument("Config needs to contain a propagator");
   }

@@ -159,9 +159,8 @@ struct FatrasSimulation::Impl {
   }
 };
 
-FatrasSimulation::FatrasSimulation(Config cfg,
-                                   std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("FatrasSimulation", std::move(logger)), m_cfg(std::move(cfg)) {
+FatrasSimulation::FatrasSimulation(Config cfg)
+    : IAlgorithm("FatrasSimulation", cfg.logger), m_cfg(std::move(cfg)) {
   ACTS_LOG_WITH_LOGGER(
       this->logger(), Acts::Logging::DEBUG,
       "hits on sensitive surfaces: " << m_cfg.generateHitsOnSensitive);

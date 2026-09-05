@@ -13,6 +13,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/Utilities/ParametricParticleGenerator.hpp"
 
@@ -32,6 +33,10 @@ struct Pythia8GeneratorImpl;
 class Pythia8Generator : public ParticlesGenerator {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// PDG particle number of the first incoming beam.
     Acts::PdgParticle pdgBeam0 = Acts::PdgParticle::eProton;
     /// PDG particle number of the second incoming beam.
@@ -57,7 +62,7 @@ class Pythia8Generator : public ParticlesGenerator {
     std::optional<std::filesystem::path> writeHepMC3 = std::nullopt;
   };
 
-  Pythia8Generator(const Config& cfg, Acts::Logging::Level lvl);
+  explicit Pythia8Generator(const Config& cfg);
   ~Pythia8Generator() override;
   // try to prevent pythia breakage by forbidding copying
   Pythia8Generator() = delete;
@@ -73,7 +78,7 @@ class Pythia8Generator : public ParticlesGenerator {
   const Acts::Logger& logger() const { return (*m_logger); }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
   std::unique_ptr<::Pythia8::Pythia> m_pythia8;
   std::mutex m_pythia8Mutex;
 

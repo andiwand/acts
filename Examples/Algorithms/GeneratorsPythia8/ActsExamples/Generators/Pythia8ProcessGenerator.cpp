@@ -55,9 +55,9 @@ struct Pythia8GeneratorImpl {
   std::shared_ptr<Pythia8RandomEngineWrapper> m_pythia8RndmEngine;
 };
 
-Pythia8Generator::Pythia8Generator(const Config& cfg, Acts::Logging::Level lvl)
+Pythia8Generator::Pythia8Generator(const Config& cfg)
     : m_cfg(cfg),
-      m_logger(Acts::getDefaultLogger("Pythia8Generator", lvl)),
+      m_logger(makeLogger(cfg.logger, "Pythia8Generator")),
       m_pythia8(std::make_unique<Pythia8::Pythia>("", false)) {
   ACTS_INFO("Pythia8Generator: init");
   // disable all output by default but allow re-enable via config

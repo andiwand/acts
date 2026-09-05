@@ -22,9 +22,8 @@
 
 namespace ActsExamples {
 
-TrackParameterSelector::TrackParameterSelector(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackParameterSelector", std::move(logger)), m_cfg(config) {
+TrackParameterSelector::TrackParameterSelector(const Config& config)
+    : IAlgorithm("TrackParameterSelector", config.logger), m_cfg(config) {
   if (m_cfg.inputTrackParameters.empty()) {
     throw std::invalid_argument("Missing input track parameters");
   }

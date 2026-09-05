@@ -17,9 +17,8 @@
 
 namespace ActsExamples {
 
-TrajectoriesToProtoTracks::TrajectoriesToProtoTracks(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrajectoriesToProtoTracks", std::move(logger)),
+TrajectoriesToProtoTracks::TrajectoriesToProtoTracks(Config cfg)
+    : IAlgorithm("TrajectoriesToProtoTracks", cfg.logger),
       m_cfg(std::move(cfg)) {
   m_inputTrajectories.initialize(m_cfg.inputTrajectories);
   m_outputProtoTracks.initialize(m_cfg.outputProtoTracks);

@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/TrackFinding/ITrackParamsLookupWriter.hpp"
 
 #include <memory>
@@ -33,6 +34,10 @@ class TrackParamsLookupEstimation : public IAlgorithm {
 
   /// @brief Nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Reference tracking layers
     std::unordered_map<Acts::GeometryIdentifier, const Acts::Surface*>
         refLayers;
@@ -49,9 +54,7 @@ class TrackParamsLookupEstimation : public IAlgorithm {
   };
 
   /// @brief Constructor
-  explicit TrackParamsLookupEstimation(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackParamsLookupEstimation(const Config& config);
 
   /// @brief The execute method
   ProcessCode execute(const AlgorithmContext& ctx) const override;

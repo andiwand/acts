@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <string>
 
@@ -21,6 +22,10 @@ namespace ActsExamples {
 class HoughVertexFinderAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Optional. Input space points container.
     std::string inputSpacePoints;
     /// Output vertex collection
@@ -35,8 +40,7 @@ class HoughVertexFinderAlgorithm final : public IAlgorithm {
     Acts::Vector3 defVtxPosition{0., 0., 0.};
   };
 
-  explicit HoughVertexFinderAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit HoughVertexFinderAlgorithm(const Config& cfg);
 
   /// @brief Find a vertex using space points
   ///

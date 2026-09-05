@@ -37,9 +37,8 @@
 
 namespace ActsExamples {
 
-RefittingAlgorithm::RefittingAlgorithm(
-    Config config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("RefittingAlgorithm", std::move(logger)),
+RefittingAlgorithm::RefittingAlgorithm(Config config)
+    : IAlgorithm("RefittingAlgorithm", config.logger),
       m_cfg(std::move(config)) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks collection");

@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/MuonSpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -55,6 +56,10 @@ class MuonHoughSeeder final : public IAlgorithm {
 
   /// @brief Configuration object of the Hough seeder
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// @brief Container name of the truth segments (used for validation)
     std::string inTruthSegments{};
     /// @brief Container name of the space point collection
@@ -85,8 +90,7 @@ class MuonHoughSeeder final : public IAlgorithm {
         visualizationFunction{};
   };
 
-  explicit MuonHoughSeeder(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit MuonHoughSeeder(const Config& cfg);
   ~MuonHoughSeeder() override;
 
   /// Run the seeding algorithm.

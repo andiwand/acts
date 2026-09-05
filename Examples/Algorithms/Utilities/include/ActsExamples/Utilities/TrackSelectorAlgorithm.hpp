@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -24,6 +25,10 @@ namespace ActsExamples {
 class TrackSelectorAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection.
     std::string inputTracks;
     /// Output track collection
@@ -32,9 +37,7 @@ class TrackSelectorAlgorithm final : public IAlgorithm {
     Acts::TrackSelector::Config selectorConfig;
   };
 
-  explicit TrackSelectorAlgorithm(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackSelectorAlgorithm(const Config& config);
 
   ProcessCode execute(const AlgorithmContext& ctx) const final;
 

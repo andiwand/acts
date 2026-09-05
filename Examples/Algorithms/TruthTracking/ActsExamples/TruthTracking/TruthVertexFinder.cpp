@@ -45,9 +45,8 @@ struct ParticleMatchEntry {
 
 }  // namespace
 
-TruthVertexFinder::TruthVertexFinder(const Config& config,
-                                     std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TruthVertexFinder", std::move(logger)), m_cfg(config) {
+TruthVertexFinder::TruthVertexFinder(const Config& config)
+    : IAlgorithm("TruthVertexFinder", config.logger), m_cfg(config) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks collection");
   }

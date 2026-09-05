@@ -15,6 +15,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 namespace ActsExamples {
 
@@ -25,6 +26,10 @@ namespace ActsExamples {
 class TruthGraphBuilder final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input space point collection
     std::string inputSpacePoints;
     /// Input particles collection
@@ -45,8 +50,7 @@ class TruthGraphBuilder final : public IAlgorithm {
     bool uniqueModules = false;
   };
 
-  explicit TruthGraphBuilder(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TruthGraphBuilder(Config cfg);
 
   ~TruthGraphBuilder() override = default;
 

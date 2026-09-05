@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <memory>
@@ -32,6 +33,10 @@ class PropagatorInterface;
 class PropagationAlgorithm : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track parameters
     std::string inputTrackParameters = "InputTrackParameters";
     /// The step collection to be stored
@@ -62,9 +67,7 @@ class PropagationAlgorithm : public IAlgorithm {
   /// Constructor
   /// @param [in] config is the configuration struct
   /// @param [in] loglevel is the logging level
-  explicit PropagationAlgorithm(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit PropagationAlgorithm(const Config& config);
 
   /// Framework execute method
   /// @param [in] the algorithm context for event consistency

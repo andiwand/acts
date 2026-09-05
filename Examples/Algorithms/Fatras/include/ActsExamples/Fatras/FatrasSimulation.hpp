@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 
@@ -29,6 +30,10 @@ namespace ActsExamples {
 class FatrasSimulation final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The particles input collection.
     std::string inputParticles;
     /// The simulated particles collection.
@@ -79,8 +84,7 @@ class FatrasSimulation final : public IAlgorithm {
   ///
   /// @param cfg is the configuration struct
   /// @param lvl is the logging level
-  explicit FatrasSimulation(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit FatrasSimulation(Config cfg);
   ~FatrasSimulation() override;
 
   /// Run the simulation for a single event.

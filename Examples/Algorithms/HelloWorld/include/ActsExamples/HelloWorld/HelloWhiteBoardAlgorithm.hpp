@@ -10,6 +10,7 @@
 
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/HelloWorld/HelloData.hpp"
 
@@ -19,14 +20,17 @@ namespace ActsExamples {
 class HelloWhiteBoardAlgorithm : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input collection name.
     std::string input;
     /// Output collection name.
     std::string output;
   };
 
-  explicit HelloWhiteBoardAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit HelloWhiteBoardAlgorithm(const Config& cfg);
 
   /// Read input and copy to the output
   ProcessCode execute(const AlgorithmContext& ctx) const override;

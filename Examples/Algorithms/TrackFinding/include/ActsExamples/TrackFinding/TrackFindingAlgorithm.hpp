@@ -23,6 +23,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <atomic>
@@ -78,6 +79,10 @@ class TrackFindingAlgorithm final : public IAlgorithm {
       const Acts::Logger& logger);
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input measurements collection.
     std::string inputMeasurements;
     /// Input initial track parameter estimates for for each proto track.
@@ -152,8 +157,7 @@ class TrackFindingAlgorithm final : public IAlgorithm {
   ///
   /// @param config is the config struct to configure the algorithm
   /// @param level is the logging level
-  explicit TrackFindingAlgorithm(
-      Config config, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackFindingAlgorithm(Config config);
 
   /// Framework execute method of the track finding algorithm
   ///

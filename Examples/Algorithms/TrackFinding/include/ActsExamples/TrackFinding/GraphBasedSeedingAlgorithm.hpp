@@ -20,6 +20,7 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -46,6 +47,10 @@ class GraphBasedSeedingAlgorithm final : public IAlgorithm {
   };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// this is used to initialise the handle that points to the container of
     /// space points
     std::string inputSpacePoints;
@@ -95,8 +100,7 @@ class GraphBasedSeedingAlgorithm final : public IAlgorithm {
 
   /// @param cfg is the algorithm configuration
   /// @param logger is the logger for the algorithm
-  explicit GraphBasedSeedingAlgorithm(
-      const Config &cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit GraphBasedSeedingAlgorithm(const Config &cfg);
 
   /// access to config
   /// allows python bindings to work

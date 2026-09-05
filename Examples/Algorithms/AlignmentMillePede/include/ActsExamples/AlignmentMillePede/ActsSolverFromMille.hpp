@@ -17,6 +17,7 @@
 #include "ActsAlignment/Kernel/Alignment.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <memory>
 
@@ -43,6 +44,10 @@ class ActsSolverFromMille final : public IAlgorithm {
 
   /// configuration
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// name of the mille input binary. You can choose
     /// between ".root" / ".csv" / ".dat" extensions
     /// to get ROOT tree / plain text / classic Millepede
@@ -62,8 +67,7 @@ class ActsSolverFromMille final : public IAlgorithm {
   /// Constructor of the sandbox algorithm
   /// @param cfg is the config struct to configure the algorithm
   /// @param level is the logging level
-  explicit ActsSolverFromMille(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit ActsSolverFromMille(Config cfg);
 
   /// Framework execute method of the sandbox algorithm
   ///

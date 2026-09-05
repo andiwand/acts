@@ -18,9 +18,8 @@
 
 namespace ActsExamples {
 
-SeedsToTracks::SeedsToTracks(Config cfg,
-                             std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("SeedsToTracks", std::move(logger)), m_cfg(std::move(cfg)) {
+SeedsToTracks::SeedsToTracks(Config cfg)
+    : IAlgorithm("SeedsToTracks", cfg.logger), m_cfg(std::move(cfg)) {
   m_inputSeeds.initialize(m_cfg.inputSeeds);
   m_inputTrackParameters.maybeInitialize(m_cfg.inputTrackParameters);
   m_outputTracks.initialize(m_cfg.outputTracks);

@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsPlugins/Onnx/AmbiguityTrackClassifier.hpp"
 
 #include <string>
@@ -30,6 +31,10 @@ class AmbiguityResolutionMLAlgorithm final : public IAlgorithm {
 
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection.
     std::string inputTracks;
     /// Path to the ONNX model for the duplicate neural network
@@ -48,8 +53,7 @@ class AmbiguityResolutionMLAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit AmbiguityResolutionMLAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit AmbiguityResolutionMLAlgorithm(const Config& cfg);
 
   /// Run the ambiguity resolution algorithm.
   ///

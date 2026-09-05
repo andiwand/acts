@@ -29,7 +29,7 @@ def test_navigator(conf_const, trk_geo):
 
 
 def test_steppers(conf_const, trk_geo):
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         acts.examples.PropagationAlgorithm()
     with pytest.raises(ValueError):
         acts.examples.PropagationAlgorithm(level=acts.logging.INFO)

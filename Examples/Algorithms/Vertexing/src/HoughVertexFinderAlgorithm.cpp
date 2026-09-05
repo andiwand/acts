@@ -16,9 +16,8 @@
 
 namespace ActsExamples {
 
-HoughVertexFinderAlgorithm::HoughVertexFinderAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HoughVertexFinderAlgorithm", std::move(logger)), m_cfg(cfg) {
+HoughVertexFinderAlgorithm::HoughVertexFinderAlgorithm(const Config& cfg)
+    : IAlgorithm("HoughVertexFinder", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputSpacePoints.empty()) {
     throw std::invalid_argument("Missing input space points collection");
   }

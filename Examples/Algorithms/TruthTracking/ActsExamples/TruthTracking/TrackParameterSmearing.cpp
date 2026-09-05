@@ -19,9 +19,8 @@
 
 namespace ActsExamples {
 
-TrackParameterSmearing::TrackParameterSmearing(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackParameterSmearing", std::move(logger)), m_cfg(config) {
+TrackParameterSmearing::TrackParameterSmearing(const Config& config)
+    : IAlgorithm("TrackParameterSmearing", config.logger), m_cfg(config) {
   if (m_cfg.inputTrackParameters.empty()) {
     throw std::invalid_argument("Missing input track parameters collection");
   }

@@ -61,9 +61,8 @@ struct ProtoTrackSourceLinkAccessor
 namespace ActsExamples {
 
 TrackFindingFromProtoTracksAlgorithm::TrackFindingFromProtoTracksAlgorithm(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm(cfg.tag + "CkfFromProtoTracks", std::move(logger)),
-      m_cfg(cfg) {
+    Config cfg)
+    : IAlgorithm(cfg.tag + "CkfFromProtoTracks", cfg.logger), m_cfg(cfg) {
   m_inputInitialTrackParameters.initialize(m_cfg.inputInitialTrackParameters);
   m_inputMeasurements.initialize(m_cfg.inputMeasurements);
   m_inputProtoTracks.initialize(m_cfg.inputProtoTracks);

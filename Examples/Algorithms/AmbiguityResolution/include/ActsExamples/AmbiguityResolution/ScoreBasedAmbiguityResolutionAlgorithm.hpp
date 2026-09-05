@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <numbers>
@@ -32,6 +33,10 @@ class ScoreBasedAmbiguityResolutionAlgorithm final : public IAlgorithm {
   /// Configuration for the ambiguity resolution algorithm.
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection.
     std::string inputTracks;
     /// Output track collection.
@@ -64,8 +69,7 @@ class ScoreBasedAmbiguityResolutionAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit ScoreBasedAmbiguityResolutionAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit ScoreBasedAmbiguityResolutionAlgorithm(const Config& cfg);
 
   /// Run the ambiguity resolution algorithm.
   ///

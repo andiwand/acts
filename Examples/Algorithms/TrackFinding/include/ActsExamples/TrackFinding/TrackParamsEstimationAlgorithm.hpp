@@ -20,6 +20,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <array>
@@ -47,6 +48,10 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
   static SpacePointWeight inverseRadiusPowerWeight(double exponent);
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input seeds collection.
     std::string inputSeeds;
     /// Input proto tracks (optional).
@@ -114,8 +119,7 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit TrackParamsEstimationAlgorithm(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackParamsEstimationAlgorithm(const Config& cfg);
 
   /// Run the track parameters making algorithm.
   ///

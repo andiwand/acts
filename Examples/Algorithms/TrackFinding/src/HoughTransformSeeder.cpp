@@ -40,9 +40,8 @@ static inline std::string to_string(std::vector<T> v);
 thread_local std::vector<std::shared_ptr<HoughMeasurementStruct>>
     houghMeasurementStructs;
 
-HoughTransformSeeder::HoughTransformSeeder(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HoughTransformSeeder", std::move(logger)), m_cfg(cfg) {
+HoughTransformSeeder::HoughTransformSeeder(const Config& cfg)
+    : IAlgorithm("HoughTransformSeeder", cfg.logger), m_cfg(cfg) {
   // require space points or input measurements (or both), but at least one kind
   // of input
   if (m_cfg.inputMeasurements.empty() && m_cfg.inputSpacePoints.empty()) {

@@ -23,10 +23,8 @@
 
 namespace ActsExamples {
 
-AdaptiveHoughTransformSeeder::AdaptiveHoughTransformSeeder(
-    const Config &cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("AdaptiveHoughTransformSeeder", std::move(logger)),
-      m_cfg(cfg) {
+AdaptiveHoughTransformSeeder::AdaptiveHoughTransformSeeder(const Config &cfg)
+    : IAlgorithm("AdaptiveHoughTransformSeeder", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputSpacePoints.empty()) {
     throw std::invalid_argument(
         "AdaptiveHoughTransformSeeder: Input space points collection name "

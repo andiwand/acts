@@ -17,9 +17,8 @@
 
 namespace ActsExamples {
 
-MaterialMapping::MaterialMapping(const MaterialMapping::Config& cfg,
-                                 std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("MaterialMapping", std::move(logger)), m_cfg(cfg) {
+MaterialMapping::MaterialMapping(const MaterialMapping::Config& cfg)
+    : IAlgorithm("MaterialMapping", cfg.logger), m_cfg(cfg) {
   // Prepare the I/O collections
   m_inputMaterialTracks.initialize(m_cfg.inputMaterialTracks);
   m_outputMappedMaterialTracks.initialize(m_cfg.mappedMaterialTracks);

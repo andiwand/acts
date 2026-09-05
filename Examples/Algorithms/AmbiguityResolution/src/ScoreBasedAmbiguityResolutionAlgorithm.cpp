@@ -86,8 +86,8 @@ bool doubleHolesFilter(const Acts::TrackProxy<Acts::ConstVectorTrackContainer,
 }  // namespace
 
 ScoreBasedAmbiguityResolutionAlgorithm::ScoreBasedAmbiguityResolutionAlgorithm(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("ScoreBasedAmbiguityResolutionAlgorithm", std::move(logger)),
+    const Config& cfg)
+    : IAlgorithm("ScoreBasedAmbiguityResolutionAlgorithm", cfg.logger),
       m_cfg(cfg),
       m_ambi(transformConfig(cfg, m_cfg.configFile), this->logger().clone()) {
   if (m_cfg.inputTracks.empty()) {

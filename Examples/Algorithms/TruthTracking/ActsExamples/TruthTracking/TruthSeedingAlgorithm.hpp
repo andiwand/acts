@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <string>
@@ -30,6 +31,10 @@ namespace ActsExamples {
 class TruthSeedingAlgorithm final : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The input truth particles that should be used for truth seeding.
     std::string inputParticles;
     /// The input particle-measurements map collection.
@@ -58,8 +63,7 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
   ///
   /// @param cfg is the algorithm configuration
   /// @param lvl is the logging level
-  explicit TruthSeedingAlgorithm(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TruthSeedingAlgorithm(Config cfg);
 
   /// Run the truth seeding algorithm.
   ///

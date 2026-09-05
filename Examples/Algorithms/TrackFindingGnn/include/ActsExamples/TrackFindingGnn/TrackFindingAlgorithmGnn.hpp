@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/TrackFindingGnn/TruthGraphBuilder.hpp"
 #include "ActsPlugins/Gnn/GnnPipeline.hpp"
 #include "ActsPlugins/Gnn/Stages.hpp"
@@ -91,6 +92,10 @@ class TrackFindingAlgorithmGnn final : public IAlgorithm {
   };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input space points collection.
     std::string inputSpacePoints;
     /// Input cluster information (Optional).
@@ -136,8 +141,7 @@ class TrackFindingAlgorithmGnn final : public IAlgorithm {
   ///
   /// @param cfg is the config struct to configure the algorithm
   /// @param level is the logging level
-  explicit TrackFindingAlgorithmGnn(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit TrackFindingAlgorithmGnn(Config cfg);
 
   ~TrackFindingAlgorithmGnn() override = default;
 
