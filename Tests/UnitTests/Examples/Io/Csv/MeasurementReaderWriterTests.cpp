@@ -94,7 +94,10 @@ BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
   writerConfig.inputMeasurementSimHitsMap = "map";
   writerConfig.outputDir = "";
 
-  CsvMeasurementWriter writer(writerConfig, Logging::WARNING);
+  writerConfig.logger =
+      writerConfig.logger->clone(std::nullopt, Acts::Logging::WARNING);
+
+  CsvMeasurementWriter writer(writerConfig);
 
   auto writeTool =
       GenericReadWriteTool<>()
@@ -114,7 +117,10 @@ BOOST_AUTO_TEST_CASE(CsvMeasurementRoundTrip) {
       writerConfig.inputMeasurementSimHitsMap;
   readerConfig.outputClusters = writerConfig.inputClusters;
 
-  CsvMeasurementReader reader(readerConfig, Logging::WARNING);
+  readerConfig.logger =
+      readerConfig.logger->clone(std::nullopt, Acts::Logging::WARNING);
+
+  CsvMeasurementReader reader(readerConfig);
 
   auto readTool = writeTool.add(readerConfig.outputMeasurements, measOriginal);
 

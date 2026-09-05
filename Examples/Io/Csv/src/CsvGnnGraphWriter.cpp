@@ -18,9 +18,9 @@
 
 namespace ActsExamples {
 
-CsvGnnGraphWriter::CsvGnnGraphWriter(const Config& config,
-                                     Acts::Logging::Level level)
-    : WriterT(config.inputGraph, "CsvGnnGraphWriter", level), m_cfg(config) {}
+CsvGnnGraphWriter::CsvGnnGraphWriter(const Config& config)
+    : WriterT(config.inputGraph, "CsvGnnGraphWriter", config.logger),
+      m_cfg(config) {}
 
 ProcessCode CsvGnnGraphWriter::writeT(const AlgorithmContext& ctx,
                                       const Graph& graph) {

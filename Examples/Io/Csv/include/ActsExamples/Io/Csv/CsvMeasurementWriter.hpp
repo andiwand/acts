@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -36,6 +37,10 @@ namespace ActsExamples {
 class CsvMeasurementWriter final : public WriterT<MeasurementContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which measurement collection to write.
     std::string inputMeasurements;
     /// Which cluster collection to write (optional)
@@ -51,7 +56,7 @@ class CsvMeasurementWriter final : public WriterT<MeasurementContainer> {
   /// Constructor with
   /// @param config configuration struct
   /// @param level logging level
-  CsvMeasurementWriter(const Config& config, Acts::Logging::Level level);
+  explicit CsvMeasurementWriter(const Config& config);
 
   /// Virtual destructor
   ~CsvMeasurementWriter() override;

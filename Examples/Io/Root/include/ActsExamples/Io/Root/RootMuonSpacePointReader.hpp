@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/MuonSpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <cstdint>
 #include <mutex>
@@ -28,6 +29,10 @@ namespace ActsExamples {
 class RootMuonSpacePointReader : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input sim hit collection to write.
     std::string outputSpacePoints{"MuonSpacePoints"};
     /// Path to the output file.
@@ -40,7 +45,7 @@ class RootMuonSpacePointReader : public IReader {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  RootMuonSpacePointReader(const Config& config, Acts::Logging::Level level);
+  explicit RootMuonSpacePointReader(const Config& config);
 
   /// Ensure underlying file is closed.
   ~RootMuonSpacePointReader() override;
@@ -69,7 +74,7 @@ class RootMuonSpacePointReader : public IReader {
 
   WriteDataHandle<MuonSpacePointContainer> m_outputContainer{
       this, "OutputSpacePoints"};
-  std::unique_ptr<const Acts::Logger> m_logger{};
+  std::shared_ptr<const Acts::Logger> m_logger{};
 
   /// @brief Input file directly read at construction stage
   std::unique_ptr<TFile> m_file{TFile::Open(m_cfg.filePath.c_str(), "READ")};

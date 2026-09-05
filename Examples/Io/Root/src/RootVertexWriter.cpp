@@ -23,9 +23,8 @@
 
 namespace ActsExamples {
 
-RootVertexWriter::RootVertexWriter(const RootVertexWriter::Config& cfg,
-                                   Acts::Logging::Level lvl)
-    : WriterT(cfg.inputVertices, "RootVertexWriter", lvl), m_cfg(cfg) {
+RootVertexWriter::RootVertexWriter(const RootVertexWriter::Config& cfg)
+    : WriterT(cfg.inputVertices, "RootVertexWriter", cfg.logger), m_cfg(cfg) {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing file path");

@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Seed.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
 #include <cstdint>
@@ -32,6 +33,10 @@ namespace ActsExamples {
 class RootSeedWriter final : public WriterT<SeedContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particle collection to write.
     std::string inputSeeds;
     /// Path to the output file.
@@ -48,7 +53,7 @@ class RootSeedWriter final : public WriterT<SeedContainer> {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  RootSeedWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootSeedWriter(const Config& config);
 
   /// Ensure underlying file is closed.
   ~RootSeedWriter() final;

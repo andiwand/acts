@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/EventData/Vertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -39,6 +40,10 @@ namespace ActsExamples {
 class RootVertexNTupleWriter final : public WriterT<VertexContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input vertex collection.
     std::string inputVertices;
     /// Tracks object from track finding.
@@ -76,7 +81,7 @@ class RootVertexNTupleWriter final : public WriterT<VertexContainer> {
   ///
   /// @param config Configuration struct
   /// @param level Message level declaration
-  RootVertexNTupleWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootVertexNTupleWriter(const Config& config);
 
   ~RootVertexNTupleWriter() override;
 

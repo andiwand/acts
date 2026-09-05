@@ -25,9 +25,8 @@
 
 namespace ActsExamples {
 
-CsvSpacePointWriter::CsvSpacePointWriter(const Config& config,
-                                         Acts::Logging::Level level)
-    : WriterT(config.inputSpacePoints, "CsvSpacePointWriter", level),
+CsvSpacePointWriter::CsvSpacePointWriter(const Config& config)
+    : WriterT(config.inputSpacePoints, "CsvSpacePointWriter", config.logger),
       m_cfg(config) {}
 
 CsvSpacePointWriter::~CsvSpacePointWriter() = default;

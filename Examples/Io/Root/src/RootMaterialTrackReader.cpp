@@ -17,10 +17,9 @@
 
 namespace ActsExamples {
 
-RootMaterialTrackReader::RootMaterialTrackReader(const Config& config,
-                                                 Acts::Logging::Level level)
+RootMaterialTrackReader::RootMaterialTrackReader(const Config& config)
     : IReader(),
-      m_logger{Acts::getDefaultLogger(name(), level)},
+      m_logger{makeLogger(config.logger, name())},
       m_cfg(config),
       m_accessor({false, config.readCachedSurfaceInformation}) {
   if (m_cfg.fileList.empty()) {

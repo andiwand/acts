@@ -73,7 +73,10 @@ BOOST_AUTO_TEST_CASE(RoundTripTest) {
   writerConfig.inputSimHits = "hits";
   writerConfig.filePath = "./testhits.root";
 
-  RootSimHitWriter writer(writerConfig, Logging::WARNING);
+  writerConfig.logger =
+      writerConfig.logger->clone(std::nullopt, Acts::Logging::WARNING);
+
+  RootSimHitWriter writer(writerConfig);
 
   auto readWriteTool =
       GenericReadWriteTool<>().add(writerConfig.inputSimHits, simhits1);
@@ -93,7 +96,10 @@ BOOST_AUTO_TEST_CASE(RoundTripTest) {
   readerConfig.outputSimHits = "hits";
   readerConfig.filePath = "./testhits.root";
 
-  RootSimHitReader reader(readerConfig, Logging::WARNING);
+  readerConfig.logger =
+      readerConfig.logger->clone(std::nullopt, Acts::Logging::WARNING);
+
+  RootSimHitReader reader(readerConfig);
   // Read two different events
   const auto [hitsRead2] = readWriteTool.read(reader, 22);
   const auto [hitsRead1] = readWriteTool.read(reader, 11);

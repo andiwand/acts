@@ -20,13 +20,12 @@
 
 namespace ActsExamples {
 
-CsvMuonSegmentReader::CsvMuonSegmentReader(const Config& config,
-                                           Acts::Logging::Level level)
+CsvMuonSegmentReader::CsvMuonSegmentReader(const Config& config)
     : m_cfg(config),
       // TODO check that all files (hits,cells,truth) exists
       m_eventsRange(
           determineEventFilesRange(m_cfg.inputDir, m_cfg.inputStem + ".csv")),
-      m_logger(Acts::getDefaultLogger("CsvMuonSegmentReader", level)) {
+      m_logger(makeLogger(config.logger, "CsvMuonSegmentReader")) {
   if (m_cfg.inputStem.empty()) {
     throw std::invalid_argument("Missing input filename stem");
   }

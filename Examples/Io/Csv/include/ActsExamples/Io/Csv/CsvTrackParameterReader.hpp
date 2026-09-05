@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <array>
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class CsvTrackParameterReader final : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read input files from.
     std::string inputDir;
     /// Input filename stem.
@@ -49,7 +54,7 @@ class CsvTrackParameterReader final : public IReader {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  CsvTrackParameterReader(const Config& config, Acts::Logging::Level level);
+  explicit CsvTrackParameterReader(const Config& config);
 
   std::string name() const final;
 
@@ -65,7 +70,7 @@ class CsvTrackParameterReader final : public IReader {
  private:
   Config m_cfg;
   std::pair<std::size_t, std::size_t> m_eventsRange;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   WriteDataHandle<TrackParametersContainer> m_outputTrackParameters{
       this, "OutputTrackParameters"};

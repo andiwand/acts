@@ -22,11 +22,8 @@
 
 namespace ActsExamples {
 
-RootAthenaDumpWriter::RootAthenaDumpWriter(const Config& config,
-                                           Acts::Logging::Level level)
-    : IWriter(),
-      m_cfg(config),
-      m_logger(Acts::getDefaultLogger(name(), level)) {
+RootAthenaDumpWriter::RootAthenaDumpWriter(const Config& config)
+    : IWriter(), m_cfg(config), m_logger(makeLogger(config.logger, name())) {
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing file path");
   }

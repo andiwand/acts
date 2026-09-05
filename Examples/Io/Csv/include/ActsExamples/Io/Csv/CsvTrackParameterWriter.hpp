@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -33,6 +34,10 @@ namespace ActsExamples {
 class CsvTrackParameterWriter final : public IWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track container.
     std::string inputTracks;
     /// Where to place output files
@@ -46,7 +51,7 @@ class CsvTrackParameterWriter final : public IWriter {
   /// Constructor with
   /// @param config configuration struct
   /// @param level logging level
-  CsvTrackParameterWriter(const Config& config, Acts::Logging::Level level);
+  explicit CsvTrackParameterWriter(const Config& config);
 
   /// Virtual destructor
   ~CsvTrackParameterWriter() override;
@@ -65,7 +70,7 @@ class CsvTrackParameterWriter final : public IWriter {
 
  private:
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// Input track collection
   ReadDataHandle<ConstTrackContainer> m_inputTracks{this, "InputTracks"};

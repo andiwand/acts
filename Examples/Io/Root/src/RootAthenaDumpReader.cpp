@@ -52,10 +52,8 @@ inline auto particleVectorToSet(std::vector<SimParticle>& particles) {
 enum SpacePointType { ePixel = 1, eStrip = 2 };
 
 RootAthenaDumpReader::RootAthenaDumpReader(
-    const RootAthenaDumpReader::Config& config, Acts::Logging::Level level)
-    : IReader(),
-      m_cfg(config),
-      m_logger(Acts::getDefaultLogger(name(), level)) {
+    const RootAthenaDumpReader::Config& config)
+    : IReader(), m_cfg(config), m_logger(makeLogger(config.logger, name())) {
   if (m_cfg.inputfiles.empty()) {
     throw std::invalid_argument("Empty input file list");
   }

@@ -15,6 +15,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -45,6 +46,10 @@ namespace ActsExamples {
 class RootTrackStatesWriter final : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input (fitted) tracks collection
     std::string inputTracks;
     /// Input particles collection.
@@ -67,7 +72,7 @@ class RootTrackStatesWriter final : public WriterT<ConstTrackContainer> {
   ///
   /// @param config Configuration struct
   /// @param level Message level declaration
-  RootTrackStatesWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootTrackStatesWriter(const Config& config);
 
   ~RootTrackStatesWriter() override;
 

@@ -29,9 +29,9 @@
 
 namespace ActsExamples {
 
-RootParticleWriter::RootParticleWriter(const RootParticleWriter::Config& cfg,
-                                       Acts::Logging::Level lvl)
-    : WriterT(cfg.inputParticles, "RootParticleWriter", lvl), m_cfg(cfg) {
+RootParticleWriter::RootParticleWriter(const RootParticleWriter::Config& cfg)
+    : WriterT(cfg.inputParticles, "RootParticleWriter", cfg.logger),
+      m_cfg(cfg) {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing file path");

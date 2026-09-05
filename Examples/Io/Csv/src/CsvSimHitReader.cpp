@@ -24,13 +24,12 @@
 
 namespace ActsExamples {
 
-CsvSimHitReader::CsvSimHitReader(const Config& config,
-                                 Acts::Logging::Level level)
+CsvSimHitReader::CsvSimHitReader(const Config& config)
     : m_cfg(config),
       // TODO check that all files (hits,cells,truth) exists
       m_eventsRange(
           determineEventFilesRange(m_cfg.inputDir, m_cfg.inputStem + ".csv")),
-      m_logger(Acts::getDefaultLogger("CsvSimHitReader", level)) {
+      m_logger(makeLogger(config.logger, "CsvSimHitReader")) {
   if (m_cfg.inputStem.empty()) {
     throw std::invalid_argument("Missing input filename stem");
   }

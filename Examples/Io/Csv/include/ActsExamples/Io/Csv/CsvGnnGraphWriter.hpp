@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Graph.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -21,6 +22,10 @@ namespace ActsExamples {
 class CsvGnnGraphWriter final : public WriterT<Graph> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which simulated (truth) hits collection to use.
     std::string inputGraph;
     /// Where to place output files
@@ -33,7 +38,7 @@ class CsvGnnGraphWriter final : public WriterT<Graph> {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  CsvGnnGraphWriter(const Config& config, Acts::Logging::Level level);
+  explicit CsvGnnGraphWriter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

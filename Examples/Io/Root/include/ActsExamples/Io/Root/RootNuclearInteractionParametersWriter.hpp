@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ExtractedSimulationProcess.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Io/Root/detail/NuclearInteractionParametrisation.hpp"
@@ -30,6 +31,10 @@ class RootNuclearInteractionParametersWriter final
     : public WriterT<ExtractedSimulationProcessContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input collection to map measured hits to simulated hits.
     std::string inputSimulationProcesses;
     /// output filename.
@@ -55,8 +60,7 @@ class RootNuclearInteractionParametersWriter final
   ///
   /// @param config Configuration struct
   /// @param level Message level declaration
-  RootNuclearInteractionParametersWriter(const Config& config,
-                                         Acts::Logging::Level level);
+  explicit RootNuclearInteractionParametersWriter(const Config& config);
   ~RootNuclearInteractionParametersWriter() override;
 
   /// End-of-run hook

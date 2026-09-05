@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -37,6 +38,10 @@ namespace ActsExamples {
 class RootSpacePointWriter final : public WriterT<SpacePointContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particle collection to write.
     std::string inputSpacePoints;
     /// Input sim hits collection (optional, only needed for residuals)
@@ -61,7 +66,7 @@ class RootSpacePointWriter final : public WriterT<SpacePointContainer> {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  RootSpacePointWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootSpacePointWriter(const Config& config);
 
   /// Ensure underlying file is closed.
   ~RootSpacePointWriter() final;

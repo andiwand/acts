@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
 namespace ActsExamples {
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class CsvSeedWriter : public WriterT<TrackParametersContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input estimated track parameters collection.
     std::string inputTrackParameters;
     /// Input seed collection.
@@ -54,8 +59,7 @@ class CsvSeedWriter : public WriterT<TrackParametersContainer> {
   ///
   /// @param config Configuration struct
   /// @param level Message level declaration
-  explicit CsvSeedWriter(const Config& config,
-                         Acts::Logging::Level level = Acts::Logging::INFO);
+  explicit CsvSeedWriter(const Config& config);
 
   /// Get readonly access to the config parameters
   const Config& config() const { return m_cfg; }

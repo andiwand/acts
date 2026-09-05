@@ -16,10 +16,9 @@ using namespace Acts::UnitLiterals;
 
 namespace ActsExamples {
 
-RootMuonSpacePointReader::RootMuonSpacePointReader(const Config& config,
-                                                   Acts::Logging::Level level)
+RootMuonSpacePointReader::RootMuonSpacePointReader(const Config& config)
     : m_cfg{config},
-      m_logger{getDefaultLogger("RootMuonSpacePointReader", level)} {
+      m_logger{makeLogger(config.logger, "RootMuonSpacePointReader")} {
   if (m_cfg.outputSpacePoints.empty()) {
     throw std::invalid_argument(
         "RootMuonSpacePointReader() - Space points must not be empty");

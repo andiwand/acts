@@ -46,9 +46,9 @@ struct SeedInfo {
 
 }  // namespace
 
-CsvSeedWriter::CsvSeedWriter(const Config& config, Acts::Logging::Level level)
+CsvSeedWriter::CsvSeedWriter(const Config& config)
     : WriterT<TrackParametersContainer>(config.inputTrackParameters,
-                                        "CsvSeedWriter", level),
+                                        "CsvSeedWriter", config.logger),
       m_cfg(config) {
   if (m_cfg.inputSeeds.empty()) {
     throw std::invalid_argument("Missing space points input collection");

@@ -297,8 +297,8 @@ struct RootTrackFinderNTupleWriter::Impl {
 };
 
 RootTrackFinderNTupleWriter::RootTrackFinderNTupleWriter(
-    RootTrackFinderNTupleWriter::Config config, Acts::Logging::Level level)
-    : WriterT(config.inputTracks, "RootTrackFinderNTupleWriter", level),
+    RootTrackFinderNTupleWriter::Config config)
+    : WriterT(config.inputTracks, "RootTrackFinderNTupleWriter", config.logger),
       m_impl(std::make_unique<Impl>(this, std::move(config), logger())) {}
 
 RootTrackFinderNTupleWriter::~RootTrackFinderNTupleWriter() = default;

@@ -11,6 +11,7 @@
 #include "Acts/Material/IMaterialDecorator.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/MaterialMapping/IMaterialWriter.hpp"
 #include "ActsPlugins/Root/RootMaterialMapIo.hpp"
 
@@ -40,6 +41,10 @@ class RootMaterialWriter : public IMaterialWriter {
   ///
   /// Configuration of the Writer
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Steering to handle sensitive data
     bool processSensitives = true;
 
@@ -71,7 +76,7 @@ class RootMaterialWriter : public IMaterialWriter {
   ///
   /// @param config The configuration struct
   /// @param level The log level
-  RootMaterialWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootMaterialWriter(const Config& config);
 
   /// Virtual destructor
   ~RootMaterialWriter() override;
@@ -109,7 +114,7 @@ class RootMaterialWriter : public IMaterialWriter {
   Config m_cfg;
 
   /// The logger instance
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// Private access to the logging instance
   const Acts::Logger& logger() const { return *m_logger; }

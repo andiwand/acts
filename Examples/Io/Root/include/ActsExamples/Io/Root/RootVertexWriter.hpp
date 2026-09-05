@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class RootVertexWriter final : public WriterT<SimVertexContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input vertex collection to write.
     std::string inputVertices;
     /// Path to the output file.
@@ -48,7 +53,7 @@ class RootVertexWriter final : public WriterT<SimVertexContainer> {
   ///
   /// @params cfg is the configuration object
   /// @params lvl is the logging level
-  RootVertexWriter(const Config& cfg, Acts::Logging::Level lvl);
+  explicit RootVertexWriter(const Config& cfg);
 
   /// Ensure underlying file is closed.
   ~RootVertexWriter() override;

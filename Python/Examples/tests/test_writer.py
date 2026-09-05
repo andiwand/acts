@@ -115,7 +115,8 @@ def test_root_prop_step_writer(
 ):
     from acts.examples.root import RootPropagationStepsWriter
 
-    with pytest.raises(TypeError):
+    # no file path in a default config, so opening the output file fails
+    with pytest.raises(RuntimeError):
         RootPropagationStepsWriter()
 
     file = tmp_path / "prop_steps.root"

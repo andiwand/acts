@@ -47,9 +47,9 @@ constexpr double inDeg(const double radians) {
   return radians / 1._degree;
 }
 namespace ActsExamples {
-RootMuonSpacePointWriter::RootMuonSpacePointWriter(const Config& config,
-                                                   Logging::Level level)
-    : WriterT(config.inputSpacePoints, "RootMuonSpacePointWriter", level),
+RootMuonSpacePointWriter::RootMuonSpacePointWriter(const Config& config)
+    : WriterT(config.inputSpacePoints, "RootMuonSpacePointWriter",
+              config.logger),
       m_cfg{config} {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {

@@ -20,9 +20,8 @@
 
 namespace ActsExamples {
 
-CsvParticleWriter::CsvParticleWriter(const Config& cfg,
-                                     Acts::Logging::Level lvl)
-    : WriterT(cfg.inputParticles, "CsvParticleWriter", lvl), m_cfg(cfg) {
+CsvParticleWriter::CsvParticleWriter(const Config& cfg)
+    : WriterT(cfg.inputParticles, "CsvParticleWriter", cfg.logger), m_cfg(cfg) {
   // inputParticles is already checked by base constructor
   if (m_cfg.outputStem.empty()) {
     throw std::invalid_argument("Missing output filename stem");

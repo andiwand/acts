@@ -10,6 +10,7 @@
 
 #include "Acts/Propagator/MaterialInteractor.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsPlugins/Root/RootMaterialTrackIo.hpp"
@@ -46,6 +47,10 @@ class RootMaterialTrackWriter
           std::unordered_map<std::size_t, Acts::RecordedMaterialTrack>> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// material collection to write
     std::string inputMaterialTracks = "material_tracks";
     /// path of the output file
@@ -71,8 +76,7 @@ class RootMaterialTrackWriter
   /// Constructor with
   /// @param config configuration struct
   /// @param level logging level
-  explicit RootMaterialTrackWriter(
-      const Config& config, Acts::Logging::Level level = Acts::Logging::INFO);
+  explicit RootMaterialTrackWriter(const Config& config);
 
   /// Virtual destructor
   ~RootMaterialTrackWriter() override;

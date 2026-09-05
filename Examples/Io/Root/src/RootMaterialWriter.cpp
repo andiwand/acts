@@ -39,10 +39,8 @@
 
 namespace ActsExamples {
 
-RootMaterialWriter::RootMaterialWriter(const RootMaterialWriter::Config& config,
-                                       Acts::Logging::Level level)
-    : m_cfg(config),
-      m_logger{Acts::getDefaultLogger("RootMaterialWriter", level)} {
+RootMaterialWriter::RootMaterialWriter(const RootMaterialWriter::Config& config)
+    : m_cfg(config), m_logger{makeLogger(config.logger, "RootMaterialWriter")} {
   // Validate the configuration
   if (m_cfg.accessorOptions.folderSurfaceNameBase.empty()) {
     throw std::invalid_argument("Missing surface folder name base");

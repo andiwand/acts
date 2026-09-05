@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/MuonSegment.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class CsvMuonSegmentReader final : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read input files from.
     std::string inputDir;
     /// Input filename stem.
@@ -46,7 +51,7 @@ class CsvMuonSegmentReader final : public IReader {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  CsvMuonSegmentReader(const Config& config, Acts::Logging::Level level);
+  explicit CsvMuonSegmentReader(const Config& config);
 
   std::string name() const override;
 
@@ -62,7 +67,7 @@ class CsvMuonSegmentReader final : public IReader {
  private:
   Config m_cfg;
   std::pair<std::size_t, std::size_t> m_eventsRange;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   WriteDataHandle<MuonSegmentContainer> m_outputSegments{this,
                                                          "OutputSegments"};

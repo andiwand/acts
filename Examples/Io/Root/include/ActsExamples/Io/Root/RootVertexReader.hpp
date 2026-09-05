@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsPlugins/Root/detail/RootBranchPtr.hpp"
 
@@ -34,6 +35,10 @@ class RootVertexReader : public IReader {
  public:
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// particle collection to read
     std::string outputVertices = "particleCollection";
     /// name of the output tree
@@ -44,7 +49,7 @@ class RootVertexReader : public IReader {
 
   /// Constructor
   /// @param config The Configuration struct
-  RootVertexReader(const Config& config, Acts::Logging::Level level);
+  explicit RootVertexReader(const Config& config);
 
   /// Framework name() method
   std::string name() const override { return "RootVertexReader"; }
@@ -76,7 +81,7 @@ class RootVertexReader : public IReader {
 
   WriteDataHandle<SimVertexContainer> m_outputVertices{this, "OutputParticles"};
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// mutex used to protect multi-threaded reads
   std::mutex m_read_mutex;

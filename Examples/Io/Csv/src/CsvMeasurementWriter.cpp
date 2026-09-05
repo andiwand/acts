@@ -27,9 +27,8 @@
 
 namespace ActsExamples {
 
-CsvMeasurementWriter::CsvMeasurementWriter(const Config& config,
-                                           Acts::Logging::Level level)
-    : WriterT(config.inputMeasurements, "CsvMeasurementWriter", level),
+CsvMeasurementWriter::CsvMeasurementWriter(const Config& config)
+    : WriterT(config.inputMeasurements, "CsvMeasurementWriter", config.logger),
       m_cfg(config) {
   // Input container for measurements is already checked by base constructor
   if (m_cfg.inputMeasurementSimHitsMap.empty()) {

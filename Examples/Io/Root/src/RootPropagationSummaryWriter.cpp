@@ -22,9 +22,9 @@
 namespace ActsExamples {
 
 RootPropagationSummaryWriter::RootPropagationSummaryWriter(
-    const RootPropagationSummaryWriter::Config& cfg, Acts::Logging::Level level)
+    const RootPropagationSummaryWriter::Config& cfg)
     : WriterT(cfg.inputSummaryCollection, "RootPropagationSummaryWriter",
-              level),
+              cfg.logger),
       m_cfg(cfg),
       m_outputFile(cfg.rootFile) {
   // An input collection name and tree name must be specified

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Propagation/PropagationAlgorithm.hpp"
@@ -35,6 +36,10 @@ namespace ActsExamples {
 class RootPropagationSummaryWriter : public WriterT<PropagationSummaries> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// particle collection to write
     std::string inputSummaryCollection = "propagation_summary";
 
@@ -51,8 +56,7 @@ class RootPropagationSummaryWriter : public WriterT<PropagationSummaries> {
   /// Constructor with
   /// @param cfg configuration struct
   /// @param output logging level
-  explicit RootPropagationSummaryWriter(
-      const Config& cfg, Acts::Logging::Level level = Acts::Logging::INFO);
+  explicit RootPropagationSummaryWriter(const Config& cfg);
 
   /// Virtual destructor
   ~RootPropagationSummaryWriter() override;

@@ -20,10 +20,9 @@
 
 namespace ActsExamples {
 
-CsvTrackParameterWriter::CsvTrackParameterWriter(const Config& config,
-                                                 Acts::Logging::Level level)
+CsvTrackParameterWriter::CsvTrackParameterWriter(const Config& config)
     : m_cfg(config),
-      m_logger(Acts::getDefaultLogger("CsvTrackParameterWriter", level)) {
+      m_logger(makeLogger(config.logger, "CsvTrackParameterWriter")) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("You have to provide tracks");
   }

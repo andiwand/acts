@@ -17,9 +17,8 @@
 
 namespace ActsExamples {
 
-CsvProtoTrackWriter::CsvProtoTrackWriter(const Config& config,
-                                         Acts::Logging::Level level)
-    : WriterT(config.inputProtoTracks, "CsvProtoTrackWriter", level),
+CsvProtoTrackWriter::CsvProtoTrackWriter(const Config& config)
+    : WriterT(config.inputProtoTracks, "CsvProtoTrackWriter", config.logger),
       m_cfg(config) {
   m_inputSpacePoints.initialize(m_cfg.inputSpacePoints);
 }

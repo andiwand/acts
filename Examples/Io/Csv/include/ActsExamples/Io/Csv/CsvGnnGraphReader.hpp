@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Graph.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -24,6 +25,10 @@ namespace ActsExamples {
 class CsvGnnGraphReader final : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read input files from.
     std::string inputDir;
     /// Input filename stem.
@@ -36,7 +41,7 @@ class CsvGnnGraphReader final : public IReader {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  CsvGnnGraphReader(const Config& config, Acts::Logging::Level level);
+  explicit CsvGnnGraphReader(const Config& config);
 
   /// Return the available events range.
   std::pair<std::size_t, std::size_t> availableEvents() const override;
@@ -53,7 +58,7 @@ class CsvGnnGraphReader final : public IReader {
  private:
   Config m_cfg;
   std::pair<std::size_t, std::size_t> m_eventsRange;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   WriteDataHandle<Graph> m_outputGraph{this, "OutputGraph"};
   const Acts::Logger& logger() const { return *m_logger; }

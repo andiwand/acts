@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -36,6 +37,10 @@ namespace ActsExamples {
 class CsvParticleWriter final : public WriterT<SimParticleContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particles collection to write.
     std::string inputParticles;
     /// Where to place output files.
@@ -50,7 +55,7 @@ class CsvParticleWriter final : public WriterT<SimParticleContainer> {
   ///
   /// @params cfg is the configuration object
   /// @params lvl is the logging level
-  CsvParticleWriter(const Config& cfg, Acts::Logging::Level lvl);
+  explicit CsvParticleWriter(const Config& cfg);
 
   /// Get readonly access to the config parameters
   const Config& config() const { return m_cfg; }

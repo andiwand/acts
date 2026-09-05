@@ -45,8 +45,8 @@ using Acts::VectorHelpers::theta;
 namespace ActsExamples {
 
 RootTrackSummaryWriter::RootTrackSummaryWriter(
-    const RootTrackSummaryWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputTracks, "RootTrackSummaryWriter", level),
+    const RootTrackSummaryWriter::Config& config)
+    : WriterT(config.inputTracks, "RootTrackSummaryWriter", config.logger),
       m_cfg(config) {
   // tracks collection name is already checked by base ctor
   if (m_cfg.filePath.empty()) {

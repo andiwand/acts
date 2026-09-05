@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -40,6 +41,10 @@ namespace ActsExamples {
 class CsvTrackWriter : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection
     std::string inputTracks;
     /// where to place output files
@@ -63,8 +68,7 @@ class CsvTrackWriter : public WriterT<ConstTrackContainer> {
   /// constructor
   /// @param config is the configuration object
   /// @param level is the output logging level
-  explicit CsvTrackWriter(const Config& config,
-                          Acts::Logging::Level level = Acts::Logging::INFO);
+  explicit CsvTrackWriter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

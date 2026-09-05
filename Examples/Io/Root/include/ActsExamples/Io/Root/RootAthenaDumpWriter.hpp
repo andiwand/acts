@@ -15,6 +15,7 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
 
@@ -44,6 +45,10 @@ namespace ActsExamples {
 class RootAthenaDumpWriter : public IWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particles collection name
     std::string inputParticles;
     /// Input clusters collection name (one-to-one with measurements)
@@ -60,7 +65,7 @@ class RootAthenaDumpWriter : public IWriter {
     std::string treeName = "GNN4ITk";
   };
 
-  RootAthenaDumpWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootAthenaDumpWriter(const Config& config);
   ~RootAthenaDumpWriter() override;
 
   std::string name() const override { return "RootAthenaDumpWriter"; }
@@ -74,7 +79,7 @@ class RootAthenaDumpWriter : public IWriter {
   const Acts::Logger& logger() const { return *m_logger; }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
   std::mutex m_writeMutex;
 
   TFile* m_outputFile{nullptr};

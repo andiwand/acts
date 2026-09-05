@@ -23,11 +23,8 @@
 
 namespace ActsExamples {
 
-RootVertexReader::RootVertexReader(const RootVertexReader::Config& config,
-                                   Acts::Logging::Level level)
-    : IReader(),
-      m_cfg(config),
-      m_logger(Acts::getDefaultLogger(name(), level)) {
+RootVertexReader::RootVertexReader(const RootVertexReader::Config& config)
+    : IReader(), m_cfg(config), m_logger(makeLogger(config.logger, name())) {
   m_inputChain = std::make_unique<TChain>(m_cfg.treeName.c_str());
 
   if (m_cfg.filePath.empty()) {

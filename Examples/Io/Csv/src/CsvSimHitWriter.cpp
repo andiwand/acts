@@ -26,9 +26,9 @@
 
 namespace ActsExamples {
 
-CsvSimHitWriter::CsvSimHitWriter(const Config& config,
-                                 Acts::Logging::Level level)
-    : WriterT(config.inputSimHits, "CsvSimHitWriter", level), m_cfg(config) {
+CsvSimHitWriter::CsvSimHitWriter(const Config& config)
+    : WriterT(config.inputSimHits, "CsvSimHitWriter", config.logger),
+      m_cfg(config) {
   // inputSimHits is already checked by base constructor
   if (m_cfg.outputStem.empty()) {
     throw std::invalid_argument("Missing output filename stem");

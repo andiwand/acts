@@ -50,9 +50,9 @@ bool hasCommon(Range1&& a, Range2&& b) {
 }  // namespace
 
 RootSpacePointPerformanceWriter::RootSpacePointPerformanceWriter(
-    const Config& config, Acts::Logging::Level level)
+    const Config& config)
     : WriterT(config.inputSpacePoints, "RootSpacePointPerformanceWriter",
-              level),
+              config.logger),
       m_cfg(config) {
   // Input container for space points is already checked by base constructor
   if (m_cfg.inputParticles.empty()) {

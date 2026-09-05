@@ -10,6 +10,7 @@
 
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "ActsExamples/EventData/MuonSpacePoint.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
 #include <cstdint>
@@ -25,6 +26,10 @@ namespace ActsExamples {
 class RootMuonSpacePointWriter : public WriterT<MuonSpacePointContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input sim hit collection to write.
     std::string inputSpacePoints{};
     /// Path to the output file.
@@ -43,7 +48,7 @@ class RootMuonSpacePointWriter : public WriterT<MuonSpacePointContainer> {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  RootMuonSpacePointWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootMuonSpacePointWriter(const Config& config);
 
   /// Ensure underlying file is closed.
   ~RootMuonSpacePointWriter() override;

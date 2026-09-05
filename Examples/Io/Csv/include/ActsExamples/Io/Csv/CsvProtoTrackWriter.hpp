@@ -10,6 +10,7 @@
 
 #include "ActsExamples/EventData/ProtoTrack.hpp"
 #include "ActsExamples/EventData/SpacePoint.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
 #include <string>
@@ -21,6 +22,10 @@ namespace ActsExamples {
 class CsvProtoTrackWriter final : public WriterT<ProtoTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which proto tracks to write
     std::string inputProtoTracks;
     /// Space point collection
@@ -34,7 +39,7 @@ class CsvProtoTrackWriter final : public WriterT<ProtoTrackContainer> {
   /// Constructor with
   /// @param config configuration struct
   /// @param level logging level
-  CsvProtoTrackWriter(const Config& config, Acts::Logging::Level level);
+  explicit CsvProtoTrackWriter(const Config& config);
 
   /// Virtual destructor
   ~CsvProtoTrackWriter() override;

@@ -32,8 +32,9 @@
 namespace ActsExamples {
 
 RootMaterialTrackWriter::RootMaterialTrackWriter(
-    const RootMaterialTrackWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputMaterialTracks, "RootMaterialTrackWriter", level),
+    const RootMaterialTrackWriter::Config& config)
+    : WriterT(config.inputMaterialTracks, "RootMaterialTrackWriter",
+              config.logger),
       m_cfg(config),
       m_accessor({config.prePostStep, config.storeSurface, config.storeVolume,
                   config.recalculateTotals}) {

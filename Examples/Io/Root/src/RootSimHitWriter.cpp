@@ -22,9 +22,9 @@
 
 namespace ActsExamples {
 
-RootSimHitWriter::RootSimHitWriter(const RootSimHitWriter::Config& config,
-                                   Acts::Logging::Level level)
-    : WriterT(config.inputSimHits, "RootSimHitWriter", level), m_cfg(config) {
+RootSimHitWriter::RootSimHitWriter(const RootSimHitWriter::Config& config)
+    : WriterT(config.inputSimHits, "RootSimHitWriter", config.logger),
+      m_cfg(config) {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing file path");

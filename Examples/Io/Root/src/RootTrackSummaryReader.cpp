@@ -26,10 +26,8 @@
 namespace ActsExamples {
 
 RootTrackSummaryReader::RootTrackSummaryReader(
-    const RootTrackSummaryReader::Config& config, Acts::Logging::Level level)
-    : IReader(),
-      m_logger{Acts::getDefaultLogger(name(), level)},
-      m_cfg(config) {
+    const RootTrackSummaryReader::Config& config)
+    : IReader(), m_logger{makeLogger(config.logger, name())}, m_cfg(config) {
   m_inputChain = std::make_unique<TChain>(m_cfg.treeName.c_str());
 
   if (m_cfg.filePath.empty()) {

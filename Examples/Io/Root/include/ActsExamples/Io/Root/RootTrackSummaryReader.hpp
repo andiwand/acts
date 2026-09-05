@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsPlugins/Root/detail/RootBranchPtr.hpp"
 
@@ -36,6 +37,10 @@ class RootTrackSummaryReader : public IReader {
  public:
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// track collection to read
     std::string outputTracks = "outputTracks";
     /// particle collection to read
@@ -49,7 +54,7 @@ class RootTrackSummaryReader : public IReader {
   /// Constructor
   /// @param config The Configuration struct
   /// @param level The log level
-  RootTrackSummaryReader(const Config& config, Acts::Logging::Level level);
+  explicit RootTrackSummaryReader(const Config& config);
 
   /// Framework name() method
   std::string name() const override { return "RootTrackSummaryReader"; }
@@ -67,7 +72,7 @@ class RootTrackSummaryReader : public IReader {
 
  private:
   /// The logger
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// Private access to the logging instance
   const Acts::Logger& logger() const { return *m_logger; }

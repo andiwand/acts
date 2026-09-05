@@ -40,8 +40,8 @@ Acts::Vector4 closestPointOnLine(const Acts::Vector4& a, const Acts::Vector4& b,
 }  // namespace
 
 RootSpacePointWriter::RootSpacePointWriter(
-    const RootSpacePointWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputSpacePoints, "RootSpacePointWriter", level),
+    const RootSpacePointWriter::Config& config)
+    : WriterT(config.inputSpacePoints, "RootSpacePointWriter", config.logger),
       m_cfg(config) {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {

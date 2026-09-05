@@ -22,9 +22,7 @@
 
 namespace ActsExamples {
 
-CsvSpacePointReader::CsvSpacePointReader(const Config& cfg,
-                                         Acts::Logging::Level lvl)
-    : m_cfg{cfg} {
+CsvSpacePointReader::CsvSpacePointReader(const Config& cfg) : m_cfg{cfg} {
   if (m_cfg.inputStem.empty()) {
     throw std::invalid_argument("Missing input filename stem");
   }
@@ -38,7 +36,7 @@ CsvSpacePointReader::CsvSpacePointReader(const Config& cfg,
                        ? cfg.inputStem
                        : cfg.inputStem + '_' + cfg.inputCollection;
   m_eventsRange = determineEventFilesRange(cfg.inputDir, filename + ".csv");
-  m_logger = Acts::getDefaultLogger("CsvSpacePointReader", lvl);
+  m_logger = makeLogger(cfg.logger, "CsvSpacePointReader");
 
   m_outputSpacePoints.initialize(m_cfg.outputSpacePoints);
 }

@@ -47,8 +47,8 @@ using Acts::VectorHelpers::phi;
 using Acts::VectorHelpers::theta;
 
 RootTrackStatesWriter::RootTrackStatesWriter(
-    const RootTrackStatesWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputTracks, "RootTrackStatesWriter", level),
+    const RootTrackStatesWriter::Config& config)
+    : WriterT(config.inputTracks, "RootTrackStatesWriter", config.logger),
       m_cfg(config) {
   // trajectories collection name is already checked by base ctor
   if (m_cfg.inputParticles.empty()) {

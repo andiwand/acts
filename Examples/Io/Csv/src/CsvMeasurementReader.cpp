@@ -30,12 +30,11 @@
 
 namespace ActsExamples {
 
-CsvMeasurementReader::CsvMeasurementReader(const Config& config,
-                                           Acts::Logging::Level level)
+CsvMeasurementReader::CsvMeasurementReader(const Config& config)
     : m_cfg(config),
       m_eventsRange(
           determineEventFilesRange(m_cfg.inputDir, "measurements.csv")),
-      m_logger(Acts::getDefaultLogger("CsvMeasurementReader", level)) {
+      m_logger(makeLogger(config.logger, "CsvMeasurementReader")) {
   if (m_cfg.outputMeasurements.empty()) {
     throw std::invalid_argument("Missing measurement output collection");
   }

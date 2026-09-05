@@ -28,8 +28,9 @@
 
 namespace ActsExamples {
 
-CsvTrackWriter::CsvTrackWriter(const Config& config, Acts::Logging::Level level)
-    : WriterT<ConstTrackContainer>(config.inputTracks, "CsvTrackWriter", level),
+CsvTrackWriter::CsvTrackWriter(const Config& config)
+    : WriterT<ConstTrackContainer>(config.inputTracks, "CsvTrackWriter",
+                                   config.logger),
       m_cfg(config) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing input tracks collection");

@@ -19,9 +19,9 @@
 
 namespace ActsExamples {
 
-RootSeedWriter::RootSeedWriter(const RootSeedWriter::Config& config,
-                               Acts::Logging::Level level)
-    : WriterT(config.inputSeeds, "RootSeedWriter", level), m_cfg(config) {
+RootSeedWriter::RootSeedWriter(const RootSeedWriter::Config& config)
+    : WriterT(config.inputSeeds, "RootSeedWriter", config.logger),
+      m_cfg(config) {
   // inputParticles is already checked by base constructor
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing file path");

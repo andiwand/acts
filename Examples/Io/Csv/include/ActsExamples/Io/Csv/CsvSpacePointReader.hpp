@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/SpacePoint.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class CsvSpacePointReader final : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read input files from.
     std::string inputDir;
     /// Input filename stem.
@@ -50,7 +55,7 @@ class CsvSpacePointReader final : public IReader {
   ///
   /// @params cfg is the configuration object
   /// @params lvl is the logging level
-  CsvSpacePointReader(const Config& cfg, Acts::Logging::Level lvl);
+  explicit CsvSpacePointReader(const Config& cfg);
 
   std::string name() const override;
 
@@ -70,7 +75,7 @@ class CsvSpacePointReader final : public IReader {
                                                            "OutputSpacePoints"};
 
   std::pair<std::size_t, std::size_t> m_eventsRange;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   const Acts::Logger& logger() const { return *m_logger; }
 };

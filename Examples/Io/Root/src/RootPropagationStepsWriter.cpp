@@ -26,8 +26,8 @@
 namespace ActsExamples {
 
 RootPropagationStepsWriter::RootPropagationStepsWriter(
-    const RootPropagationStepsWriter::Config& cfg, Acts::Logging::Level level)
-    : WriterT(cfg.collection, "RootPropagationStepsWriter", level),
+    const RootPropagationStepsWriter::Config& cfg)
+    : WriterT(cfg.collection, "RootPropagationStepsWriter", cfg.logger),
       m_cfg(cfg),
       m_outputFile(cfg.rootFile) {
   // An input collection name and tree name must be specified

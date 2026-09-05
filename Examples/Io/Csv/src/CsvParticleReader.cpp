@@ -26,12 +26,11 @@
 
 namespace ActsExamples {
 
-CsvParticleReader::CsvParticleReader(const Config& config,
-                                     Acts::Logging::Level level)
+CsvParticleReader::CsvParticleReader(const Config& config)
     : m_cfg(config),
       m_eventsRange(
           determineEventFilesRange(m_cfg.inputDir, m_cfg.inputStem + ".csv")),
-      m_logger(Acts::getDefaultLogger("CsvParticleReader", level)) {
+      m_logger(makeLogger(config.logger, "CsvParticleReader")) {
   if (m_cfg.inputStem.empty()) {
     throw std::invalid_argument("Missing input filename stem");
   }

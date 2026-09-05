@@ -68,8 +68,8 @@ double pull(double diff, double variance, const std::string& variableStr,
 }  // namespace
 
 RootVertexNTupleWriter::RootVertexNTupleWriter(
-    const RootVertexNTupleWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputVertices, "RootVertexNTupleWriter", level),
+    const RootVertexNTupleWriter::Config& config)
+    : WriterT(config.inputVertices, "RootVertexNTupleWriter", config.logger),
       m_cfg(config) {
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing output filename");

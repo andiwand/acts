@@ -16,6 +16,7 @@
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -50,6 +51,10 @@ namespace ActsExamples {
 class RootMeasurementWriter final : public WriterT<MeasurementContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which measurement collection to write.
     std::string inputMeasurements;
     /// Which cluster collection to write (optional)
@@ -80,7 +85,7 @@ class RootMeasurementWriter final : public WriterT<MeasurementContainer> {
   /// Constructor with
   /// @param cfg configuration struct
   /// @param output logging level
-  RootMeasurementWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootMeasurementWriter(const Config& config);
 
   /// Virtual destructor
   ~RootMeasurementWriter() override;

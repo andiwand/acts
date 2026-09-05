@@ -34,9 +34,9 @@ auto toRange(const std::pair<Begin, End>& pair) {
 }  // namespace
 
 RootMeasurementPerformanceWriter::RootMeasurementPerformanceWriter(
-    const Config& config, Acts::Logging::Level level)
+    const Config& config)
     : WriterT(config.inputMeasurements, "RootMeasurementPerformanceWriter",
-              level),
+              config.logger),
       m_cfg(config) {
   // Input container for measurements is already checked by base constructor
   if (m_cfg.inputSimHits.empty()) {

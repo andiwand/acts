@@ -18,8 +18,8 @@
 
 namespace ActsExamples {
 
-CsvVertexWriter::CsvVertexWriter(const Config& cfg, Acts::Logging::Level lvl)
-    : WriterT(cfg.inputVertices, "CsvVertexWriter", lvl), m_cfg(cfg) {
+CsvVertexWriter::CsvVertexWriter(const Config& cfg)
+    : WriterT(cfg.inputVertices, "CsvVertexWriter", cfg.logger), m_cfg(cfg) {
   // inputVertices is already checked by base constructor
   if (m_cfg.outputStem.empty()) {
     throw std::invalid_argument("Missing output filename stem");

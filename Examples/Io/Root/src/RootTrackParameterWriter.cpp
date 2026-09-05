@@ -40,9 +40,10 @@ using Acts::VectorHelpers::theta;
 namespace ActsExamples {
 
 RootTrackParameterWriter::RootTrackParameterWriter(
-    const RootTrackParameterWriter::Config& config, Acts::Logging::Level level)
+    const RootTrackParameterWriter::Config& config)
     : WriterT<TrackParametersContainer>(config.inputTrackParameters,
-                                        "RootTrackParameterWriter", level),
+                                        "RootTrackParameterWriter",
+                                        config.logger),
       m_cfg(config) {
   if (m_cfg.inputProtoTracks.empty()) {
     throw std::invalid_argument("Missing proto tracks input collection");

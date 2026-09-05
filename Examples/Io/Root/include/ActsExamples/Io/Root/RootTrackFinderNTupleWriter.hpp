@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/ProtoTrack.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -26,6 +27,10 @@ namespace ActsExamples {
 class RootTrackFinderNTupleWriter final : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input reconstructed track collection.
     std::string inputTracks;
     /// Input particles collection.
@@ -47,7 +52,7 @@ class RootTrackFinderNTupleWriter final : public WriterT<ConstTrackContainer> {
   /// Constructor
   /// @param config the configuration
   /// @param level The log level
-  RootTrackFinderNTupleWriter(Config config, Acts::Logging::Level level);
+  explicit RootTrackFinderNTupleWriter(Config config);
 
   ~RootTrackFinderNTupleWriter() override;
 

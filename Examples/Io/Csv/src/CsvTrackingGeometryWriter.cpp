@@ -36,10 +36,9 @@
 
 namespace ActsExamples {
 
-CsvTrackingGeometryWriter::CsvTrackingGeometryWriter(const Config& config,
-                                                     Acts::Logging::Level level)
+CsvTrackingGeometryWriter::CsvTrackingGeometryWriter(const Config& config)
     : m_cfg(config),
-      m_logger(Acts::getDefaultLogger("CsvTrackingGeometryWriter", level))
+      m_logger(makeLogger(config.logger, "CsvTrackingGeometryWriter"))
 
 {
   if (!m_cfg.trackingGeometry) {

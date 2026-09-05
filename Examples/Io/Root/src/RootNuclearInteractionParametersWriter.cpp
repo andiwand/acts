@@ -341,10 +341,9 @@ inline void recordKinematicParametrisation(
 }  // namespace
 
 RootNuclearInteractionParametersWriter::RootNuclearInteractionParametersWriter(
-    const RootNuclearInteractionParametersWriter::Config& config,
-    Acts::Logging::Level level)
+    const RootNuclearInteractionParametersWriter::Config& config)
     : WriterT(config.inputSimulationProcesses,
-              "RootNuclearInteractionParametersWriter", level),
+              "RootNuclearInteractionParametersWriter", config.logger),
       m_cfg(config) {
   if (m_cfg.inputSimulationProcesses.empty()) {
     throw std::invalid_argument("Missing input collection");

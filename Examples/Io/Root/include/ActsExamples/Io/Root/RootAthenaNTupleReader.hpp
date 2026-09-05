@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -31,6 +32,10 @@ class RootAthenaNTupleReader : public IReader {
  public:
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     // name of the input tree
     std::string inputTreeName;
     // The name of the input file
@@ -172,7 +177,7 @@ class RootAthenaNTupleReader : public IReader {
 
   /// Constructor
   /// @param config The Configuration struct
-  RootAthenaNTupleReader(const Config &config, Acts::Logging::Level level);
+  explicit RootAthenaNTupleReader(const Config &config);
 
   ~RootAthenaNTupleReader() override;
 
@@ -202,7 +207,7 @@ class RootAthenaNTupleReader : public IReader {
   /// The config class
   Config m_cfg;
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// mutex used to protect multi-threaded reads
   std::mutex m_read_mutex;

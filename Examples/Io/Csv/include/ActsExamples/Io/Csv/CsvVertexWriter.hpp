@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/Vertex.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class CsvVertexWriter final : public WriterT<VertexContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input particles collection to write.
     std::string inputVertices;
     /// Where to place output files.
@@ -48,7 +53,7 @@ class CsvVertexWriter final : public WriterT<VertexContainer> {
   ///
   /// @params cfg is the configuration object
   /// @params lvl is the logging level
-  CsvVertexWriter(const Config& cfg, Acts::Logging::Level lvl);
+  explicit CsvVertexWriter(const Config& cfg);
 
   /// Get readonly access to the config parameters
   const Config& config() const { return m_cfg; }

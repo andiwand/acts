@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimHit.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 
@@ -33,6 +34,10 @@ namespace ActsExamples {
 class RootSimHitWriter final : public WriterT<SimHitContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input sim hit collection to write.
     std::string inputSimHits;
     /// Path to the output file.
@@ -47,7 +52,7 @@ class RootSimHitWriter final : public WriterT<SimHitContainer> {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  RootSimHitWriter(const Config& config, Acts::Logging::Level level);
+  explicit RootSimHitWriter(const Config& config);
 
   /// Ensure underlying file is closed.
   ~RootSimHitWriter() override;

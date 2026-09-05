@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsPlugins/Root/detail/RootBranchPtr.hpp"
 
@@ -40,6 +41,10 @@ class RootAthenaDumpReader : public IReader {
  public:
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     // Name of tree
     std::string treename;
     // Name of inputfile
@@ -104,7 +109,7 @@ class RootAthenaDumpReader : public IReader {
 
   // Constructor
   /// @param config The configuration struct
-  RootAthenaDumpReader(const Config &config, Acts::Logging::Level level);
+  explicit RootAthenaDumpReader(const Config &config);
 
   std::string name() const override { return "RootAthenaDumpReader"; }
 
@@ -179,7 +184,7 @@ class RootAthenaDumpReader : public IReader {
   WriteDataHandle<ParticleMeasurementsMap> m_outputParticleMeasMap{
       this, "OutputParticleMeasurementsMap"};
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
   std::mutex m_read_mutex;
 
   /// Vector of {eventNr, entryMin, entryMax}

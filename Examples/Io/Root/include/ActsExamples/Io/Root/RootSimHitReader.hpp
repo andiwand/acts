@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsPlugins/Root/detail/RootBranchPtr.hpp"
 
@@ -34,6 +35,10 @@ class RootSimHitReader : public IReader {
  public:
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// name of the whiteboard entry
     std::string outputSimHits = "simhits";
     /// name of the output tree
@@ -47,7 +52,7 @@ class RootSimHitReader : public IReader {
 
   /// Constructor
   /// @param config The Configuration struct
-  RootSimHitReader(const Config &config, Acts::Logging::Level level);
+  explicit RootSimHitReader(const Config &config);
 
   /// Explicit destructor to enable forward declaration of TChain
   ~RootSimHitReader() override;
@@ -74,7 +79,7 @@ class RootSimHitReader : public IReader {
   Config m_cfg;
 
   WriteDataHandle<SimHitContainer> m_outputSimHits{this, "OutputSimHits"};
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// mutex used to protect multi-threaded reads
   std::mutex m_read_mutex;

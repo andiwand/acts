@@ -167,6 +167,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsRoot, root) {
           .value("xyz", Writer::GridType::xyz);
 
       auto c = py::class_<Writer::Config>(w, "Config").def(py::init<>());
+
       ACTS_PYTHON_STRUCT(c, treeName, fileName, fileMode, bField, gridType,
                          rBounds, zBounds, rBins, zBins, phiBins);
     }
@@ -175,10 +176,11 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsRoot, root) {
       using Writer = RootMeasurementWriter;
       auto w = py::class_<Writer, IWriter, std::shared_ptr<Writer>>(
                    root, "RootMeasurementWriter")
-                   .def(py::init<const Writer::Config&, Logging::Level>(),
-                        py::arg("config"), py::arg("level"));
+                   .def(py::init<const Writer::Config&>(), py::arg("config"));
 
       auto c = py::class_<Writer::Config>(w, "Config").def(py::init<>());
+
+      declareLoggingConfig(c);
 
       ACTS_PYTHON_STRUCT(c, inputMeasurements, inputClusters, inputSimHits,
                          inputMeasurementSimHitsMap, filePath, fileMode,
@@ -189,10 +191,11 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsRoot, root) {
       using Writer = RootMeasurementPerformanceWriter;
       auto w = py::class_<Writer, IWriter, std::shared_ptr<Writer>>(
                    root, "RootMeasurementPerformanceWriter")
-                   .def(py::init<const Writer::Config&, Logging::Level>(),
-                        py::arg("config"), py::arg("level"));
+                   .def(py::init<const Writer::Config&>(), py::arg("config"));
 
       auto c = py::class_<Writer::Config>(w, "Config").def(py::init<>());
+
+      declareLoggingConfig(c);
 
       ACTS_PYTHON_STRUCT(
           c, inputMeasurements, inputSimHits, inputMeasurementSimHitsMap,
@@ -205,12 +208,13 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsRoot, root) {
       auto w =
           py::class_<Writer, IMaterialWriter, std::shared_ptr<Writer>>(
               root, "RootMaterialWriter")
-              .def(py::init<const Writer::Config&, Logging::Level>(),
-                   py::arg("config"), py::arg("level"))
+              .def(py::init<const Writer::Config&>(), py::arg("config"))
               .def("write",
                    py::overload_cast<const TrackingGeometry&>(&Writer::write));
 
       auto c = py::class_<Writer::Config>(w, "Config").def(py::init<>());
+
+      declareLoggingConfig(c);
 
       ACTS_PYTHON_STRUCT(c, processSensitives, processApproaches,
                          processRepresenting, processBoundaries, accessorConfig,

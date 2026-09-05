@@ -57,8 +57,8 @@ std::vector<std::tuple<int, int, float>> prepareChannels(const Cluster& c) {
 }  // namespace
 
 RootMeasurementWriter::RootMeasurementWriter(
-    const RootMeasurementWriter::Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputMeasurements, "RootMeasurementWriter", level),
+    const RootMeasurementWriter::Config& config)
+    : WriterT(config.inputMeasurements, "RootMeasurementWriter", config.logger),
       m_cfg(config) {
   // Input container for measurements is already checked by base constructor
   if (m_cfg.inputSimHits.empty()) {
