@@ -17,7 +17,7 @@ namespace ActsExamples {
 HelloRandomAlgorithm::HelloRandomAlgorithm(
     const HelloRandomAlgorithm::Config& cfg,
     std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HelloRandom", std::move(logger)), m_cfg(cfg) {
+    : IAlgorithm("HelloRandomAlgorithm", std::move(logger)), m_cfg(cfg) {
   if (!m_cfg.randomNumbers) {
     throw std::invalid_argument("Missing random number service");
   }

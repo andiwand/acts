@@ -21,7 +21,7 @@ namespace ActsExamples {
 
 TrackSelectorAlgorithm::TrackSelectorAlgorithm(
     const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("TrackSelector", std::move(logger)),
+    : IAlgorithm("TrackSelectorAlgorithm", std::move(logger)),
       m_cfg(config),
       m_selector(config.selectorConfig) {
   if (m_cfg.inputTracks.empty()) {
