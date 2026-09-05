@@ -12,6 +12,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/DetectorCommons/AlignmentContext.hpp"
 #include "ActsExamples/Framework/IContextDecorator.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <array>
 #include <memory>
@@ -51,6 +52,10 @@ class AlignmentDecorator : public IContextDecorator {
 
   /// Configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which geometry context(s) to decorate
     Target target = Target::eBoth;
 
@@ -81,7 +86,7 @@ class AlignmentDecorator : public IContextDecorator {
   /// Constructor with configuration and logger
   /// @param config Configuration for the alignment decorator
   /// @param level Logging level for the decorator
-  AlignmentDecorator(const Config& config, Acts::Logging::Level level);
+  explicit AlignmentDecorator(const Config& config);
 
   /// Decorate the context with the alignment context
   /// @param context The algorithm context to decorate
@@ -93,7 +98,7 @@ class AlignmentDecorator : public IContextDecorator {
  private:
   Config m_cfg;  //!< The configuration strcut
 
-  std::unique_ptr<const Acts::Logger> m_logger;  ///!< The logging instance
+  std::shared_ptr<const Acts::Logger> m_logger;  ///!< The logging instance
 
   std::string m_name = "AlignmentDecorator";  //!< The name of the decorator
 

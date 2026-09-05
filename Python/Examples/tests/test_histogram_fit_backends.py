@@ -112,7 +112,7 @@ def _run_backends(sampler, nTracks, seed):
     """
     import acts.examples.root as acts_root
 
-    s = acts.examples.Sequencer(events=1, numThreads=1, logLevel=acts.logging.WARNING)
+    s = acts.examples.Sequencer(events=1, numThreads=1, level=acts.logging.WARNING)
     s.addAlgorithm(_SyntheticTrackAlgorithm(sampler, nTracks, seed))
     s.addAlgorithm(
         acts.examples.TrackTruthMatcher(

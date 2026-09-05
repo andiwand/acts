@@ -20,9 +20,8 @@ const std::string s_name = "ScalableBFieldService";
 
 namespace ActsExamples {
 
-ScalableBFieldService::ScalableBFieldService(const Config& cfg,
-                                             Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger(s_name, lvl)) {}
+ScalableBFieldService::ScalableBFieldService(const Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, s_name)) {}
 
 const std::string& ScalableBFieldService::name() const {
   return s_name;

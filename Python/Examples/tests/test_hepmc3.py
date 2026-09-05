@@ -314,7 +314,7 @@ def test_hepmc3_writer_stall(common_evgen, tmp_path, bufsize):
         HepMC3Writer,
     )
 
-    s = Sequencer(numThreads=10, events=150, logLevel=acts.logging.VERBOSE)
+    s = Sequencer(numThreads=10, events=150, level=acts.logging.VERBOSE)
 
     evGen = common_evgen(s)
 
@@ -832,7 +832,7 @@ def test_hepmc3_reader_multiple_files(tmp_path, rng):
     events = 100
     n_pileup = 10
 
-    s = Sequencer(numThreads=10, events=events, logLevel=acts.logging.INFO)
+    s = Sequencer(numThreads=10, events=events, level=acts.logging.INFO)
 
     vtxGenZero = acts.examples.FixedVertexGenerator(
         fixed=acts.Vector4(0, 0, 0, 0),
@@ -879,7 +879,7 @@ def test_hepmc3_reader_multiple_files(tmp_path, rng):
 
     s.run()
 
-    s = Sequencer(numThreads=10, events=events * n_pileup, logLevel=acts.logging.INFO)
+    s = Sequencer(numThreads=10, events=events * n_pileup, level=acts.logging.INFO)
 
     pileup = acts.examples.EventGenerator(
         level=acts.logging.INFO,
@@ -924,7 +924,7 @@ def test_hepmc3_reader_multiple_files(tmp_path, rng):
 
     # do reading including merging and write combined file
 
-    s = Sequencer(numThreads=10, logLevel=acts.logging.INFO)
+    s = Sequencer(numThreads=10, level=acts.logging.INFO)
 
     reader = HepMC3Reader(
         inputs=[

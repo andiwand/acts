@@ -24,12 +24,12 @@ def test_alignmentdecorator_io_mode(capfd):
     alignDecoConfig.garbageCollection = True
     alignDecoConfig.gcInterval = 20
 
-    alignDeco = AlignmentDecorator(alignDecoConfig, acts.logging.DEBUG)
+    alignDeco = AlignmentDecorator(alignDecoConfig, level=acts.logging.DEBUG)
 
     sequencer = Sequencer(
         events=100,
         numThreads=4,
-        logLevel=acts.logging.INFO,
+        level=acts.logging.INFO,
     )
 
     sequencer.addContextDecorator(alignDeco)
@@ -80,12 +80,12 @@ def test_alignmentdecorator_gen_mode(capfd):
     alignDecoConfig.garbageCollection = True
     alignDecoConfig.gcInterval = 20
 
-    alignDeco = AlignmentDecorator(alignDecoConfig, acts.logging.VERBOSE)
+    alignDeco = AlignmentDecorator(alignDecoConfig, level=acts.logging.VERBOSE)
 
     sequencer = Sequencer(
         events=100,
         numThreads=1,
-        logLevel=acts.logging.INFO,
+        level=acts.logging.INFO,
     )
 
     sequencer.addContextDecorator(alignDeco)

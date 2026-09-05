@@ -28,7 +28,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsAlignment, m) {
     auto ad =
         py::class_<AlignmentDecorator, IContextDecorator,
                    std::shared_ptr<AlignmentDecorator>>(m, "AlignmentDecorator")
-            .def(py::init<const AlignmentDecorator::Config&, Logging::Level>())
+            .def(py::init<const AlignmentDecorator::Config&>())
             .def("decorate", &AlignmentDecorator::decorate)
             .def("name", &AlignmentDecorator::name);
 
@@ -39,6 +39,8 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsAlignment, m) {
 
     auto c =
         py::class_<AlignmentDecorator::Config>(ad, "Config").def(py::init<>());
+
+    declareLoggingConfig(c);
 
     ACTS_PYTHON_STRUCT(c, target, iovStores, nominalStore, garbageCollection,
                        gcInterval, iovGenerators);

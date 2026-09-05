@@ -19,7 +19,7 @@ def test_hello_world_sequence():
     logLevel = acts.logging.INFO
 
     rnd = acts.examples.RandomNumbers(seed=42)
-    seq = acts.examples.Sequencer(events=eventsCount, numThreads=1, logLevel=logLevel)
+    seq = acts.examples.Sequencer(events=eventsCount, numThreads=1, level=logLevel)
 
     seq.addAlgorithm(acts.examples.HelloLoggerAlgorithm(level=logLevel))
 

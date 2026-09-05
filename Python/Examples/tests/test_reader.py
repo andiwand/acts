@@ -25,7 +25,7 @@ def test_root_particle_reader(tmp_path, conf_const, ptcl_gun):
     from acts.examples.root import RootParticleWriter, RootParticleReader
 
     # need to write out some particles first
-    s = Sequencer(numThreads=1, events=10, logLevel=acts.logging.WARNING)
+    s = Sequencer(numThreads=1, events=10, level=acts.logging.WARNING)
     _, h3conv = ptcl_gun(s)
 
     file = tmp_path / "particles.root"
@@ -42,7 +42,7 @@ def test_root_particle_reader(tmp_path, conf_const, ptcl_gun):
 
     # reset sequencer for reading
 
-    s2 = Sequencer(numThreads=1, logLevel=acts.logging.WARNING)
+    s2 = Sequencer(numThreads=1, level=acts.logging.WARNING)
 
     s2.addReader(
         conf_const(
@@ -65,7 +65,7 @@ def test_root_particle_reader(tmp_path, conf_const, ptcl_gun):
 
 @pytest.mark.csv
 def test_csv_particle_reader(tmp_path, conf_const, ptcl_gun):
-    s = Sequencer(numThreads=1, events=10, logLevel=acts.logging.WARNING)
+    s = Sequencer(numThreads=1, events=10, level=acts.logging.WARNING)
     _, h3conv = ptcl_gun(s)
 
     out = tmp_path / "csv"
@@ -85,7 +85,7 @@ def test_csv_particle_reader(tmp_path, conf_const, ptcl_gun):
     s.run()
 
     # reset the seeder
-    s = Sequencer(numThreads=1, logLevel=acts.logging.WARNING)
+    s = Sequencer(numThreads=1, level=acts.logging.WARNING)
 
     s.addReader(
         conf_const(
@@ -274,7 +274,7 @@ def test_buffered_reader(tmp_path, conf_const, ptcl_gun):
     eventsInBuffer = 5
     eventsToProcess = 10
 
-    s = Sequencer(numThreads=1, events=eventsInBuffer, logLevel=acts.logging.WARNING)
+    s = Sequencer(numThreads=1, events=eventsInBuffer, level=acts.logging.WARNING)
     _, h3conv = ptcl_gun(s)
 
     file = tmp_path / "particles.root"
@@ -290,7 +290,7 @@ def test_buffered_reader(tmp_path, conf_const, ptcl_gun):
     s.run()
 
     # reset sequencer for reading
-    s2 = Sequencer(events=eventsToProcess, numThreads=1, logLevel=acts.logging.WARNING)
+    s2 = Sequencer(events=eventsToProcess, numThreads=1, level=acts.logging.WARNING)
 
     reader = RootParticleReader(
         level=acts.logging.WARNING,

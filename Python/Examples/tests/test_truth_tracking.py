@@ -324,9 +324,7 @@ def test_python_space_point_access(generic_detector_config, tmp_path):
     )
 
     with generic_detector_config.detector:
-        s = acts.examples.Sequencer(
-            events=100, numThreads=1, logLevel=acts.logging.INFO
-        )
+        s = acts.examples.Sequencer(events=100, numThreads=1, level=acts.logging.INFO)
         trackingGeometry = generic_detector_config.trackingGeometry
         field = acts.ConstantBField(acts.Vector3(0, 0, 2 * u.T))
         digiConfigFile = generic_detector_config.digiConfigFile

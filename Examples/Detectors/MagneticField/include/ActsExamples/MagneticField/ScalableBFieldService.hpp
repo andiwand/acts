@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/IContextDecorator.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <memory>
@@ -23,6 +24,10 @@ namespace ActsExamples {
 class ScalableBFieldService : public IContextDecorator {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Scaling factor. Unit value means the magnetic field is left unchanged.
     double scalor = 1.25;
   };
@@ -31,7 +36,7 @@ class ScalableBFieldService : public IContextDecorator {
   ///
   /// @param cfg Configuration struct
   /// @param lvl Logging level
-  ScalableBFieldService(const Config& cfg, Acts::Logging::Level lvl);
+  explicit ScalableBFieldService(const Config& cfg);
 
   /// The service name.
   const std::string& name() const override;
@@ -43,7 +48,7 @@ class ScalableBFieldService : public IContextDecorator {
 
  private:
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   const Acts::Logger& logger() const { return *m_logger; }
 };

@@ -426,7 +426,7 @@ def fatras(ptcl_gun, trk_geo, rng):
             randomNumbers=rng,
             inputSimHits=simAlg.config.outputSimHits,
         )
-        digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, acts.logging.INFO)
+        digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, level=acts.logging.INFO)
 
         s.addAlgorithm(digiAlg)
 

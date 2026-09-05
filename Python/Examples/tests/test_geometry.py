@@ -235,9 +235,7 @@ def test_odd_gen3_json_roundtrip(tmp_path, odd_detector_gen3):
 
     def run_prop(geo, out_dir):
         out_dir.mkdir(exist_ok=True)
-        s = acts.examples.Sequencer(
-            events=5, numThreads=1, logLevel=acts.logging.WARNING
-        )
+        s = acts.examples.Sequencer(events=5, numThreads=1, level=acts.logging.WARNING)
         runPropagation(geo, field, str(out_dir), s=s, sterileLogger=False).run()
 
     orig_dir = tmp_path / "prop_original"

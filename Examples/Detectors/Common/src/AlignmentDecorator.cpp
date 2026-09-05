@@ -43,10 +43,8 @@ bool eventWithinIOV(const std::array<std::size_t, 2>& iov,
 
 }  // namespace
 
-AlignmentDecorator::AlignmentDecorator(const AlignmentDecorator::Config& config,
-                                       Acts::Logging::Level level)
-    : m_cfg(config),
-      m_logger(Acts::getDefaultLogger("AlignmentDecorator", level)) {
+AlignmentDecorator::AlignmentDecorator(const AlignmentDecorator::Config& config)
+    : m_cfg(config), m_logger(makeLogger(config.logger, "AlignmentDecorator")) {
   // Check for overlapping IOVs in the stores
   if (!m_cfg.iovStores.empty() && m_cfg.iovGenerators.empty()) {
     ACTS_VERBOSE("Configuring AlignmentDecorator with IOV stores.");

@@ -95,7 +95,7 @@ def test_edm4hep_measurement_writer(tmp_path, ptcl_gun, rng, odd_detector):
         randomNumbers=rng,
         inputSimHits=simAlg.config.outputSimHits,
     )
-    digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, acts.logging.INFO)
+    digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, level=acts.logging.INFO)
     s.addAlgorithm(digiAlg)
 
     out = tmp_path / "measurements_edm4hep.root"
@@ -591,7 +591,7 @@ def test_edm4hep_measurement_reader(tmp_path, ptcl_gun, rng, odd_detector):
         randomNumbers=rng,
         inputSimHits=simAlg.config.outputSimHits,
     )
-    digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, acts.logging.INFO)
+    digiAlg = acts.examples.DigitizationAlgorithm(digiCfg, level=acts.logging.INFO)
     s.addAlgorithm(digiAlg)
 
     out = tmp_path / "measurements_edm4hep.root"

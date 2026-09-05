@@ -25,7 +25,7 @@ class _Noop(acts.examples.IAlgorithm):
 def _make_sequencer(events=3):
     """Sequencer with a particle-gun → HepMC3-converter chain."""
     rng = acts.examples.RandomNumbers(seed=42)
-    s = acts.examples.Sequencer(events=events, numThreads=1, logLevel=acts.logging.INFO)
+    s = acts.examples.Sequencer(events=events, numThreads=1, level=acts.logging.INFO)
 
     evGen = acts.examples.EventGenerator(
         level=acts.logging.WARNING,

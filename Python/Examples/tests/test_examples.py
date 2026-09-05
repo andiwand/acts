@@ -789,7 +789,7 @@ def test_pypi_finding_fitting_demo(tmp_path, generic_detector_config):
             geoSelectionConfigFile=geoSelectionConfigFile,
             outputDir=tmp_path,
             decorators=generic_detector_config.decorators,
-            s=Sequencer(events=1, numThreads=1, logLevel=acts.logging.INFO),
+            s=Sequencer(events=1, numThreads=1, level=acts.logging.INFO),
         )
         s.run()
 
@@ -1206,7 +1206,7 @@ def test_gnn4itk_example(tmp_path, assert_root_hash, useEdgeLayerConnector):
     rnd = acts.examples.RandomNumbers(seed=42)
 
     with detector:
-        s = Sequencer(events=1, numThreads=1, logLevel=acts.logging.WARNING)
+        s = Sequencer(events=1, numThreads=1, level=acts.logging.WARNING)
         addParticleGun(
             s,
             ParticleConfig(num=4, pdg=acts.PdgParticle.eMuon, randomizeCharge=True),

@@ -25,7 +25,7 @@ def test_root_write_uproot_read(tmp_path, fatras, conf_const):
     particle_file = tmp_path / "particles_simulation.root"
     hit_file = tmp_path / "hits.root"
 
-    s = Sequencer(numThreads=1, events=10, logLevel=acts.logging.INFO)
+    s = Sequencer(numThreads=1, events=10, level=acts.logging.INFO)
     evGen, simAlg, _ = fatras(s)
     s.addWriter(
         conf_const(
@@ -45,7 +45,7 @@ def test_root_write_uproot_read(tmp_path, fatras, conf_const):
     )
     s.run()
 
-    s2 = Sequencer(numThreads=1, logLevel=acts.logging.INFO)
+    s2 = Sequencer(numThreads=1, level=acts.logging.INFO)
     s2.addReader(
         UprootParticleReader(
             filePath=particle_file,

@@ -49,7 +49,7 @@ def test_steppers(conf_const, trk_geo):
         assert s
 
         seq = acts.examples.Sequencer(
-            events=10, numThreads=1, logLevel=acts.logging.WARNING
+            events=10, numThreads=1, level=acts.logging.WARNING
         )
 
         rnd = acts.examples.RandomNumbers(seed=42)
