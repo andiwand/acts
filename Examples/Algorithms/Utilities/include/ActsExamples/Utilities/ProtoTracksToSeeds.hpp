@@ -33,7 +33,6 @@ class ProtoTracksToSeeds final : public IAlgorithm {
   /// Construct the algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit ProtoTracksToSeeds(Config cfg);
 
   /// Run the algorithm.

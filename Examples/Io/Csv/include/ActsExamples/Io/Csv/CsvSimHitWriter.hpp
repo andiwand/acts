@@ -53,7 +53,6 @@ class CsvSimHitWriter final : public WriterT<SimHitContainer> {
   /// Construct the cluster writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvSimHitWriter(const Config& config);
 
   /// Readonly access to the config

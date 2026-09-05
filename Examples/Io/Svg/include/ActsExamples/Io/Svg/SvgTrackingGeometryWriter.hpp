@@ -46,7 +46,6 @@ class SvgTrackingGeometryWriter {
 
   /// Constructor
   /// @param config is the configuration class
-  /// @param level the log level
   explicit SvgTrackingGeometryWriter(const Config& config);
 
   /// Framework name() method

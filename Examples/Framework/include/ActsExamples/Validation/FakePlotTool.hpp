@@ -55,7 +55,6 @@ class FakePlotTool {
   /// Constructor
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Message level declaration
   explicit FakePlotTool(const Config& cfg);
 
   /// @brief fill fake ratio w.r.t. fitted track parameters

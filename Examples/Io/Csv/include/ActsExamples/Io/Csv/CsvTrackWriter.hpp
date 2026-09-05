@@ -67,7 +67,6 @@ class CsvTrackWriter : public WriterT<ConstTrackContainer> {
 
   /// constructor
   /// @param config is the configuration object
-  /// @param level is the output logging level
   explicit CsvTrackWriter(const Config& config);
 
   /// Readonly access to the config

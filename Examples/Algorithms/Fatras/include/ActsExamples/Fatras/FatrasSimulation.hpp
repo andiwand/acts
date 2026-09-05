@@ -83,7 +83,6 @@ class FatrasSimulation final : public IAlgorithm {
   /// Construct the algorithm from a config.
   ///
   /// @param cfg is the configuration struct
-  /// @param lvl is the logging level
   explicit FatrasSimulation(Config cfg);
   ~FatrasSimulation() override;
 

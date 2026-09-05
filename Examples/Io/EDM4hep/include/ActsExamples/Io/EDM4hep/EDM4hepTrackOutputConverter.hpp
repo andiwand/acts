@@ -39,7 +39,6 @@ class EDM4hepTrackOutputConverter : public PodioOutputConverter {
 
   /// constructor
   /// @param config is the configuration object
-  /// @param level is the output logging level
   explicit EDM4hepTrackOutputConverter(const Config& config);
 
   /// Readonly access to the config

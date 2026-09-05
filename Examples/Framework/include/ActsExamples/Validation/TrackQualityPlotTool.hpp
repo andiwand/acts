@@ -43,7 +43,6 @@ class TrackQualityPlotTool {
   /// Constructor
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Message level declaration
   explicit TrackQualityPlotTool(const Config& cfg);
 
   /// @brief fill track quality w.r.t. fitted track parameters

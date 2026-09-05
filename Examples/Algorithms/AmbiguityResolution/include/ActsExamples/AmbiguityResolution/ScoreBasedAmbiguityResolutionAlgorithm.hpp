@@ -68,7 +68,6 @@ class ScoreBasedAmbiguityResolutionAlgorithm final : public IAlgorithm {
   /// Construct the ambiguity resolution algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit ScoreBasedAmbiguityResolutionAlgorithm(const Config& cfg);
 
   /// Run the ambiguity resolution algorithm.

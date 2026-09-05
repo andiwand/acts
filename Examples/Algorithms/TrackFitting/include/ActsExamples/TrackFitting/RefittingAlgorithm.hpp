@@ -46,7 +46,6 @@ class RefittingAlgorithm final : public IAlgorithm {
   /// Constructor of the fitting algorithm
   ///
   /// @param config is the config struct to configure the algorithm
-  /// @param level is the logging level
   explicit RefittingAlgorithm(Config config);
 
   /// Framework execute method of the fitting algorithm

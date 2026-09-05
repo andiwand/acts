@@ -33,7 +33,6 @@ class TracksToParameters final : public IAlgorithm {
   /// Construct the algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit TracksToParameters(Config cfg);
 
   /// Run the algorithm.

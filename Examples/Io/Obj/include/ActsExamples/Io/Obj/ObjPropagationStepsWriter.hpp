@@ -47,7 +47,6 @@ class ObjPropagationStepsWriter : public WriterT<PropagationSummaries> {
   /// Constructor with arguments
   ///
   /// @param cfg configuration struct
-  /// @param level Output logging level
   explicit ObjPropagationStepsWriter(const Config& cfg);
 
   /// Virtual destructor

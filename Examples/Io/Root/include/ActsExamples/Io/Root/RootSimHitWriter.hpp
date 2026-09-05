@@ -51,7 +51,6 @@ class RootSimHitWriter final : public WriterT<SimHitContainer> {
   /// Construct the particle writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit RootSimHitWriter(const Config& config);
 
   /// Ensure underlying file is closed.

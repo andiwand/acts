@@ -55,7 +55,6 @@ class CsvMeasurementWriter final : public WriterT<MeasurementContainer> {
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit CsvMeasurementWriter(const Config& config);
 
   /// Virtual destructor

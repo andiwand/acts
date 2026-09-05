@@ -71,7 +71,6 @@ class RootTrackStatesWriter final : public WriterT<ConstTrackContainer> {
   /// Constructor
   ///
   /// @param config Configuration struct
-  /// @param level Message level declaration
   explicit RootTrackStatesWriter(const Config& config);
 
   ~RootTrackStatesWriter() override;

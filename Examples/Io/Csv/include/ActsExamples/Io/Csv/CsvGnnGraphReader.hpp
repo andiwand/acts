@@ -40,7 +40,6 @@ class CsvGnnGraphReader final : public IReader {
   /// Construct the particle reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvGnnGraphReader(const Config& config);
 
   /// Return the available events range.

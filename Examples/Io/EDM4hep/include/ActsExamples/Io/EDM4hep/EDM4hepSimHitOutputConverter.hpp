@@ -50,7 +50,6 @@ class EDM4hepSimHitOutputConverter final : public PodioOutputConverter {
   /// Construct the cluster writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit EDM4hepSimHitOutputConverter(const Config& config);
 
   /// Readonly access to the config

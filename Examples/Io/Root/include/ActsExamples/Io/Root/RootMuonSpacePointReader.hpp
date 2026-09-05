@@ -44,7 +44,6 @@ class RootMuonSpacePointReader : public IReader {
   /// Construct the particle writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit RootMuonSpacePointReader(const Config& config);
 
   /// Ensure underlying file is closed.

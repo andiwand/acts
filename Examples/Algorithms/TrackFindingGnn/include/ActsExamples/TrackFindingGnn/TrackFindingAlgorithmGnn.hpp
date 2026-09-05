@@ -140,7 +140,6 @@ class TrackFindingAlgorithmGnn final : public IAlgorithm {
   /// Constructor of the track finding algorithm
   ///
   /// @param cfg is the config struct to configure the algorithm
-  /// @param level is the logging level
   explicit TrackFindingAlgorithmGnn(Config cfg);
 
   ~TrackFindingAlgorithmGnn() override = default;

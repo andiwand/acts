@@ -80,7 +80,6 @@ class RootVertexNTupleWriter final : public WriterT<VertexContainer> {
   /// Constructor
   ///
   /// @param config Configuration struct
-  /// @param level Message level declaration
   explicit RootVertexNTupleWriter(const Config& config);
 
   ~RootVertexNTupleWriter() override;

@@ -80,7 +80,6 @@ class ResPlotTool {
   };
 
   /// @param cfg Configuration struct
-  /// @param level Message level declaration
   explicit ResPlotTool(const Config& cfg);
 
   /// @param gctx the geometry context

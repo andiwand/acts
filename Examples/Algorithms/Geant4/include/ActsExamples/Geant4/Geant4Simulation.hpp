@@ -164,7 +164,6 @@ class Geant4Simulation final : public Geant4SimulationBase {
   /// Simulation constructor
   ///
   /// @param config is the configuration struct
-  /// @param level is the logging level to be used
   explicit Geant4Simulation(const Config& cfg);
 
   ~Geant4Simulation() override;
@@ -206,7 +205,6 @@ class Geant4MaterialRecording final : public Geant4SimulationBase {
   /// Material recording constructor
   ///
   /// @param config is the configuration struct
-  /// @param level is the logging level to be used
   explicit Geant4MaterialRecording(const Config& cfg);
 
   ~Geant4MaterialRecording() override;

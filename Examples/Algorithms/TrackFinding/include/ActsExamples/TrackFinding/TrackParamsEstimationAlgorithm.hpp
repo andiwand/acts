@@ -118,7 +118,6 @@ class TrackParamsEstimationAlgorithm final : public IAlgorithm {
   /// Construct the track parameters making algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit TrackParamsEstimationAlgorithm(const Config& cfg);
 
   /// Run the track parameters making algorithm.

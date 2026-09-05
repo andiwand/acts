@@ -53,7 +53,6 @@ class CsvTrackParameterReader final : public IReader {
   /// Construct the track parameter reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvTrackParameterReader(const Config& config);
 
   std::string name() const final;

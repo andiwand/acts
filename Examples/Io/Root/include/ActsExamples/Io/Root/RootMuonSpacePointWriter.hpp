@@ -47,7 +47,6 @@ class RootMuonSpacePointWriter : public WriterT<MuonSpacePointContainer> {
   /// Construct the particle writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit RootMuonSpacePointWriter(const Config& config);
 
   /// Ensure underlying file is closed.

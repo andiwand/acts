@@ -66,7 +66,6 @@ class JsonSurfacesWriter : public IWriter {
   /// Construct the geometry writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit JsonSurfacesWriter(const Config& config);
 
   std::string name() const override;

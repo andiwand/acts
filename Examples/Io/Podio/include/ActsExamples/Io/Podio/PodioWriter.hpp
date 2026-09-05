@@ -71,7 +71,6 @@ class PodioWriter final : public IWriter {
   /// Construct the writer.
   ///
   /// @param config The configuration struct.
-  /// @param level The logging level.
   /// @throw std::invalid_argument if category is empty or if collection names are empty or duplicate
   explicit PodioWriter(const Config& config);
 

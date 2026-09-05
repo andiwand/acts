@@ -58,7 +58,6 @@ class DuplicationPlotTool {
   /// Constructor
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Message level declaration
   explicit DuplicationPlotTool(const Config& cfg);
 
   /// @brief fill duplication ratio w.r.t. fitted track parameters

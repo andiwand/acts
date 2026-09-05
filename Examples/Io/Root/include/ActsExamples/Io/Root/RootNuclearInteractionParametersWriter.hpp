@@ -59,7 +59,6 @@ class RootNuclearInteractionParametersWriter final
   /// Constructor
   ///
   /// @param config Configuration struct
-  /// @param level Message level declaration
   explicit RootNuclearInteractionParametersWriter(const Config& config);
   ~RootNuclearInteractionParametersWriter() override;
 

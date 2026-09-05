@@ -66,7 +66,6 @@ class ActsSolverFromMille final : public IAlgorithm {
 
   /// Constructor of the sandbox algorithm
   /// @param cfg is the config struct to configure the algorithm
-  /// @param level is the logging level
   explicit ActsSolverFromMille(Config cfg);
 
   /// Framework execute method of the sandbox algorithm

@@ -46,7 +46,6 @@ class MaterialValidation : public IAlgorithm {
   /// Constructor
   ///
   /// @param cfg The configuration struct carrying the used tools
-  /// @param level The output logging level
   explicit MaterialValidation(const Config& cfg);
 
   /// Destructor

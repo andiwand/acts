@@ -38,7 +38,6 @@ class CsvProtoTrackWriter final : public WriterT<ProtoTrackContainer> {
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit CsvProtoTrackWriter(const Config& config);
 
   /// Virtual destructor

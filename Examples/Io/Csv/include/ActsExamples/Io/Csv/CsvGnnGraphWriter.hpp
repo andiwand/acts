@@ -37,7 +37,6 @@ class CsvGnnGraphWriter final : public WriterT<Graph> {
   /// Construct the cluster writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvGnnGraphWriter(const Config& config);
 
   /// Readonly access to the config

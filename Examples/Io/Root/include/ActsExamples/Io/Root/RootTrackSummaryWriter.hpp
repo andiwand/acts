@@ -80,7 +80,6 @@ class RootTrackSummaryWriter final : public WriterT<ConstTrackContainer> {
   /// Constructor
   ///
   /// @param config Configuration struct
-  /// @param level Message level declaration
   explicit RootTrackSummaryWriter(const Config& config);
   ~RootTrackSummaryWriter() override;
 

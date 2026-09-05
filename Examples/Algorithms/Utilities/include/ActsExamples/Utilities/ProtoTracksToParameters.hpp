@@ -81,7 +81,6 @@ class ProtoTracksToParameters final : public IAlgorithm {
   /// Construct the algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit ProtoTracksToParameters(Config cfg);
 
   ~ProtoTracksToParameters() override;

@@ -67,7 +67,6 @@ class CsvMeasurementReader final : public IReader {
   /// Construct the cluster reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvMeasurementReader(const Config& config);
 
   std::string name() const override;

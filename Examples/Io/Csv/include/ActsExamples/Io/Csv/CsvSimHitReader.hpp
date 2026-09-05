@@ -50,7 +50,6 @@ class CsvSimHitReader final : public IReader {
   /// Construct the simhit reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvSimHitReader(const Config& config);
 
   std::string name() const override;

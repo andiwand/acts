@@ -101,7 +101,6 @@ class RootTrackParameterPerformanceWriter final
 
   /// Construct from configuration and log level.
   /// @param config The configuration
-  /// @param level The logger level
   explicit RootTrackParameterPerformanceWriter(Config config);
 
   ~RootTrackParameterPerformanceWriter() override;

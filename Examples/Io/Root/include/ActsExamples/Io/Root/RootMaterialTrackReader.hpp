@@ -55,7 +55,6 @@ class RootMaterialTrackReader : public IReader {
 
   /// Constructor
   /// @param config The Configuration struct
-  /// @param level The log level
   explicit RootMaterialTrackReader(const Config& config);
 
   /// Destructor

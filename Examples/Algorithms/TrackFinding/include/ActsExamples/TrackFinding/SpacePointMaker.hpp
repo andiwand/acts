@@ -79,7 +79,6 @@ class SpacePointMaker final : public IAlgorithm {
   /// Construct the space point maker.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit SpacePointMaker(Config cfg);
 
   /// Run the space point construction.

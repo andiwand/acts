@@ -75,7 +75,6 @@ class RootMaterialWriter : public IMaterialWriter {
   /// Constructor
   ///
   /// @param config The configuration struct
-  /// @param level The log level
   explicit RootMaterialWriter(const Config& config);
 
   /// Virtual destructor

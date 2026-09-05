@@ -65,7 +65,6 @@ class RootSpacePointWriter final : public WriterT<SpacePointContainer> {
   /// Construct the particle writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit RootSpacePointWriter(const Config& config);
 
   /// Ensure underlying file is closed.

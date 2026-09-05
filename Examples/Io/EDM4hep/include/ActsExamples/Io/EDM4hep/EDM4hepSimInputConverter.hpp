@@ -89,7 +89,6 @@ class EDM4hepSimInputConverter final : public PodioInputConverter {
   /// Construct the particle reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit EDM4hepSimInputConverter(const Config& config);
 
   /// Readonly access to the config

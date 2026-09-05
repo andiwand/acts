@@ -97,7 +97,6 @@ class MillePedeAlignmentSandbox final : public IAlgorithm {
 
   /// Constructor of the sandbox algorithm
   /// @param cfg is the config struct to configure the algorithm
-  /// @param level is the logging level
   explicit MillePedeAlignmentSandbox(Config cfg);
 
   ProcessCode initialize() override;

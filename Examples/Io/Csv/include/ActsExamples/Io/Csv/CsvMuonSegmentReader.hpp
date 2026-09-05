@@ -50,7 +50,6 @@ class CsvMuonSegmentReader final : public IReader {
   /// Construct the simhit reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvMuonSegmentReader(const Config& config);
 
   std::string name() const override;

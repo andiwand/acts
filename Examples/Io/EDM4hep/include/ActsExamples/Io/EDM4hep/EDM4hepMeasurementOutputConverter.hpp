@@ -59,7 +59,6 @@ class EDM4hepMeasurementOutputConverter final : public PodioOutputConverter {
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit EDM4hepMeasurementOutputConverter(const Config& config);
 
   /// Readonly access to the config

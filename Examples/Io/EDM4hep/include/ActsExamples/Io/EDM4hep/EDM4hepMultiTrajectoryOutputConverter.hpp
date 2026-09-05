@@ -54,7 +54,6 @@ class EDM4hepMultiTrajectoryOutputConverter : public PodioOutputConverter {
 
   /// constructor
   /// @param config is the configuration object
-  /// @param level is the output logging level
   explicit EDM4hepMultiTrajectoryOutputConverter(const Config& config);
 
   /// Readonly access to the config

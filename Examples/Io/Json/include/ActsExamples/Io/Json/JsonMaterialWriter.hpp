@@ -65,7 +65,6 @@ class JsonMaterialWriter : public IMaterialWriter {
   /// Constructor
   ///
   /// @param config The configuration struct of the writer
-  /// @param level The log level
   explicit JsonMaterialWriter(const Config& config);
 
   /// Virtual destructor

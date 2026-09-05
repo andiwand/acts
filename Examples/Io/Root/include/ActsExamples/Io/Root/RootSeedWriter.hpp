@@ -52,7 +52,6 @@ class RootSeedWriter final : public WriterT<SeedContainer> {
   /// Construct the seed writer.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit RootSeedWriter(const Config& config);
 
   /// Ensure underlying file is closed.

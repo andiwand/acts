@@ -45,7 +45,6 @@ class TrackSummaryPlotTool {
   /// Constructor
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Message level declaration
   explicit TrackSummaryPlotTool(const Config& cfg);
 
   /// @brief fill reco track info w.r.t. fitted track parameters

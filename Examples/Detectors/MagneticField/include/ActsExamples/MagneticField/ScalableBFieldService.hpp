@@ -35,7 +35,6 @@ class ScalableBFieldService : public IContextDecorator {
   /// Construct the magnetic field service.
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Logging level
   explicit ScalableBFieldService(const Config& cfg);
 
   /// The service name.

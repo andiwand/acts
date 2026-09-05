@@ -62,7 +62,6 @@ class TruthSeedingAlgorithm final : public IAlgorithm {
   /// Construct the truth seeding algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit TruthSeedingAlgorithm(Config cfg);
 
   /// Run the truth seeding algorithm.

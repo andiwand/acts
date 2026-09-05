@@ -85,7 +85,6 @@ class AlignmentDecorator : public IContextDecorator {
 
   /// Constructor with configuration and logger
   /// @param config Configuration for the alignment decorator
-  /// @param level Logging level for the decorator
   explicit AlignmentDecorator(const Config& config);
 
   /// Decorate the context with the alignment context

@@ -71,7 +71,6 @@ class EffPlotTool {
   /// Constructor
   ///
   /// @param cfg Configuration struct
-  /// @param lvl Message level declaration
   explicit EffPlotTool(const Config& cfg);
 
   /// @brief fill efficiency plots

@@ -44,7 +44,6 @@ class CsvMuonSpacePointReader final : public IReader {
   /// Construct the simhit reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit CsvMuonSpacePointReader(const Config& config);
 
   std::string name() const override;

@@ -53,7 +53,6 @@ class RootTrackSummaryReader : public IReader {
 
   /// Constructor
   /// @param config The Configuration struct
-  /// @param level The log level
   explicit RootTrackSummaryReader(const Config& config);
 
   /// Framework name() method

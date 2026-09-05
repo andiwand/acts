@@ -55,7 +55,6 @@ class ObjTrackingGeometryWriter {
 
   /// Constructor
   /// @param config is the configuration class
-  /// @param level the log level
   explicit ObjTrackingGeometryWriter(const Config& config);
 
   /// Framework name() method

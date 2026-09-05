@@ -46,7 +46,6 @@ class PodioReader : public IReader {
   /// Construct the reader.
   ///
   /// @param config The configuration struct.
-  /// @param level The logging level.
   /// @throws std::invalid_argument if the configuration is invalid
   explicit PodioReader(const Config& config);
 

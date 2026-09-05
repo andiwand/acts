@@ -64,7 +64,6 @@ class RootTrackParameterWriter final
   /// Constructor
   ///
   /// @param config Configuration struct
-  /// @param level Message level declaration
   explicit RootTrackParameterWriter(const Config& config);
 
   /// Virtual destructor

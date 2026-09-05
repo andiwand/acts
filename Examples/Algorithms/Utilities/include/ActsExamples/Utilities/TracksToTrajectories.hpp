@@ -34,7 +34,6 @@ class TracksToTrajectories final : public IAlgorithm {
   /// Construct the algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit TracksToTrajectories(Config cfg);
 
   /// Run the algorithm.

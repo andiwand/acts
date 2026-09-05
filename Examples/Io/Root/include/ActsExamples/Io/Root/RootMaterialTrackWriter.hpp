@@ -75,7 +75,6 @@ class RootMaterialTrackWriter
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit RootMaterialTrackWriter(const Config& config);
 
   /// Virtual destructor

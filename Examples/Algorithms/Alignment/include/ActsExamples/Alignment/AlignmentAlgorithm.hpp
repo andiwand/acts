@@ -122,7 +122,6 @@ class AlignmentAlgorithm final : public IAlgorithm {
   /// Constructor of the alignment algorithm
   ///
   /// @param cfg is the config struct to configure the algorithm
-  /// @param level is the logging level
   explicit AlignmentAlgorithm(Config cfg);
 
   /// Framework execute method of the alignment algorithm

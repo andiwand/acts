@@ -67,7 +67,6 @@ class MaterialMapping : public IAlgorithm {
   /// Constructor
   ///
   /// @param cfg The configuration struct carrying the used tools
-  /// @param level The output logging level
   explicit MaterialMapping(const Config& cfg);
 
   /// Framework execute method

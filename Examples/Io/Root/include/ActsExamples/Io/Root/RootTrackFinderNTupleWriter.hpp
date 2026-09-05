@@ -51,7 +51,6 @@ class RootTrackFinderNTupleWriter final : public WriterT<ConstTrackContainer> {
 
   /// Constructor
   /// @param config the configuration
-  /// @param level The log level
   explicit RootTrackFinderNTupleWriter(Config config);
 
   ~RootTrackFinderNTupleWriter() override;

@@ -50,7 +50,6 @@ class CsvTrackParameterWriter final : public IWriter {
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit CsvTrackParameterWriter(const Config& config);
 
   /// Virtual destructor

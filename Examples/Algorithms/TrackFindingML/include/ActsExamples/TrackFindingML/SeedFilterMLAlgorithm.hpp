@@ -61,7 +61,6 @@ class SeedFilterMLAlgorithm : public IAlgorithm {
   /// Construct the seed filter algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit SeedFilterMLAlgorithm(const Config& cfg);
 
   /// Run the seed filter algorithm.

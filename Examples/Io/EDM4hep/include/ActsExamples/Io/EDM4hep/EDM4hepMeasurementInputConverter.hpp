@@ -56,7 +56,6 @@ class EDM4hepMeasurementInputConverter final : public PodioInputConverter {
   /// Construct the cluster reader.
   ///
   /// @param config is the configuration object
-  /// @param level is the logging level
   explicit EDM4hepMeasurementInputConverter(const Config& config);
 
   /// Read out data from the input stream.

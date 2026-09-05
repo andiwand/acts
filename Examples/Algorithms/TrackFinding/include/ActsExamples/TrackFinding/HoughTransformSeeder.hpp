@@ -231,7 +231,6 @@ class HoughTransformSeeder final : public IAlgorithm {
   /// Construct the seeding algorithm.
   ///
   /// @param cfg is the algorithm configuration
-  /// @param lvl is the logging level
   explicit HoughTransformSeeder(const Config& cfg);
 
   /// Run the seeding algorithm.

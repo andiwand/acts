@@ -43,7 +43,6 @@ class CsvSpacePointWriter final : public WriterT<SpacePointContainer> {
 
   /// Constructor with
   /// @param config configuration struct
-  /// @param level logging level
   explicit CsvSpacePointWriter(const Config& config);
 
   /// Virtual destructor
