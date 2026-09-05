@@ -14,6 +14,7 @@
 #include "Acts/Utilities/Histogram.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <map>
 #include <memory>
@@ -35,6 +36,10 @@ class ResPlotTool {
 
   /// @brief Nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Track parameter names, one per bound parameter.
     ///
     /// Empty by default because the first two depend on the surface the
@@ -76,7 +81,7 @@ class ResPlotTool {
 
   /// @param cfg Configuration struct
   /// @param level Message level declaration
-  ResPlotTool(const Config& cfg, Acts::Logging::Level lvl);
+  explicit ResPlotTool(const Config& cfg);
 
   /// @param gctx the geometry context
   /// @param truthParticle the truth particle
@@ -137,7 +142,7 @@ class ResPlotTool {
  private:
   Config m_cfg;
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// Residual distribution
   std::map<std::string, Histogram1> m_res;

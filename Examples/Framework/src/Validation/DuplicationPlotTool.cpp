@@ -33,9 +33,8 @@ ProfileHistogram1 makeProfile(const DuplicationPlotTool::Config& cfg,
 
 }  // namespace
 
-DuplicationPlotTool::DuplicationPlotTool(const DuplicationPlotTool::Config& cfg,
-                                         Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("DuplicationPlotTool", lvl)) {
+DuplicationPlotTool::DuplicationPlotTool(const DuplicationPlotTool::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "DuplicationPlotTool")) {
   ACTS_DEBUG("Initialize the histograms for duplication ratio plots");
 
   std::string dupTitle =

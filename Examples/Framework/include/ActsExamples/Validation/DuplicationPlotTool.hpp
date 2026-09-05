@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Histogram.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <cstddef>
 #include <map>
@@ -35,6 +36,10 @@ class DuplicationPlotTool {
 
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::string label = "track";
     /// Truth-particle binning (used by nDuplicated-vs-truth profiles).
     std::map<std::string, AxisVariant> varBinning = {
@@ -54,7 +59,7 @@ class DuplicationPlotTool {
   ///
   /// @param cfg Configuration struct
   /// @param lvl Message level declaration
-  DuplicationPlotTool(const Config& cfg, Acts::Logging::Level lvl);
+  explicit DuplicationPlotTool(const Config& cfg);
 
   /// @brief fill duplication ratio w.r.t. fitted track parameters
   ///
@@ -80,7 +85,7 @@ class DuplicationPlotTool {
   const Acts::Logger& logger() const { return *m_logger; }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   std::map<std::string, ProfileHistogram1> m_profiles;
   std::map<std::string, Efficiency1> m_efficiencies;

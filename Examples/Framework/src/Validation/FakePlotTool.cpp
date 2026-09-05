@@ -31,9 +31,8 @@ std::string capitalize(std::string_view s) {
 
 namespace ActsExamples {
 
-FakePlotTool::FakePlotTool(const FakePlotTool::Config& cfg,
-                           Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("FakePlotTool", lvl)) {
+FakePlotTool::FakePlotTool(const FakePlotTool::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "FakePlotTool")) {
   ACTS_DEBUG("Initialize the histograms for fake ratio plots");
 
   std::string lt = capitalize(m_cfg.label);

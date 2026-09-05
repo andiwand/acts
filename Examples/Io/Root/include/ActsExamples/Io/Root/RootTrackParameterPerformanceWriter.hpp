@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Validation/EffPlotTool.hpp"
@@ -52,6 +53,10 @@ class RootTrackParameterPerformanceWriter final
     : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection.
     std::string inputTracks;
     /// Input particles collection. `Truth` reference only.
@@ -97,8 +102,7 @@ class RootTrackParameterPerformanceWriter final
   /// Construct from configuration and log level.
   /// @param config The configuration
   /// @param level The logger level
-  RootTrackParameterPerformanceWriter(Config config,
-                                      Acts::Logging::Level level);
+  explicit RootTrackParameterPerformanceWriter(Config config);
 
   ~RootTrackParameterPerformanceWriter() override;
 

@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Validation/DuplicationPlotTool.hpp"
 #include "ActsExamples/Validation/EffPlotTool.hpp"
 #include "ActsExamples/Validation/FakePlotTool.hpp"
@@ -34,6 +35,10 @@ namespace ActsExamples {
 class PatternRecognitionPerformanceCollector {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Label used to customize histogram titles and names
     std::string label = "track";
     EffPlotTool::Config effPlotToolConfig;
@@ -47,8 +52,7 @@ class PatternRecognitionPerformanceCollector {
     std::map<std::string, std::set<int>> subDetectorTrackSummaryVolumes;
   };
 
-  PatternRecognitionPerformanceCollector(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger);
+  explicit PatternRecognitionPerformanceCollector(Config cfg);
 
   /// Fill histograms for one event.
   ///
@@ -101,7 +105,7 @@ class PatternRecognitionPerformanceCollector {
   const Acts::Logger& logger() const { return *m_logger; }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   EffPlotTool m_effPlotTool;
   FakePlotTool m_fakePlotTool;

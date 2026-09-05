@@ -72,7 +72,9 @@ BOOST_AUTO_TEST_SUITE(ValidationResPlotTool)
 // a track pointing along -x has truth and reco phi on opposite sides of the
 // wrap, where the naive difference is almost a full turn
 BOOST_AUTO_TEST_CASE(PhiResidualWrapsAround) {
-  ResPlotTool tool(makeConfig(), Acts::Logging::INFO);
+  auto toolCfg = makeConfig();
+  toolCfg.logger = toolCfg.logger->clone(std::nullopt, Acts::Logging::INFO);
+  ResPlotTool tool(toolCfg);
 
   const auto surface = Surface::makeShared<PerigeeSurface>(Vector3::Zero());
   const double delta = 0.00105;
@@ -89,7 +91,9 @@ BOOST_AUTO_TEST_CASE(PhiResidualWrapsAround) {
 
 // the same fill away from the wrap must be untouched by it
 BOOST_AUTO_TEST_CASE(PhiResidualAwayFromTheWrap) {
-  ResPlotTool tool(makeConfig(), Acts::Logging::INFO);
+  auto toolCfg = makeConfig();
+  toolCfg.logger = toolCfg.logger->clone(std::nullopt, Acts::Logging::INFO);
+  ResPlotTool tool(toolCfg);
 
   const auto surface = Surface::makeShared<PerigeeSurface>(Vector3::Zero());
   const double delta = 0.00105;

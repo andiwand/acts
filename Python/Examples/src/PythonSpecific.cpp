@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Validation/EffPlotTool.hpp"
@@ -56,6 +57,11 @@ class PythonPatternRecognitionPerformanceWriter final
     : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger =
+        ActsExamples::makeDefaultLogger();
+
     /// Input (found) tracks collection.
     std::string inputTracks;
     /// Input particles collection.
@@ -79,19 +85,20 @@ class PythonPatternRecognitionPerformanceWriter final
     std::map<std::string, std::set<int>> subDetectorTrackSummaryVolumes;
   };
 
-  PythonPatternRecognitionPerformanceWriter(Config cfg,
-                                            Acts::Logging::Level lvl)
+  explicit PythonPatternRecognitionPerformanceWriter(Config cfg)
       : WriterT(cfg.inputTracks, "PythonPatternRecognitionPerformanceWriter",
-                lvl),
+                cfg.logger),
         m_cfg(std::move(cfg)),
-        m_collector(
-            PatternRecognitionPerformanceCollector::Config{
-                m_cfg.label, m_cfg.effPlotToolConfig, m_cfg.fakePlotToolConfig,
-                m_cfg.duplicationPlotToolConfig,
-                m_cfg.trackSummaryPlotToolConfig,
-                m_cfg.trackQualityPlotToolConfig,
-                m_cfg.subDetectorTrackSummaryVolumes},
-            logger().clone()) {
+        m_collector(PatternRecognitionPerformanceCollector::Config{
+            .logger = logger().clone(),
+            .label = m_cfg.label,
+            .effPlotToolConfig = m_cfg.effPlotToolConfig,
+            .fakePlotToolConfig = m_cfg.fakePlotToolConfig,
+            .duplicationPlotToolConfig = m_cfg.duplicationPlotToolConfig,
+            .trackSummaryPlotToolConfig = m_cfg.trackSummaryPlotToolConfig,
+            .trackQualityPlotToolConfig = m_cfg.trackQualityPlotToolConfig,
+            .subDetectorTrackSummaryVolumes =
+                m_cfg.subDetectorTrackSummaryVolumes}) {
     if (m_cfg.inputParticles.empty()) {
       throw std::invalid_argument("Missing particles input collection");
     }
@@ -203,6 +210,11 @@ class PythonTrackParameterPerformanceWriter final
     : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger =
+        ActsExamples::makeDefaultLogger();
+
     /// Input tracks collection.
     std::string inputTracks;
     /// Input particles collection.
@@ -238,13 +250,15 @@ class PythonTrackParameterPerformanceWriter final
     collectorCfg.fitIterations = cfg.fitIterations;
     collectorCfg.warningThresholdFitFailureFraction =
         cfg.warningThresholdFitFailureFraction;
+    collectorCfg.logger = cfg.logger;
     return collectorCfg;
   }
 
-  PythonTrackParameterPerformanceWriter(Config cfg, Acts::Logging::Level lvl)
-      : WriterT(cfg.inputTracks, "PythonTrackParameterPerformanceWriter", lvl),
+  explicit PythonTrackParameterPerformanceWriter(Config cfg)
+      : WriterT(cfg.inputTracks, "PythonTrackParameterPerformanceWriter",
+                cfg.logger),
         m_cfg(std::move(cfg)),
-        m_collector(collectorConfig(m_cfg), logger().clone()) {
+        m_collector(collectorConfig(m_cfg)) {
     if (m_cfg.inputParticles.empty()) {
       throw std::invalid_argument("Missing particles input collection");
     }
@@ -363,12 +377,12 @@ void addPythonSpecific(py::module_& mex) {
 
     auto w = py::class_<Writer, IWriter, std::shared_ptr<Writer>>(
                  mex, "PythonPatternRecognitionPerformanceWriter")
-                 .def(py::init<const Config&, Acts::Logging::Level>(),
-                      py::arg("config"), py::arg("level"))
+                 .def(py::init<const Config&>(), py::arg("config"))
                  .def_property_readonly("config", &Writer::config)
                  .def("histograms", &Writer::histograms);
 
     auto c = py::class_<Config>(w, "Config").def(py::init<>());
+    declareLoggingConfig(c);
     ACTS_PYTHON_STRUCT(c, inputTracks, inputParticles,
                        inputTrackParticleMatching, inputParticleTrackMatching,
                        inputParticleMeasurementsMap, label, effPlotToolConfig,
@@ -383,12 +397,12 @@ void addPythonSpecific(py::module_& mex) {
 
     auto w = py::class_<Writer, IWriter, std::shared_ptr<Writer>>(
                  mex, "PythonTrackParameterPerformanceWriter")
-                 .def(py::init<const Config&, Acts::Logging::Level>(),
-                      py::arg("config"), py::arg("level"))
+                 .def(py::init<const Config&>(), py::arg("config"))
                  .def_property_readonly("config", &Writer::config)
                  .def("histograms", &Writer::histograms);
 
     auto c = py::class_<Config>(w, "Config").def(py::init<>());
+    declareLoggingConfig(c);
     ACTS_PYTHON_STRUCT(c, inputTracks, inputParticles,
                        inputTrackParticleMatching, filePath, resPlotToolConfig,
                        effPlotToolConfig, trackSummaryPlotToolConfig,

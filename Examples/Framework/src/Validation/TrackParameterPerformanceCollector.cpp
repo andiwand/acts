@@ -46,13 +46,24 @@ ResPlotTool::Config resPlotToolConfig(
 }  // namespace
 
 TrackParameterPerformanceCollector::TrackParameterPerformanceCollector(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
+    Config cfg)
     : m_cfg(std::move(cfg)),
-      m_logger(std::move(logger)),
-      m_resPlotTool(resPlotToolConfig(m_cfg), m_logger->level()),
-      m_effPlotTool(m_cfg.effPlotToolConfig, m_logger->level()),
-      m_trackSummaryPlotTool(m_cfg.trackSummaryPlotToolConfig,
-                             m_logger->level()) {
+      m_logger(makeLogger(m_cfg.logger, "TrackParameterPerformanceCollector")),
+      m_resPlotTool([&] {
+        auto c = resPlotToolConfig(m_cfg);
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return ResPlotTool(c);
+      }()),
+      m_effPlotTool([&] {
+        auto c = m_cfg.effPlotToolConfig;
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return EffPlotTool(c);
+      }()),
+      m_trackSummaryPlotTool([&] {
+        auto c = m_cfg.trackSummaryPlotToolConfig;
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return TrackSummaryPlotTool(c);
+      }()) {
   if (m_cfg.parameterSource == TrackParameterSource::Track &&
       (m_cfg.parameterType.has_value() || !m_cfg.geometrySelection.empty())) {
     throw std::invalid_argument(

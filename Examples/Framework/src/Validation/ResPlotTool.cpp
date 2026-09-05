@@ -34,9 +34,8 @@ static double wrapResidual(std::size_t index, double residual) {
   return Acts::detail::difference_periodic(residual, 0., 2 * std::numbers::pi);
 }
 
-ResPlotTool::ResPlotTool(const ResPlotTool::Config& cfg,
-                         Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("ResPlotTool", lvl)) {
+ResPlotTool::ResPlotTool(const ResPlotTool::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "ResPlotTool")) {
   // `varBinning.at` would only report the key type, not the missing key
   const auto binning = [this](const std::string& key) -> const AxisVariant& {
     const auto it = m_cfg.varBinning.find(key);

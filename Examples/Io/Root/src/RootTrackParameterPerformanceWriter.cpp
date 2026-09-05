@@ -47,17 +47,18 @@ TrackParameterPerformanceCollector::Config collectorConfig(
   collectorCfg.fitIterations = cfg.fitIterations;
   collectorCfg.warningThresholdFitFailureFraction =
       cfg.warningThresholdFitFailureFraction;
+  collectorCfg.logger = cfg.logger;
   return collectorCfg;
 }
 
 }  // namespace
 
 RootTrackParameterPerformanceWriter::RootTrackParameterPerformanceWriter(
-    RootTrackParameterPerformanceWriter::Config config,
-    Acts::Logging::Level level)
-    : WriterT(config.inputTracks, "RootTrackParameterPerformanceWriter", level),
+    RootTrackParameterPerformanceWriter::Config config)
+    : WriterT(config.inputTracks, "RootTrackParameterPerformanceWriter",
+              config.logger),
       m_cfg(std::move(config)),
-      m_collector(collectorConfig(m_cfg), logger().clone()) {
+      m_collector(collectorConfig(m_cfg)) {
   // trajectories collection name is already checked by base ctor
   if (m_cfg.filePath.empty()) {
     throw std::invalid_argument("Missing output filename");

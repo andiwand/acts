@@ -32,10 +32,8 @@ ProfileHistogram1 makeProfile(const TrackQualityPlotTool::Config& cfg,
 
 }  // namespace
 
-TrackQualityPlotTool::TrackQualityPlotTool(const Config& cfg,
-                                           Acts::Logging::Level lvl)
-    : m_cfg(cfg),
-      m_logger(Acts::getDefaultLogger("TrackQualityPlotTool", lvl)) {
+TrackQualityPlotTool::TrackQualityPlotTool(const Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "TrackQualityPlotTool")) {
   ACTS_DEBUG("Initialize the histograms for track quality plots");
 
   m_profiles.insert({"completeness_vs_pT",

@@ -18,34 +18,45 @@
 namespace ActsExamples {
 
 PatternRecognitionPerformanceCollector::PatternRecognitionPerformanceCollector(
-    Config cfg, std::unique_ptr<const Acts::Logger> logger)
+    Config cfg)
     : m_cfg(std::move(cfg)),
-      m_logger(std::move(logger)),
+      m_logger(
+          makeLogger(m_cfg.logger, "PatternRecognitionPerformanceCollector")),
       m_effPlotTool([&]() {
         auto c = m_cfg.effPlotToolConfig;
         c.label = m_cfg.label;
-        return EffPlotTool(c, m_logger->level());
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return EffPlotTool(c);
       }()),
       m_fakePlotTool([&]() {
         auto c = m_cfg.fakePlotToolConfig;
         c.label = m_cfg.label;
-        return FakePlotTool(c, m_logger->level());
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return FakePlotTool(c);
       }()),
       m_duplicationPlotTool([&]() {
         auto c = m_cfg.duplicationPlotToolConfig;
         c.label = m_cfg.label;
-        return DuplicationPlotTool(c, m_logger->level());
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return DuplicationPlotTool(c);
       }()),
-      m_trackSummaryPlotTool(m_cfg.trackSummaryPlotToolConfig,
-                             m_logger->level()),
-      m_trackQualityPlotTool(m_cfg.trackQualityPlotToolConfig,
-                             m_logger->level()) {
+      m_trackSummaryPlotTool([&] {
+        auto c = m_cfg.trackSummaryPlotToolConfig;
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return TrackSummaryPlotTool(c);
+      }()),
+      m_trackQualityPlotTool([&] {
+        auto c = m_cfg.trackQualityPlotToolConfig;
+        c.logger = c.logger->clone(std::nullopt, m_logger->level());
+        return TrackQualityPlotTool(c);
+      }()) {
   for (const auto& [key, _] : m_cfg.subDetectorTrackSummaryVolumes) {
     TrackSummaryPlotTool::Config subConfig = m_cfg.trackSummaryPlotToolConfig;
     subConfig.prefix = key;
-    m_subDetectorSummaryTools.emplace(
-        std::piecewise_construct, std::forward_as_tuple(key),
-        std::forward_as_tuple(subConfig, m_logger->level()));
+    subConfig.logger = subConfig.logger->clone(std::nullopt, m_logger->level());
+    m_subDetectorSummaryTools.emplace(std::piecewise_construct,
+                                      std::forward_as_tuple(key),
+                                      std::forward_as_tuple(subConfig));
   }
 }
 

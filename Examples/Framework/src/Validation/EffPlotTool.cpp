@@ -29,9 +29,8 @@ std::string effName(std::string_view label, std::string_view suffix) {
 
 namespace ActsExamples {
 
-EffPlotTool::EffPlotTool(const EffPlotTool::Config& cfg,
-                         Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("EffPlotTool", lvl)) {
+EffPlotTool::EffPlotTool(const EffPlotTool::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "EffPlotTool")) {
   ACTS_DEBUG("Initialize the histograms for efficiency plots");
 
   const std::string effTitlePtCut =

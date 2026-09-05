@@ -39,17 +39,20 @@ void writeTrackSummaryPlots(const TrackSummaryPlotTool& tool) {
 
 RootPatternRecognitionPerformanceWriter::
     RootPatternRecognitionPerformanceWriter(
-        RootPatternRecognitionPerformanceWriter::Config cfg,
-        Acts::Logging::Level lvl)
-    : WriterT(cfg.inputTracks, "RootPatternRecognitionPerformanceWriter", lvl),
+        RootPatternRecognitionPerformanceWriter::Config cfg)
+    : WriterT(cfg.inputTracks, "RootPatternRecognitionPerformanceWriter",
+              cfg.logger),
       m_cfg(std::move(cfg)),
-      m_collector(
-          PatternRecognitionPerformanceCollector::Config{
-              m_cfg.label, m_cfg.effPlotToolConfig, m_cfg.fakePlotToolConfig,
-              m_cfg.duplicationPlotToolConfig, m_cfg.trackSummaryPlotToolConfig,
-              m_cfg.trackQualityPlotToolConfig,
-              m_cfg.subDetectorTrackSummaryVolumes},
-          logger().clone()) {
+      m_collector(PatternRecognitionPerformanceCollector::Config{
+          .logger = logger().clone(),
+          .label = m_cfg.label,
+          .effPlotToolConfig = m_cfg.effPlotToolConfig,
+          .fakePlotToolConfig = m_cfg.fakePlotToolConfig,
+          .duplicationPlotToolConfig = m_cfg.duplicationPlotToolConfig,
+          .trackSummaryPlotToolConfig = m_cfg.trackSummaryPlotToolConfig,
+          .trackQualityPlotToolConfig = m_cfg.trackQualityPlotToolConfig,
+          .subDetectorTrackSummaryVolumes =
+              m_cfg.subDetectorTrackSummaryVolumes}) {
   // tracks collection name is already checked by base ctor
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing particles input collection");

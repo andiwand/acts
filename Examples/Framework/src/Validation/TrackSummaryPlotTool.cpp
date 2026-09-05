@@ -35,9 +35,8 @@ ProfileHistogram1 makeProfile(
 namespace ActsExamples {
 
 TrackSummaryPlotTool::TrackSummaryPlotTool(
-    const TrackSummaryPlotTool::Config& cfg, Acts::Logging::Level lvl)
-    : m_cfg(cfg),
-      m_logger(Acts::getDefaultLogger("TrackSummaryPlotTool", lvl)) {
+    const TrackSummaryPlotTool::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "TrackSummaryPlotTool")) {
   ACTS_DEBUG(
       "Initialize the histograms for track info plots"
       << (m_cfg.prefix.empty() ? "" : ", use prefix '" + m_cfg.prefix + "'"));

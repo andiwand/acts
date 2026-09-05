@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Validation/DuplicationPlotTool.hpp"
@@ -45,6 +46,10 @@ class RootPatternRecognitionPerformanceWriter final
     : public WriterT<ConstTrackContainer> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input (found) tracks collection.
     std::string inputTracks;
     /// Input particles collection.
@@ -78,7 +83,7 @@ class RootPatternRecognitionPerformanceWriter final
   };
 
   /// Construct from configuration and log level.
-  RootPatternRecognitionPerformanceWriter(Config cfg, Acts::Logging::Level lvl);
+  explicit RootPatternRecognitionPerformanceWriter(Config cfg);
   ~RootPatternRecognitionPerformanceWriter() override;
 
   /// Finalize plots.

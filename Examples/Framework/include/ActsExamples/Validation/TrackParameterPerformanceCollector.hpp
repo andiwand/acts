@@ -17,6 +17,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Validation/EffPlotTool.hpp"
 #include "ActsExamples/Validation/HistogramFit.hpp"
 #include "ActsExamples/Validation/ParametersOnSurface.hpp"
@@ -73,6 +74,10 @@ enum class TrackParameterReference {
 class TrackParameterPerformanceCollector {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Empty @c ResPlotTool::Config::paramNames are filled in from
     /// @c parameterSource.
     ResPlotTool::Config resPlotToolConfig;
@@ -107,8 +112,7 @@ class TrackParameterPerformanceCollector {
     double warningThresholdFitFailureFraction = 0.55;
   };
 
-  TrackParameterPerformanceCollector(
-      Config cfg, std::unique_ptr<const Acts::Logger> logger);
+  explicit TrackParameterPerformanceCollector(Config cfg);
 
   /// Fill histograms for one event.
   ///
@@ -213,7 +217,7 @@ class TrackParameterPerformanceCollector {
       std::vector<Acts::Experimental::Histogram<Dim - 1>>& out) const;
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   ResPlotTool m_resPlotTool;
   EffPlotTool m_effPlotTool;

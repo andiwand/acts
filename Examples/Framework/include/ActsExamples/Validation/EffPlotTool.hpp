@@ -14,6 +14,7 @@
 #include "Acts/Utilities/Histogram.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <map>
 #include <memory>
@@ -35,6 +36,10 @@ class EffPlotTool {
 
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::string label = "track";
     std::map<std::string, AxisVariant> varBinning = {
         {"Eta", BoostRegularAxis(40, -3.0, 3.0, "truth #eta")},
@@ -67,7 +72,7 @@ class EffPlotTool {
   ///
   /// @param cfg Configuration struct
   /// @param lvl Message level declaration
-  EffPlotTool(const Config& cfg, Acts::Logging::Level lvl);
+  explicit EffPlotTool(const Config& cfg);
 
   /// @brief fill efficiency plots
   ///
@@ -96,7 +101,7 @@ class EffPlotTool {
   const Acts::Logger& logger() const { return *m_logger; }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   std::map<std::string, Efficiency1> m_efficiencies1D;
   std::map<std::string, Efficiency2> m_efficiencies2D;

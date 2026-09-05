@@ -11,6 +11,7 @@
 #include "Acts/EventData/BoundTrackParameters.hpp"
 #include "Acts/Utilities/Histogram.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <cstddef>
 #include <map>
@@ -28,6 +29,10 @@ class TrackSummaryPlotTool {
 
   /// @brief The nested configuration struct
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::map<std::string, AxisVariant> varBinning = {
         {"Eta", BoostRegularAxis(40, -4, 4, "reco #eta")},
         {"Phi", BoostRegularAxis(100, -3.15, 3.15, "reco #phi")},
@@ -41,7 +46,7 @@ class TrackSummaryPlotTool {
   ///
   /// @param cfg Configuration struct
   /// @param lvl Message level declaration
-  TrackSummaryPlotTool(const Config& cfg, Acts::Logging::Level lvl);
+  explicit TrackSummaryPlotTool(const Config& cfg);
 
   /// @brief fill reco track info w.r.t. fitted track parameters
   ///
@@ -64,7 +69,7 @@ class TrackSummaryPlotTool {
   const Acts::Logger& logger() const { return *m_logger; }
 
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   std::map<std::string, ProfileHistogram1> m_profiles;
 };
