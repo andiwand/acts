@@ -36,17 +36,12 @@ concept LoggingConfig = requires(C& c) {
   { c.logger } -> std::same_as<std::shared_ptr<const Acts::Logger>&>;
 };
 
-/// Concept for types usable with declareAlgorithm. Either the config carries
-/// the logger and the algorithm takes only the config, or the logger is still
-/// a constructor argument. The second form goes away once every component has
-/// moved the logger into its config.
+/// Concept for types usable with declareAlgorithm: the config carries the
+/// logger and the algorithm takes only the config.
 template <typename A>
 concept DeclarableAlgorithm =
-    requires { typename A::Config; } &&
-    (std::constructible_from<A, const typename A::Config&,
-                             std::unique_ptr<const Acts::Logger>> ||
-     (LoggingConfig<typename A::Config> &&
-      std::constructible_from<A, const typename A::Config&>)) &&
+    requires { typename A::Config; } && LoggingConfig<typename A::Config> &&
+    std::constructible_from<A, const typename A::Config&> &&
     requires(const A& a) {
       { a.config() } -> std::same_as<const typename A::Config&>;
     };
@@ -99,18 +94,10 @@ void setConfigLevel(Config& cfg, Acts::Logging::Level level) {
   cfg.logger = cfg.logger->clone(std::nullopt, level);
 }
 
-/// Bind the constructor a component offers: the config alone once its config
-/// carries the logger, the config plus a level while it does not.
+/// Bind the constructor of a component: the config carries its logger.
 template <typename T, typename C>
 void declareComponentInit(C& c) {
-  using Config = typename T::Config;
-  if constexpr (ActsPython::Concepts::LoggingConfig<Config> &&
-                std::constructible_from<T, const Config&>) {
-    c.def(pybind11::init<const Config&>(), pybind11::arg("config"));
-  } else {
-    c.def(pybind11::init<const Config&, Acts::Logging::Level>(),
-          pybind11::arg("config"), pybind11::arg("level"));
-  }
+  c.def(pybind11::init<const typename T::Config&>(), pybind11::arg("config"));
 }
 
 /// Register the logging members on a bound config class. Done here instead of
@@ -127,30 +114,14 @@ template <ActsPython::Concepts::DeclarableAlgorithm A, typename B>
 auto declareAlgorithm(pybind11::module_& m, const char* name) {
   using Config = typename A::Config;
   namespace py = pybind11;
-  auto alg = py::class_<A, B, std::shared_ptr<A>>(m, name);
-  if constexpr (ActsPython::Concepts::LoggingConfig<Config> &&
-                std::constructible_from<A, const Config&>) {
-    alg.def(py::init<const Config&>(), py::arg("config"));
-  } else {
-    alg.def(py::init([name](const Config& cfg, Acts::Logging::Level level) {
-              return std::make_shared<A>(cfg,
-                                         Acts::getDefaultLogger(name, level));
-            }),
-            py::arg("config"), py::arg("level"))
-        .def(py::init([](const Config& cfg,
-                         std::unique_ptr<const Acts::Logger> logger) {
-               return std::make_shared<A>(cfg, std::move(logger));
-             }),
-             py::arg("config"), py::arg("logger"));
-  }
-  alg.def_property_readonly("config", &A::config);
+  auto alg = py::class_<A, B, std::shared_ptr<A>>(m, name)
+                 .def(py::init<const Config&>(), py::arg("config"))
+                 .def_property_readonly("config", &A::config);
   auto c = py::class_<Config>(alg, "Config");
   if constexpr (std::is_default_constructible_v<Config>) {
     c.def(py::init<>());
   }
-  if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {
-    declareLoggingConfig(c);
-  }
+  declareLoggingConfig(c);
   return std::tuple{alg, c};
 }
 
@@ -181,9 +152,7 @@ auto declareAlgorithm(pybind11::module_& m, const char* name) {
       w.def("write", &Writer::write);                                       \
     }                                                                       \
     auto c = py::class_<Config>(w, "Config").def(py::init<>());             \
-    if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {            \
-      declareLoggingConfig(c);                                              \
-    }                                                                       \
+    declareLoggingConfig(c);                                                \
     ACTS_PYTHON_STRUCT(c, __VA_ARGS__);                                     \
   } while (0)
 
@@ -199,8 +168,6 @@ auto declareAlgorithm(pybind11::module_& m, const char* name) {
     declareComponentInit<Reader>(r);                                        \
                                                                             \
     auto c = py::class_<Config>(r, "Config").def(py::init<>());             \
-    if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {            \
-      declareLoggingConfig(c);                                              \
-    }                                                                       \
+    declareLoggingConfig(c);                                                \
     ACTS_PYTHON_STRUCT(c, __VA_ARGS__);                                     \
   } while (0)

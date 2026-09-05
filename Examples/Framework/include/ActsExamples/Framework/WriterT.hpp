@@ -40,23 +40,6 @@ class WriterT : public IWriter {
  public:
   /// @param objectName The object that should be read from the event store
   /// @param writerName The name of the writer, e.g. for logging output
-  /// @param level The internal log level
-  WriterT(std::string objectName, std::string writerName,
-          Acts::Logging::Level level)
-      : m_objectName(std::move(objectName)),
-        m_writerName(std::move(writerName)),
-        m_logger(Acts::getDefaultLogger(m_writerName, level)) {
-    if (m_objectName.empty()) {
-      throw std::invalid_argument("Missing input collection");
-    } else if (m_writerName.empty()) {
-      throw std::invalid_argument("Missing writer name");
-    }
-
-    m_inputHandle.initialize(m_objectName);
-  }
-
-  /// @param objectName The object that should be read from the event store
-  /// @param writerName The name of the writer, e.g. for logging output
   /// @param logger The logger from the writer config. An unnamed logger is
   ///        named after the writer.
   WriterT(std::string objectName, std::string writerName,

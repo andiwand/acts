@@ -25,20 +25,13 @@ namespace ActsExamples {
 /// Algorithm implementations only need to implement the `execute` method.
 class IAlgorithm : public SequenceElement {
  public:
-  /// Constructor
-  ///
-  /// @name The algorithm name
-  /// @logger The logger for this algorithm
-  explicit IAlgorithm(const std::string& name,
-                      std::unique_ptr<const Acts::Logger> logger = nullptr);
-
   /// Constructor taking the logger from the algorithm config
   ///
   /// @param name The algorithm name
   /// @param logger The logger from the algorithm config. An unnamed logger is
   ///        named after the algorithm.
   IAlgorithm(const std::string& name,
-             std::shared_ptr<const Acts::Logger> logger);
+             std::shared_ptr<const Acts::Logger> logger = nullptr);
 
   /// The algorithm name.
   std::string name() const override;
