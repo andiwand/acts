@@ -12,6 +12,7 @@
 
 #include <concepts>
 #include <memory>
+#include <stdexcept>
 
 #include <boost/preprocessor/seq/for_each.hpp>
 #include <boost/preprocessor/variadic/to_seq.hpp>
@@ -29,14 +30,23 @@ concept has_write_method =
       { t.write(ctx) } -> std::same_as<ActsExamples::ProcessCode>;
     };
 
-/// Concept for types usable with declareAlgorithm.
-/// Requires: nested Config type, constructors (Config const&, Level) and
-/// (Config const&, unique_ptr<Logger>), and config() returning const Config&.
+/// A config that carries the component's logger.
+template <typename C>
+concept LoggingConfig = requires(C& c) {
+  { c.logger } -> std::same_as<std::shared_ptr<const Acts::Logger>&>;
+};
+
+/// Concept for types usable with declareAlgorithm. Either the config carries
+/// the logger and the algorithm takes only the config, or the logger is still
+/// a constructor argument. The second form goes away once every component has
+/// moved the logger into its config.
 template <typename A>
 concept DeclarableAlgorithm =
     requires { typename A::Config; } &&
-    std::constructible_from<A, const typename A::Config&,
-                            std::unique_ptr<const Acts::Logger>> &&
+    (std::constructible_from<A, const typename A::Config&,
+                             std::unique_ptr<const Acts::Logger>> ||
+     (LoggingConfig<typename A::Config> &&
+      std::constructible_from<A, const typename A::Config&>)) &&
     requires(const A& a) {
       { a.config() } -> std::same_as<const typename A::Config&>;
     };
@@ -70,26 +80,76 @@ concept DeclarableAlgorithm =
     ACTS_PYTHON_STRUCT_END();                                    \
   } while (0)
 
+/// Level of the logger a config carries.
+template <typename Config>
+Acts::Logging::Level configLevel(const Config& cfg) {
+  if (cfg.logger == nullptr) {
+    throw std::runtime_error("config carries no logger");
+  }
+  return cfg.logger->level();
+}
+
+/// Change the level of the logger a config carries, keeping its output policy
+/// and its name.
+template <typename Config>
+void setConfigLevel(Config& cfg, Acts::Logging::Level level) {
+  if (cfg.logger == nullptr) {
+    throw std::runtime_error("config carries no logger");
+  }
+  cfg.logger = cfg.logger->clone(std::nullopt, level);
+}
+
+/// Bind the constructor a component offers: the config alone once its config
+/// carries the logger, the config plus a level while it does not.
+template <typename T, typename C>
+void declareComponentInit(C& c) {
+  using Config = typename T::Config;
+  if constexpr (ActsPython::Concepts::LoggingConfig<Config> &&
+                std::constructible_from<T, const Config&>) {
+    c.def(pybind11::init<const Config&>(), pybind11::arg("config"));
+  } else {
+    c.def(pybind11::init<const Config&, Acts::Logging::Level>(),
+          pybind11::arg("config"), pybind11::arg("level"));
+  }
+}
+
+/// Register the logging members on a bound config class. Done here instead of
+/// at every call site so `logger` stays out of the member lists that the
+/// declare macros take.
+template <typename C>
+void declareLoggingConfig(C& c) {
+  using Config = typename C::type;
+  c.def_readwrite("logger", &Config::logger)
+      .def_property("level", &configLevel<Config>, &setConfigLevel<Config>);
+}
+
 template <ActsPython::Concepts::DeclarableAlgorithm A, typename B>
 auto declareAlgorithm(pybind11::module_& m, const char* name) {
   using Config = typename A::Config;
   namespace py = pybind11;
-  auto alg =
-      py::class_<A, B, std::shared_ptr<A>>(m, name)
-          .def(py::init([name](const Config& cfg, Acts::Logging::Level level) {
-                 return std::make_shared<A>(
-                     cfg, Acts::getDefaultLogger(name, level));
-               }),
-               py::arg("config"), py::arg("level"))
-          .def(py::init([](const Config& cfg,
-                           std::unique_ptr<const Acts::Logger> logger) {
-                 return std::make_shared<A>(cfg, std::move(logger));
-               }),
-               py::arg("config"), py::arg("logger"))
-          .def_property_readonly("config", &A::config);
+  auto alg = py::class_<A, B, std::shared_ptr<A>>(m, name);
+  if constexpr (ActsPython::Concepts::LoggingConfig<Config> &&
+                std::constructible_from<A, const Config&>) {
+    alg.def(py::init<const Config&>(), py::arg("config"));
+  } else {
+    alg.def(py::init([name](const Config& cfg, Acts::Logging::Level level) {
+              return std::make_shared<A>(cfg,
+                                         Acts::getDefaultLogger(name, level));
+            }),
+            py::arg("config"), py::arg("level"))
+        .def(py::init([](const Config& cfg,
+                         std::unique_ptr<const Acts::Logger> logger) {
+               return std::make_shared<A>(cfg, std::move(logger));
+             }),
+             py::arg("config"), py::arg("logger"));
+  }
+  alg.def_property_readonly("config", &A::config);
   auto c = py::class_<Config>(alg, "Config");
   if constexpr (std::is_default_constructible_v<Config>) {
     c.def(py::init<>());
+  }
+  if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {
+    declareLoggingConfig(c);
   }
   return std::tuple{alg, c};
 }
@@ -111,9 +171,8 @@ auto declareAlgorithm(pybind11::module_& m, const char* name) {
     auto w =                                                                \
         py::class_<Writer, ActsExamples::IWriter, std::shared_ptr<Writer>>( \
             mod, name)                                                      \
-            .def(py::init<const Config&, Acts::Logging::Level>(),           \
-                 py::arg("config"), py::arg("level"))                       \
             .def_property_readonly("config", &Writer::config);              \
+    declareComponentInit<Writer>(w);                                        \
                                                                             \
     constexpr bool has_write_method =                                       \
         ActsPython::Concepts::has_write_method<Writer>;                     \
@@ -122,6 +181,9 @@ auto declareAlgorithm(pybind11::module_& m, const char* name) {
       w.def("write", &Writer::write);                                       \
     }                                                                       \
     auto c = py::class_<Config>(w, "Config").def(py::init<>());             \
+    if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {            \
+      declareLoggingConfig(c);                                              \
+    }                                                                       \
     ACTS_PYTHON_STRUCT(c, __VA_ARGS__);                                     \
   } while (0)
 
@@ -133,10 +195,12 @@ auto declareAlgorithm(pybind11::module_& m, const char* name) {
     auto r =                                                                \
         py::class_<Reader, ActsExamples::IReader, std::shared_ptr<Reader>>( \
             mod, name)                                                      \
-            .def(py::init<const Config&, Acts::Logging::Level>(),           \
-                 py::arg("config"), py::arg("level"))                       \
             .def_property_readonly("config", &Reader::config);              \
+    declareComponentInit<Reader>(r);                                        \
                                                                             \
     auto c = py::class_<Config>(r, "Config").def(py::init<>());             \
+    if constexpr (ActsPython::Concepts::LoggingConfig<Config>) {            \
+      declareLoggingConfig(c);                                              \
+    }                                                                       \
     ACTS_PYTHON_STRUCT(c, __VA_ARGS__);                                     \
   } while (0)

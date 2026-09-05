@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <memory>
 #include <stdexcept>
@@ -54,6 +55,24 @@ class WriterT : public IWriter {
     m_inputHandle.initialize(m_objectName);
   }
 
+  /// @param objectName The object that should be read from the event store
+  /// @param writerName The name of the writer, e.g. for logging output
+  /// @param logger The logger from the writer config. An unnamed logger is
+  ///        named after the writer.
+  WriterT(std::string objectName, std::string writerName,
+          std::shared_ptr<const Acts::Logger> logger)
+      : m_objectName(std::move(objectName)),
+        m_writerName(std::move(writerName)),
+        m_logger(makeLogger(std::move(logger), m_writerName)) {
+    if (m_objectName.empty()) {
+      throw std::invalid_argument("Missing input collection");
+    } else if (m_writerName.empty()) {
+      throw std::invalid_argument("Missing writer name");
+    }
+
+    m_inputHandle.initialize(m_objectName);
+  }
+
   /// Provide the name of the writer
   std::string name() const override { return m_writerName; }
 
@@ -79,7 +98,7 @@ class WriterT : public IWriter {
  private:
   std::string m_objectName;
   std::string m_writerName;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   ReadDataHandle<write_data_t> m_inputHandle{this, "InputHandle"};
 };

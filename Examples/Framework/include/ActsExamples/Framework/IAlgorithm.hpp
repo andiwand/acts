@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/SequenceElement.hpp"
 
@@ -30,6 +31,14 @@ class IAlgorithm : public SequenceElement {
   /// @logger The logger for this algorithm
   explicit IAlgorithm(const std::string& name,
                       std::unique_ptr<const Acts::Logger> logger = nullptr);
+
+  /// Constructor taking the logger from the algorithm config
+  ///
+  /// @param name The algorithm name
+  /// @param logger The logger from the algorithm config. An unnamed logger is
+  ///        named after the algorithm.
+  IAlgorithm(const std::string& name,
+             std::shared_ptr<const Acts::Logger> logger);
 
   /// The algorithm name.
   std::string name() const override;
@@ -55,7 +64,7 @@ class IAlgorithm : public SequenceElement {
 
  private:
   std::string m_name;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 };
 
 }  // namespace ActsExamples

@@ -21,6 +21,10 @@ IAlgorithm::IAlgorithm(const std::string& name,
                    ? std::move(logger)
                    : Acts::getDefaultLogger(name, Acts::Logging::INFO)) {}
 
+IAlgorithm::IAlgorithm(const std::string& name,
+                       std::shared_ptr<const Acts::Logger> logger)
+    : m_name(name), m_logger(makeLogger(std::move(logger), name)) {}
+
 std::string IAlgorithm::name() const {
   return m_name;
 }
