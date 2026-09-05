@@ -12,16 +12,12 @@
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
 
-#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace ActsExamples {
-
-/// NaN values for TTree variables
-constexpr double NaNdouble = std::numeric_limits<double>::quiet_NaN();
-constexpr float NaNfloat = std::numeric_limits<float>::quiet_NaN();
-constexpr float NaNint = std::numeric_limits<int>::quiet_NaN();
 
 /// A helper class for users to implement framework writers.
 ///
@@ -45,16 +41,29 @@ class WriterT : public IWriter {
   /// @param writerName The name of the writer, e.g. for logging output
   /// @param level The internal log level
   WriterT(std::string objectName, std::string writerName,
-          Acts::Logging::Level level);
+          Acts::Logging::Level level)
+      : m_objectName(std::move(objectName)),
+        m_writerName(std::move(writerName)),
+        m_logger(Acts::getDefaultLogger(m_writerName, level)) {
+    if (m_objectName.empty()) {
+      throw std::invalid_argument("Missing input collection");
+    } else if (m_writerName.empty()) {
+      throw std::invalid_argument("Missing writer name");
+    }
+
+    m_inputHandle.initialize(m_objectName);
+  }
 
   /// Provide the name of the writer
-  std::string name() const override;
+  std::string name() const override { return m_writerName; }
 
   /// Read the object and call the type-specific member function.
-  ProcessCode write(const AlgorithmContext& context) override;
+  ProcessCode write(const AlgorithmContext& context) override {
+    return writeT(context, m_inputHandle(context));
+  }
 
   /// No-op default implementation.
-  ProcessCode finalize() override;
+  ProcessCode finalize() override { return ProcessCode::SUCCESS; }
 
  protected:
   /// Type-specific write function implementation
@@ -74,36 +83,5 @@ class WriterT : public IWriter {
 
   ReadDataHandle<write_data_t> m_inputHandle{this, "InputHandle"};
 };
-
-template <typename write_data_t>
-WriterT<write_data_t>::WriterT(std::string objectName, std::string writerName,
-                               Acts::Logging::Level level)
-    : m_objectName(std::move(objectName)),
-      m_writerName(std::move(writerName)),
-      m_logger(Acts::getDefaultLogger(m_writerName, level)) {
-  if (m_objectName.empty()) {
-    throw std::invalid_argument("Missing input collection");
-  } else if (m_writerName.empty()) {
-    throw std::invalid_argument("Missing writer name");
-  }
-
-  m_inputHandle.initialize(m_objectName);
-}
-
-template <typename write_data_t>
-inline std::string WriterT<write_data_t>::name() const {
-  return m_writerName;
-}
-
-template <typename write_data_t>
-inline ProcessCode WriterT<write_data_t>::finalize() {
-  return ProcessCode::SUCCESS;
-}
-
-template <typename write_data_t>
-inline ProcessCode WriterT<write_data_t>::write(
-    const AlgorithmContext& context) {
-  return writeT(context, m_inputHandle(context));
-}
 
 }  // namespace ActsExamples

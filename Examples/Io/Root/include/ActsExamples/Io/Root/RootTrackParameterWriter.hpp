@@ -17,6 +17,7 @@
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
+#include "ActsExamples/Io/Root/RootUtility.hpp"
 
 #include <mutex>
 #include <string>

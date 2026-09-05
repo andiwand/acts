@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/AverageSimHits.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
+#include "ActsExamples/Io/Root/RootUtility.hpp"
 #include "ActsExamples/Utilities/Range.hpp"
 #include "ActsExamples/Validation/TrackClassification.hpp"
 #include "ActsFatras/EventData/Barcode.hpp"
