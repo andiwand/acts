@@ -14,6 +14,7 @@
 #include "ActsExamples/Framework/IContextDecorator.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/SequenceElement.hpp"
 #include "ActsExamples/Framework/WhiteBoard.hpp"
 #include "ActsExamples/Utilities/tbbWrap.hpp"
@@ -59,13 +60,15 @@ class Sequencer {
   };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// number of events to skip at the beginning
     std::size_t skip = 0;
     /// number of events to process, std::numeric_limits<std::size_t>::max() to
     /// process all available events
     std::optional<std::size_t> events = std::nullopt;
-    /// logging level
-    Acts::Logging::Level logLevel = Acts::Logging::INFO;
     /// number of parallel threads to run, negative for automatic
     /// determination
     int numThreads = -1;
@@ -181,7 +184,7 @@ class Sequencer {
   std::vector<std::shared_ptr<IReader>> m_readers;
   std::vector<std::shared_ptr<IWriter>> m_writers;
   std::vector<SequenceElementWithFpeResult> m_sequenceElements;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   WhiteBoard::AliasMapType m_whiteboardObjectAliases;
 

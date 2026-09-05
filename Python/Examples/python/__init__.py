@@ -414,9 +414,6 @@ class Sequencer(ActsExamplesPythonBindings._Sequencer):
 
         kwargs["fpeMasks"] = kwargs.get("fpeMasks", []) + self._getAutoFpeMasks()
 
-        if self.config.logLevel >= acts.logging.DEBUG:
-            self._printFpeSummary(kwargs["fpeMasks"])
-
         cfg = self.Config()
         if len(args) == 1 and isinstance(args[0], self.Config):
             cfg = args[0]
@@ -430,6 +427,9 @@ class Sequencer(ActsExamplesPythonBindings._Sequencer):
                 v = str(v)
 
             setattr(cfg, k, v)
+
+        if cfg.logLevel <= acts.logging.DEBUG:
+            self._printFpeSummary(cfg.fpeMasks)
 
         if hasattr(ActsExamplesPythonBindings._Sequencer, "__wrapped__"):
             dump_func_args(Sequencer, cfg)

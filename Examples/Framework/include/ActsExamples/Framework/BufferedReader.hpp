@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <utility>
@@ -26,6 +27,10 @@ class WhiteBoard;
 class BufferedReader final : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The upstream reader that should be used
     std::shared_ptr<IReader> upstreamReader;
 
@@ -38,7 +43,7 @@ class BufferedReader final : public IReader {
   };
 
   /// Constructed the reader
-  BufferedReader(const Config& config, Acts::Logging::Level level);
+  explicit BufferedReader(const Config& config);
 
   /// Return the config
   const Config& config() const { return m_cfg; }
@@ -64,7 +69,7 @@ class BufferedReader final : public IReader {
 
  private:
   Config m_cfg;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
   std::vector<std::unique_ptr<WhiteBoard>> m_buffer;
 
   const Acts::Logger& logger() const { return *m_logger; }

@@ -17,8 +17,8 @@
 
 namespace ActsExamples {
 
-BufferedReader::BufferedReader(const Config &config, Acts::Logging::Level level)
-    : m_cfg(config), m_logger(Acts::getDefaultLogger(name(), level)) {
+BufferedReader::BufferedReader(const Config &config)
+    : m_cfg(config), m_logger(makeLogger(config.logger, name())) {
   if (!m_cfg.upstreamReader) {
     throw std::invalid_argument("No upstream reader provided!");
   }

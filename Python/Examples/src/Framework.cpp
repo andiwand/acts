@@ -389,9 +389,12 @@ void addFramework(py::module& mex) {
 
   auto c = py::class_<Config>(sequencer, "Config").def(py::init<>());
 
-  ACTS_PYTHON_STRUCT(c, skip, events, logLevel, numThreads, outputDir,
-                     outputTimingFile, trackFpes, fpeMasks, failOnFirstFpe,
-                     failOnUnmaskedFpe, fpeStackTraceLength);
+  ACTS_PYTHON_STRUCT(c, skip, events, numThreads, outputDir, outputTimingFile,
+                     trackFpes, fpeMasks, failOnFirstFpe, failOnUnmaskedFpe,
+                     fpeStackTraceLength);
+  declareLoggingConfig(c);
+  // the sequencer has always called this logLevel, keep it working
+  c.def_property("logLevel", &configLevel<Config>, &setConfigLevel<Config>);
 
   auto fpem =
       py::class_<Sequencer::FpeMask>(sequencer, "_FpeMask")
