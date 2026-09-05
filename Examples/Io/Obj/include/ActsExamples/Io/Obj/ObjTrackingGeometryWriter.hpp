@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Visualization/ViewConfig.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -35,6 +36,10 @@ class ObjTrackingGeometryWriter {
   // The nested config class
   class Config {
    public:
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     double outputScalor = 1.0;        ///< scale output values
     std::size_t outputPrecision = 6;  ///< floating point precision
     std::filesystem::path outputDir = ".";
@@ -51,7 +56,7 @@ class ObjTrackingGeometryWriter {
   /// Constructor
   /// @param config is the configuration class
   /// @param level the log level
-  ObjTrackingGeometryWriter(const Config& config, Acts::Logging::Level level);
+  explicit ObjTrackingGeometryWriter(const Config& config);
 
   /// Framework name() method
   /// @return the name of the tool
@@ -65,7 +70,7 @@ class ObjTrackingGeometryWriter {
                     const Acts::TrackingGeometry& tGeometry);
 
  private:
-  std::unique_ptr<const Acts::Logger> m_logger;  ///< the logger instance
+  std::shared_ptr<const Acts::Logger> m_logger;  ///< the logger instance
 
   Config m_cfg;  ///< the config class
 

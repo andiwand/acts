@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
 #include <cstddef>
@@ -38,6 +39,10 @@ namespace ActsExamples {
 class JsonSurfacesWriter : public IWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The tracking geometry that should be written.
     std::shared_ptr<const Acts::TrackingGeometry> trackingGeometry;
     /// Where to place output files.
@@ -62,7 +67,7 @@ class JsonSurfacesWriter : public IWriter {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  JsonSurfacesWriter(const Config& config, Acts::Logging::Level level);
+  explicit JsonSurfacesWriter(const Config& config);
 
   std::string name() const override;
 
@@ -78,7 +83,7 @@ class JsonSurfacesWriter : public IWriter {
  private:
   Config m_cfg;
   const Acts::TrackingVolume* m_world = nullptr;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   const Acts::Logger& logger() const { return *m_logger; }
 };

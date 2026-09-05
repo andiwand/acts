@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -30,6 +31,10 @@ namespace ActsExamples {
 class PodioReader : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The path to the PODIO file to read.
     std::filesystem::path inputPath;
     /// The name of the frame to write to the event store.
@@ -43,7 +48,7 @@ class PodioReader : public IReader {
   /// @param config The configuration struct.
   /// @param level The logging level.
   /// @throws std::invalid_argument if the configuration is invalid
-  PodioReader(const Config& config, Acts::Logging::Level level);
+  explicit PodioReader(const Config& config);
 
   /// Destruct the reader.
   ~PodioReader() override;
@@ -73,7 +78,7 @@ class PodioReader : public IReader {
   class Impl;
 
   std::unique_ptr<Impl> m_impl;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   /// Get the logger instance.
   ///

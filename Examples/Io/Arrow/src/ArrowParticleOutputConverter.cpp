@@ -31,9 +31,8 @@ void check(const arrow::Status& s, const char* what) {
 
 }  // namespace
 
-ArrowParticleOutputConverter::ArrowParticleOutputConverter(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : ArrowOutputConverter("ArrowParticleOutputConverter", std::move(logger)),
+ArrowParticleOutputConverter::ArrowParticleOutputConverter(const Config& cfg)
+    : ArrowOutputConverter("ArrowParticleOutputConverter", cfg.logger),
       m_cfg(cfg) {
   if (m_cfg.inputParticles.empty()) {
     throw std::invalid_argument("Missing particles input collection");

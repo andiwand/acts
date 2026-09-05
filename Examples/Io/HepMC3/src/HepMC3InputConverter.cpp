@@ -34,9 +34,8 @@ using namespace Acts::UnitLiterals;
 
 namespace ActsExamples {
 
-HepMC3InputConverter::HepMC3InputConverter(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
-    : IAlgorithm("HepMC3InputConverter", std::move(logger)), m_cfg(config) {
+HepMC3InputConverter::HepMC3InputConverter(const Config& config)
+    : IAlgorithm("HepMC3InputConverter", config.logger), m_cfg(config) {
   m_outputParticles.initialize(m_cfg.outputParticles);
   m_outputVertices.initialize(m_cfg.outputVertices);
   m_inputEvent.initialize(m_cfg.inputEvent);

@@ -180,13 +180,12 @@ class ParquetWriter::Impl {
   std::vector<std::unique_ptr<CollectionState>> m_collectionStates;
 };
 
-ParquetWriter::ParquetWriter(const Config& config,
-                             std::unique_ptr<const Acts::Logger> logger)
-    : m_logger(std::move(logger)),
+ParquetWriter::ParquetWriter(const Config& config)
+    : m_logger(, config.logger),
       m_impl(std::make_unique<Impl>(config, *this)) {}
 
-ParquetWriter::ParquetWriter(const Config& config, Acts::Logging::Level level)
-    : ParquetWriter(config, Acts::getDefaultLogger("ParquetWriter", level)) {}
+ParquetWriter::ParquetWriter(const Config& config)
+    : ParquetWriter(config, makeLogger(config.logger, "ParquetWriter")) {}
 
 ParquetWriter::~ParquetWriter() = default;
 

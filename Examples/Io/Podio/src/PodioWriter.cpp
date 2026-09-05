@@ -81,8 +81,8 @@ class PodioWriterImpl {
 };
 }  // namespace detail
 
-PodioWriter::PodioWriter(const Config& config, Acts::Logging::Level level)
-    : m_logger(Acts::getDefaultLogger("PodioWriter", level)),
+PodioWriter::PodioWriter(const Config& config)
+    : m_logger(makeLogger(config.logger, "PodioWriter")),
       m_impl(std::make_unique<detail::PodioWriterImpl>(config, *this)) {
   ACTS_DEBUG("Creating output file " << config.outputPath);
 

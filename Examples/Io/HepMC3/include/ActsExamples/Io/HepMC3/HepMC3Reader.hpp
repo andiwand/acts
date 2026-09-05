@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/RandomNumbers.hpp"
 #include "ActsExamples/Utilities/VertexGenerators.hpp"
 
@@ -107,6 +108,10 @@ class HepMC3Reader final : public IReader {
   };
 
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input files to read. For each file, the multiplicity generator
     /// determines how many events are read per logical event. This can be used
     /// to read e.g. hard-scatter events from one file and pileup events from
@@ -154,7 +159,7 @@ class HepMC3Reader final : public IReader {
   ///
   /// @param [in] cfg The configuration object
   /// @param [in] lvl The logging level
-  HepMC3Reader(const Config& cfg, Acts::Logging::Level lvl);
+  explicit HepMC3Reader(const Config& cfg);
 
   ~HepMC3Reader() override;
 
@@ -198,7 +203,7 @@ class HepMC3Reader final : public IReader {
   /// Number of events
   std::pair<std::size_t, std::size_t> m_eventsRange;
   /// The logger
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   const Acts::Logger& logger() const { return *m_logger; }
 

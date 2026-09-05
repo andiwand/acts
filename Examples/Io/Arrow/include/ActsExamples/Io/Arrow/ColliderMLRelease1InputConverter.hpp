@@ -18,6 +18,7 @@
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsPlugins/Arrow/ArrowUtil.hpp"
 #include "ActsPlugins/Arrow/Export.hpp"
 
@@ -51,6 +52,10 @@ namespace ActsExamples {
 class ACTS_ARROW_EXPORT ColliderMLRelease1InputConverter : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Whiteboard key for the particles Arrow table (from ParquetReader).
     std::string inputParticlesTable;
     /// Whiteboard key for the tracker-hits Arrow table (from ParquetReader).
@@ -126,8 +131,7 @@ class ACTS_ARROW_EXPORT ColliderMLRelease1InputConverter : public IAlgorithm {
   ColliderMLRelease1InputConverter(const Config& cfg,
                                    std::unique_ptr<const Acts::Logger> logger);
 
-  ColliderMLRelease1InputConverter(const Config& cfg,
-                                   Acts::Logging::Level level);
+  explicit ColliderMLRelease1InputConverter(const Config& cfg);
 
   ~ColliderMLRelease1InputConverter() override;
 

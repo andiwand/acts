@@ -13,6 +13,7 @@
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IAlgorithm.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <string>
 
@@ -25,13 +26,15 @@ namespace ActsExamples {
 class HepMC3OutputConverter : public IAlgorithm {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     std::string inputParticles;
     std::string inputVertices;
     std::string outputEvent;
   };
-  explicit HepMC3OutputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit HepMC3OutputConverter(const Config& config);
 
   const Config& config() const { return m_cfg; }
 

@@ -22,9 +22,8 @@
 namespace ActsExamples {
 
 EDM4hepSimHitOutputConverter::EDM4hepSimHitOutputConverter(
-    const EDM4hepSimHitOutputConverter::Config& config,
-    std::unique_ptr<const Acts::Logger> logger)
-    : PodioOutputConverter("EDM4hepSimHitOutputConverter", std::move(logger)),
+    const EDM4hepSimHitOutputConverter::Config& config)
+    : PodioOutputConverter("EDM4hepSimHitOutputConverter", config.logger),
       m_cfg(config) {
   if (m_cfg.inputSimHits.empty()) {
     throw std::invalid_argument("Missing simulated hits input collection");

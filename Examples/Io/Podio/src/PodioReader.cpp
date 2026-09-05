@@ -55,9 +55,9 @@ class PodioReader::Impl {
   PodioReader::Config m_cfg;
 };
 
-PodioReader::PodioReader(const Config& config, Acts::Logging::Level level)
+PodioReader::PodioReader(const Config& config)
     : m_impl(std::make_unique<Impl>(config, *this)),
-      m_logger(Acts::getDefaultLogger("PodioReader", level)) {}
+      m_logger(makeLogger(config.logger, "PodioReader")) {}
 
 PodioReader::~PodioReader() = default;
 

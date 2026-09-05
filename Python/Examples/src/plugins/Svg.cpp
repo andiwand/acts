@@ -34,8 +34,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsSvg, svg) {
     auto w =
         py::class_<Writer, std::shared_ptr<Writer>>(svg,
                                                     "SvgTrackingGeometryWriter")
-            .def(py::init<const Writer::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const Writer::Config&>(), py::arg("config"))
             .def("write",
                  py::overload_cast<const AlgorithmContext&,
                                    const TrackingGeometry&>(&Writer::write));
@@ -48,8 +47,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsSvg, svg) {
     auto w =
         py::class_<Writer, IWriter, std::shared_ptr<Writer>>(
             svg, "SvgSimSpacePointWriter")
-            .def(py::init<const Writer::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const Writer::Config&>(), py::arg("config"))
             .def("write",
                  py::overload_cast<const AlgorithmContext&>(&Writer::write));
 
@@ -63,8 +61,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsSvg, svg) {
     auto w =
         py::class_<Writer, IWriter, std::shared_ptr<Writer>>(svg,
                                                              "SvgSimHitWriter")
-            .def(py::init<const Writer::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const Writer::Config&>(), py::arg("config"))
             .def("write",
                  py::overload_cast<const AlgorithmContext&>(&Writer::write));
 

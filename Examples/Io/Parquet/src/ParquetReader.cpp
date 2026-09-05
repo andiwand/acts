@@ -120,8 +120,8 @@ ParquetReader::ParquetReader(const Config& config,
     : m_impl(std::make_unique<Impl>(config, *this)),
       m_logger(std::move(logger)) {}
 
-ParquetReader::ParquetReader(const Config& config, Acts::Logging::Level level)
-    : ParquetReader(config, Acts::getDefaultLogger("ParquetReader", level)) {}
+ParquetReader::ParquetReader(const Config& config)
+    : ParquetReader(config, makeLogger(config.logger, "ParquetReader")) {}
 
 ParquetReader::~ParquetReader() = default;
 

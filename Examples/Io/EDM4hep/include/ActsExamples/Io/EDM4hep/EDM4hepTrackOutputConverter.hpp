@@ -10,6 +10,7 @@
 
 #include "ActsExamples/EventData/Track.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Podio/PodioCollectionDataHandle.hpp"
 #include "ActsExamples/Io/Podio/PodioOutputConverter.hpp"
 
@@ -23,6 +24,10 @@ namespace ActsExamples {
 class EDM4hepTrackOutputConverter : public PodioOutputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input track collection
     std::string inputTracks;
     /// Output track collection in edm4hep
@@ -35,9 +40,7 @@ class EDM4hepTrackOutputConverter : public PodioOutputConverter {
   /// constructor
   /// @param config is the configuration object
   /// @param level is the output logging level
-  explicit EDM4hepTrackOutputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit EDM4hepTrackOutputConverter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

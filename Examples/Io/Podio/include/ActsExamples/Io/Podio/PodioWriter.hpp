@@ -11,6 +11,7 @@
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 
 #include <memory>
 #include <string>
@@ -38,6 +39,10 @@ class PodioWriterImpl;
 class PodioWriter final : public IWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The path to the output file.
     std::string outputPath;
 
@@ -68,7 +73,7 @@ class PodioWriter final : public IWriter {
   /// @param config The configuration struct.
   /// @param level The logging level.
   /// @throw std::invalid_argument if category is empty or if collection names are empty or duplicate
-  PodioWriter(const Config& config, Acts::Logging::Level level);
+  explicit PodioWriter(const Config& config);
 
   /// Destruct the writer.
   ~PodioWriter() override;
@@ -99,7 +104,7 @@ class PodioWriter final : public IWriter {
  private:
   const Acts::Logger& logger() const { return *m_logger; }
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   std::unique_ptr<detail::PodioWriterImpl> m_impl;
 };

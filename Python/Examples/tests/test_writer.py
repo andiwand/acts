@@ -62,7 +62,7 @@ def assert_csv_output(csv_path, stem, num_files, size_threshold=100):
 
 @pytest.mark.obj
 def test_obj_propagation_step_writer(tmp_path, trk_geo, conf_const, basic_prop_seq):
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         ObjPropagationStepsWriter()
 
     obj = tmp_path / "obj"

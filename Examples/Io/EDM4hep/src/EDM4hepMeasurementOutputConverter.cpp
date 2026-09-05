@@ -19,10 +19,8 @@
 namespace ActsExamples {
 
 EDM4hepMeasurementOutputConverter::EDM4hepMeasurementOutputConverter(
-    const EDM4hepMeasurementOutputConverter::Config& config,
-    std::unique_ptr<const Acts::Logger> logger)
-    : PodioOutputConverter("EDM4hepMeasurementOutputConverter",
-                           std::move(logger)),
+    const EDM4hepMeasurementOutputConverter::Config& config)
+    : PodioOutputConverter("EDM4hepMeasurementOutputConverter", config.logger),
       m_cfg(config) {
   if (m_cfg.trackingGeometry == nullptr) {
     throw std::runtime_error(

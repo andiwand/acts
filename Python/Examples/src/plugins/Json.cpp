@@ -63,14 +63,16 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsJson, json) {
         py::class_<JsonMaterialWriter, IMaterialWriter,
                    std::shared_ptr<JsonMaterialWriter>>(json,
                                                         "JsonMaterialWriter")
-            .def(py::init<const JsonMaterialWriter::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const JsonMaterialWriter::Config&>(),
+                 py::arg("config"))
             .def("writeMaterial", &JsonMaterialWriter::writeMaterial)
             .def("write", &JsonMaterialWriter::write)
             .def_property_readonly("config", &JsonMaterialWriter::config);
 
     auto c =
         py::class_<JsonMaterialWriter::Config>(cls, "Config").def(py::init<>());
+
+    declareLoggingConfig(c);
     ACTS_PYTHON_STRUCT(c, converterCfg, fileName, writeFormat);
   }
 
@@ -117,13 +119,15 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsJson, json) {
         py::class_<JsonSurfacesWriter, IWriter,
                    std::shared_ptr<JsonSurfacesWriter>>(json,
                                                         "JsonSurfacesWriter")
-            .def(py::init<const JsonSurfacesWriter::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const JsonSurfacesWriter::Config&>(),
+                 py::arg("config"))
             .def("write", &JsonSurfacesWriter::write)
             .def_property_readonly("config", &JsonSurfacesWriter::config);
 
     auto c =
         py::class_<JsonSurfacesWriter::Config>(cls, "Config").def(py::init<>());
+
+    declareLoggingConfig(c);
 
     ACTS_PYTHON_STRUCT(c, trackingGeometry, outputDir, outputPrecision,
                        writeLayer, writeApproach, writeSensitive, writeBoundary,

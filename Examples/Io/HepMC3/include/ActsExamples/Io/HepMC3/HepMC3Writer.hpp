@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Io/HepMC3/HepMC3Util.hpp"
@@ -29,6 +30,10 @@ namespace ActsExamples {
 class HepMC3Writer final : public WriterT<std::shared_ptr<HepMC3::GenEvent>> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The output file path for writing HepMC3 events.
     /// All events will be written to a single file.
     std::filesystem::path outputPath;
@@ -61,7 +66,7 @@ class HepMC3Writer final : public WriterT<std::shared_ptr<HepMC3::GenEvent>> {
   ///
   /// @param [in] config Config of the writer
   /// @param [in] level The level of the logger
-  HepMC3Writer(const Config& config, Acts::Logging::Level level);
+  explicit HepMC3Writer(const Config& config);
 
   ~HepMC3Writer() override;
 

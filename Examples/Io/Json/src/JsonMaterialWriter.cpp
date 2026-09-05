@@ -19,12 +19,11 @@
 
 namespace ActsExamples {
 
-JsonMaterialWriter::JsonMaterialWriter(const JsonMaterialWriter::Config& config,
-                                       Acts::Logging::Level level)
-    : m_logger{Acts::getDefaultLogger("JsonMaterialWriter", level)},
+JsonMaterialWriter::JsonMaterialWriter(const JsonMaterialWriter::Config& config)
+    : m_logger{makeLogger(config.logger, "JsonMaterialWriter")},
       m_cfg(config),
       m_converter{std::make_unique<Acts::MaterialMapJsonConverter>(
-          m_cfg.converterCfg, level)} {}
+          m_cfg.converterCfg, m_logger->level())} {}
 
 JsonMaterialWriter::~JsonMaterialWriter() = default;
 

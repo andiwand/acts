@@ -34,9 +34,8 @@ void check(const arrow::Status& s, const char* what) {
 
 }  // namespace
 
-ArrowTrackOutputConverter::ArrowTrackOutputConverter(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : ArrowOutputConverter("ArrowTrackOutputConverter", std::move(logger)),
+ArrowTrackOutputConverter::ArrowTrackOutputConverter(const Config& cfg)
+    : ArrowOutputConverter("ArrowTrackOutputConverter", cfg.logger),
       m_cfg(cfg) {
   if (m_cfg.inputTracks.empty()) {
     throw std::invalid_argument("Missing tracks input collection");

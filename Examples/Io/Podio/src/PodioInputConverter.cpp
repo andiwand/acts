@@ -27,7 +27,7 @@ class PodioInputConverter::Impl {
 
 PodioInputConverter::PodioInputConverter(
     const std::string& name, const std::string& inputFrame,
-    std::unique_ptr<const Acts::Logger> logger)
+    std::shared_ptr<const Acts::Logger> logger)
     : IAlgorithm(name, std::move(logger)),
       m_impl(std::make_unique<Impl>(*this, inputFrame)) {}
 

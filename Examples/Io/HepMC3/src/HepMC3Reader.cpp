@@ -31,9 +31,8 @@ using namespace Acts::UnitLiterals;
 
 namespace ActsExamples {
 
-HepMC3Reader::HepMC3Reader(const HepMC3Reader::Config& cfg,
-                           Acts::Logging::Level lvl)
-    : m_cfg(cfg), m_logger(Acts::getDefaultLogger("HepMC3Reader", lvl)) {
+HepMC3Reader::HepMC3Reader(const HepMC3Reader::Config& cfg)
+    : m_cfg(cfg), m_logger(makeLogger(cfg.logger, "HepMC3Reader")) {
   if (m_cfg.outputEvent.empty()) {
     throw std::invalid_argument("Missing output collection");
   }

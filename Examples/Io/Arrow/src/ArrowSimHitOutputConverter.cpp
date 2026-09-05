@@ -33,9 +33,8 @@ void check(const arrow::Status& s, const char* what) {
 
 }  // namespace
 
-ArrowSimHitOutputConverter::ArrowSimHitOutputConverter(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> logger)
-    : ArrowOutputConverter("ArrowSimHitOutputConverter", std::move(logger)),
+ArrowSimHitOutputConverter::ArrowSimHitOutputConverter(const Config& cfg)
+    : ArrowOutputConverter("ArrowSimHitOutputConverter", cfg.logger),
       m_cfg(cfg) {
   if (m_cfg.inputSimHits.empty()) {
     throw std::invalid_argument("Missing sim hits input collection");

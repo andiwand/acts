@@ -26,9 +26,9 @@
 
 namespace ActsExamples {
 
-ObjSimHitWriter::ObjSimHitWriter(const ObjSimHitWriter::Config& config,
-                                 Acts::Logging::Level level)
-    : WriterT(config.inputSimHits, "ObjSimHitWriter", level), m_cfg(config) {
+ObjSimHitWriter::ObjSimHitWriter(const ObjSimHitWriter::Config& config)
+    : WriterT(config.inputSimHits, "ObjSimHitWriter", config.logger),
+      m_cfg(config) {
   // inputSimHits is already checked by base constructor
   if (m_cfg.outputStem.empty()) {
     throw std::invalid_argument("Missing output filename stem");

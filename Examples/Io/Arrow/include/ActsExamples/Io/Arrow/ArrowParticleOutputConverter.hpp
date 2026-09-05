@@ -10,6 +10,7 @@
 
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Parquet/ArrowOutputConverter.hpp"
 #include "ActsPlugins/Arrow/ArrowUtil.hpp"
 #include "ActsPlugins/Arrow/Export.hpp"
@@ -30,14 +31,17 @@ class ACTS_ARROW_EXPORT ArrowParticleOutputConverter final
     : public ArrowOutputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input @c SimParticleContainer on the whiteboard.
     std::string inputParticles;
     /// Output whiteboard key for the resulting @c arrow::Table.
     std::string outputTable = "particles";
   };
 
-  explicit ArrowParticleOutputConverter(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit ArrowParticleOutputConverter(const Config& cfg);
 
   ~ArrowParticleOutputConverter() override;
 

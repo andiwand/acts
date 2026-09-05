@@ -10,6 +10,7 @@
 
 #include "Acts/Propagator/detail/SteppingLogger.hpp"
 #include "ActsExamples/EventData/PropagationSummary.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/WriterT.hpp"
 #include "ActsExamples/Utilities/Paths.hpp"
 
@@ -29,6 +30,10 @@ namespace ActsExamples {
 class ObjPropagationStepsWriter : public WriterT<PropagationSummaries> {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// which collection to write
     std::string collection;
     /// where to place output files
@@ -43,8 +48,7 @@ class ObjPropagationStepsWriter : public WriterT<PropagationSummaries> {
   ///
   /// @param cfg configuration struct
   /// @param level Output logging level
-  explicit ObjPropagationStepsWriter(
-      const Config& cfg, Acts::Logging::Level level = Acts::Logging::INFO);
+  explicit ObjPropagationStepsWriter(const Config& cfg);
 
   /// Virtual destructor
   ~ObjPropagationStepsWriter() override = default;

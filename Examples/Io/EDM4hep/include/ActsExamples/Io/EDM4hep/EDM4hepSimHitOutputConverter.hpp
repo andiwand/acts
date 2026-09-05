@@ -11,6 +11,7 @@
 #include "ActsExamples/EventData/SimHit.hpp"
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Podio/PodioCollectionDataHandle.hpp"
 #include "ActsExamples/Io/Podio/PodioOutputConverter.hpp"
 
@@ -31,6 +32,10 @@ namespace ActsExamples {
 class EDM4hepSimHitOutputConverter final : public PodioOutputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which simulated (truth) hits collection to use.
     std::string inputSimHits;
     /// Which simulated (truth) particle collection to use.
@@ -46,9 +51,7 @@ class EDM4hepSimHitOutputConverter final : public PodioOutputConverter {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  explicit EDM4hepSimHitOutputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit EDM4hepSimHitOutputConverter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

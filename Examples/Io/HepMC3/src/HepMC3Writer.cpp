@@ -21,8 +21,8 @@
 
 namespace ActsExamples {
 
-HepMC3Writer::HepMC3Writer(const Config& config, Acts::Logging::Level level)
-    : WriterT(config.inputEvent, "HepMC3Writer", level),
+HepMC3Writer::HepMC3Writer(const Config& config)
+    : WriterT(config.inputEvent, "HepMC3Writer", config.logger),
       m_cfg(config),
       m_queueSemaphore{static_cast<long>(m_cfg.maxEventsPending + 1)} {
   if (m_cfg.outputPath.empty()) {

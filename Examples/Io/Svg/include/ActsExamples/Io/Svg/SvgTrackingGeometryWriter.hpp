@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/AlgorithmContext.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/Io/Svg/SvgDefaults.hpp"
 #include "ActsPlugins/ActSVG/TrackingGeometrySvgConverter.hpp"
@@ -33,6 +34,10 @@ class SvgTrackingGeometryWriter {
   /// The nested config class for this writer
   class Config {
    public:
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     ActsPlugins::Svg::TrackingGeometryConverter::Options converterOptions =
         s_trackingGeometryOptions;
 
@@ -42,7 +47,7 @@ class SvgTrackingGeometryWriter {
   /// Constructor
   /// @param config is the configuration class
   /// @param level the log level
-  SvgTrackingGeometryWriter(const Config& config, Acts::Logging::Level level);
+  explicit SvgTrackingGeometryWriter(const Config& config);
 
   /// Framework name() method
   /// @return the name of the tool
@@ -56,7 +61,7 @@ class SvgTrackingGeometryWriter {
                     const Acts::TrackingGeometry& tGeometry);
 
  private:
-  std::unique_ptr<const Acts::Logger> m_logger;  ///< the logger instance
+  std::shared_ptr<const Acts::Logger> m_logger;  ///< the logger instance
 
   Config m_cfg;  ///< the config class
 

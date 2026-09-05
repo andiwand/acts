@@ -11,6 +11,7 @@
 #include "Acts/Geometry/TrackingGeometry.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Podio/PodioCollectionDataHandle.hpp"
 #include "ActsExamples/Io/Podio/PodioOutputConverter.hpp"
 #include "ActsPlugins/EDM4hep/EDM4hepUtil.hpp"
@@ -35,6 +36,10 @@ namespace ActsExamples {
 class EDM4hepMeasurementOutputConverter final : public PodioOutputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Which measurement collection to write.
     std::string inputMeasurements;
     /// Name of the output tracker hit raw collection.
@@ -55,9 +60,7 @@ class EDM4hepMeasurementOutputConverter final : public PodioOutputConverter {
   /// Constructor with
   /// @param config configuration struct
   /// @param level logging level
-  explicit EDM4hepMeasurementOutputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit EDM4hepMeasurementOutputConverter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

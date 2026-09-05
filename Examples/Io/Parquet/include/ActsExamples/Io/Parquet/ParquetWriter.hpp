@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/IWriter.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsPlugins/Arrow/ArrowUtil.hpp"
 #include "ActsPlugins/Arrow/Export.hpp"
 
@@ -49,6 +50,10 @@ namespace ActsExamples {
 class ACTS_ARROW_EXPORT ParquetWriter final : public IWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Base output directory. Relative @c collections paths are resolved
     /// against this directory; absolute paths are used as-is.
     std::filesystem::path outputDir;
@@ -102,11 +107,10 @@ class ACTS_ARROW_EXPORT ParquetWriter final : public IWriter {
   /// @param config The configuration.
   /// @param logger The logger to use.
   /// @throws std::invalid_argument if the configuration is invalid.
-  ParquetWriter(const Config& config,
-                std::unique_ptr<const Acts::Logger> logger);
+  explicit ParquetWriter(const Config& config);
 
   /// Convenience overload: build a default logger at @p level.
-  ParquetWriter(const Config& config, Acts::Logging::Level level);
+  explicit ParquetWriter(const Config& config);
 
   ~ParquetWriter() override;
 
@@ -123,7 +127,7 @@ class ACTS_ARROW_EXPORT ParquetWriter final : public IWriter {
 
   class Impl;
 
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
   std::unique_ptr<Impl> m_impl;
 };
 

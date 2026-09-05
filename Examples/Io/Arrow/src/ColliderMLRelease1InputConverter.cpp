@@ -183,9 +183,8 @@ ColliderMLRelease1InputConverter::hitSchema() {
 // ---------------------------------------------------------------------------
 
 ColliderMLRelease1InputConverter::ColliderMLRelease1InputConverter(
-    const Config& cfg, std::unique_ptr<const Acts::Logger> _logger)
-    : IAlgorithm("ColliderMLRelease1InputConverter", std::move(_logger)),
-      m_cfg(cfg) {
+    const Config& cfg)
+    : IAlgorithm("ColliderMLRelease1InputConverter", cfg.logger), m_cfg(cfg) {
   if (m_cfg.inputParticlesTable.empty()) {
     throw std::invalid_argument("inputParticlesTable must be set");
   }
@@ -293,10 +292,9 @@ ColliderMLRelease1InputConverter::ColliderMLRelease1InputConverter(
 }
 
 ColliderMLRelease1InputConverter::ColliderMLRelease1InputConverter(
-    const Config& cfg, Acts::Logging::Level level)
+    const Config& cfg)
     : ColliderMLRelease1InputConverter(
-          cfg,
-          Acts::getDefaultLogger("ColliderMLRelease1InputConverter", level)) {}
+          cfg, makeLogger(cfg.logger, "ColliderMLRelease1InputConverter")) {}
 
 ColliderMLRelease1InputConverter::~ColliderMLRelease1InputConverter() = default;
 

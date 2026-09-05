@@ -67,13 +67,13 @@ void addOutput(py::module& mex) {
     auto w =
         py::class_<Writer, std::shared_ptr<Writer>>(mex,
                                                     "ObjTrackingGeometryWriter")
-            .def(py::init<const Writer::Config&, Logging::Level>(),
-                 py::arg("config"), py::arg("level"))
+            .def(py::init<const Writer::Config&>(), py::arg("config"))
             .def("write",
                  py::overload_cast<const AlgorithmContext&,
                                    const TrackingGeometry&>(&Writer::write));
 
     auto c = py::class_<Writer::Config>(w, "Config").def(py::init<>());
+    declareLoggingConfig(c);
 
     ACTS_PYTHON_STRUCT(c, outputScalor, outputPrecision, outputDir,
                        containerView, volumeView, sensitiveView, passiveView,

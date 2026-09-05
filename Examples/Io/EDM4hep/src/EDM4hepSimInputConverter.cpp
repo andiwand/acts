@@ -54,10 +54,9 @@ struct ParticleInfo {
 
 }  // namespace detail
 
-EDM4hepSimInputConverter::EDM4hepSimInputConverter(
-    const Config& config, std::unique_ptr<const Acts::Logger> logger)
+EDM4hepSimInputConverter::EDM4hepSimInputConverter(const Config& config)
     : PodioInputConverter("EDM4hepSimInputConverter", config.inputFrame,
-                          std::move(logger)),
+                          config.logger),
       m_cfg(config) {
   if (m_cfg.outputParticlesGenerator.empty()) {
     throw std::invalid_argument(

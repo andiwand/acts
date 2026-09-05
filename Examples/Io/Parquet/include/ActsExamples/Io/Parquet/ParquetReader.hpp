@@ -10,6 +10,7 @@
 
 #include "Acts/Utilities/Logger.hpp"
 #include "ActsExamples/Framework/IReader.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsPlugins/Arrow/ArrowUtil.hpp"
 #include "ActsPlugins/Arrow/Export.hpp"
 
@@ -44,6 +45,10 @@ namespace ActsExamples {
 class ACTS_ARROW_EXPORT ParquetReader : public IReader {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Base input directory. Relative @c collections paths are resolved
     /// against this directory; absolute paths are used as-is.
     std::filesystem::path inputDir;
@@ -86,7 +91,7 @@ class ACTS_ARROW_EXPORT ParquetReader : public IReader {
                 std::unique_ptr<const Acts::Logger> logger);
 
   /// Convenience overload: build a default logger at @p level.
-  ParquetReader(const Config& config, Acts::Logging::Level level);
+  explicit ParquetReader(const Config& config);
 
   ~ParquetReader() override;
 
@@ -102,7 +107,7 @@ class ACTS_ARROW_EXPORT ParquetReader : public IReader {
   class Impl;
 
   std::unique_ptr<Impl> m_impl;
-  std::unique_ptr<const Acts::Logger> m_logger;
+  std::shared_ptr<const Acts::Logger> m_logger;
 
   const Acts::Logger& logger() const { return *m_logger; }
 };

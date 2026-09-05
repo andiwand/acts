@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/TruthMatching.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Parquet/ArrowOutputConverter.hpp"
 #include "ActsPlugins/Arrow/ArrowUtil.hpp"
 #include "ActsPlugins/Arrow/Export.hpp"
@@ -45,6 +46,10 @@ class ACTS_ARROW_EXPORT ArrowSimHitOutputConverter final
     : public ArrowOutputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Input @c SimHitContainer on the whiteboard.
     std::string inputSimHits;
     /// Optional input particle container used to resolve the hit's particle
@@ -73,8 +78,7 @@ class ACTS_ARROW_EXPORT ArrowSimHitOutputConverter final
         };
   };
 
-  explicit ArrowSimHitOutputConverter(
-      const Config& cfg, std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit ArrowSimHitOutputConverter(const Config& cfg);
 
   /// Build a resolver from a volume-id -> detector-id lookup table.
   ///

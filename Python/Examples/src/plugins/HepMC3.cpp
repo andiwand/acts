@@ -35,8 +35,7 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsHepMC3, hepmc3) {
   auto reader =
       py::class_<HepMC3Reader, IReader, std::shared_ptr<HepMC3Reader>>(
           hepmc3, "HepMC3Reader")
-          .def(py::init<const HepMC3Reader::Config&, Acts::Logging::Level>(),
-               py::arg("config"), py::arg("level"))
+          .def(py::init<const HepMC3Reader::Config&>(), py::arg("config"))
           .def_property_readonly("config", &HepMC3Reader::config);
 
   // Expose Input struct as a nested class of HepMC3Reader
@@ -80,6 +79,8 @@ PYBIND11_MODULE(ActsExamplesPythonBindingsHepMC3, hepmc3) {
 
   auto config = py::class_<HepMC3Reader::Config>(reader, "Config")
                     .def(py::init<>(), "Default constructor");
+
+  declareLoggingConfig(config);
   // Now configure the HepMC3Reader itself
   ACTS_PYTHON_STRUCT(config, inputs, inputPath, outputEvent, printListing,
                      numEvents, checkEventNumber, maxEventBufferSize,

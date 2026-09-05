@@ -38,10 +38,8 @@
 
 using namespace ActsExamples;
 
-JsonSurfacesWriter::JsonSurfacesWriter(const JsonSurfacesWriter::Config& config,
-                                       Acts::Logging::Level level)
-    : m_cfg(config),
-      m_logger(Acts::getDefaultLogger("JsonSurfacesWriter", level)) {
+JsonSurfacesWriter::JsonSurfacesWriter(const JsonSurfacesWriter::Config& config)
+    : m_cfg(config), m_logger(makeLogger(config.logger, "JsonSurfacesWriter")) {
   if (!m_cfg.trackingGeometry) {
     throw std::invalid_argument("Missing tracking geometry");
   }

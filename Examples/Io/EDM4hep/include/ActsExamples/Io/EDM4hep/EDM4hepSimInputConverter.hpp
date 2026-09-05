@@ -14,6 +14,7 @@
 #include "ActsExamples/EventData/SimParticle.hpp"
 #include "ActsExamples/EventData/SimVertex.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/Podio/PodioInputConverter.hpp"
 #include "ActsPlugins/EDM4hep/EDM4hepUtil.hpp"
 
@@ -42,6 +43,10 @@ using EDM4hepSimHitAssociation = std::vector<edm4hep::SimTrackerHit>;
 class EDM4hepSimInputConverter final : public PodioInputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read input file from.
     std::string inputFrame = "events";
     /// Name of the particle collection in EDM4hep.
@@ -85,9 +90,7 @@ class EDM4hepSimInputConverter final : public PodioInputConverter {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  explicit EDM4hepSimInputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit EDM4hepSimInputConverter(const Config& config);
 
   /// Readonly access to the config
   const Config& config() const { return m_cfg; }

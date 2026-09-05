@@ -15,6 +15,7 @@
 #include "Acts/Material/TrackingGeometryMaterial.hpp"
 #include "Acts/Utilities/EnumBitwiseOperators.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 #include "ActsExamples/MaterialMapping/IMaterialWriter.hpp"
 #include "ActsPlugins/Json/MaterialMapJsonConverter.hpp"
@@ -49,6 +50,10 @@ ACTS_DEFINE_ENUM_BITWISE_OPERATORS(JsonFormat)
 class JsonMaterialWriter : public IMaterialWriter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// The config class of the converter
     Acts::MaterialMapJsonConverter::Config converterCfg;
     /// Output file name
@@ -61,7 +66,7 @@ class JsonMaterialWriter : public IMaterialWriter {
   ///
   /// @param config The configuration struct of the writer
   /// @param level The log level
-  JsonMaterialWriter(const Config& config, Acts::Logging::Level level);
+  explicit JsonMaterialWriter(const Config& config);
 
   /// Virtual destructor
   ~JsonMaterialWriter() override;
@@ -84,7 +89,7 @@ class JsonMaterialWriter : public IMaterialWriter {
   const Acts::Logger& logger() const { return *m_logger; }
 
   /// The logger instance
-  std::unique_ptr<const Acts::Logger> m_logger{nullptr};
+  std::shared_ptr<const Acts::Logger> m_logger{nullptr};
 
   /// The config of the writer
   Config m_cfg;

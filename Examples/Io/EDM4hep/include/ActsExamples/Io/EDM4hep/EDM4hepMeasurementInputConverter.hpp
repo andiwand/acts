@@ -12,6 +12,7 @@
 #include "ActsExamples/EventData/Cluster.hpp"
 #include "ActsExamples/EventData/Measurement.hpp"
 #include "ActsExamples/Framework/DataHandle.hpp"
+#include "ActsExamples/Framework/Logging.hpp"
 #include "ActsExamples/Io/EDM4hep/EDM4hepUtil.hpp"
 #include "ActsExamples/Io/Podio/PodioInputConverter.hpp"
 
@@ -26,6 +27,10 @@ class DD4hepDetector;
 class EDM4hepMeasurementInputConverter final : public PodioInputConverter {
  public:
   struct Config {
+    /// Logger for this component. Unnamed by default, in which case it is
+    /// named after the component. Assign a named logger to override.
+    std::shared_ptr<const Acts::Logger> logger = makeDefaultLogger();
+
     /// Where to read the input frame from.
     std::string inputFrame;
     /// Name of the input tracker hit local collection.
@@ -52,9 +57,7 @@ class EDM4hepMeasurementInputConverter final : public PodioInputConverter {
   ///
   /// @param config is the configuration object
   /// @param level is the logging level
-  explicit EDM4hepMeasurementInputConverter(
-      const Config& config,
-      std::unique_ptr<const Acts::Logger> logger = nullptr);
+  explicit EDM4hepMeasurementInputConverter(const Config& config);
 
   /// Read out data from the input stream.
   ProcessCode convert(const AlgorithmContext& ctx,
