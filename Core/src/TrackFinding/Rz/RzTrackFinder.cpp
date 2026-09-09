@@ -816,7 +816,12 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     disc += discStep;
   }
 
-  std::uint32_t holes = static_cast<std::uint32_t>(candidate.hits.size());
+  // What the start layer left is either measurements or one hole; taking its
+  // size for the hole count spends the budget on the measurements
+  std::uint32_t holes = 0;
+  for (const RzTrackHit& hit : candidate.hits) {
+    holes += hit.isHole() ? 1 : 0;
+  }
   std::uint32_t consecutiveHoles = holes;
   std::uint32_t layersCrossed = 0;
   std::uint32_t measurementsFound =
