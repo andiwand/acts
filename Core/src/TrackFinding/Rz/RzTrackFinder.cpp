@@ -705,6 +705,9 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
 
   std::uint32_t holes = static_cast<std::uint32_t>(candidate.hits.size());
   std::uint32_t consecutiveHoles = holes;
+  std::uint32_t layersCrossed = 0;
+  std::uint32_t measurementsFound =
+      static_cast<std::uint32_t>(candidate.hits.size()) - holes;
   ModuleList crossedModules;
   bool cylindersLeft = true;
   bool discsLeft = true;
@@ -830,6 +833,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     }
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
+    ++layersCrossed;
     // one geometry pass: the modules the crossing landed on are what the
     // search looks at, and whether there were any is the hole decision
     bool onModule = false;
@@ -838,10 +842,22 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
       // nothing to look at here
       continue;
     }
-    if (searchLayer(grid, surface.layer, stop, crossedModules, state,
-                    candidate) > 0) {
+    if (const std::uint32_t accepted = searchLayer(
+            grid, surface.layer, stop, crossedModules, state, candidate);
+        accepted > 0) {
+      measurementsFound += accepted;
       consecutiveHoles = 0;
       lastHit = state;
+      // Branch stopper. A candidate that has picked up a measurement and is
+      // now soft was following noise: the transverse momentum comes out of
+      // the filter, so it is only meaningful once a measurement has moved it.
+      if (m_cfg.ptMin > 0.) {
+        const double qOverP = std::abs(state.v[eRzQOverP]);
+        const double sinTheta = norm2(state.v[eRzDir0], state.v[eRzDir1]);
+        if (qOverP > 0. && sinTheta / qOverP < m_cfg.ptMin) {
+          break;
+        }
+      }
     } else if (!onModule) {
       // passed between the modules: nothing was expected here
       continue;
@@ -854,6 +870,13 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
           consecutiveHoles > m_cfg.maxConsecutiveHoles) {
         break;
       }
+    }
+    // A candidate that has crossed this many layers and has too little to
+    // show for it will not reach `minMeasurements` either
+    if (m_cfg.layersForMinMeasurements > 0 &&
+        layersCrossed >= m_cfg.layersForMinMeasurements &&
+        measurementsFound < m_cfg.minMeasurementsAtLayer) {
+      break;
     }
   }
 
