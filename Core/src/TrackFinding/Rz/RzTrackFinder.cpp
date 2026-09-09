@@ -285,8 +285,8 @@ std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
   return -*back;
 }
 
-bool RzTrackFinder::onModule(std::uint32_t layerIndex,
-                             const State& state) const {
+std::uint32_t RzTrackFinder::moduleAt(std::uint32_t layerIndex,
+                                      const State& state) const {
   const RzLayout& layout = *m_layout;
   const RzLayer& layer = layout.layers[layerIndex];
   const RzSurface& surface = layout.surfaces[layer.surface];
@@ -302,15 +302,16 @@ bool RzTrackFinder::onModule(std::uint32_t layerIndex,
   const double kappa = std::abs(helixAt(state.bz).kappa(v));
   const double maxDistance =
       std::max(m_cfg.maxModuleDistance, layer.moduleDistance);
-  bool hit = false;
+  std::uint32_t hit = kRzNone;
   RzMeasurementGrid::visitBins(
       layout, layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
-        if (hit) {
+        if (hit != kRzNone) {
           return;
         }
         for (std::uint32_t i = layout.moduleBinStart[b];
              i < layout.moduleBinStart[b + 1]; ++i) {
-          const RzModule& m = layout.modules[layout.moduleOrder[i]];
+          const std::uint32_t index = layout.moduleOrder[i];
+          const RzModule& m = layout.modules[index];
           const double alongNormal = m.normal.dot(dir);
           if (std::abs(alongNormal) < 1e-9) {
             continue;
@@ -324,7 +325,7 @@ bool RzTrackFinder::onModule(std::uint32_t layerIndex,
               m_cfg.moduleEdgeTolerance + 0.5 * kappa * s * s;
           if (std::abs(m.u.dot(d)) <= m.halfU + tolerance &&
               std::abs(m.v.dot(d)) <= m.halfV + tolerance) {
-            hit = true;
+            hit = index;
             return;
           }
         }
@@ -405,7 +406,7 @@ std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
         static_cast<std::uint32_t>(candidate.forwardStates.size());
     candidate.forwardStates.emplace_back(state.v, state.c);
     candidate.hits.push_back(
-        {layerIndex, bestIndex, stop, forwardState, best.chi2});
+        {layerIndex, bestIndex, stop, forwardState, m.module, best.chi2});
     candidate.chi2 += best.chi2;
     usedModules.push_back(m.module);
     ++accepted;
@@ -619,9 +620,12 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
         bzAt(layout.surfaces[startSurface],
              alongCoordinate(layout.surfaces[startSurface], state.v), m_bz);
     state.anchorBz = state.bz;
-    if (searchLayer(grid, layer, kRzNone, state, candidate) == 0 &&
-        onModule(layer, state)) {
-      candidate.hits.push_back({layer, kRzNone, kRzNone, kRzNone, 0.});
+    if (searchLayer(grid, layer, kRzNone, state, candidate) == 0) {
+      if (const std::uint32_t module = moduleAt(layer, state);
+          module != kRzNone) {
+        candidate.hits.push_back({layer, kRzNone, kRzNone, kRzNone, module,
+                                  0.});
+      }
     }
   }
 
@@ -773,14 +777,17 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     }
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
+    std::uint32_t holeModule = kRzNone;
     if (searchLayer(grid, surface.layer, stop, state, candidate) > 0) {
       consecutiveHoles = 0;
       lastHit = state;
-    } else if (!onModule(surface.layer, state)) {
+    } else if (holeModule = moduleAt(surface.layer, state);
+               holeModule == kRzNone) {
       // between modules: nothing was expected here
       continue;
     } else {
-      candidate.hits.push_back({surface.layer, kRzNone, stop, kRzNone, 0.});
+      candidate.hits.push_back(
+          {surface.layer, kRzNone, stop, kRzNone, holeModule, 0.});
       ++holes;
       ++consecutiveHoles;
       if (holes > m_cfg.maxHoles ||
