@@ -58,6 +58,11 @@ class RzMeasurementGrid {
   /// Drop the measurements of the last event
   void clear();
 
+  /// Make room for a known number of measurements, so that filling does not
+  /// grow and copy. A caller knows how many it is about to hand over.
+  /// @param n the number of measurements about to be added
+  void reserve(std::size_t n);
+
   /// Add a measurement on a module.
   /// @param module index into `RzLayout::modules`
   /// @param dim 1 or 2
