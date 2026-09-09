@@ -143,7 +143,8 @@ struct RzModule {
   /// the coordinate a strip does not measure
   double halfU{};
   double halfV{};
-  /// Local coordinates are polar (r, phi) in the surface frame: an annulus
+  /// The bound coordinates are not the module's own axes: they are polar
+  /// (r, phi) in the surface frame, which is an annulus disc
   bool polar{false};
   /// The centre in the surface's own bound coordinates, where a measurement
   /// leaves a coordinate it does not measure
