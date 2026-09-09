@@ -99,8 +99,7 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
   m_moduleOf.push_back(module);
 }
 
-void RzMeasurementGrid::addBound(std::uint32_t module,
-                                 const Surface& surface,
+void RzMeasurementGrid::addBound(std::uint32_t module, const Surface& surface,
                                  const GeometryContext& gctx, std::uint8_t dim,
                                  std::span<const std::uint8_t> boundIndices,
                                  std::span<const double> boundParams,

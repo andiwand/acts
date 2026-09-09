@@ -367,17 +367,18 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
 }
 
 std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
-                                        std::uint32_t layerIndex,
-                                        std::uint32_t stop,
-                                        const ModuleList& modules,
-                                        State& state,
-                                        RzTrackCandidate& candidate) const {
+                                         std::uint32_t layerIndex,
+                                         std::uint32_t stop,
+                                         const ModuleList& modules,
+                                         State& state,
+                                         RzTrackCandidate& candidate) const {
   // Finding the modules is not the same as finding the measurements: a module
   // is centimetres across and carries everything that landed on it, where the
   // state is known to millimetres. Without this cut a busy pixel module hands
   // the filter every cluster on it, which costs more than the bin lookup it
   // replaced.
-  const RzSurface& surface = m_layout->surfaces[m_layout->layers[layerIndex].surface];
+  const RzSurface& surface =
+      m_layout->surfaces[m_layout->layers[layerIndex].surface];
   const RzVector& v = state.v;
   const double x = v[eRzPos0];
   const double y = v[eRzPos1];
@@ -650,8 +651,8 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
     const std::size_t before = candidate.hits.size();
     const bool reached = inwardSearch(grid, state, candidate);
     if (candidate.hits.size() > before) {
-      const auto first = candidate.hits.begin() +
-                         static_cast<std::ptrdiff_t>(before);
+      const auto first =
+          candidate.hits.begin() + static_cast<std::ptrdiff_t>(before);
       std::reverse(first, candidate.hits.end());
       std::rotate(candidate.hits.begin(), first, candidate.hits.end());
       // the counts the forward pass took no longer describe the track
@@ -731,8 +732,8 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
           helix, state.v, layout.surfaces[layout.cylinders[cyl]].refCoord);
     }
     if (discValid()) {
-      sDisc = pathInwardToDisc(
-          state.v, layout.surfaces[layout.discs[disc]].refCoord);
+      sDisc = pathInwardToDisc(state.v,
+                               layout.surfaces[layout.discs[disc]].refCoord);
     }
     // inward is negative, so the nearer stop is the larger of the two
     const bool takeCyl =
