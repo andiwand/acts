@@ -38,14 +38,6 @@ double alongCoordinate(const RzSurface& surface, const RzVector& v) {
   return surface.shape == RzShape::Cylinder ? v[eRzPos2]
                                             : norm2(v[eRzPos0], v[eRzPos1]);
 }
-/// The same for a point
-/// @param surface the RZ surface
-/// @param p the point
-/// @return z on a cylinder, r on a disc
-double alongCoordinate(const RzSurface& surface, const Vector3& p) {
-  return surface.shape == RzShape::Cylinder ? p.z() : norm2(p.x(), p.y());
-}
-
 }  // namespace
 
 RzTrackFinder::RzTrackFinder(const RzTrackFinderConfig& config,
@@ -372,51 +364,12 @@ std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
                                          const ModuleList& modules,
                                          State& state,
                                          RzTrackCandidate& candidate) const {
-  // Finding the modules is not the same as finding the measurements: a module
-  // is centimetres across and carries everything that landed on it, where the
-  // state is known to millimetres. Without this cut a busy pixel module hands
-  // the filter every cluster on it, which costs more than the bin lookup it
-  // replaced.
-  const RzSurface& surface =
-      m_layout->surfaces[m_layout->layers[layerIndex].surface];
-  const RzVector& v = state.v;
-  const double x = v[eRzPos0];
-  const double y = v[eRzPos1];
-  const double r = norm2(x, y);
-  const auto cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
-  const double varPending = state.pending.varPosition;
-  const Vector3 tangent(-y / r, x / r, 0.);
-  const Vector3 radial(x / r, y / r, 0.);
-  const Vector3 alongDir =
-      surface.shape == RzShape::Cylinder ? Vector3::UnitZ() : radial;
-  const double sigmaPhi =
-      std::sqrt(std::max(0., tangent.dot(cPos * tangent) + varPending));
-  const double sigmaAlong =
-      std::sqrt(std::max(0., alongDir.dot(cPos * alongDir) + varPending));
-  const Vector3 p = v.segment<3>(eRzPos0);
-  // A module does not sit on the RZ surface: it is offset by up to the
-  // layer's half thickness, so the track meets it at a different (phi, along)
-  // than the stop, by that offset times the slope in each.
-  const RzLayer& layer = m_layout->layers[layerIndex];
-  const Vector3 dir = v.segment<3>(eRzDir0);
-  const double dRadial = std::max(std::abs(radial.dot(dir)), 1e-6);
-  const double dTangent = std::abs(tangent.dot(dir));
-  double thicknessPhi = 0.;
-  double thicknessAlong = 0.;
-  if (surface.shape == RzShape::Cylinder) {
-    thicknessAlong = layer.halfThickness * std::abs(dir.z()) / dRadial;
-    thicknessPhi = layer.halfThickness * dTangent / dRadial;
-  } else {
-    const double dz = std::max(std::abs(dir.z()), 1e-6);
-    thicknessAlong = layer.halfThickness * dRadial / dz;
-    thicknessPhi = layer.halfThickness * dTangent / dz;
-  }
-  const double halfTangent =
-      m_cfg.windowSigmas * sigmaPhi + m_cfg.windowMin + thicknessPhi;
-  const double halfAlong =
-      m_cfg.windowSigmas * sigmaAlong + m_cfg.windowMin + thicknessAlong;
-  const double along = alongCoordinate(surface, v);
-
+  // The modules are what the crossing landed on; which of their measurements
+  // is worth the full transport is `evaluate`'s gate, which takes the
+  // straight-line crossing of the module plane and a diagonal chi2 against
+  // the covariance widened over the module distance. A window in the stop's
+  // own (phi, along) cannot do that job: the module is offset from the RZ
+  // surface, so the track meets it somewhere else entirely.
   std::uint32_t accepted = 0;
   ModuleList usedModules;
   for (std::uint32_t round = 0; round < m_cfg.maxMeasurementsPerLayer;
@@ -430,13 +383,6 @@ std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
       }
       for (const std::uint32_t i : grid.moduleRange(module)) {
         const RzMeasurement& m = grid.entry(i);
-        const Vector3 d = m.position - p;
-        const double stripRoom = m.dim == 1 ? m.halfV : 0.;
-        if (std::abs(tangent.dot(d)) > halfTangent + stripRoom ||
-            std::abs(alongCoordinate(surface, m.position) - along) >
-                halfAlong + stripRoom) {
-          continue;
-        }
         ++candidate.candidatesTested;
         const std::optional<Evaluation> e = evaluate(state, m);
         if (e.has_value() && e->chi2 < best.chi2) {
