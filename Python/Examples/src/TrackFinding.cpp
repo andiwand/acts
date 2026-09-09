@@ -137,7 +137,8 @@ void addTrackFinding(py::module& mex) {
       inputMeasurements, inputInitialTrackParameters, outputTracks,
       trackingGeometry, magneticField, excludeVolumes, phiBins, alongBinWidth,
       chi2Cut, windowSigmas, windowMin, maxHoles, maxConsecutiveHoles,
-      minMeasurements, maxMeasurementsPerLayer, applyMaterial,
+      minMeasurements, maxMeasurementsPerLayer, ptMin, minMeasurementsAtLayer,
+      layersForMinMeasurements, applyMaterial,
       backwardInflation, backwardLayers, backwardQOverPScale);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
