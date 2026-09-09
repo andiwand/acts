@@ -429,6 +429,12 @@ struct RzHelix {
 
   /// Path length to the point of closest approach to the beam axis, in the
   /// transverse plane. Negative when the perigee is behind the state.
+  ///
+  /// The axis is x = y = 0, not a configurable beam line: the whole RZ
+  /// description is in (r, z) about it. A caller whose beam spot is offset
+  /// gets the closest approach to the axis, which is the right point to
+  /// express on its own perigee surface only as long as the offset is small
+  /// against the scale over which the track curves.
   /// @param v the state
   /// @return the path length
   double pathToPerigee(const RzVector& v) const;

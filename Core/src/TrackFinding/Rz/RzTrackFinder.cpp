@@ -643,9 +643,175 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
     state.c(eRzQOverP, eRzQOverP) = forward.c(eRzQOverP, eRzQOverP);
   }
 
+  if (m_cfg.inwardSearch) {
+    // Everything found from here on is inside what the forward pass saw, and
+    // is found outward to inward, so it has to be turned around and put in
+    // front to keep the hits ordered from the beam line out.
+    const std::size_t before = candidate.hits.size();
+    const bool reached = inwardSearch(grid, state, candidate);
+    if (candidate.hits.size() > before) {
+      const auto first = candidate.hits.begin() +
+                         static_cast<std::ptrdiff_t>(before);
+      std::reverse(first, candidate.hits.end());
+      std::rotate(candidate.hits.begin(), first, candidate.hits.end());
+      // the counts the forward pass took no longer describe the track
+      candidate.measurements = 0;
+      candidate.holes = 0;
+      for (const RzTrackHit& found : candidate.hits) {
+        (found.isHole() ? candidate.holes : candidate.measurements) += 1;
+      }
+    }
+    if (!reached) {
+      candidate.backwardFailure = 5;
+    }
+    candidate.innerAtPerigee = reached;
+  }
+
   candidate.innerParameters = state.v;
   candidate.innerCovariance = state.c;
   candidate.hasInner = true;
+}
+
+bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
+                                 RzTrackCandidate& candidate) const {
+  const RzLayout& layout = *m_layout;
+
+  // Path lengths inward are negative, the convention the backward replay
+  // already uses. A disc is linear in the path; a cylinder comes from the
+  // reversed state, which runs the same helix the other way.
+  auto pathInwardToDisc = [](const RzVector& v, double z) {
+    const double dz = v[eRzDir2];
+    return dz != 0. ? std::optional((z - v[eRzPos2]) / dz) : std::nullopt;
+  };
+  auto pathInwardToCylinder = [](const RzHelix& helix, const RzVector& v,
+                                 double radius) -> std::optional<double> {
+    const RzVector reversed = RzHelix::reversed(v);
+    const std::optional<double> forward =
+        helix.pathToCylinder(reversed, radius);
+    return forward.has_value() ? std::optional(-*forward) : std::nullopt;
+  };
+
+  // cursors, mirrored: cylinders inward from the current radius, discs back
+  // toward z = 0 against the direction of travel
+  const double r0 = norm2(state.v[eRzPos0], state.v[eRzPos1]);
+  std::ptrdiff_t cyl = static_cast<std::ptrdiff_t>(layout.cylinders.size()) - 1;
+  while (cyl >= 0 && layout.surfaces[layout.cylinders[cyl]].refCoord >= r0) {
+    --cyl;
+  }
+  const bool travellingForward = state.v[eRzDir2] >= 0.;
+  const int discStep = travellingForward ? -1 : 1;
+  std::ptrdiff_t disc =
+      travellingForward ? static_cast<std::ptrdiff_t>(layout.discs.size()) - 1
+                        : 0;
+  auto discValid = [&]() {
+    return disc >= 0 && disc < static_cast<std::ptrdiff_t>(layout.discs.size());
+  };
+  while (discValid()) {
+    const double z = layout.surfaces[layout.discs[disc]].refCoord;
+    if (travellingForward ? z < state.v[eRzPos2] : z > state.v[eRzPos2]) {
+      break;
+    }
+    disc += discStep;
+  }
+
+  ModuleList crossedModules;
+  while (true) {
+    const RzHelix helix = helixAt(state.bz);
+    // where the track is closest to the beam axis; nothing inside that is
+    // still on the way in
+    const double sPerigee = helix.pathToPerigee(state.v);
+    if (sPerigee >= 0.) {
+      break;
+    }
+
+    std::optional<double> sCyl;
+    std::optional<double> sDisc;
+    if (cyl >= 0) {
+      sCyl = pathInwardToCylinder(
+          helix, state.v, layout.surfaces[layout.cylinders[cyl]].refCoord);
+    }
+    if (discValid()) {
+      sDisc = pathInwardToDisc(
+          state.v, layout.surfaces[layout.discs[disc]].refCoord);
+    }
+    // inward is negative, so the nearer stop is the larger of the two
+    const bool takeCyl =
+        sCyl.has_value() && (!sDisc.has_value() || *sCyl >= *sDisc);
+    if (!sCyl.has_value() && !sDisc.has_value()) {
+      break;
+    }
+    const double step = takeCyl ? *sCyl : *sDisc;
+    if (step > 0. || step <= sPerigee) {
+      // behind us, or beyond the closest approach
+      break;
+    }
+    const std::uint32_t surfaceIndex =
+        takeCyl ? layout.cylinders[cyl] : layout.discs[disc];
+    const RzSurface& surface = layout.surfaces[surfaceIndex];
+    if (takeCyl) {
+      --cyl;
+    } else {
+      disc += discStep;
+    }
+
+    RzVector landed = state.v;
+    helix.step(landed, step);
+    const double along = alongCoordinate(surface, landed);
+    if (!surface.contains(along)) {
+      continue;
+    }
+    const std::uint32_t stop =
+        static_cast<std::uint32_t>(candidate.stopSurfaces.size());
+    candidate.stopSurfaces.push_back(surfaceIndex);
+    candidate.stopPaths.push_back(step);
+    candidate.stopAlong.push_back(along);
+    ++candidate.stops;
+
+    state.v = landed;
+    const Vector3 normal = surfaceNormal(surface, state.v);
+    state.travel(step);
+    state.pending.advance(std::abs(step));
+    state.bz = bzAt(surface, along, m_bz);
+
+    // going inward the particle gains back what it lost on the way out
+    if (m_cfg.applyMaterial) {
+      if (const int band = surface.materialBandAt(along);
+          band >= 0 && !applyMaterial(state, surface, band, normal, -1.)) {
+        return false;
+      }
+    }
+    if (surface.layer == kRzNone) {
+      continue;
+    }
+    state.moveCovariance(helixAt(state.anchorBz), normal);
+    materialise(state, normal);
+    // holes are the forward pass's business: this pass is here to pick up
+    // what the seed's own layers hold, not to judge what is missing
+    bool onModule = false;
+    modulesAt(surface.layer, state, crossedModules, onModule);
+    if (crossedModules.empty()) {
+      continue;
+    }
+    searchLayer(grid, surface.layer, stop, crossedModules, state, candidate);
+  }
+
+  // finish on the beam line: the parameters a caller wants are here, with the
+  // material of everything crossed already in the covariance
+  const RzHelix helix = helixAt(state.bz);
+  const double sPerigee = helix.pathToPerigee(state.v);
+  RzVector end = state.v;
+  helix.step(end, sPerigee);
+  const double dt = std::hypot(end[eRzDir0], end[eRzDir1]);
+  if (dt <= 0.) {
+    return false;
+  }
+  const Vector3 normal(end[eRzDir0] / dt, end[eRzDir1] / dt, 0.);
+  state.v = end;
+  state.travel(sPerigee);
+  state.pending.advance(std::abs(sPerigee));
+  state.moveCovariance(helixAt(state.anchorBz), normal);
+  materialise(state, normal);
+  return true;
 }
 
 bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
