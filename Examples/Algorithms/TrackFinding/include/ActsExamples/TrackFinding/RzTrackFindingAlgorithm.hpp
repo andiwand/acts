@@ -55,6 +55,9 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     std::uint32_t maxConsecutiveHoles = 2;
     std::uint32_t minMeasurements = 6;
     std::uint32_t maxMeasurementsPerLayer = 2;
+    double ptMin = 0.;
+    std::uint32_t minMeasurementsAtLayer = 0;
+    std::uint32_t layersForMinMeasurements = 0;
     bool applyMaterial = true;
     double backwardInflation = 100.;
     std::uint32_t backwardLayers = 6;

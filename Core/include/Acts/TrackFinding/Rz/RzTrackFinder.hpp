@@ -55,6 +55,15 @@ struct RzTrackFinderConfig {
   std::uint32_t maxMeasurementsPerLayer = 2;
   /// Stop once the track has turned this far in the transverse plane
   double maxTurningAngle = std::numbers::pi;
+  /// Branch stopper: drop a candidate whose filtered transverse momentum has
+  /// fallen below this, checked after each measurement. The seed's own
+  /// estimate is not trusted for it — the first update has to have happened.
+  /// Zero switches it off.
+  double ptMin = 0.;
+  /// A candidate that has not reached this many measurements by the time it
+  /// has crossed this many sensitive layers is dropped. Zero switches it off.
+  std::uint32_t minMeasurementsAtLayer = 0;
+  std::uint32_t layersForMinMeasurements = 0;
   bool applyMaterial = true;
   /// Refilter the found measurements backwards from the forward result, so
   /// that the parameters at the inner end carry every hit's information: a

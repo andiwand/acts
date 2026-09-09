@@ -149,6 +149,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   finderConfig.maxConsecutiveHoles = m_cfg.maxConsecutiveHoles;
   finderConfig.minMeasurements = m_cfg.minMeasurements;
   finderConfig.maxMeasurementsPerLayer = m_cfg.maxMeasurementsPerLayer;
+  finderConfig.ptMin = m_cfg.ptMin;
+  finderConfig.minMeasurementsAtLayer = m_cfg.minMeasurementsAtLayer;
+  finderConfig.layersForMinMeasurements = m_cfg.layersForMinMeasurements;
   finderConfig.applyMaterial = m_cfg.applyMaterial;
   finderConfig.backwardInflation = m_cfg.backwardInflation;
   finderConfig.backwardLayers = m_cfg.backwardLayers;
