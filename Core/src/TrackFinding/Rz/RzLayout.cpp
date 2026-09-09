@@ -22,6 +22,7 @@
 #include "Acts/Surfaces/PlanarBounds.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 #include "Acts/Surfaces/SurfaceArray.hpp"
+#include "Acts/Surfaces/SurfaceBounds.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
@@ -200,7 +201,10 @@ std::optional<RzModule> describeModule(const Surface& surface,
     }
   }
   RzModule m;
-  m.polar = surface.type() == Surface::Disc;
+  // whether the bound coordinates are polar rather than the module's own
+  // axes, which is what the measurement fill keys off: an annulus disc, not
+  // a plane
+  m.polar = !surface.bounds().isCartesian();
   const Transform3& transform = surface.localToGlobalTransform(gctx);
   const Vector2 centre = 0.5 * (lo + hi);
   m.center = transform * Vector3(centre.x(), centre.y(), 0.);
