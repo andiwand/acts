@@ -18,16 +18,14 @@ namespace Acts::Experimental {
 
 RzMeasurementGrid::RzMeasurementGrid(const RzLayout& layout)
     : m_layout(&layout) {
-  m_binStart.assign(layout.totalBins + 1, 0);
-  m_layerHasStrips.assign(layout.layers.size(), false);
+  m_moduleStart.assign(layout.modules.size() + 1, 0);
 }
 
 void RzMeasurementGrid::clear() {
   m_entries.clear();
-  m_binOf.clear();
+  m_moduleOf.clear();
   m_order.clear();
-  std::ranges::fill(m_binStart, 0u);
-  m_layerHasStrips.assign(m_layerHasStrips.size(), false);
+  std::ranges::fill(m_moduleStart, 0u);
 }
 
 void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
@@ -67,19 +65,8 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
   }
   e.position = m.center + lu * e.u + lv * e.v;
 
-  const RzLayer& layer = m_layout->layers[m.layer];
-  if (dim == 1) {
-    m_layerHasStrips[m.layer] = true;
-  }
-  const RzSurface& surface = m_layout->surfaces[layer.surface];
-  const double phi = std::atan2(e.position.y(), e.position.x());
-  const double along = surface.shape == RzShape::Cylinder
-                           ? e.position.z()
-                           : std::hypot(e.position.x(), e.position.y());
-  const std::uint32_t bin = m_layout->bin(m.layer, phi, along);
-
   m_entries.push_back(e);
-  m_binOf.push_back(bin);
+  m_moduleOf.push_back(module);
 }
 
 void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
@@ -103,18 +90,8 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
   e.cov01 = cov01;
   e.cov11 = cov11;
 
-  const RzLayer& layer = m_layout->layers[m.layer];
-  if (dim == 1) {
-    m_layerHasStrips[m.layer] = true;
-  }
-  const RzSurface& surface = m_layout->surfaces[layer.surface];
-  const double phi = std::atan2(e.position.y(), e.position.x());
-  const double along = surface.shape == RzShape::Cylinder
-                           ? e.position.z()
-                           : std::hypot(e.position.x(), e.position.y());
-  const std::uint32_t bin = m_layout->bin(m.layer, phi, along);
   m_entries.push_back(e);
-  m_binOf.push_back(bin);
+  m_moduleOf.push_back(module);
 }
 
 void RzMeasurementGrid::addBound(std::uint32_t module,
@@ -197,39 +174,28 @@ void RzMeasurementGrid::addBound(std::uint32_t module,
   e.cov01 = cov01;
   e.cov11 = cov11;
 
-  const RzLayer& layer = m_layout->layers[m.layer];
-  if (dim == 1) {
-    m_layerHasStrips[m.layer] = true;
-  }
-  const RzSurface& rzSurface = m_layout->surfaces[layer.surface];
-  const double phi = std::atan2(e.position.y(), e.position.x());
-  const double along = rzSurface.shape == RzShape::Cylinder
-                           ? e.position.z()
-                           : std::hypot(e.position.x(), e.position.y());
   m_entries.push_back(e);
-  m_binOf.push_back(m_layout->bin(m.layer, phi, along));
+  m_moduleOf.push_back(module);
 }
 
 void RzMeasurementGrid::finalize() {
-  // counting sort into the bins
-  std::ranges::fill(m_binStart, 0u);
-  for (const std::uint32_t b : m_binOf) {
-    ++m_binStart[b + 1];
+  // counting sort by module. Only the index is sorted: the entries stay where
+  // they were added, which on a detector with a million measurements an event
+  // is worth more than the locality a full copy would buy — a search touches
+  // one module at a time, and a module's measurements arrive together anyway
+  // because the caller's container is grouped by module.
+  std::ranges::fill(m_moduleStart, 0u);
+  for (const std::uint32_t module : m_moduleOf) {
+    ++m_moduleStart[module + 1];
   }
-  for (std::size_t i = 1; i < m_binStart.size(); ++i) {
-    m_binStart[i] += m_binStart[i - 1];
+  for (std::size_t i = 1; i < m_moduleStart.size(); ++i) {
+    m_moduleStart[i] += m_moduleStart[i - 1];
   }
-  // the entries themselves go into bin order, so that a window walks memory
-  // linearly; the indices handed out from here on are the sorted ones
-  std::vector<RzMeasurement> sorted(m_entries.size());
-  std::vector<std::uint32_t> fill(m_binStart.begin(), m_binStart.end() - 1);
-  for (std::uint32_t i = 0; i < m_binOf.size(); ++i) {
-    sorted[fill[m_binOf[i]]++] = m_entries[i];
-  }
-  m_entries.swap(sorted);
   m_order.resize(m_entries.size());
-  for (std::uint32_t i = 0; i < m_order.size(); ++i) {
-    m_order[i] = i;
+  std::vector<std::uint32_t> fill(m_moduleStart.begin(),
+                                  m_moduleStart.end() - 1);
+  for (std::uint32_t i = 0; i < m_moduleOf.size(); ++i) {
+    m_order[fill[m_moduleOf[i]]++] = i;
   }
 }
 
