@@ -65,6 +65,13 @@ struct RzTrackFinderConfig {
   std::uint32_t minMeasurementsAtLayer = 0;
   std::uint32_t layersForMinMeasurements = 0;
   bool applyMaterial = true;
+  /// Carry on inward past the innermost measurement, searching the layers
+  /// between it and the beam line, and end at the closest approach. Without
+  /// it a seed built from outer space points yields a track that starts where
+  /// the seed did and never sees anything inside it, which both loses those
+  /// hits and stops deduplication recognising the seeds that would have found
+  /// them.
+  bool inwardSearch = true;
   /// Refilter the found measurements backwards from the forward result, so
   /// that the parameters at the inner end carry every hit's information: a
   /// filter run the other way, started from the diagonal of the forward
@@ -107,10 +114,15 @@ struct RzTrackCandidate {
   /// The state at the end of the forward pass, on the last measurement
   RzVector parameters{RzVector::Zero()};
   RzMatrix covariance{RzMatrix::Zero()};
-  /// The state at the first measurement after the backward pass, if run
+  /// The state at the inner end after the backward pass, if run: at the
+  /// closest approach to the beam axis when the inward search ran, otherwise
+  /// at the first measurement
   RzVector innerParameters{RzVector::Zero()};
   RzMatrix innerCovariance{RzMatrix::Zero()};
   bool hasInner{false};
+  /// Whether `innerParameters` are already at the closest approach, so that a
+  /// caller has nothing left to extrapolate
+  bool innerAtPerigee{false};
   /// Why the backward pass gave up, 0 if it did not
   std::uint32_t backwardFailure{};
   /// Measurements and holes in the order they were found, holes after the
@@ -143,6 +155,7 @@ struct RzTrackCandidate {
     measurements = 0;
     holes = 0;
     hasInner = false;
+    innerAtPerigee = false;
     backwardFailure = 0;
     chi2 = 0.;
     pathLength = 0.;
@@ -260,6 +273,16 @@ class RzTrackFinder {
 
   /// Refilter the candidate's measurements from the outer end inwards
   void backwardPass(const RzMeasurementGrid& grid, const State& forward,
+                    RzTrackCandidate& candidate) const;
+
+  /// Walk inward from the state, searching every sensitive layer between it
+  /// and the beam line, and leave the state at the closest approach.
+  /// @param grid the measurements of the event
+  /// @param state the state at the innermost measurement, moved to the
+  ///        closest approach
+  /// @param candidate the hits found are appended, outward to inward
+  /// @return false if the closest approach could not be reached
+  bool inwardSearch(const RzMeasurementGrid& grid, State& state,
                     RzTrackCandidate& candidate) const;
 
   /// Add `pending` to the covariance and project the position part onto the
