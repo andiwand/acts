@@ -13,6 +13,7 @@
 /// layer of an `RzLayout`, which is what the finder searches.
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/TrackFinding/Rz/RzLayout.hpp"
 
 #include <cstdint>
@@ -86,6 +87,29 @@ class RzMeasurementGrid {
   void add(std::uint32_t module, std::uint8_t dim, const Vector3& position,
            const Vector3& u, const Vector3& v, double cov00, double cov01,
            double cov11, std::uint32_t source);
+
+  /// Add a measurement given in the surface's own bound coordinates, whatever
+  /// local frame that is: the surface maps the point to the global frame and
+  /// its bounds supply the map from the bound coordinates to the cartesian
+  /// ones, so a polar frame (an annulus strip) needs nothing of the caller.
+  /// This is the form for an experiment framework whose measurements are
+  /// bound parameters on an ACTS surface.
+  /// @param module index into `RzLayout::modules`
+  /// @param surface the module's surface, whose bounds give the local frame
+  /// @param gctx the geometry context
+  /// @param dim 1 or 2
+  /// @param boundIndices which bound coordinate each measured value is, 0 for
+  ///        `eBoundLoc0` and 1 for `eBoundLoc1`; the ones not measured are
+  ///        taken at the module centre
+  /// @param boundParams the measured values
+  /// @param boundCov the covariance in the bound coordinates, row major,
+  ///        `dim` by `dim`
+  /// @param source the caller's index of the measurement
+  void addBound(std::uint32_t module, const Surface& surface,
+                const GeometryContext& gctx, std::uint8_t dim,
+                std::span<const std::uint8_t> boundIndices,
+                std::span<const double> boundParams,
+                std::span<const double> boundCov, std::uint32_t source);
 
   /// Sort what was added into the bins. Nothing can be searched before.
   void finalize();

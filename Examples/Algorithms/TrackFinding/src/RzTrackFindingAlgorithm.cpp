@@ -14,7 +14,6 @@
 #include "Acts/EventData/TransformationHelpers.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/EventData/VectorTrackContainer.hpp"
-#include "Acts/Surfaces/AnnulusBounds.hpp"
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 #include "Acts/Utilities/TrackHelpers.hpp"
@@ -133,60 +132,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         cov[a * 2 + b] = covariance(rows[a], rows[b]);
       }
     }
-    const RzModule& rzModule = m_layout.modules[module->second];
-    const auto* annulus = rzModule.polar
-                              ? dynamic_cast<const Acts::AnnulusBounds*>(
-                                    &rzModule.surface->bounds())
-                              : nullptr;
-    if (annulus == nullptr) {
-      // cartesian local coordinates: the module frame is the measurement's
-      grid.add(module->second, dim, std::span(indices.data(), dim),
-               std::span(params.data(), dim), std::span(cov.data(), 4), i);
-      continue;
-    }
-    // An annulus strip (ITk endcap) measures phi in polar coordinates of
-    // its strip frame: the point and the residual directions from the
-    // polar frame by hand, r at the module's mean radius where it is not
-    // measured. The surface frame is the strip frame, so the local
-    // cartesian point is (r cos phi, r sin phi) in it.
-    double r = 0.5 * (annulus->get(Acts::AnnulusBounds::eMinR) +
-                      annulus->get(Acts::AnnulusBounds::eMaxR));
-    double phi = annulus->get(Acts::AnnulusBounds::eAveragePhi);
-    std::uint8_t measuredR = 0;
-    std::uint8_t measuredPhi = 0;
-    for (std::uint8_t a = 0; a < dim; ++a) {
-      if (indices[a] == Acts::eBoundLoc0) {
-        r = params[a];
-        measuredR = 1;
-      } else {
-        phi = params[a];
-        measuredPhi = 1;
-      }
-    }
-    const Acts::Transform3& transform =
-        rzModule.surface->localToGlobalTransform(ctx.recoGeoContext);
-    const Acts::Vector3 position =
-        transform * Acts::Vector3(r * std::cos(phi), r * std::sin(phi), 0.);
-    const Acts::Vector3 radial =
-        transform.rotation() * Acts::Vector3(std::cos(phi), std::sin(phi), 0.);
-    const Acts::Vector3 tangential =
-        transform.rotation() * Acts::Vector3(-std::sin(phi), std::cos(phi), 0.);
-    if (dim == 2) {
-      // (r, phi) in the order the measurement has them
-      const bool swapped = indices[0] == Acts::eBoundLoc1;
-      const double s0 = swapped ? r : 1.;
-      const double s1 = swapped ? 1. : r;
-      grid.add(module->second, 2, position, swapped ? tangential : radial,
-               swapped ? radial : tangential, cov[0] * s0 * s0,
-               cov[1] * s0 * s1, cov[3] * s1 * s1, i);
-    } else if (measuredPhi != 0) {
-      grid.add(module->second, 1, position, tangential, radial, cov[0] * r * r,
-               0., 0., i);
-    } else {
-      grid.add(module->second, 1, position, radial, tangential, cov[0], 0., 0.,
-               i);
-    }
-    static_cast<void>(measuredR);
+    grid.addBound(module->second, *m_layout.modules[module->second].surface,
+                  ctx.recoGeoContext, dim, std::span(indices.data(), dim),
+                  std::span(params.data(), dim), std::span(cov.data(), 4), i);
   }
   grid.finalize();
   ACTS_DEBUG("Binned " << grid.size() << " of " << measurements.size()
