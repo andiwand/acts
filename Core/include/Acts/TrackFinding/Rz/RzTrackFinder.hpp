@@ -84,6 +84,9 @@ struct RzTrackHit {
   /// Index into `RzTrackCandidate::forwardStates` of the forward state after
   /// this measurement, `kRzNone` for a hole
   std::uint32_t forwardState{kRzNone};
+  /// For a hole, the module the track crossed without leaving a measurement;
+  /// for a measurement it is the one of the measurement's grid entry
+  std::uint32_t module{kRzNone};
   double chi2{};
 
   bool isHole() const { return measurement == kRzNone; }
@@ -259,9 +262,10 @@ class RzTrackFinder {
                             std::uint32_t stop, State& state,
                             RzTrackCandidate& candidate) const;
 
-  /// Whether the state, brought to a module plane, lands on a module of the
-  /// layer: a layer crossing without a measurement is a hole only then
-  bool onModule(std::uint32_t layer, const State& state) const;
+  /// The module of the layer the state, brought to a module plane, lands on:
+  /// a layer crossing without a measurement is a hole only if there is one
+  /// @return the module index, or `kRzNone` if the crossing missed them all
+  std::uint32_t moduleAt(std::uint32_t layer, const State& state) const;
 
   /// Path length back to an RZ surface, negative, or nothing
   /// @param guess where to start looking, the forward path with its sign
