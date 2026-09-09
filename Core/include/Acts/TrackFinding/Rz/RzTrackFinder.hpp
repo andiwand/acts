@@ -20,12 +20,12 @@
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
-#include <boost/container/static_vector.hpp>
-
 #include <cstdint>
 #include <numbers>
 #include <optional>
 #include <vector>
+
+#include <boost/container/static_vector.hpp>
 
 namespace Acts::Experimental {
 

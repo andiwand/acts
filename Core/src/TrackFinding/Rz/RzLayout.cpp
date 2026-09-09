@@ -215,9 +215,8 @@ std::optional<RzModule> describeModule(const Surface& surface,
   m.halfV = 0.5 * (hi.y() - lo.y());
   // the centre in the surface's own bound frame, which for a polar frame is
   // not the cartesian box centre the module was measured out in
-  if (const Result<Vector2> bound =
-          surface.globalToLocal(gctx, m.center, Vector3::UnitZ(),
-                                std::numeric_limits<double>::max());
+  if (const Result<Vector2> bound = surface.globalToLocal(
+          gctx, m.center, Vector3::UnitZ(), std::numeric_limits<double>::max());
       bound.ok()) {
     m.boundCenter = *bound;
   } else {
