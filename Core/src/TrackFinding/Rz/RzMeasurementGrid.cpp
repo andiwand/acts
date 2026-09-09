@@ -165,6 +165,7 @@ void RzMeasurementGrid::addBound(std::uint32_t module, const Surface& surface,
   e.u = u;
   e.v = v;
   e.normal = u.cross(v);
+  e.invLever = m.polar && scaleU > 0. ? 1. / scaleU : 0.;
   // the room a search opens along a strip: the module's extent along the
   // coordinate it does not measure, and for a polar frame, where neither
   // bound coordinate is a module axis, the box in either direction

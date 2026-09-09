@@ -201,6 +201,12 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   if (m.dim == 1 && std::abs(rv) > m.halfV + m_cfg.stripMargin) {
     return std::nullopt;
   }
+  // In a polar frame the measurement is an angle, so the length it stands for
+  // grows with the distance from the frame's origin. The entry carries the
+  // variance at the module's own radius; the crossing is `rv` further along
+  // the radial direction, which is where the variance belongs.
+  const double lever = 1. - rv * m.invLever;
+  const double cov00 = m.cov00 * lever * lever;
   // S = H C H^T + R with H the two frame axes on the position block of the
   // covariance moved to the module: the rows of H J, and only they, are
   // formed, and C (H J)^T is what the update needs too
@@ -209,7 +215,7 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
       helix.stepJacobianOnto(state.v, *s, w, m.normal).positionRows();
   const Eigen::Matrix<double, 1, eRzSize> hu = m.u.transpose() * jPos;
   e.ch.col(0) = state.c * hu.transpose();
-  const double s00 = hu.dot(e.ch.col(0)) + m.cov00;
+  const double s00 = hu.dot(e.ch.col(0)) + cov00;
   e.sInv.setZero();
   if (m.dim == 1) {
     e.ch.col(1).setZero();
