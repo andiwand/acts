@@ -100,6 +100,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   const double bz = field->z();
 
   RzMeasurementGrid grid(m_layout);
+  grid.reserve(measurements.size());
   for (std::uint32_t i = 0; i < measurements.size(); ++i) {
     const auto measurement = measurements.getMeasurement(i);
     const auto module = m_layout.moduleIndex.find(measurement.geometryId());
