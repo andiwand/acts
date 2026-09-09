@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <set>
 
@@ -208,6 +209,16 @@ std::optional<RzModule> describeModule(const Surface& surface,
   m.normal = transform.rotation().col(2);
   m.halfU = 0.5 * (hi.x() - lo.x());
   m.halfV = 0.5 * (hi.y() - lo.y());
+  // the centre in the surface's own bound frame, which for a polar frame is
+  // not the cartesian box centre the module was measured out in
+  if (const Result<Vector2> bound =
+          surface.globalToLocal(gctx, m.center, Vector3::UnitZ(),
+                                std::numeric_limits<double>::max());
+      bound.ok()) {
+    m.boundCenter = *bound;
+  } else {
+    m.boundCenter = centre;
+  }
   m.geometryId = surface.geometryId();
   m.surface = surface.getSharedPtr();
   return m;

@@ -145,6 +145,9 @@ struct RzModule {
   double halfV{};
   /// Local coordinates are polar (r, phi) in the surface frame: an annulus
   bool polar{false};
+  /// The centre in the surface's own bound coordinates, where a measurement
+  /// leaves a coordinate it does not measure
+  Vector2 boundCenter{Vector2::Zero()};
   std::uint32_t layer{kRzNone};
   GeometryIdentifier geometryId;
   std::shared_ptr<const Surface> surface;
