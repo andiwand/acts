@@ -28,6 +28,11 @@ void RzMeasurementGrid::clear() {
   std::ranges::fill(m_moduleStart, 0u);
 }
 
+void RzMeasurementGrid::reserve(std::size_t n) {
+  m_entries.reserve(n);
+  m_moduleOf.reserve(n);
+}
+
 void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
                             std::span<const std::uint8_t> localIndices,
                             std::span<const double> localParams,
