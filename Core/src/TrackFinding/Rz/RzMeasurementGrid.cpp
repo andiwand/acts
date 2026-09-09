@@ -130,28 +130,41 @@ void RzMeasurementGrid::addBound(std::uint32_t module,
   for (std::uint8_t i = 0; i < dim; ++i) {
     local[boundIndices[i]] = boundParams[i];
   }
-  const Vector3 position = surface.localToGlobal(gctx, local, m.normal);
 
-  // d(global) / d(bound local): the surface's own rotation, composed with the
-  // bounds' map to the cartesian frame, which is the identity unless the
-  // bound frame is polar. Its columns are the directions the two bound
-  // coordinates move the point in, and their lengths are what turns a
-  // covariance in the bound coordinates into one in length units.
-  Eigen::Matrix<double, 3, 2> jac =
-      surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
-  if (!surface.bounds().isCartesian()) {
-    jac *= surface.bounds().boundToCartesianJacobian(local);
-  }
-  const double scale0 = jac.col(0).norm();
-  const double scale1 = jac.col(1).norm();
-
-  // the frame the residual is taken in: `u` along what a strip measures
   const bool measuresLoc1 = dim == 1 && boundIndices[0] == 1;
-  const std::uint8_t iu = measuresLoc1 ? 1 : 0;
-  const double scaleU = measuresLoc1 ? scale1 : scale0;
-  const double scaleV = measuresLoc1 ? scale0 : scale1;
-  const Vector3 u = jac.col(iu) / scaleU;
-  const Vector3 v = jac.col(1 - iu) / scaleV;
+  Vector3 position;
+  Vector3 u;
+  Vector3 v;
+  double scaleU = 1.;
+  double scaleV = 1.;
+  if (!m.polar) {
+    // A cartesian frame is the module's own, which was read off the surface
+    // once when the layout was built: the point is the centre plus the
+    // measured offsets along the module axes, the map to the global frame is
+    // those axes, and it is unit. Worth the branch — this is every pixel and
+    // every barrel strip, and the general form below costs four virtual calls
+    // into the surface for each of them.
+    const Vector2 offset = local - m.boundCenter;
+    position = m.center + offset.x() * m.u + offset.y() * m.v;
+    u = measuresLoc1 ? m.v : m.u;
+    v = measuresLoc1 ? m.u : m.v;
+  } else {
+    position = surface.localToGlobal(gctx, local, m.normal);
+    // d(global) / d(bound local): the surface's own rotation, composed with
+    // the bounds' map to the cartesian frame. Its columns are the directions
+    // the two bound coordinates move the point in, and their lengths are what
+    // turns a covariance in the bound coordinates into one in length units.
+    Eigen::Matrix<double, 3, 2> jac =
+        surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
+    jac *= surface.bounds().boundToCartesianJacobian(local);
+    const double scale0 = jac.col(0).norm();
+    const double scale1 = jac.col(1).norm();
+    const std::uint8_t iu = measuresLoc1 ? 1 : 0;
+    scaleU = measuresLoc1 ? scale1 : scale0;
+    scaleV = measuresLoc1 ? scale0 : scale1;
+    u = jac.col(iu) / scaleU;
+    v = jac.col(1 - iu) / scaleV;
+  }
 
   double cov00 = 0.;
   double cov01 = 0.;
@@ -174,9 +187,8 @@ void RzMeasurementGrid::addBound(std::uint32_t module,
   // the room a search opens along a strip: the module's extent along the
   // coordinate it does not measure, and for a polar frame, where neither
   // bound coordinate is a module axis, the box in either direction
-  e.halfV = surface.bounds().isCartesian()
-                ? (measuresLoc1 ? m.halfU : m.halfV)
-                : std::max(m.halfU, m.halfV);
+  e.halfV = !m.polar ? (measuresLoc1 ? m.halfU : m.halfV)
+                     : std::max(m.halfU, m.halfV);
   e.maxDistance = m_layout->layers[m.layer].moduleDistance;
   e.module = module;
   e.source = source;
