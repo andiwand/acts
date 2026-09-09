@@ -8,6 +8,9 @@
 
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 
+#include "Acts/Surfaces/Surface.hpp"
+#include "Acts/Surfaces/SurfaceBounds.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -112,6 +115,87 @@ void RzMeasurementGrid::add(std::uint32_t module, std::uint8_t dim,
   const std::uint32_t bin = m_layout->bin(m.layer, phi, along);
   m_entries.push_back(e);
   m_binOf.push_back(bin);
+}
+
+void RzMeasurementGrid::addBound(std::uint32_t module,
+                                 const Surface& surface,
+                                 const GeometryContext& gctx, std::uint8_t dim,
+                                 std::span<const std::uint8_t> boundIndices,
+                                 std::span<const double> boundParams,
+                                 std::span<const double> boundCov,
+                                 std::uint32_t source) {
+  const RzModule& m = m_layout->modules[module];
+  // what was measured where it was measured, the rest at the module centre
+  Vector2 local = m.boundCenter;
+  for (std::uint8_t i = 0; i < dim; ++i) {
+    local[boundIndices[i]] = boundParams[i];
+  }
+  const Vector3 position = surface.localToGlobal(gctx, local, m.normal);
+
+  // d(global) / d(bound local): the surface's own rotation, composed with the
+  // bounds' map to the cartesian frame, which is the identity unless the
+  // bound frame is polar. Its columns are the directions the two bound
+  // coordinates move the point in, and their lengths are what turns a
+  // covariance in the bound coordinates into one in length units.
+  Eigen::Matrix<double, 3, 2> jac =
+      surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
+  if (!surface.bounds().isCartesian()) {
+    jac *= surface.bounds().boundToCartesianJacobian(local);
+  }
+  const double scale0 = jac.col(0).norm();
+  const double scale1 = jac.col(1).norm();
+
+  // the frame the residual is taken in: `u` along what a strip measures
+  const bool measuresLoc1 = dim == 1 && boundIndices[0] == 1;
+  const std::uint8_t iu = measuresLoc1 ? 1 : 0;
+  const double scaleU = measuresLoc1 ? scale1 : scale0;
+  const double scaleV = measuresLoc1 ? scale0 : scale1;
+  const Vector3 u = jac.col(iu) / scaleU;
+  const Vector3 v = jac.col(1 - iu) / scaleV;
+
+  double cov00 = 0.;
+  double cov01 = 0.;
+  double cov11 = 0.;
+  if (dim == 2) {
+    // whichever order the caller measures in, the frame is (u, v)
+    const bool swapped = boundIndices[0] == 1;
+    cov00 = boundCov[swapped ? 3 : 0] * scaleU * scaleU;
+    cov11 = boundCov[swapped ? 0 : 3] * scaleV * scaleV;
+    cov01 = boundCov[1] * scaleU * scaleV;
+  } else {
+    cov00 = boundCov[0] * scaleU * scaleU;
+  }
+
+  RzMeasurement e;
+  e.position = position;
+  e.u = u;
+  e.v = v;
+  e.normal = u.cross(v);
+  // the room a search opens along a strip: the module's extent along the
+  // coordinate it does not measure, and for a polar frame, where neither
+  // bound coordinate is a module axis, the box in either direction
+  e.halfV = surface.bounds().isCartesian()
+                ? (measuresLoc1 ? m.halfU : m.halfV)
+                : std::max(m.halfU, m.halfV);
+  e.maxDistance = m_layout->layers[m.layer].moduleDistance;
+  e.module = module;
+  e.source = source;
+  e.dim = dim;
+  e.cov00 = cov00;
+  e.cov01 = cov01;
+  e.cov11 = cov11;
+
+  const RzLayer& layer = m_layout->layers[m.layer];
+  if (dim == 1) {
+    m_layerHasStrips[m.layer] = true;
+  }
+  const RzSurface& rzSurface = m_layout->surfaces[layer.surface];
+  const double phi = std::atan2(e.position.y(), e.position.x());
+  const double along = rzSurface.shape == RzShape::Cylinder
+                           ? e.position.z()
+                           : std::hypot(e.position.x(), e.position.y());
+  m_entries.push_back(e);
+  m_binOf.push_back(m_layout->bin(m.layer, phi, along));
 }
 
 void RzMeasurementGrid::finalize() {
