@@ -38,6 +38,13 @@ double alongCoordinate(const RzSurface& surface, const RzVector& v) {
   return surface.shape == RzShape::Cylinder ? v[eRzPos2]
                                             : norm2(v[eRzPos0], v[eRzPos1]);
 }
+/// The same for a point
+/// @param surface the RZ surface
+/// @param p the point
+/// @return z on a cylinder, r on a disc
+double alongCoordinate(const RzSurface& surface, const Vector3& p) {
+  return surface.shape == RzShape::Cylinder ? p.z() : norm2(p.x(), p.y());
+}
 
 }  // namespace
 
@@ -285,8 +292,10 @@ std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
   return -*back;
 }
 
-std::uint32_t RzTrackFinder::moduleAt(std::uint32_t layerIndex,
-                                      const State& state) const {
+void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
+                              ModuleList& modules, bool& onModule) const {
+  modules.clear();
+  onModule = false;
   const RzLayout& layout = *m_layout;
   const RzLayer& layer = layout.layers[layerIndex];
   const RzSurface& surface = layout.surfaces[layer.surface];
@@ -294,22 +303,29 @@ std::uint32_t RzTrackFinder::moduleAt(std::uint32_t layerIndex,
   const double r = norm2(v[eRzPos0], v[eRzPos1]);
   const double phi = std::atan2(v[eRzPos1], v[eRzPos0]);
   const double along = alongCoordinate(surface, v);
-  const double room = layer.maxHalfExtent + m_cfg.moduleEdgeTolerance;
-  // the straight-line crossing of each module plane, with the sagitta over
-  // the module distance as the allowance on top of the edge tolerance
+
+  // Where the state could be, not just where it is: the module test has to
+  // open by the same amount the layer search used to, or a module just past
+  // the crossing point is never looked at and its measurement is lost.
+  const auto cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
+  const double varPending = state.pending.varPosition;
+  // the largest variance along any direction is at most the trace
+  const double sigmaMax = std::sqrt(std::max(0., cPos.trace() + varPending));
+  const double window = m_cfg.windowSigmas * sigmaMax + m_cfg.windowMin;
+
+  const double room = layer.maxHalfExtent + m_cfg.moduleEdgeTolerance + window;
   const Vector3 p = v.segment<3>(eRzPos0);
   const Vector3 dir = v.segment<3>(eRzDir0);
   const double kappa = std::abs(helixAt(state.bz).kappa(v));
   const double maxDistance =
       std::max(m_cfg.maxModuleDistance, layer.moduleDistance);
-  std::uint32_t hit = kRzNone;
   RzMeasurementGrid::visitBins(
       layout, layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
-        if (hit != kRzNone) {
-          return;
-        }
         for (std::uint32_t i = layout.moduleBinStart[b];
              i < layout.moduleBinStart[b + 1]; ++i) {
+          if (modules.size() == modules.capacity()) {
+            return;
+          }
           const std::uint32_t index = layout.moduleOrder[i];
           const RzModule& m = layout.modules[index];
           const double alongNormal = m.normal.dot(dir);
@@ -321,82 +337,113 @@ std::uint32_t RzTrackFinder::moduleAt(std::uint32_t layerIndex,
             continue;
           }
           const Vector3 d = p + s * dir - m.center;
-          const double tolerance =
-              m_cfg.moduleEdgeTolerance + 0.5 * kappa * s * s;
-          if (std::abs(m.u.dot(d)) <= m.halfU + tolerance &&
-              std::abs(m.v.dot(d)) <= m.halfV + tolerance) {
-            hit = index;
-            return;
+          // the sagitta over the distance to the module, on top of the edge
+          // tolerance and the state's own spread along each module axis
+          const double sagitta = 0.5 * kappa * s * s;
+          const double sigmaU =
+              std::sqrt(std::max(0., m.u.dot(cPos * m.u) + varPending));
+          const double sigmaV =
+              std::sqrt(std::max(0., m.v.dot(cPos * m.v) + varPending));
+          const double tolU = m_cfg.moduleEdgeTolerance + sagitta +
+                              m_cfg.windowSigmas * sigmaU + m_cfg.windowMin;
+          const double tolV = m_cfg.moduleEdgeTolerance + sagitta +
+                              m_cfg.windowSigmas * sigmaV + m_cfg.windowMin;
+          if (std::abs(m.u.dot(d)) > m.halfU + tolU ||
+              std::abs(m.v.dot(d)) > m.halfV + tolV) {
+            continue;
+          }
+          if (std::ranges::find(modules, index) == modules.end()) {
+            modules.push_back(index);
+          }
+          // the hole decision, on the crossing itself rather than on where
+          // the state might be
+          const double tight = m_cfg.moduleEdgeTolerance + sagitta;
+          if (std::abs(m.u.dot(d)) <= m.halfU + tight &&
+              std::abs(m.v.dot(d)) <= m.halfV + tight) {
+            onModule = true;
           }
         }
       });
-  return hit;
 }
 
 std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
-                                         std::uint32_t layerIndex,
-                                         std::uint32_t stop, State& state,
-                                         RzTrackCandidate& candidate) const {
-  const RzLayer& layer = m_layout->layers[layerIndex];
-  const RzSurface& surface = m_layout->surfaces[layer.surface];
+                                        std::uint32_t layerIndex,
+                                        std::uint32_t stop,
+                                        const ModuleList& modules,
+                                        State& state,
+                                        RzTrackCandidate& candidate) const {
+  // Finding the modules is not the same as finding the measurements: a module
+  // is centimetres across and carries everything that landed on it, where the
+  // state is known to millimetres. Without this cut a busy pixel module hands
+  // the filter every cluster on it, which costs more than the bin lookup it
+  // replaced.
+  const RzSurface& surface = m_layout->surfaces[m_layout->layers[layerIndex].surface];
   const RzVector& v = state.v;
   const double x = v[eRzPos0];
   const double y = v[eRzPos1];
   const double r = norm2(x, y);
-  const double phi = std::atan2(y, x);
-
-  // the window from the position uncertainty in the surface's coordinates
   const auto cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
+  const double varPending = state.pending.varPosition;
   const Vector3 tangent(-y / r, x / r, 0.);
   const Vector3 radial(x / r, y / r, 0.);
-  const double varPending = state.pending.varPosition;
-  const double sigmaPhi =
-      std::sqrt(std::max(0., tangent.dot(cPos * tangent) + varPending));
   const Vector3 alongDir =
       surface.shape == RzShape::Cylinder ? Vector3::UnitZ() : radial;
+  const double sigmaPhi =
+      std::sqrt(std::max(0., tangent.dot(cPos * tangent) + varPending));
   const double sigmaAlong =
       std::sqrt(std::max(0., alongDir.dot(cPos * alongDir) + varPending));
-  // modules off the RZ surface are met at a different (phi, along) than the
-  // stop: by the layer's thickness times the track's slope in each
-  const Vector3 d = v.segment<3>(eRzDir0);
-  const double dRadial = std::max(std::abs(radial.dot(d)), 1e-6);
-  const double dTangent = std::abs(tangent.dot(d));
+  const Vector3 p = v.segment<3>(eRzPos0);
+  // A module does not sit on the RZ surface: it is offset by up to the
+  // layer's half thickness, so the track meets it at a different (phi, along)
+  // than the stop, by that offset times the slope in each.
+  const RzLayer& layer = m_layout->layers[layerIndex];
+  const Vector3 dir = v.segment<3>(eRzDir0);
+  const double dRadial = std::max(std::abs(radial.dot(dir)), 1e-6);
+  const double dTangent = std::abs(tangent.dot(dir));
   double thicknessPhi = 0.;
   double thicknessAlong = 0.;
   if (surface.shape == RzShape::Cylinder) {
-    thicknessAlong = layer.halfThickness * std::abs(d.z()) / dRadial;
+    thicknessAlong = layer.halfThickness * std::abs(dir.z()) / dRadial;
     thicknessPhi = layer.halfThickness * dTangent / dRadial;
   } else {
-    const double dz = std::max(std::abs(d.z()), 1e-6);
+    const double dz = std::max(std::abs(dir.z()), 1e-6);
     thicknessAlong = layer.halfThickness * dRadial / dz;
     thicknessPhi = layer.halfThickness * dTangent / dz;
   }
-  const double halfPhi =
-      (m_cfg.windowSigmas * sigmaPhi + m_cfg.windowMin + thicknessPhi) / r;
-  const double halfAlong = m_cfg.windowSigmas * sigmaAlong + m_cfg.windowMin +
-                           grid.stripHalfV(layerIndex) + thicknessAlong;
+  const double halfTangent =
+      m_cfg.windowSigmas * sigmaPhi + m_cfg.windowMin + thicknessPhi;
+  const double halfAlong =
+      m_cfg.windowSigmas * sigmaAlong + m_cfg.windowMin + thicknessAlong;
   const double along = alongCoordinate(surface, v);
 
   std::uint32_t accepted = 0;
-  std::vector<std::uint32_t> usedModules;
+  ModuleList usedModules;
   for (std::uint32_t round = 0; round < m_cfg.maxMeasurementsPerLayer;
        ++round) {
     std::uint32_t bestIndex = kRzNone;
     Evaluation best;
     best.chi2 = std::numeric_limits<double>::max();
-    grid.visit(
-        layerIndex, phi, along, halfPhi, halfAlong, [&](std::uint32_t i) {
-          const RzMeasurement& m = grid.entry(i);
-          if (std::ranges::find(usedModules, m.module) != usedModules.end()) {
-            return;
-          }
-          ++candidate.candidatesTested;
-          const std::optional<Evaluation> e = evaluate(state, m);
-          if (e.has_value() && e->chi2 < best.chi2) {
-            bestIndex = i;
-            best = *e;
-          }
-        });
+    for (const std::uint32_t module : modules) {
+      if (std::ranges::find(usedModules, module) != usedModules.end()) {
+        continue;
+      }
+      for (const std::uint32_t i : grid.moduleRange(module)) {
+        const RzMeasurement& m = grid.entry(i);
+        const Vector3 d = m.position - p;
+        const double stripRoom = m.dim == 1 ? m.halfV : 0.;
+        if (std::abs(tangent.dot(d)) > halfTangent + stripRoom ||
+            std::abs(alongCoordinate(surface, m.position) - along) >
+                halfAlong + stripRoom) {
+          continue;
+        }
+        ++candidate.candidatesTested;
+        const std::optional<Evaluation> e = evaluate(state, m);
+        if (e.has_value() && e->chi2 < best.chi2) {
+          bestIndex = i;
+          best = *e;
+        }
+      }
+    }
     if (bestIndex == kRzNone || best.chi2 > m_cfg.chi2Cut) {
       break;
     }
@@ -408,7 +455,9 @@ std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
     candidate.hits.push_back(
         {layerIndex, bestIndex, stop, forwardState, m.module, best.chi2});
     candidate.chi2 += best.chi2;
-    usedModules.push_back(m.module);
+    if (usedModules.size() < usedModules.capacity()) {
+      usedModules.push_back(m.module);
+    }
     ++accepted;
   }
   return accepted;
@@ -593,6 +642,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
   if (partial && m_cfg.backwardQOverPScale == 0.) {
     state.c(eRzQOverP, eRzQOverP) = forward.c(eRzQOverP, eRzQOverP);
   }
+
   candidate.innerParameters = state.v;
   candidate.innerCovariance = state.c;
   candidate.hasInner = true;
@@ -620,12 +670,14 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
         bzAt(layout.surfaces[startSurface],
              alongCoordinate(layout.surfaces[startSurface], state.v), m_bz);
     state.anchorBz = state.bz;
-    if (searchLayer(grid, layer, kRzNone, state, candidate) == 0) {
-      if (const std::uint32_t module = moduleAt(layer, state);
-          module != kRzNone) {
-        candidate.hits.push_back({layer, kRzNone, kRzNone, kRzNone, module,
-                                  0.});
-      }
+    ModuleList startModules;
+    bool startOnModule = false;
+    modulesAt(layer, state, startModules, startOnModule);
+    if (startOnModule && !startModules.empty() &&
+        searchLayer(grid, layer, kRzNone, startModules, state, candidate) ==
+            0) {
+      candidate.hits.push_back(
+          {layer, kRzNone, kRzNone, kRzNone, startModules.front(), 0.});
     }
   }
 
@@ -653,6 +705,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
 
   std::uint32_t holes = static_cast<std::uint32_t>(candidate.hits.size());
   std::uint32_t consecutiveHoles = holes;
+  ModuleList crossedModules;
   bool cylindersLeft = true;
   bool discsLeft = true;
   // the state at the last accepted measurement is what the track keeps; the
@@ -777,17 +830,24 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     }
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
-    std::uint32_t holeModule = kRzNone;
-    if (searchLayer(grid, surface.layer, stop, state, candidate) > 0) {
+    // one geometry pass: the modules the crossing landed on are what the
+    // search looks at, and whether there were any is the hole decision
+    bool onModule = false;
+    modulesAt(surface.layer, state, crossedModules, onModule);
+    if (crossedModules.empty()) {
+      // nothing to look at here
+      continue;
+    }
+    if (searchLayer(grid, surface.layer, stop, crossedModules, state,
+                    candidate) > 0) {
       consecutiveHoles = 0;
       lastHit = state;
-    } else if (holeModule = moduleAt(surface.layer, state);
-               holeModule == kRzNone) {
-      // between modules: nothing was expected here
+    } else if (!onModule) {
+      // passed between the modules: nothing was expected here
       continue;
     } else {
       candidate.hits.push_back(
-          {surface.layer, kRzNone, stop, kRzNone, holeModule, 0.});
+          {surface.layer, kRzNone, stop, kRzNone, crossedModules.front(), 0.});
       ++holes;
       ++consecutiveHoles;
       if (holes > m_cfg.maxHoles ||

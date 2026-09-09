@@ -410,7 +410,6 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
                   (rz->maxBound - rz->minBound) / options.alongBinWidth)));
       for (RzModule& module : modules) {
         module.layer = layerIndex;
-        rzLayer.maxHalfV = std::max(rzLayer.maxHalfV, module.halfV);
         const double offset =
             rz->shape == RzShape::Cylinder
                 ? std::hypot(module.center.x(), module.center.y()) -

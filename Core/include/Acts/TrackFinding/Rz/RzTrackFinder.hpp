@@ -20,6 +20,8 @@
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
+#include <boost/container/static_vector.hpp>
+
 #include <cstdint>
 #include <numbers>
 #include <optional>
@@ -255,17 +257,33 @@ class RzTrackFinder {
   /// surface with the given normal
   void materialise(State& state, const Vector3& normal) const;
 
-  /// Search a layer around the state and update with the best candidates
+  /// How many modules of one layer a crossing can land on at once: a stereo
+  /// pair, an overlap in phi or along, and room to spare
+  static constexpr std::size_t kMaxModulesPerLayer = 8;
+  using ModuleList =
+      boost::container::static_vector<std::uint32_t, kMaxModulesPerLayer>;
+
+  /// Search the modules the state crosses and update with the best candidates
+  /// @param grid the measurements of the event, by module
+  /// @param layer the layer the modules belong to
   /// @param stop the stop the layer is at, `kRzNone` for the start layer
+  /// @param modules the modules the crossing landed on, from `modulesAt`
   /// @return the number of measurements accepted
   std::uint32_t searchLayer(const RzMeasurementGrid& grid, std::uint32_t layer,
-                            std::uint32_t stop, State& state,
-                            RzTrackCandidate& candidate) const;
+                            std::uint32_t stop, const ModuleList& modules,
+                            State& state, RzTrackCandidate& candidate) const;
 
-  /// The module of the layer the state, brought to a module plane, lands on:
-  /// a layer crossing without a measurement is a hole only if there is one
-  /// @return the module index, or `kRzNone` if the crossing missed them all
-  std::uint32_t moduleAt(std::uint32_t layer, const State& state) const;
+  /// The modules of the layer the state could have crossed, widened by where
+  /// the state could be, which is what the search has to look at.
+  /// @param layer the layer
+  /// @param state the state at the stop
+  /// @param modules filled with the modules, cleared first
+  /// @param onModule set if the crossing lands on a module without the
+  ///        widening — the hole decision, which must stay as tight as it was
+  ///        or a track that merely passed near a module counts as having
+  ///        missed one
+  void modulesAt(std::uint32_t layer, const State& state, ModuleList& modules,
+                 bool& onModule) const;
 
   /// Path length back to an RZ surface, negative, or nothing
   /// @param guess where to start looking, the forward path with its sign
