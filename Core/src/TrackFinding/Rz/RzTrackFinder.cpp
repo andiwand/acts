@@ -786,9 +786,12 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     ModuleList startModules;
     bool startOnModule = false;
     modulesAt(layer, state, startModules, startOnModule);
-    if (startOnModule && !startModules.empty() &&
+    // as in the walk, `onModule` decides only whether an empty layer is a
+    // hole; the search itself runs on every module the crossing came near
+    if (!startModules.empty() &&
         searchLayer(grid, layer, kRzNone, startModules, state, candidate) ==
-            0) {
+            0 &&
+        startOnModule) {
       candidate.hits.push_back(
           {layer, kRzNone, kRzNone, kRzNone, startModules.front(), 0.});
     }
