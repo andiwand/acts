@@ -9,8 +9,10 @@
 #pragma once
 
 /// @file
-/// The measurements of one event in global coordinates, binned per sensitive
-/// layer of an `RzLayout`, which is what the finder searches.
+/// The measurements of one event in global coordinates, held per module of an
+/// `RzLayout`. The finder walks to a stop, asks the layout which modules the
+/// track crosses there, and looks at those modules' measurements — so the
+/// index is by module, not by a window in the layer.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
@@ -116,42 +118,16 @@ class RzMeasurementGrid {
 
   std::size_t size() const { return m_entries.size(); }
 
-  /// The room a search on a layer has to leave along a strip: the largest
-  /// half length of its modules if any strip was added, else nothing
-  /// @param layer the layer
-  /// @return the half length
-  double stripHalfV(std::uint32_t layer) const {
-    return m_layerHasStrips[layer] ? m_layout->layers[layer].maxHalfV : 0.;
-  }
-
   const RzMeasurement& entry(std::uint32_t index) const {
     return m_entries[index];
   }
 
-  /// The measurements of one bin, by index into `entry`
-  /// @param bin the global bin
+  /// The measurements on one module, by index into `entry`
+  /// @param module index into `RzLayout::modules`
   /// @return the indices
-  std::span<const std::uint32_t> bin(std::uint32_t bin) const {
-    return {m_order.data() + m_binStart[bin],
-            m_order.data() + m_binStart[bin + 1]};
-  }
-
-  /// Visit every measurement of a layer within a window around a point.
-  /// @param layer the layer
-  /// @param phi azimuth of the point
-  /// @param along z on a cylinder, r on a disc
-  /// @param halfPhi half width of the window in azimuth
-  /// @param halfAlong half width along
-  /// @param visitor called with the index of each measurement
-  template <typename visitor_t>
-  void visit(std::uint32_t layer, double phi, double along, double halfPhi,
-             double halfAlong, visitor_t&& visitor) const {
-    visitBins(*m_layout, layer, phi, along, halfPhi, halfAlong,
-              [&](std::uint32_t b) {
-                for (const std::uint32_t index : bin(b)) {
-                  visitor(index);
-                }
-              });
+  std::span<const std::uint32_t> moduleRange(std::uint32_t module) const {
+    return {m_order.data() + m_moduleStart[module],
+            m_order.data() + m_moduleStart[module + 1]};
   }
 
   /// Visit every global bin of a layer a window touches
@@ -198,10 +174,9 @@ class RzMeasurementGrid {
  private:
   const RzLayout* m_layout{};
   std::vector<RzMeasurement> m_entries;
-  std::vector<std::uint32_t> m_binOf;
-  std::vector<std::uint32_t> m_binStart;
+  std::vector<std::uint32_t> m_moduleOf;
+  std::vector<std::uint32_t> m_moduleStart;
   std::vector<std::uint32_t> m_order;
-  std::vector<bool> m_layerHasStrips;
 };
 
 }  // namespace Acts::Experimental

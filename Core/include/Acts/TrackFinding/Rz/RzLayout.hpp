@@ -161,9 +161,6 @@ struct RzLayer {
   std::uint32_t alongBins{};
   double alongMin{};
   double alongMax{};
-  /// Largest `RzModule::halfV` of the layer's modules, the window a strip
-  /// search has to open along the strip
-  double maxHalfV{};
   /// Largest offset of a module centre from the RZ surface: in r for a
   /// cylinder, in z for a disc. Staggered, inclined or double-sided modules
   /// all show up here, and the search window opens by it times the slope.
