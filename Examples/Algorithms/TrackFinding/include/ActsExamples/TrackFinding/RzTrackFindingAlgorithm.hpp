@@ -59,6 +59,7 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     std::uint32_t minMeasurementsAtLayer = 0;
     std::uint32_t layersForMinMeasurements = 0;
     bool applyMaterial = true;
+    bool inwardSearch = true;
     double backwardInflation = 100.;
     std::uint32_t backwardLayers = 6;
     double backwardQOverPScale = 1.;
