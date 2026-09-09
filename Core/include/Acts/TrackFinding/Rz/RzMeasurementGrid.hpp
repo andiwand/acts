@@ -38,6 +38,12 @@ struct RzMeasurement {
   double cov00{};
   double cov01{};
   double cov11{};
+  /// For a measurement whose bound frame is polar, the reciprocal of the
+  /// lever arm its covariance was converted with: what the angle stands for
+  /// in length grows with the distance from the frame's origin, and the entry
+  /// sits at the module's radius while the track crosses at its own. Zero for
+  /// a cartesian frame, which has no such dependence.
+  double invLever{};
   /// Half extent of a strip along `v`
   double halfV{};
   /// How far from the RZ stop the module may be met, from its layer
