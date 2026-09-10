@@ -137,33 +137,52 @@ RzMeasurement RzMeasurementGrid::fromBound(
     return e;
   }
 
-  // d(global) / d(bound local): the surface's own rotation, composed with the
-  // bounds' map to the cartesian frame. Its columns are the directions the two
-  // bound coordinates move the point in, and their lengths are what turns a
-  // variance in the bound coordinates into one in length units. The frame is
-  // the measurement's own, because it turns with the strip.
-  const Vector3 position = surface.localToGlobal(gctx, local, m.normal);
-  Eigen::Matrix<double, 3, 2> jac =
-      surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
-  jac *= surface.bounds().boundToCartesianJacobian(local);
-  const double scale0 = jac.col(0).norm();
-  const double scale1 = jac.col(1).norm();
-  frame.u = jac.col(0) / scale0;
-  frame.v = jac.col(1) / scale1;
-  frame.normal = frame.u.cross(frame.v);
-  const Vector3 d = position - m.center;
-  e.loc0 = frame.u.dot(d);
-  e.loc1 = frame.v.dot(d);
+  // The frame is the measurement's own, because a polar frame turns with the
+  // strip, and the two scales are what turn a variance in the bound
+  // coordinates into one in length units.
+  double scale0 = 0.;
+  double scale1 = 0.;
+  if (m.polarIsPlain) {
+    // A disc places its bound coordinates as plain polar in the surface
+    // frame, which the layout checked against the surface. So the radius is
+    // the first bound coordinate, the azimuth turns the module's own axes,
+    // and nothing here calls the surface at all.
+    const double r = local[0];
+    const double c = std::cos(local[1]);
+    const double sn = std::sin(local[1]);
+    frame.u = c * m.u + sn * m.v;
+    frame.v = -sn * m.u + c * m.v;
+    frame.normal = m.normal;
+    scale0 = 1.;
+    scale1 = r;
+    // the offset from the module centre, taken on the frame's own axes
+    e.loc0 = r - (c * m.localCenter.x() + sn * m.localCenter.y());
+    e.loc1 = sn * m.localCenter.x() - c * m.localCenter.y();
+  } else {
+    // d(global) / d(bound local): the surface's own rotation, composed with
+    // the bounds' map to the cartesian frame. Its columns are the directions
+    // the two bound coordinates move the point in, and their lengths are the
+    // scales.
+    const Vector3 position = surface.localToGlobal(gctx, local, m.normal);
+    Eigen::Matrix<double, 3, 2> jac =
+        surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
+    jac *= surface.bounds().boundToCartesianJacobian(local);
+    scale0 = jac.col(0).norm();
+    scale1 = jac.col(1).norm();
+    frame.u = jac.col(0) / scale0;
+    frame.v = jac.col(1) / scale1;
+    frame.normal = frame.u.cross(frame.v);
+    const Vector3 d = position - m.center;
+    e.loc0 = frame.u.dot(d);
+    e.loc1 = frame.v.dot(d);
+  }
   e.cov00 = var0 * scale0 * scale0;
   e.cov01 = cov01 * scale0 * scale1;
   e.cov11 = var1 * scale1 * scale1;
-  // The lever arm the azimuth was converted with: the distance from the polar
-  // frame's origin, which is where the entry sits. Only a strip measuring the
-  // azimuth has one — `loc0` is a radius, already a length, and a pixel that
-  // measures both is placed by them together.
-  // CONTROL: reproduce the old expression exactly
-  const double oldScaleU = measuresLoc1 ? scale1 : scale0;
-  e.invLever = oldScaleU > 0. ? 1. / oldScaleU : 0.;
+  // the lever arm the azimuth was converted with: the distance from the polar
+  // frame's origin, which is where the entry sits
+  const double leverScale = measuresLoc1 ? scale1 : scale0;
+  e.invLever = leverScale > 0. ? 1. / leverScale : 0.;
   return e;
 }
 
