@@ -172,13 +172,26 @@ void RzTrackFinder::materialise(State& state, const Vector3& normal) const {
   state.c.block<3, 3>(eRzDir0, eRzPos0) += p.covAnglePosition * transverse;
   state.c(eRzQOverP, eRzQOverP) += p.varQOverP;
   // a displacement normal to the surface is, moved along the track, one in
-  // its plane; the covariance has to say so before the next transport
-  const SquareMatrix3 project =
-      SquareMatrix3::Identity() - d * normal.transpose() / normal.dot(d);
-  state.c.block<3, eRzSize>(eRzPos0, 0) =
-      project * state.c.block<3, eRzSize>(eRzPos0, 0);
-  state.c.block<eRzSize, 3>(0, eRzPos0) =
-      state.c.block<eRzSize, 3>(0, eRzPos0) * project.transpose();
+  // its plane; the covariance has to say so before the next transport. The
+  // projection `I - d n^T / (n.d)` is a rank-1 update on the position rows
+  // and then on the position columns
+  const Vector3 dOver = d / normal.dot(d);
+  for (unsigned int c = 0; c < eRzSize; ++c) {
+    const double nc = normal.x() * state.c(eRzPos0, c) +
+                      normal.y() * state.c(eRzPos1, c) +
+                      normal.z() * state.c(eRzPos2, c);
+    state.c(eRzPos0, c) -= dOver.x() * nc;
+    state.c(eRzPos1, c) -= dOver.y() * nc;
+    state.c(eRzPos2, c) -= dOver.z() * nc;
+  }
+  for (unsigned int r = 0; r < eRzSize; ++r) {
+    const double nr = normal.x() * state.c(r, eRzPos0) +
+                      normal.y() * state.c(r, eRzPos1) +
+                      normal.z() * state.c(r, eRzPos2);
+    state.c(r, eRzPos0) -= dOver.x() * nr;
+    state.c(r, eRzPos1) -= dOver.y() * nr;
+    state.c(r, eRzPos2) -= dOver.z() * nr;
+  }
   p = Pending{};
 }
 
@@ -340,8 +353,16 @@ void RzTrackFinder::update(State& state, const Evaluation& e) const {
   state.v += k * e.residual;
   state.v.segment<3>(eRzDir0).normalize();
   state.anchor = state.v;
-  state.c -= k * e.ch.transpose();
-  state.c = 0.5 * (state.c + state.c.transpose()).eval();
+  // C - K (C H^T)^T is symmetric by construction, so the lower triangle is
+  // formed and mirrored rather than the whole product averaged with its
+  // transpose
+  for (unsigned int r = 0; r < eRzSize; ++r) {
+    for (unsigned int c = 0; c <= r; ++c) {
+      const double d = k(r, 0) * e.ch(c, 0) + k(r, 1) * e.ch(c, 1);
+      state.c(r, c) -= d;
+      state.c(c, r) = state.c(r, c);
+    }
+  }
 }
 
 std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
@@ -1270,14 +1291,6 @@ bool RzTrackFinder::findTrack(
     }
     inEndcap = !takeCyl;
     ++candidate.stops;
-    {
-      const bool sens = surface.layer != kRzNone;
-      if (takeCyl && sens) {
-      } else if (takeCyl) {
-      } else if (sens) {
-      } else {
-      }
-    }
     const std::uint32_t stop =
         static_cast<std::uint32_t>(candidate.stopSurfaces.size());
     candidate.stopSurfaces.push_back(surfaceIndex);
@@ -1358,20 +1371,8 @@ bool RzTrackFinder::findTrack(
       }
     } else if (!onModule) {
       // passed between the modules: nothing was expected here
-      for (const std::uint32_t module : crossedModules) {
-        if (!measurements(module).entries.empty()) {
-          break;
-        }
-      }
       continue;
     } else {
-      std::size_t onCrossed = 0;
-      for (const std::uint32_t module : crossedModules) {
-        onCrossed += measurements(module).entries.size();
-      }
-      if (onCrossed == 0) {
-      } else {
-      }
       candidate.hits.push_back(
           {surface.layer, kRzNone, stop, kRzNone, crossedModules.front(), 0.});
       ++holes;
