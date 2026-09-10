@@ -377,7 +377,8 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
 std::uint32_t RzTrackFinder::searchLayer(
     const RzMeasurementGrid& grid, std::uint32_t layerIndex,
     std::uint32_t stop, const ModuleList& modules, State& state,
-    RzTrackCandidate& candidate) const {
+    RzTrackCandidate& candidate, std::uint32_t skipRounds,
+    std::uint32_t usedModule) const {
   // The modules are what the crossing landed on; which of their measurements
   // is worth the full transport is `evaluate`'s gate, which takes the
   // straight-line crossing of the module plane and a diagonal chi2 against
@@ -386,11 +387,20 @@ std::uint32_t RzTrackFinder::searchLayer(
   // surface, so the track meets it somewhere else entirely.
   std::uint32_t accepted = 0;
   ModuleList usedModules;
-  for (std::uint32_t round = 0; round < m_cfg.maxMeasurementsPerLayer;
-       ++round) {
+  if (usedModule != kRzNone) {
+    // a measurement the caller named is already on the track; the layer may
+    // still hold the overlap hit, on one of its other modules
+    usedModules.push_back(usedModule);
+  }
+  for (std::uint32_t round = skipRounds;
+       round < m_cfg.maxMeasurementsPerLayer; ++round) {
     std::uint32_t bestIndex = kRzNone;
     Evaluation best;
     best.chi2 = std::numeric_limits<double>::max();
+    // the best of the cartesian candidates by the straight-line chi2, which
+    // is transported exactly once the layer has been walked
+    std::uint32_t bestGateIndex = kRzNone;
+    double bestGateChi2 = std::numeric_limits<double>::max();
     // Everything the gate needs except the measurement's own position and
     // variance belongs to the module and to the state, not to the
     // measurement: the plane crossing, the residual's origin along the
@@ -432,19 +442,30 @@ std::uint32_t RzTrackFinder::searchLayer(
         const RzMeasurement& m = grid.entry(i);
         ++candidate.candidatesTested;
         if (hoisted) {
-          // chi2 = ru^2/su (+ rv^2/sv), tested without the divisions
+          // chi2 = ru^2/su (+ rv^2/sv), tested without the divisions. Only
+          // the best of these is worth a full transport: the straight-line
+          // chi2 is the same quantity with the covariance widened over the
+          // distance to the module, so it orders the candidates, and the one
+          // it picks is then evaluated exactly and has to pass the cut.
           const double ru = mod.u.dot(m.position) - cu;
           const double su = su0 + m.cov00;
           if (ru * ru > gate2 * su) {
             continue;
           }
+          double chi2Gate = ru * ru / su;
           if (m.dim == 2) {
             const double rv = mod.v.dot(m.position) - cv;
             const double sv = sv0 + m.cov11;
             if (ru * ru * sv + rv * rv * su > gate2 * su * sv) {
               continue;
             }
+            chi2Gate += rv * rv / sv;
           }
+          if (chi2Gate < bestGateChi2) {
+            bestGateChi2 = chi2Gate;
+            bestGateIndex = i;
+          }
+          continue;
         }
         const std::optional<Evaluation> e =
             evaluate(state, m, true);
@@ -455,6 +476,14 @@ std::uint32_t RzTrackFinder::searchLayer(
           bestIndex = i;
           best = *e;
         }
+      }
+    }
+    if (bestGateIndex != kRzNone) {
+      if (const std::optional<Evaluation> e =
+              evaluate(state, grid.entry(bestGateIndex), false);
+          e.has_value() && e->chi2 < best.chi2) {
+        bestIndex = bestGateIndex;
+        best = *e;
       }
     }
     if (bestIndex == kRzNone || best.chi2 > m_cfg.chi2Cut) {
@@ -474,6 +503,30 @@ std::uint32_t RzTrackFinder::searchLayer(
     ++accepted;
   }
   return accepted;
+}
+
+bool RzTrackFinder::takeKnownHit(const RzMeasurementGrid& grid,
+                                 std::uint32_t entry, std::uint32_t layerIndex,
+                                 std::uint32_t stop, State& state,
+                                 RzTrackCandidate& candidate) const {
+  const RzMeasurement& m = grid.entry(entry);
+  const std::optional<Evaluation> e = evaluate(state, m, false);
+  // The caller names the measurement, so no search and no selection - but a
+  // measurement the prediction cannot reach at all would be pulled onto the
+  // track whatever it does to the fit, so the gate's own threshold still
+  // has to hold. Where it does not, the layer is searched as any other.
+  if (!e.has_value() || !std::isfinite(e->chi2) ||
+      e->chi2 > m_cfg.gateFactor * m_cfg.chi2Cut) {
+    return false;
+  }
+  update(state, *e);
+  const std::uint32_t forwardState =
+      static_cast<std::uint32_t>(candidate.forwardStates.size());
+  candidate.forwardStates.emplace_back(state.v, state.c);
+  candidate.hits.push_back(
+      {layerIndex, entry, stop, forwardState, m.module, e->chi2});
+  candidate.chi2 += e->chi2;
+  return true;
 }
 
 void RzTrackFinder::backwardPass(const RzMeasurementGrid& grid,
@@ -879,7 +932,9 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
                               const RzVector& start,
                               const RzMatrix& startCovariance,
                               std::uint32_t startModule,
-                              RzTrackCandidate& candidate) const {
+                              RzTrackCandidate& candidate,
+                              std::span<const std::uint32_t> seedEntries)
+    const {
   candidate.clear();
   State state;
   state.v = start;
@@ -889,6 +944,27 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
   state.anchorBz = m_bz;
 
   const RzLayout& layout = *m_layout;
+  // the layer each seed measurement sits on, so a crossing can ask in a few
+  // comparisons whether it is one the caller already knows the answer to
+  boost::container::static_vector<std::pair<std::uint32_t, std::uint32_t>, 8>
+      knownHits;
+  for (const std::uint32_t entry : seedEntries) {
+    if (entry == kRzNone || knownHits.size() == knownHits.capacity()) {
+      continue;
+    }
+    const std::uint32_t layer = layout.modules[grid.entry(entry).module].layer;
+    if (layer != kRzNone) {
+      knownHits.emplace_back(layer, entry);
+    }
+  }
+  const auto knownAt = [&](std::uint32_t layer) {
+    for (const auto& [l, entry] : knownHits) {
+      if (l == layer) {
+        return entry;
+      }
+    }
+    return kRzNone;
+  };
   std::uint32_t startSurface = kRzNone;
   if (startModule != kRzNone) {
     const std::uint32_t layer = layout.modules[startModule].layer;
@@ -897,13 +973,18 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
         bzAt(layout.surfaces[startSurface],
              alongCoordinate(layout.surfaces[startSurface], state.v), m_bz);
     state.anchorBz = state.bz;
+    const std::uint32_t known = knownAt(layer);
+    const bool took =
+        known != kRzNone &&
+        takeKnownHit(grid, known, layer, kRzNone, state, candidate);
     ModuleList startModules;
     bool startOnModule = false;
     modulesAt(layer, state, startModules, startOnModule);
     if (!startModules.empty() &&
-        searchLayer(grid, layer, kRzNone, startModules, state, candidate) ==
-            0 &&
-        startOnModule) {
+        searchLayer(grid, layer, kRzNone, startModules, state, candidate,
+                    took ? 1u : 0u,
+                    took ? grid.entry(known).module : kRzNone) == 0 &&
+        !took && startOnModule) {
       candidate.hits.push_back(
           {layer, kRzNone, kRzNone, kRzNone, startModules.front(), 0.});
     }
@@ -1117,16 +1198,32 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
     ++layersCrossed;
+    // a layer the seed names does not have to be searched for that hit
+    const std::uint32_t known = knownAt(surface.layer);
+    const bool took =
+        known != kRzNone &&
+        takeKnownHit(grid, known, surface.layer, stop, state, candidate);
     // one geometry pass: the modules the crossing landed on are what the
     // search looks at, and whether there were any is the hole decision
     bool onModule = false;
     modulesAt(surface.layer, state, crossedModules, onModule);
     if (crossedModules.empty()) {
-      // nothing to look at here
+      if (took) {
+        // the caller's own measurement is on the track even where the window
+        // found no module to search for a second one
+        ++measurementsFound;
+        consecutiveHoles = 0;
+        lastHit = state;
+      } else {
+        // nothing to look at here
+      }
       continue;
     }
-    const std::uint32_t accepted = searchLayer(
-        grid, surface.layer, stop, crossedModules, state, candidate);
+    const std::uint32_t accepted =
+        searchLayer(grid, surface.layer, stop, crossedModules, state,
+                    candidate, took ? 1u : 0u,
+                    took ? grid.entry(known).module : kRzNone) +
+        (took ? 1u : 0u);
     if (accepted > 0) {
       measurementsFound += accepted;
       consecutiveHoles = 0;
