@@ -14,6 +14,7 @@
 #include "Acts/EventData/TransformationHelpers.hpp"
 #include "Acts/EventData/VectorMultiTrajectory.hpp"
 #include "Acts/EventData/VectorTrackContainer.hpp"
+#include "Acts/TrackFinding/Rz/RzBound.hpp"
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 #include "Acts/Utilities/TrackHelpers.hpp"
@@ -183,6 +184,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
 
   const RzMeasurementAccessor accessor = grid.accessor();
   const auto tFind0 = Clock::now();
+  // room for the tracks and their states, so that writing does not grow
+  // and copy: on average a track a seed here, sixteen states a track
+  trackContainer->reserve(initialParameters.size());
+  trackStateContainer->reserve(16 * initialParameters.size());
   RzTrackCandidate candidate;
   std::size_t nTracks = 0;
   std::size_t nStops = 0;
@@ -232,6 +237,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
                  << candidate.backwardFailure << " on a track with "
                  << candidate.measurements << " measurements");
     }
+    const auto tMake = Clock::now();
     // the inner state to the perigee, the closest approach to the beam axis
     RzVector w =
         candidate.hasInner ? candidate.innerParameters : candidate.parameters;
@@ -252,44 +258,104 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       ACTS_WARNING("Perigee conversion failed: " << bound.error().message());
       continue;
     }
-    Acts::FreeMatrix freeCov = Acts::FreeMatrix::Zero();
-    for (unsigned int a = 0; a < eRzSize; ++a) {
-      for (unsigned int b = 0; b < eRzSize; ++b) {
-        freeCov(kFreeOf[a], kFreeOf[b]) = cPerigee(a, b);
-      }
-    }
+    // the perigee's own Jacobian, on the seven components the RZ state has;
+    // the product is formed on them rather than on the 8x8 with a zero time
     const Acts::FreeToBoundMatrix jf2b =
         m_perigee->freeToBoundJacobian(ctx.recoGeoContext, pos, dir);
-    Acts::BoundMatrix boundCov = jf2b * freeCov * jf2b.transpose();
-    // no time on the RZ state; a finite variance keeps the matrix invertible
-    boundCov(Acts::eBoundTime, Acts::eBoundTime) = 1.;
+    RzFreeToBoundMatrix jPerigee;
+    for (unsigned int r = 0; r < Acts::eBoundSize; ++r) {
+      for (unsigned int a = 0; a < eRzSize; ++a) {
+        jPerigee(r, a) = jf2b(r, kFreeOf[a]);
+      }
+    }
+    const Acts::BoundMatrix boundCov = rzBoundCovariance(jPerigee, cPerigee);
 
     auto track = tracks.makeTrack();
     track.setReferenceSurface(m_perigee);
     track.parameters() = *bound;
     track.covariance() = boundCov;
+    const auto tStates = Clock::now();
     for (const RzTrackHit& hit : candidate.hits) {
-      auto state = track.appendTrackState(
-          hit.isHole() ? Acts::TrackStatePropMask::None
-                       : Acts::TrackStatePropMask::Calibrated);
       if (hit.isHole()) {
+        auto state = track.appendTrackState(Acts::TrackStatePropMask::None);
         state.typeFlags().setUnchecked(Acts::TrackStateFlag::IsHole);
         state.setReferenceSurface(
             m_layout.surfaces[m_layout.layers[hit.layer].surface].surface);
         continue;
       }
-      const RzMeasurement& m =
-          grid.moduleRange(hit.module).entries[hit.measurement];
-      state.setReferenceSurface(m_layout.modules[hit.module].surface);
-      const IndexSourceLink sourceLink(m_layout.modules[hit.module].geometryId,
-                                       m.source);
+      auto state = track.appendTrackState(Acts::TrackStatePropMask::Filtered |
+                                          Acts::TrackStatePropMask::Calibrated);
+      const RzModuleMeasurements on = grid.moduleRange(hit.module);
+      const RzMeasurement& m = on.entries[hit.measurement];
+      const RzModule& module = m_layout.modules[hit.module];
+      state.setReferenceSurface(module.surface);
+      const IndexSourceLink sourceLink(module.geometryId, m.source);
       calibrator.calibrate(measurements, nullptr, ctx.recoGeoContext,
                            ctx.calibContext, Acts::SourceLink{sourceLink},
                            state);
       state.typeFlags().setUnchecked(Acts::TrackStateFlag::HasMeasurement);
       state.chi2() = static_cast<float>(hit.chi2);
+      if (hit.forwardState == kRzNone) {
+        state.filtered().setZero();
+        state.filteredCovariance().setIdentity();
+        continue;
+      }
+      // The finder updates at the RZ stop the measurement was found from,
+      // not on the module, so the state is walked the last bit onto the
+      // module plane, which is the surface the track state lives on
+      const auto& [v0, c0] = candidate.forwardStates[hit.forwardState];
+      const Acts::Vector3& au =
+          on.frames.empty() ? module.u : on.frames[hit.measurement].u;
+      const Acts::Vector3& av =
+          on.frames.empty() ? module.v : on.frames[hit.measurement].v;
+      const Acts::Vector3 measured = module.center + m.loc0 * au + m.loc1 * av;
+      RzVector v = v0;
+      RzMatrix c;
+      if (const std::optional<double> step =
+              helix.pathToPlane(v0, measured, module.normal);
+          step.has_value()) {
+        helix.step(v, *step);
+        c = helix.stepJacobianOnto(v0, *step, v, module.normal).transport(c0);
+      } else {
+        c = c0;
+      }
+      std::optional<RzBoundState> onModule = rzBoundOnModule(module, v, c);
+      if (!onModule.has_value()) {
+        // through the surface, for a polar module the layout could not
+        // confirm as plain polar
+        const Acts::Vector3 position = v.segment<3>(eRzPos0);
+        const Acts::Vector3 direction = v.segment<3>(eRzDir0);
+        const auto stateBound = Acts::transformFreeToBoundParameters(
+            position, 0., direction, v[eRzQOverP], *module.surface,
+            ctx.recoGeoContext);
+        if (!stateBound.ok()) {
+          state.filtered().setZero();
+          state.filteredCovariance().setIdentity();
+          continue;
+        }
+        Acts::FreeMatrix freeCov = Acts::FreeMatrix::Zero();
+        for (unsigned int a = 0; a < eRzSize; ++a) {
+          for (unsigned int b = 0; b < eRzSize; ++b) {
+            freeCov(kFreeOf[a], kFreeOf[b]) = c(a, b);
+          }
+        }
+        const Acts::FreeToBoundMatrix jm = module.surface->freeToBoundJacobian(
+            ctx.recoGeoContext, position, direction);
+        Acts::BoundMatrix stateCov = jm * freeCov * jm.transpose();
+        stateCov(Acts::eBoundTime, Acts::eBoundTime) = 1.;
+        onModule = RzBoundState{*stateBound, stateCov};
+      }
+      state.filtered() = onModule->parameters;
+      state.filteredCovariance() = onModule->covariance;
     }
     Acts::calculateTrackQuantities(track);
+    const auto tEnd = Clock::now();
+    m_nsMakeStates += static_cast<std::size_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(tEnd - tStates)
+            .count());
+    m_nsMake += static_cast<std::size_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(tEnd - tMake)
+            .count());
   }
 
   const auto tFind1 = Clock::now();
@@ -332,7 +398,11 @@ ProcessCode RzTrackFindingAlgorithm::finalize() {
       "RzTrackFinding timing: fill "
       << m_nsFill / ms << " ms (" << m_nsFill / binned
       << " ns per measurement), finalize " << m_nsFinalize / ms << " ms, find "
-      << m_nsFind / ms << " ms (" << m_nsFind / seeds / 1e3 << " us per seed), "
+      << m_nsFind / ms << " ms (" << m_nsFind / seeds / 1e3
+      << " us per seed, of which " << m_nsMake / seeds / 1e3
+      << " us writing: " << m_nsMake / tracks / 1e3 << " us per track, "
+      << m_nsMakeStates / tracks / 1e3 << " us for its "
+      << m_nMeasurementsOnTracks / tracks << " states), "
       << 100. * (m_nsFill + m_nsFinalize) /
              std::max<double>(1., m_nsFill + m_nsFinalize + m_nsFind)
       << "% spent preparing " << m_nMeasurementsBinned << " measurements");
