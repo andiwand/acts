@@ -443,6 +443,20 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
   std::ranges::sort(layout.cylinders, byRef);
   std::ranges::sort(layout.discs, byRef);
 
+  // the compact probe tables, once the order is fixed
+  layout.cylCoord.reserve(layout.cylinders.size());
+  for (const std::uint32_t i : layout.cylinders) {
+    layout.cylCoord.push_back(layout.surfaces[i].refCoord);
+  }
+  layout.discCoord.reserve(layout.discs.size());
+  layout.discMin.reserve(layout.discs.size());
+  layout.discMax.reserve(layout.discs.size());
+  for (const std::uint32_t i : layout.discs) {
+    layout.discCoord.push_back(layout.surfaces[i].refCoord);
+    layout.discMin.push_back(layout.surfaces[i].minBound);
+    layout.discMax.push_back(layout.surfaces[i].maxBound);
+  }
+
   if (options.fieldSampler) {
     // Bz along each surface, the mean over four azimuths
     for (RzSurface& surface : layout.surfaces) {
