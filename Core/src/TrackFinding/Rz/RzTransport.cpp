@@ -242,7 +242,7 @@ double RzHelix::pathToPerigee(const RzVector& v) const {
   }
   const double cx = px + dy / k;
   const double cy = py - dx / k;
-  const double cn = std::hypot(cx, cy);
+  const double cn = std::sqrt(cx * cx + cy * cy);
   if (cn == 0.) {
     return 0.;
   }
@@ -250,7 +250,7 @@ double RzHelix::pathToPerigee(const RzVector& v) const {
   // radius; the turning angle from here to there, shortest way round
   const double r0x = -dy / k;
   const double r0y = dx / k;
-  const double rho = std::hypot(r0x, r0y);
+  const double rho = std::sqrt(dt2) / std::abs(k);
   const double rqx = -rho * cx / cn;
   const double rqy = -rho * cy / cn;
   const double gamma = std::atan2(r0x * rqy - r0y * rqx, r0x * rqx + r0y * rqy);
