@@ -178,6 +178,9 @@ RzTrackFinder::Placed RzTrackFinder::place(
   p.cov11 = swapped ? m.cov00 : m.cov11;
   p.cov01 = m.cov01;
   p.invLever = m.invLever;
+  // `loc1` is the azimuth of a polar frame, so the lever scales whichever
+  // variance came from it, and the radial residual is the other one
+  p.leverOnCov11 = !swapped;
   // the room a search opens along a strip: the module's extent along the
   // coordinate it does not measure, and for a polar frame, where neither
   // bound coordinate is a module axis, the box in either direction
@@ -241,10 +244,13 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   }
   // In a polar frame the measurement is an angle, so the length it stands for
   // grows with the distance from the frame's origin. The entry carries the
-  // variance at the module's own radius; the crossing is `rv` further along
+  // variance at its own radius; the crossing is one residual further along
   // the radial direction, and that is where the variance belongs.
-  const double lever = 1. - rv * m.invLever;
-  const double cov00 = m.cov00 * lever * lever;
+  const double lever = 1. - (m.leverOnCov11 ? ru : rv) * m.invLever;
+  const double leverSq = lever * lever;
+  const double cov00 = m.leverOnCov11 ? m.cov00 : m.cov00 * leverSq;
+  const double cov11 = m.leverOnCov11 ? m.cov11 * leverSq : m.cov11;
+  const double cov01 = m.cov01 * lever;
   // S = H C H^T + R with H the two frame axes on the position block of the
   // covariance moved to the module: the rows of H J, and only they, are
   // formed, and C (H J)^T is what the update needs too
@@ -262,8 +268,8 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   } else {
     const Eigen::Matrix<double, 1, eRzSize> hv = m.v.transpose() * jPos;
     e.ch.col(1) = state.c * hv.transpose();
-    const double s01 = hv.dot(e.ch.col(0)) + m.cov01;
-    const double s11 = hv.dot(e.ch.col(1)) + m.cov11;
+    const double s01 = hv.dot(e.ch.col(0)) + cov01;
+    const double s11 = hv.dot(e.ch.col(1)) + cov11;
     const double det = s00 * s11 - s01 * s01;
     if (det <= 0.) {
       return std::nullopt;

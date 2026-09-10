@@ -179,10 +179,10 @@ RzMeasurement RzMeasurementGrid::fromBound(
   e.cov00 = var0 * scale0 * scale0;
   e.cov01 = cov01 * scale0 * scale1;
   e.cov11 = var1 * scale1 * scale1;
-  // the lever arm the azimuth was converted with: the distance from the polar
-  // frame's origin, which is where the entry sits
-  const double leverScale = measuresLoc1 ? scale1 : scale0;
-  e.invLever = leverScale > 0. ? 1. / leverScale : 0.;
+  // The lever arm the azimuth was converted with: the distance from the polar
+  // frame's origin, which is `scale1`, because `loc1` is the azimuth and
+  // `loc0` a radius. A measurement with no azimuthal component has no lever.
+  e.invLever = (dim == 2 || measuresLoc1) && scale1 > 0. ? 1. / scale1 : 0.;
   return e;
 }
 

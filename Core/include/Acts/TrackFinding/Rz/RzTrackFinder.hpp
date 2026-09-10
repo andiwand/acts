@@ -279,6 +279,9 @@ class RzTrackFinder {
     /// Variance along `v`, unused by a strip
     double cov11{};
     double invLever{};
+    /// Which variance the lever scales, which is the azimuthal one: `cov11`
+    /// when `u` is the radial direction, `cov00` when `v` is
+    bool leverOnCov11{};
     /// Room along `v`, the coordinate a strip does not measure
     double halfV{};
     /// How far from the RZ stop the module may be met
