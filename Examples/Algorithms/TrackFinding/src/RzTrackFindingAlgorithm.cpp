@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <stdexcept>
 
 namespace ActsExamples {
@@ -99,6 +100,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   }
   const double bz = field->z();
 
+  using Clock = std::chrono::steady_clock;
+  const auto tFill0 = Clock::now();
   RzMeasurementGrid grid(m_layout);
   grid.reserve(measurements.size());
   for (std::uint32_t i = 0; i < measurements.size(); ++i) {
@@ -137,7 +140,16 @@ ProcessCode RzTrackFindingAlgorithm::execute(
                   ctx.recoGeoContext, dim, std::span(indices.data(), dim),
                   std::span(params.data(), dim), std::span(cov.data(), 4), i);
   }
+  const auto tFill1 = Clock::now();
   grid.finalize();
+  const auto tFill2 = Clock::now();
+  m_nsFill += static_cast<std::size_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(tFill1 - tFill0)
+          .count());
+  m_nsFinalize += static_cast<std::size_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(tFill2 - tFill1)
+          .count());
+  m_nMeasurementsBinned += grid.size();
   ACTS_DEBUG("Binned " << grid.size() << " of " << measurements.size()
                        << " measurements");
 
@@ -167,6 +179,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   TrackContainer tracks(trackContainer, trackStateContainer);
   PassThroughCalibrator calibrator;
 
+  const RzMeasurementAccessor accessor = grid.accessor();
+  const auto tFind0 = Clock::now();
   RzTrackCandidate candidate;
   std::size_t nTracks = 0;
   std::size_t nStops = 0;
@@ -201,7 +215,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       startModule = it->second;
     }
 
-    const bool found = finder.findTrack(grid, v, c, startModule, candidate);
+    const bool found = finder.findTrack(accessor, v, c, startModule, candidate);
     nStops += candidate.stops;
     nCandidates += candidate.candidatesTested;
     if (!found) {
@@ -262,9 +276,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
             m_layout.surfaces[m_layout.layers[hit.layer].surface].surface);
         continue;
       }
-      const RzMeasurement& m = grid.entry(hit.measurement);
-      state.setReferenceSurface(m_layout.modules[m.module].surface);
-      const IndexSourceLink sourceLink(m_layout.modules[m.module].geometryId,
+      const RzMeasurement& m =
+          grid.moduleRange(hit.module).entries[hit.measurement];
+      state.setReferenceSurface(m_layout.modules[hit.module].surface);
+      const IndexSourceLink sourceLink(m_layout.modules[hit.module].geometryId,
                                        m.source);
       calibrator.calibrate(measurements, nullptr, ctx.recoGeoContext,
                            ctx.calibContext, Acts::SourceLink{sourceLink},
@@ -275,6 +290,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     Acts::calculateTrackQuantities(track);
   }
 
+  const auto tFind1 = Clock::now();
+  m_nsFind += static_cast<std::size_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(tFind1 - tFind0)
+          .count());
   m_nSeeds += initialParameters.size();
   m_nTracks += nTracks;
   m_nStops += nStops;
@@ -305,6 +324,16 @@ ProcessCode RzTrackFindingAlgorithm::finalize() {
             << " measurements and " << m_nHolesOnTracks / tracks
             << " holes per track, " << m_nBackwardFailures
             << " backward pass failures");
+  const double binned = std::max<double>(1., m_nMeasurementsBinned.load());
+  const double ms = 1e6;
+  ACTS_INFO(
+      "RzTrackFinding timing: fill "
+      << m_nsFill / ms << " ms (" << m_nsFill / binned
+      << " ns per measurement), finalize " << m_nsFinalize / ms << " ms, find "
+      << m_nsFind / ms << " ms (" << m_nsFind / seeds / 1e3 << " us per seed), "
+      << 100. * (m_nsFill + m_nsFinalize) /
+             std::max<double>(1., m_nsFill + m_nsFinalize + m_nsFind)
+      << "% spent preparing " << m_nMeasurementsBinned << " measurements");
   return ProcessCode::SUCCESS;
 }
 

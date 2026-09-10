@@ -95,7 +95,7 @@ struct RzTrackFinderConfig {
 /// One sensitive layer the track crossed: with a measurement, or a hole
 struct RzTrackHit {
   std::uint32_t layer{kRzNone};
-  /// Index into the measurement grid, `kRzNone` for a hole
+  /// Index of the measurement within its module, `kRzNone` for a hole
   std::uint32_t measurement{kRzNone};
   /// Index into `RzTrackCandidate::stopSurfaces` of the stop it was found
   /// at, `kRzNone` for the layer the track started on
@@ -109,6 +109,14 @@ struct RzTrackHit {
   double chi2{};
 
   bool isHole() const { return measurement == kRzNone; }
+};
+
+/// One of the measurements a seed is made of, as the finder addresses it.
+struct RzSeedMeasurement {
+  /// Index into `RzLayout::modules`
+  std::uint32_t module{kRzNone};
+  /// Index of the measurement within that module
+  std::uint32_t index{kRzNone};
 };
 
 struct RzTrackCandidate {
@@ -179,19 +187,20 @@ class RzTrackFinder {
   double bz() const { return m_bz; }
 
   /// Follow a track outward from a start state.
-  /// @param grid the measurements of the event
+  /// @param measurements where to get a module's measurements
   /// @param start the start state
   /// @param startCovariance its covariance
   /// @param startModule the module the start state sits on, or `kRzNone`; its
   ///        layer is searched before any transport
   /// @param candidate the result, cleared first
   /// @return true if the candidate has at least `minMeasurements` hits
-  /// @param seedEntries grid entries of the measurements the seed is made of.
-  ///        A layer that holds one is not searched: the measurement is taken.
-  bool findTrack(const RzMeasurementGrid& grid, const RzVector& start,
-                 const RzMatrix& startCovariance, std::uint32_t startModule,
-                 RzTrackCandidate& candidate,
-                 std::span<const std::uint32_t> seedEntries = {}) const;
+  /// @param seedMeasurements the measurements the seed is made of. A layer
+  ///        that holds one is not searched: the measurement is taken.
+  bool findTrack(
+      const RzMeasurementAccessor& measurements, const RzVector& start,
+      const RzMatrix& startCovariance, std::uint32_t startModule,
+      RzTrackCandidate& candidate,
+      std::span<const RzSeedMeasurement> seedMeasurements = {}) const;
 
  private:
   /// The scalars multiple scattering and energy loss straggling accumulate in
@@ -253,12 +262,52 @@ class RzTrackFinder {
     Eigen::Matrix<double, 2, 2> sInv;
   };
 
+  /// A measurement placed in the global frame, as the exact transport needs
+  /// it. The search holds measurements on their module's axes, which is all
+  /// the gate reads; this is what the few that survive the gate are expanded
+  /// into.
+  struct Placed {
+    Vector3 position{Vector3::Zero()};
+    /// The direction the measured coordinate is taken along
+    Vector3 u{Vector3::Zero()};
+    /// The other one, which a strip does not measure
+    Vector3 v{Vector3::Zero()};
+    Vector3 normal{Vector3::Zero()};
+    /// Variance along `u`
+    double cov00{};
+    double cov01{};
+    /// Variance along `v`, unused by a strip
+    double cov11{};
+    double invLever{};
+    /// Room along `v`, the coordinate a strip does not measure
+    double halfV{};
+    /// How far from the RZ stop the module may be met
+    double maxDistance{};
+    bool pixel{};
+  };
+
+  /// Place a hit's measurement in the global frame
+  /// @param measurements where to get a module's measurements
+  /// @param hit the hit, which names its module and the index within it
+  /// @return the placed measurement
+  Placed placeHit(const RzMeasurementAccessor& measurements,
+                  const RzTrackHit& hit) const;
+
+  /// Place a measurement in the global frame
+  /// @param mod the module it sits on
+  /// @param m the measurement
+  /// @param frame its own axes, or nullptr for a cartesian module, whose
+  ///        measurements all share the module's
+  /// @return the placed measurement
+  Placed place(const RzModule& mod, const RzMeasurement& m,
+               const RzMeasurementFrame* frame) const;
+
   /// Take the residual of a measurement against the state brought to its
   /// module, and its chi2, with the state's covariance as the prediction's
   /// @param gate drop the measurement on the straight-line chi2 first; off
   ///        for a measurement the track is known to have
   /// @return nothing if the module cannot be reached or the strip is missed
-  std::optional<Evaluation> evaluate(const State& state, const RzMeasurement& m,
+  std::optional<Evaluation> evaluate(const State& state, const Placed& m,
                                      bool gate = true) const;
 
   /// Take a measurement the caller says the track is made of, without
@@ -267,8 +316,9 @@ class RzTrackFinder {
   /// covariance - the widest the track ever has - and a full transport of
   /// every measurement the crossed modules carry.
   /// @return true if the measurement could be brought onto the track
-  bool takeKnownHit(const RzMeasurementGrid& grid, std::uint32_t entry,
-                    std::uint32_t layerIndex, std::uint32_t stop, State& state,
+  bool takeKnownHit(const RzMeasurementAccessor& measurements,
+                    const RzSeedMeasurement& seed, std::uint32_t layerIndex,
+                    std::uint32_t stop, State& state,
                     RzTrackCandidate& candidate) const;
 
   /// Kalman update with an evaluated measurement, at the state's stop
@@ -286,17 +336,17 @@ class RzTrackFinder {
                      const Vector3& normal, double direction = 1.) const;
 
   /// Refilter the candidate's measurements from the outer end inwards
-  void backwardPass(const RzMeasurementGrid& grid, const State& forward,
-                    RzTrackCandidate& candidate) const;
+  void backwardPass(const RzMeasurementAccessor& measurements,
+                    const State& forward, RzTrackCandidate& candidate) const;
 
   /// Walk inward from the state, searching every sensitive layer between it
   /// and the beam line, and leave the state at the closest approach.
-  /// @param grid the measurements of the event
+  /// @param measurements where to get a module's measurements
   /// @param state the state at the innermost measurement, moved to the
   ///        closest approach
   /// @param candidate the hits found are appended, outward to inward
   /// @return false if the closest approach could not be reached
-  bool inwardSearch(const RzMeasurementGrid& grid, State& state,
+  bool inwardSearch(const RzMeasurementAccessor& measurements, State& state,
                     RzTrackCandidate& candidate) const;
 
   /// Add `pending` to the covariance and project the position part onto the
@@ -310,14 +360,15 @@ class RzTrackFinder {
       boost::container::static_vector<std::uint32_t, kMaxModulesPerLayer>;
 
   /// Search the modules the state crosses and update with the best candidates
-  /// @param grid the measurements of the event, by module
+  /// @param measurements where to get a module's measurements
   /// @param layer the layer the modules belong to
   /// @param stop the stop the layer is at, `kRzNone` for the start layer
   /// @param modules the modules the crossing landed on, from `modulesAt`
   /// @return the number of measurements accepted
-  std::uint32_t searchLayer(const RzMeasurementGrid& grid, std::uint32_t layer,
-                            std::uint32_t stop, const ModuleList& modules,
-                            State& state, RzTrackCandidate& candidate,
+  std::uint32_t searchLayer(const RzMeasurementAccessor& measurements,
+                            std::uint32_t layer, std::uint32_t stop,
+                            const ModuleList& modules, State& state,
+                            RzTrackCandidate& candidate,
                             std::uint32_t skipRounds = 0,
                             std::uint32_t usedModule = kRzNone) const;
 
