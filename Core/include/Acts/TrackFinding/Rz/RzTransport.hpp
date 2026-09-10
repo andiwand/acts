@@ -124,8 +124,15 @@ struct RzHelix {
   /// @param v the state
   /// @param s the path length, may be negative
   void step(RzVector& v, double s) const {
-    const double k = kappa(v);
-    const detail::StepTrig t = detail::stepTrig(k * s);
+    step(v, s, detail::stepTrig(kappa(v) * s));
+  }
+
+  /// The same with the trigonometry of the turning angle `kappa * s` already
+  /// taken, for a caller that needs it for the Jacobian of the same step too
+  /// @param v the state
+  /// @param s the path length
+  /// @param t `stepTrig(kappa(v) * s)`
+  void step(RzVector& v, double s, const detail::StepTrig& t) const {
     const double f1 = s * t.sinc;
     const double f2 = s * t.versc;
     const double sn = t.sn;
@@ -327,8 +334,20 @@ struct RzHelix {
   StepJacobian stepJacobianOnto(const RzVector& v0, double s,
                                 const RzVector& end,
                                 const Vector3& normal) const {
-    const double k = kappa(v0);
-    const detail::StepTrig t = detail::stepTrig(k * s);
+    return stepJacobianOnto(v0, s, end, normal,
+                            detail::stepTrig(kappa(v0) * s));
+  }
+
+  /// The same with the trigonometry of the step already taken
+  /// @param v0 the state before the step
+  /// @param s the path length
+  /// @param end the state after the step
+  /// @param normal the surface normal at the end
+  /// @param t `stepTrig(kappa(v0) * s)`
+  /// @return the Jacobian
+  StepJacobian stepJacobianOnto(const RzVector& v0, double s,
+                                const RzVector& end, const Vector3& normal,
+                                const detail::StepTrig& t) const {
     const double dx = v0[eRzDir0];
     const double dy = v0[eRzDir1];
     const double g1 = s * s * t.dsinc;
