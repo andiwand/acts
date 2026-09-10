@@ -213,6 +213,7 @@ std::optional<RzModule> describeModule(const Surface& surface,
   m.normal = transform.rotation().col(2);
   m.halfU = 0.5 * (hi.x() - lo.x());
   m.halfV = 0.5 * (hi.y() - lo.y());
+  m.localCenter = centre;
   // the centre in the surface's own bound frame, which for a polar frame is
   // not the cartesian box centre the module was measured out in
   if (const Result<Vector2> bound = surface.globalToLocal(
@@ -221,6 +222,27 @@ std::optional<RzModule> describeModule(const Surface& surface,
     m.boundCenter = *bound;
   } else {
     m.boundCenter = centre;
+  }
+  // A disc maps its bound coordinates to the local frame as plain polar, so
+  // the fill can place a measurement with one sine and one cosine instead of
+  // asking the surface four times. Check it here rather than assume it: the
+  // point the surface reaches and the direction the radius moves it in, both
+  // against the closed form.
+  if (m.polar) {
+    const double r = m.boundCenter[0];
+    const double phi = m.boundCenter[1];
+    const double c = std::cos(phi);
+    const double s = std::sin(phi);
+    const Vector3 origin = transform * Vector3::Zero();
+    const Vector3 point = surface.localToGlobal(gctx, m.boundCenter, m.normal);
+    const Vector3 closed = origin + (r * c) * m.u + (r * s) * m.v;
+    constexpr double h = 1e-4;
+    const Vector3 radial =
+        (surface.localToGlobal(gctx, Vector2(r + h, phi), m.normal) -
+         surface.localToGlobal(gctx, Vector2(r - h, phi), m.normal)) /
+        (2 * h);
+    m.polarIsPlain = (point - closed).norm() < 1e-6 &&
+                     (radial - (c * m.u + s * m.v)).norm() < 1e-6;
   }
   m.geometryId = surface.geometryId();
   m.surface = surface.getSharedPtr();
