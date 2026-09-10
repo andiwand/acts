@@ -146,6 +146,13 @@ struct RzModule {
   /// The bound coordinates are not the module's own axes: they are polar
   /// (r, phi) in the surface frame, which is an annulus disc
   bool polar{false};
+  /// Whether a polar module's bound coordinates are plain polar in the
+  /// surface frame, so that the fill needs a sine and a cosine and never the
+  /// surface. Set when the layout checked it against the surface itself.
+  bool polarIsPlain{false};
+  /// The module's centre in the surface's own cartesian frame, which is what
+  /// a plain polar measurement is placed against
+  Vector2 localCenter{Vector2::Zero()};
   /// The centre in the surface's own bound coordinates, where a measurement
   /// leaves a coordinate it does not measure
   Vector2 boundCenter{Vector2::Zero()};
