@@ -204,7 +204,7 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // In a polar frame the measurement is an angle, so the length it stands for
   // grows with the distance from the frame's origin. The entry carries the
   // variance at the module's own radius; the crossing is `rv` further along
-  // the radial direction, which is where the variance belongs.
+  // the radial direction, and that is where the variance belongs.
   const double lever = 1. - rv * m.invLever;
   const double cov00 = m.cov00 * lever * lever;
   // S = H C H^T + R with H the two frame axes on the position block of the
@@ -273,7 +273,9 @@ std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
     }
     const double ds = f / df;
     s -= ds;
-    if (std::abs(ds) < 1e-9) {
+    // a nanometre: every physical scale here is millimetres, and each further
+    // iteration is a full helix step
+    if (std::abs(ds) < 1e-6) {
       // a root far from the guess is the other crossing of the circle
       if (std::abs(s - guess) < std::max(20., 0.2 * std::abs(guess))) {
         return s;
@@ -317,6 +319,7 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
   const double kappa = std::abs(helixAt(state.bz).kappa(v));
   const double maxDistance =
       std::max(m_cfg.maxModuleDistance, layer.moduleDistance);
+  const double sigmas2 = m_cfg.windowSigmas * m_cfg.windowSigmas;
   RzMeasurementGrid::visitBins(
       layout, layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
         for (std::uint32_t i = layout.moduleBinStart[b];
@@ -336,19 +339,26 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
           }
           const Vector3 d = p + s * dir - m.center;
           // the sagitta over the distance to the module, on top of the edge
-          // tolerance and the state's own spread along each module axis
+          // tolerance and the state's own spread along each module axis.
+          // Most modules the bins hand over are rejected, so the spread is
+          // asked for only where the fixed part of the tolerance is already
+          // exceeded, and compared squared rather than rooted.
           const double sagitta = 0.5 * kappa * s * s;
-          const double sigmaU =
-              std::sqrt(std::max(0., m.u.dot(cPos * m.u) + varPending));
-          const double sigmaV =
-              std::sqrt(std::max(0., m.v.dot(cPos * m.v) + varPending));
-          const double tolU = m_cfg.moduleEdgeTolerance + sagitta +
-                              m_cfg.windowSigmas * sigmaU + m_cfg.windowMin;
-          const double tolV = m_cfg.moduleEdgeTolerance + sagitta +
-                              m_cfg.windowSigmas * sigmaV + m_cfg.windowMin;
-          if (std::abs(m.u.dot(d)) > m.halfU + tolU ||
-              std::abs(m.v.dot(d)) > m.halfV + tolV) {
-            continue;
+          const double fixed =
+              m_cfg.moduleEdgeTolerance + sagitta + m_cfg.windowMin;
+          const double du = std::abs(m.u.dot(d)) - m.halfU - fixed;
+          if (du > 0.) {
+            const double varU = std::max(0., m.u.dot(cPos * m.u) + varPending);
+            if (du * du > sigmas2 * varU) {
+              continue;
+            }
+          }
+          const double dv = std::abs(m.v.dot(d)) - m.halfV - fixed;
+          if (dv > 0.) {
+            const double varV = std::max(0., m.v.dot(cPos * m.v) + varPending);
+            if (dv * dv > sigmas2 * varV) {
+              continue;
+            }
           }
           if (std::ranges::find(modules, index) == modules.end()) {
             modules.push_back(index);
@@ -364,12 +374,10 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
       });
 }
 
-std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
-                                         std::uint32_t layerIndex,
-                                         std::uint32_t stop,
-                                         const ModuleList& modules,
-                                         State& state,
-                                         RzTrackCandidate& candidate) const {
+std::uint32_t RzTrackFinder::searchLayer(
+    const RzMeasurementGrid& grid, std::uint32_t layerIndex,
+    std::uint32_t stop, const ModuleList& modules, State& state,
+    RzTrackCandidate& candidate) const {
   // The modules are what the crossing landed on; which of their measurements
   // is worth the full transport is `evaluate`'s gate, which takes the
   // straight-line crossing of the module plane and a diagonal chi2 against
@@ -383,15 +391,67 @@ std::uint32_t RzTrackFinder::searchLayer(const RzMeasurementGrid& grid,
     std::uint32_t bestIndex = kRzNone;
     Evaluation best;
     best.chi2 = std::numeric_limits<double>::max();
+    // Everything the gate needs except the measurement's own position and
+    // variance belongs to the module and to the state, not to the
+    // measurement: the plane crossing, the residual's origin along the
+    // module axes, and the covariance projected on them and widened over
+    // the distance to the module. Formed once per module here, the gate
+    // costs a subtraction and two multiplies per measurement instead of a
+    // division and two quadratic forms. Polar modules carry their own axes
+    // per measurement, so they take the general path.
+    const Vector3 p0 = state.v.segment<3>(eRzPos0);
+    const Vector3 d0 = state.v.segment<3>(eRzDir0);
+    const SquareMatrix3 cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
+    const double dirTrace = state.c.block<3, 3>(eRzDir0, eRzDir0).trace();
+    const double varPending = state.pending.varPosition;
+    const double gate2 = m_cfg.gateFactor * m_cfg.chi2Cut;
     for (const std::uint32_t module : modules) {
       if (std::ranges::find(usedModules, module) != usedModules.end()) {
         continue;
       }
+      const RzModule& mod = m_layout->modules[module];
+      bool hoisted = false;
+      double cu = 0.;
+      double cv = 0.;
+      double su0 = 0.;
+      double sv0 = 0.;
+      if (!mod.polar) {
+        const double alongNormal = mod.normal.dot(d0);
+        if (std::abs(alongNormal) > 1e-9) {
+          const double s0 = mod.normal.dot(mod.center - p0) / alongNormal;
+          const Vector3 crossing = p0 + s0 * d0;
+          cu = mod.u.dot(crossing);
+          cv = mod.v.dot(crossing);
+          const double spread = dirTrace * s0 * s0 + varPending;
+          su0 = mod.u.dot(cPos * mod.u) + spread;
+          sv0 = mod.v.dot(cPos * mod.v) + spread;
+          hoisted = su0 > 0. && sv0 > 0.;
+        }
+      }
       for (const std::uint32_t i : grid.moduleRange(module)) {
         const RzMeasurement& m = grid.entry(i);
         ++candidate.candidatesTested;
-        const std::optional<Evaluation> e = evaluate(state, m);
-        if (e.has_value() && e->chi2 < best.chi2) {
+        if (hoisted) {
+          // chi2 = ru^2/su (+ rv^2/sv), tested without the divisions
+          const double ru = mod.u.dot(m.position) - cu;
+          const double su = su0 + m.cov00;
+          if (ru * ru > gate2 * su) {
+            continue;
+          }
+          if (m.dim == 2) {
+            const double rv = mod.v.dot(m.position) - cv;
+            const double sv = sv0 + m.cov11;
+            if (ru * ru * sv + rv * rv * su > gate2 * su * sv) {
+              continue;
+            }
+          }
+        }
+        const std::optional<Evaluation> e =
+            evaluate(state, m, true);
+        if (!e.has_value()) {
+          continue;
+        }
+        if (e->chi2 < best.chi2) {
           bestIndex = i;
           best = *e;
         }
@@ -668,11 +728,40 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
   }
 
   ModuleList crossedModules;
+  // The same three things the outward walk had to stop wasting: the closest
+  // approach and the state's own constants are only worth recomputing once
+  // the state has moved, a cylinder solve holds while it stands still, and a
+  // disc whose radial extent the track cannot reach costs nothing to skip.
+  bool stateMoved = true;
+  RzHelix helix = helixAt(state.bz);
+  double sPerigee = 0.;
+  double pzIn = 0.;
+  double invDzIn = 0.;
+  double pxIn = 0.;
+  double pyIn = 0.;
+  double dxIn = 0.;
+  double dyIn = 0.;
+  double halfKappaTIn = 0.;
+  std::ptrdiff_t cylCached = -1;
+  std::optional<double> cylCachedPath;
   while (true) {
-    const RzHelix helix = helixAt(state.bz);
-    // where the track is closest to the beam axis; nothing inside that is
-    // still on the way in
-    const double sPerigee = helix.pathToPerigee(state.v);
+    if (stateMoved) {
+      helix = helixAt(state.bz);
+      // where the track is closest to the beam axis; nothing inside that is
+      // still on the way in
+      sPerigee = helix.pathToPerigee(state.v);
+      pzIn = state.v[eRzPos2];
+      pxIn = state.v[eRzPos0];
+      pyIn = state.v[eRzPos1];
+      dxIn = state.v[eRzDir0];
+      dyIn = state.v[eRzDir1];
+      const double dzIn = state.v[eRzDir2];
+      invDzIn = dzIn != 0. ? 1. / dzIn : 0.;
+      halfKappaTIn =
+          0.5 * std::abs(helix.kappa(state.v)) * norm2(dxIn, dyIn);
+      cylCached = -1;
+      stateMoved = false;
+    }
     if (sPerigee >= 0.) {
       break;
     }
@@ -680,12 +769,30 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
     std::optional<double> sCyl;
     std::optional<double> sDisc;
     if (cyl >= 0) {
-      sCyl = pathInwardToCylinder(
-          helix, state.v, layout.surfaces[layout.cylinders[cyl]].refCoord);
+      if (cylCached == cyl) {
+        sCyl = cylCachedPath;
+      } else {
+        sCyl = pathInwardToCylinder(helix, state.v, layout.cylCoord[cyl]);
+        cylCached = cyl;
+        cylCachedPath = sCyl;
+      }
     }
     if (discValid()) {
-      sDisc = pathInwardToDisc(state.v,
-                               layout.surfaces[layout.discs[disc]].refCoord);
+      const std::size_t di = static_cast<std::size_t>(disc);
+      const double sTry = (layout.discCoord[di] - pzIn) * invDzIn;
+      if (sTry < 0. && sTry > sPerigee) {
+        const double xs = pxIn + dxIn * sTry;
+        const double ys = pyIn + dyIn * sTry;
+        const double r2 = xs * xs + ys * ys;
+        const double sagitta = halfKappaTIn * sTry * sTry;
+        const double lo = layout.discMin[di] - sagitta;
+        const double hi = layout.discMax[di] + sagitta;
+        if ((lo > 0. && r2 < lo * lo) || r2 > hi * hi) {
+          disc += discStep;
+          continue;
+        }
+      }
+      sDisc = pathInwardToDisc(state.v, layout.discCoord[di]);
     }
     // inward is negative, so the nearer stop is the larger of the two
     const bool takeCyl =
@@ -721,6 +828,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
     ++candidate.stops;
 
     state.v = landed;
+    stateMoved = true;
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(step);
     state.pending.advance(std::abs(step));
@@ -750,18 +858,18 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementGrid& grid, State& state,
 
   // finish on the beam line: the parameters a caller wants are here, with the
   // material of everything crossed already in the covariance
-  const RzHelix helix = helixAt(state.bz);
-  const double sPerigee = helix.pathToPerigee(state.v);
+  const RzHelix endHelix = helixAt(state.bz);
+  const double sEnd = endHelix.pathToPerigee(state.v);
   RzVector end = state.v;
-  helix.step(end, sPerigee);
+  endHelix.step(end, sEnd);
   const double dt = std::hypot(end[eRzDir0], end[eRzDir1]);
   if (dt <= 0.) {
     return false;
   }
   const Vector3 normal(end[eRzDir0] / dt, end[eRzDir1] / dt, 0.);
   state.v = end;
-  state.travel(sPerigee);
-  state.pending.advance(std::abs(sPerigee));
+  state.travel(sEnd);
+  state.pending.advance(std::abs(sEnd));
   state.moveCovariance(helixAt(state.anchorBz), normal);
   materialise(state, normal);
   return true;
@@ -792,8 +900,6 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     ModuleList startModules;
     bool startOnModule = false;
     modulesAt(layer, state, startModules, startOnModule);
-    // as in the walk, `onModule` decides only whether an empty layer is a
-    // hole; the search itself runs on every module the crossing came near
     if (!startModules.empty() &&
         searchLayer(grid, layer, kRzNone, startModules, state, candidate) ==
             0 &&
@@ -802,6 +908,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
           {layer, kRzNone, kRzNone, kRzNone, startModules.front(), 0.});
     }
   }
+
 
   // navigation cursors: the next cylinder outward and the next disc along z
   const double r0 = norm2(state.v[eRzPos0], state.v[eRzPos1]);
@@ -825,8 +932,9 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     disc += discStep;
   }
 
-  // What the start layer left is either measurements or one hole; taking its
-  // size for the hole count spends the budget on the measurements
+
+  // the start layer has already run, and what it left is either measurements
+  // or one hole; counting its hits as holes would spend the budget on them
   std::uint32_t holes = 0;
   for (const RzTrackHit& hit : candidate.hits) {
     holes += hit.isHole() ? 1 : 0;
@@ -845,6 +953,9 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
   // comes first, one in the endcap until a cylinder does, so the other
   // kind's stop is looked at only once it can be nearer
   bool inEndcap = false;
+  // the cylinder solve, kept while the state has not moved
+  std::uint32_t cylCached = kRzNone;
+  std::optional<double> cylCachedPath;
 
   while (true) {
     // how far the track may still go before it has turned the whole budget;
@@ -858,44 +969,80 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
       break;
     }
 
+    // The probe below runs several times per stop and keeps almost none of
+    // what it looks at, so everything that does not change while the state
+    // stands still is formed here: the reciprocal of dz, the position and
+    // direction, and half the transverse curvature for the sagitta.
+    const double dTransverse = norm2(state.v[eRzDir0], state.v[eRzDir1]);
+    const double pz = state.v[eRzPos2];
+    const double dz = state.v[eRzDir2];
+    const double invDz = dz != 0. ? 1. / dz : 0.;
+    const double px = state.v[eRzPos0];
+    const double py = state.v[eRzPos1];
+    const double dxDir = state.v[eRzDir0];
+    const double dyDir = state.v[eRzDir1];
+    const double halfKappaT = 0.5 * kappa * dTransverse;
     std::optional<double> sDisc;
     while (discsLeft && discValid()) {
-      sDisc = helix.pathToDisc(state.v,
-                               layout.surfaces[layout.discs[disc]].refCoord);
-      if (sDisc.has_value() && *sDisc > maxPath) {
+      const std::size_t di = static_cast<std::size_t>(disc);
+      const double sTry = (layout.discCoord[di] - pz) * invDz;
+      if (sTry <= 0.) {
+        // behind us
+        sDisc.reset();
+        disc += discStep;
+        continue;
+      }
+      if (sTry > maxPath) {
         // z grows monotonically, so every disc beyond is out of reach too
         sDisc.reset();
         discsLeft = false;
         break;
       }
-      if (sDisc.has_value()) {
-        break;
+      // the radius the straight line reaches in the disc's plane, with the
+      // sagitta over that path as the margin: a disc whose extent that cannot
+      // touch is not crossed, and skipping it here saves the step and the
+      // trigonometry the landing would cost. Squared, so the probe needs no
+      // root - the landing's own `contains` is what decides either way.
+      const double xs = px + dxDir * sTry;
+      const double ys = py + dyDir * sTry;
+      const double r2 = xs * xs + ys * ys;
+      const double sagitta = halfKappaT * sTry * sTry;
+      const double lo = layout.discMin[di] - sagitta;
+      const double hi = layout.discMax[di] + sagitta;
+      if ((lo > 0. && r2 < lo * lo) || r2 > hi * hi) {
+        sDisc.reset();
+        disc += discStep;
+        continue;
       }
-      disc += discStep;
+      sDisc = sTry;
+      break;
     }
 
     std::optional<double> sCyl;
     if (cylindersLeft && cyl < layout.cylinders.size()) {
-      const double rCyl = layout.surfaces[layout.cylinders[cyl]].refCoord;
+      const double rCyl = layout.cylCoord[cyl];
       bool tryCylinder = true;
       if (inEndcap && sDisc.has_value()) {
         // the radius the track has reached at the disc, with the sagitta
         // over that path as the margin: short of the cylinder means the
         // disc comes first and the cylinder need not be solved
-        const double dT = norm2(state.v[eRzDir0], state.v[eRzDir1]);
-        const double rAtDisc =
-            norm2(state.v[eRzPos0] + state.v[eRzDir0] * *sDisc,
-                  state.v[eRzPos1] + state.v[eRzDir1] * *sDisc);
-        const double sagitta = 0.5 * kappa * dT * *sDisc * *sDisc;
+        const double rAtDisc = norm2(px + dxDir * *sDisc, py + dyDir * *sDisc);
+        const double sagitta = halfKappaT * *sDisc * *sDisc;
         tryCylinder = rAtDisc + sagitta + 1. >= rCyl;
       }
-      if (tryCylinder) {
+      if (tryCylinder && cylCached == cyl) {
+        // an iteration that only rejected a disc left the state where it
+        // was, so the Newton solve for this cylinder still holds
+        sCyl = cylCachedPath;
+      } else if (tryCylinder) {
         sCyl = helix.pathToCylinder(state.v, rCyl);
         if (!sCyl.has_value() || *sCyl > maxPath) {
           // the helix never reaches this radius, so none beyond it either
           sCyl.reset();
           cylindersLeft = false;
         }
+        cylCached = cyl;
+        cylCachedPath = sCyl;
       }
     }
     const bool takeCyl =
@@ -923,6 +1070,14 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     }
     inEndcap = !takeCyl;
     ++candidate.stops;
+    {
+      const bool sens = surface.layer != kRzNone;
+      if (takeCyl && sens) {
+      } else if (takeCyl) {
+      } else if (sens) {
+      } else {
+      }
+    }
     const std::uint32_t stop =
         static_cast<std::uint32_t>(candidate.stopSurfaces.size());
     candidate.stopSurfaces.push_back(surfaceIndex);
@@ -930,6 +1085,7 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
     candidate.stopAlong.push_back(along);
 
     state.v = landed;
+    cylCached = kRzNone;
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(s);
     state.pending.advance(s);
@@ -969,9 +1125,9 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
       // nothing to look at here
       continue;
     }
-    if (const std::uint32_t accepted = searchLayer(
-            grid, surface.layer, stop, crossedModules, state, candidate);
-        accepted > 0) {
+    const std::uint32_t accepted = searchLayer(
+        grid, surface.layer, stop, crossedModules, state, candidate);
+    if (accepted > 0) {
       measurementsFound += accepted;
       consecutiveHoles = 0;
       lastHit = state;
@@ -987,8 +1143,20 @@ bool RzTrackFinder::findTrack(const RzMeasurementGrid& grid,
       }
     } else if (!onModule) {
       // passed between the modules: nothing was expected here
+      for (const std::uint32_t module : crossedModules) {
+        if (!grid.moduleRange(module).empty()) {
+          break;
+        }
+      }
       continue;
     } else {
+      std::size_t onCrossed = 0;
+      for (const std::uint32_t module : crossedModules) {
+        onCrossed += grid.moduleRange(module).size();
+      }
+      if (onCrossed == 0) {
+      } else {
+      }
       candidate.hits.push_back(
           {surface.layer, kRzNone, stop, kRzNone, crossedModules.front(), 0.});
       ++holes;
