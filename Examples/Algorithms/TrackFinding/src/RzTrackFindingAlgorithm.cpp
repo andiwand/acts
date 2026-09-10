@@ -188,22 +188,23 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   // and copy: on average a track a seed here, sixteen states a track
   trackContainer->reserve(initialParameters.size());
   trackStateContainer->reserve(16 * initialParameters.size());
-  RzTrackCandidate candidate;
   std::size_t nTracks = 0;
   std::size_t nStops = 0;
   std::size_t nCandidates = 0;
   std::size_t nMeasurements = 0;
   std::size_t nHoles = 0;
   std::size_t nBackwardFailures = 0;
+  // every seed as the finder starts from it: bound to the RZ free state,
+  // time dropped, on the module the seed's surface is
+  std::vector<RzTrackStart> starts;
+  starts.reserve(initialParameters.size());
   for (const TrackParameters& start : initialParameters) {
-    // bound to the RZ free state, time dropped
+    RzTrackStart& rz = starts.emplace_back();
     const Acts::Vector3 position = start.position(ctx.recoGeoContext);
     const Acts::Vector3 direction = start.direction();
-    RzVector v;
-    v.segment<3>(eRzPos0) = position;
-    v.segment<3>(eRzDir0) = direction;
-    v[eRzQOverP] = start.qOverP();
-    RzMatrix c = RzMatrix::Zero();
+    rz.parameters.segment<3>(eRzPos0) = position;
+    rz.parameters.segment<3>(eRzDir0) = direction;
+    rz.parameters[eRzQOverP] = start.qOverP();
     if (start.covariance().has_value()) {
       const Acts::BoundToFreeMatrix j =
           start.referenceSurface().boundToFreeJacobian(ctx.recoGeoContext,
@@ -211,22 +212,23 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       const Acts::FreeMatrix free = j * (*start.covariance()) * j.transpose();
       for (unsigned int a = 0; a < eRzSize; ++a) {
         for (unsigned int b = 0; b < eRzSize; ++b) {
-          c(a, b) = free(kFreeOf[a], kFreeOf[b]);
+          rz.covariance(a, b) = free(kFreeOf[a], kFreeOf[b]);
         }
       }
     }
-    std::uint32_t startModule = kRzNone;
     if (const auto it =
             m_layout.moduleIndex.find(start.referenceSurface().geometryId());
         it != m_layout.moduleIndex.end()) {
-      startModule = it->second;
+      rz.module = it->second;
     }
+  }
 
-    const bool found = finder.findTrack(accessor, v, c, startModule, candidate);
+  const auto onTrack = [&](std::size_t /*index*/, bool found,
+                           RzTrackCandidate& candidate) {
     nStops += candidate.stops;
     nCandidates += candidate.candidatesTested;
     if (!found) {
-      continue;
+      return;
     }
     ++nTracks;
     nMeasurements += candidate.measurements;
@@ -256,7 +258,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         pos, 0., dir, w[eRzQOverP], *m_perigee, ctx.recoGeoContext);
     if (!bound.ok()) {
       ACTS_WARNING("Perigee conversion failed: " << bound.error().message());
-      continue;
+      return;
     }
     // the perigee's own Jacobian, on the seven components the RZ state has;
     // the product is formed on them rather than on the 8x8 with a zero time
@@ -356,7 +358,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     m_nsMake += static_cast<std::size_t>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(tEnd - tMake)
             .count());
-  }
+  };
+  finder.findTracks(accessor, starts, m_cfg.batchSize, onTrack);
 
   const auto tFind1 = Clock::now();
   m_nsFind += static_cast<std::size_t>(

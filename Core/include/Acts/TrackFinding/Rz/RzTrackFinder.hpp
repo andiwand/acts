@@ -21,6 +21,7 @@
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <numbers>
 #include <optional>
 #include <span>
@@ -173,6 +174,19 @@ struct RzTrackCandidate {
   }
 };
 
+/// Where a track search starts: the state, its covariance, the module it
+/// sits on and the measurements the seed is made of
+struct RzTrackStart {
+  RzVector parameters{RzVector::Zero()};
+  RzMatrix covariance{RzMatrix::Zero()};
+  /// The module the start state sits on, or `kRzNone`; its layer is searched
+  /// before any transport
+  std::uint32_t module{kRzNone};
+  /// The measurements the seed is made of. A layer that holds one is not
+  /// searched: the measurement is taken.
+  std::span<const RzSeedMeasurement> seedMeasurements{};
+};
+
 class RzTrackFinder {
  public:
   RzTrackFinder(const RzTrackFinderConfig& config, const RzLayout& layout,
@@ -201,6 +215,21 @@ class RzTrackFinder {
       const RzMatrix& startCovariance, std::uint32_t startModule,
       RzTrackCandidate& candidate,
       std::span<const RzSeedMeasurement> seedMeasurements = {}) const;
+
+  /// Follow many tracks, a batch of them in lockstep: every walk of the
+  /// batch is moved to its next sensitive stop, then every one is searched
+  /// and updated there, and so on until the batch has ended. One walk is a
+  /// chain, each stop waiting on the one before; the walks of a batch are
+  /// independent, so the core has other work to do while one waits.
+  /// @param measurements where to get a module's measurements
+  /// @param starts the start of every track
+  /// @param batch how many walks go in lockstep; 0 or 1 is one at a time
+  /// @param onTrack called once per start, in order, with its index, whether
+  ///        a track was found and the candidate
+  void findTracks(const RzMeasurementAccessor& measurements,
+                  std::span<const RzTrackStart> starts, std::size_t batch,
+                  const std::function<void(std::size_t, bool,
+                                           RzTrackCandidate&)>& onTrack) const;
 
  private:
   /// The scalars multiple scattering and energy loss straggling accumulate in
@@ -396,6 +425,74 @@ class RzTrackFinder {
   std::optional<double> pathBackward(const RzHelix& helix, const RzVector& v,
                                      const RzSurface& surface,
                                      double guess) const;
+
+  /// The forward walk of one track between the steps it is taken in: the
+  /// state, the navigation cursors and the counters, which is what the loop
+  /// of a track followed on its own keeps on the stack
+  struct Walk {
+    State state;
+    /// the state at the last accepted measurement is what the track keeps;
+    /// the last stop may be the escape
+    State lastHit;
+    RzTrackCandidate* candidate{};
+    /// the layer each seed measurement sits on, so a crossing can ask in a
+    /// few comparisons whether it is one the caller already knows the
+    /// answer to
+    boost::container::static_vector<std::pair<std::uint32_t, RzSeedMeasurement>,
+                                    8>
+        knownHits;
+    std::uint32_t startSurface{kRzNone};
+    /// navigation cursors: the next cylinder outward and the next disc
+    /// along z
+    std::size_t cyl{};
+    std::ptrdiff_t disc{};
+    int discStep{1};
+    bool cylindersLeft{true};
+    bool discsLeft{true};
+    /// what the last stop was: a track in the barrel stays there until a
+    /// disc comes first, one in the endcap until a cylinder does, so the
+    /// other kind's stop is looked at only once it can be nearer
+    bool inEndcap{false};
+    /// the cylinder solve, kept while the state has not moved
+    std::uint32_t cylCached{kRzNone};
+    std::optional<double> cylCachedPath;
+    std::uint32_t holes{};
+    std::uint32_t consecutiveHoles{};
+    std::uint32_t layersCrossed{};
+    std::uint32_t measurementsFound{};
+    /// the walk has ended, one way or another
+    bool done{false};
+    /// the walk stands on a sensitive stop, ready for the search
+    bool atStop{false};
+    std::uint32_t layer{kRzNone};
+    std::uint32_t stop{kRzNone};
+    Vector3 normal{Vector3::Zero()};
+    ModuleList crossedModules;
+
+    RzSeedMeasurement knownAt(std::uint32_t layerIndex) const {
+      for (const auto& [l, entry] : knownHits) {
+        if (l == layerIndex) {
+          return entry;
+        }
+      }
+      return RzSeedMeasurement{};
+    }
+  };
+
+  /// Set a walk up at its start, and search the start layer
+  void beginWalk(const RzMeasurementAccessor& measurements,
+                 const RzTrackStart& start, RzTrackCandidate& candidate,
+                 Walk& walk) const;
+  /// Move a walk to its next sensitive stop, through the passive ones and
+  /// their material, and bring the covariance there
+  /// @return false once the walk has ended
+  bool advanceWalk(Walk& walk) const;
+  /// Search the layer a walk stands on and update with what it finds; the
+  /// walk may end here on its hole or momentum budget
+  void searchStop(const RzMeasurementAccessor& measurements, Walk& walk) const;
+  /// Close the candidate, and refilter it if it is a track
+  /// @return true if the candidate has at least `minMeasurements` hits
+  bool finishWalk(const RzMeasurementAccessor& measurements, Walk& walk) const;
 
   RzTrackFinderConfig m_cfg;
   const RzLayout* m_layout{};

@@ -48,6 +48,9 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     double alongBinWidth = 20 * Acts::UnitConstants::mm;
     /// Tabulate each material band per momentum, see `RzLayoutOptions`
     bool materialTables = false;
+    /// How many seeds the finder follows in lockstep, stop by stop; 0 or 1
+    /// follows each seed on its own
+    std::size_t batchSize = 0;
 
     /// The finder's cuts, see `Acts::Experimental::RzTrackFinderConfig`
     double chi2Cut = 15.;
