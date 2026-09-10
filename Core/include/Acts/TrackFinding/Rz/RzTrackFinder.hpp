@@ -335,6 +335,12 @@ class RzTrackFinder {
   bool applyMaterial(State& state, const RzSurface& surface, int band,
                      const Vector3& normal, double direction = 1.) const;
 
+  /// Give the state back the mean energy a stop took from it, and nothing
+  /// else: the scattering and straggling of a stop the backward pass skips
+  /// are not wanted, only the momentum the track had there
+  void regainEnergy(State& state, const RzSurface& surface, int band,
+                    const Vector3& normal) const;
+
   /// Refilter the candidate's measurements from the outer end inwards
   void backwardPass(const RzMeasurementAccessor& measurements,
                     const State& forward, RzTrackCandidate& candidate) const;
