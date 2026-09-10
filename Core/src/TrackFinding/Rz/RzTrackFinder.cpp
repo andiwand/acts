@@ -263,8 +263,11 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   if (!s.has_value() || std::abs(*s) > maxDistance) {
     return std::nullopt;
   }
+  // one sincos for the step and for its Jacobian: both are of the same
+  // turning angle
+  const detail::StepTrig trig = detail::stepTrig(helix.kappa(state.v) * *s);
   RzVector w = state.v;
-  helix.step(w, *s);
+  helix.step(w, *s, trig);
   const Vector3 d = m.position - w.segment<3>(eRzPos0);
   const double ru = m.u.dot(d);
   const double rv = m.v.dot(d);
@@ -282,9 +285,29 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // formed, and C (H J)^T is what the update needs too
   Evaluation e;
   const Eigen::Matrix<double, 3, eRzSize> jPos =
-      helix.stepJacobianOnto(state.v, *s, w, m.normal).positionRows();
-  const Eigen::Matrix<double, 1, eRzSize> hu = m.u.transpose() * jPos;
-  e.ch.col(0) = state.c * hu.transpose();
+      helix.stepJacobianOnto(state.v, *s, w, m.normal, trig).positionRows();
+  // the two products by hand: Eigen takes a 1x3 by 3x7 and a 7x7 by 7x1
+  // through its general kernels, out of line, for 21 and 49 multiplies
+  const auto projectRows = [&](const Vector3& axis,
+                               Eigen::Matrix<double, 1, eRzSize>& h) {
+    for (unsigned int c = 0; c < eRzSize; ++c) {
+      h[c] =
+          axis.x() * jPos(0, c) + axis.y() * jPos(1, c) + axis.z() * jPos(2, c);
+    }
+  };
+  const auto covarianceTimes = [&](const Eigen::Matrix<double, 1, eRzSize>& h,
+                                   unsigned int col) {
+    for (unsigned int r = 0; r < eRzSize; ++r) {
+      double acc = 0.;
+      for (unsigned int c = 0; c < eRzSize; ++c) {
+        acc += state.c(r, c) * h[c];
+      }
+      e.ch(r, col) = acc;
+    }
+  };
+  Eigen::Matrix<double, 1, eRzSize> hu;
+  projectRows(m.u, hu);
+  covarianceTimes(hu, 0);
   const double s00 = hu.dot(e.ch.col(0)) + cov00;
   e.sInv.setZero();
   if (!m.pixel) {
@@ -292,8 +315,9 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
     e.sInv(0, 0) = 1. / s00;
     e.chi2 = ru * ru * e.sInv(0, 0);
   } else {
-    const Eigen::Matrix<double, 1, eRzSize> hv = m.v.transpose() * jPos;
-    e.ch.col(1) = state.c * hv.transpose();
+    Eigen::Matrix<double, 1, eRzSize> hv;
+    projectRows(m.v, hv);
+    covarianceTimes(hv, 1);
     const double s01 = hv.dot(e.ch.col(0)) + m.cov01;
     const double s11 = hv.dot(e.ch.col(1)) + m.cov11;
     const double det = s00 * s11 - s01 * s01;
