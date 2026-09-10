@@ -13,14 +13,20 @@
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/EventData/BoundTrackParameters.hpp"
 #include "Acts/EventData/ParticleHypothesis.hpp"
+#include "Acts/EventData/TransformationHelpers.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/MagneticField/ConstantBField.hpp"
 #include "Acts/MagneticField/MagneticFieldContext.hpp"
 #include "Acts/Propagator/EigenStepper.hpp"
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/VoidNavigator.hpp"
+#include "Acts/Surfaces/AnnulusBounds.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
+#include "Acts/Surfaces/DiscSurface.hpp"
+#include "Acts/Surfaces/PlaneSurface.hpp"
+#include "Acts/Surfaces/RectangleBounds.hpp"
+#include "Acts/TrackFinding/Rz/RzBound.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 #include "ActsTests/CommonHelpers/FloatComparisons.hpp"
 
@@ -243,4 +249,129 @@ BOOST_AUTO_TEST_CASE(StepJacobianOntoMatchesDense) {
       }
     }
   }
+}
+
+// The closed-form bound conversion against what the surface says, on a
+// tilted plane and on an annulus disc, for a state on the surface
+
+namespace {
+
+/// A state on the surface at a local point, with a direction, and a
+/// covariance that is full rank on the seven components
+std::pair<RzVector, RzMatrix> stateOn(const Surface& surface,
+                                      const GeometryContext& gctx,
+                                      const Vector2& local,
+                                      const Vector3& direction) {
+  RzVector v;
+  v.segment<3>(eRzPos0) = surface.localToGlobal(gctx, local, direction);
+  v.segment<3>(eRzDir0) = direction.normalized();
+  v[eRzQOverP] = -0.4;
+  RzMatrix c;
+  for (unsigned int a = 0; a < eRzSize; ++a) {
+    for (unsigned int b = 0; b < eRzSize; ++b) {
+      c(a, b) = 0.01 * (1. + a) * (1. + b) + (a == b ? 0.3 : 0.);
+    }
+  }
+  return {v, c};
+}
+
+RzBoundState throughSurface(const Surface& surface, const GeometryContext& gctx,
+                            const RzVector& v, const RzMatrix& c) {
+  constexpr std::array<unsigned int, eRzSize> freeOf = {
+      eFreePos0, eFreePos1, eFreePos2,  eFreeDir0,
+      eFreeDir1, eFreeDir2, eFreeQOverP};
+  const Vector3 position = v.segment<3>(eRzPos0);
+  const Vector3 direction = v.segment<3>(eRzDir0);
+  const auto bound = transformFreeToBoundParameters(
+      position, 0., direction, v[eRzQOverP], surface, gctx);
+  BOOST_REQUIRE(bound.ok());
+  FreeMatrix freeCov = FreeMatrix::Zero();
+  for (unsigned int a = 0; a < eRzSize; ++a) {
+    for (unsigned int b = 0; b < eRzSize; ++b) {
+      freeCov(freeOf[a], freeOf[b]) = c(a, b);
+    }
+  }
+  const FreeToBoundMatrix j =
+      surface.freeToBoundJacobian(gctx, position, direction);
+  BoundMatrix cov = j * freeCov * j.transpose();
+  cov(eBoundTime, eBoundTime) = 1.;
+  return {*bound, cov};
+}
+
+void expectSame(const RzBoundState& a, const RzBoundState& b) {
+  for (unsigned int i = 0; i < eBoundSize; ++i) {
+    BOOST_CHECK_SMALL(a.parameters[i] - b.parameters[i], 1e-12);
+  }
+  for (unsigned int r = 0; r < eBoundSize; ++r) {
+    for (unsigned int s = 0; s < eBoundSize; ++s) {
+      BOOST_CHECK_SMALL(a.covariance(r, s) - b.covariance(r, s),
+                        1e-10 * std::max(1., std::abs(b.covariance(r, s))));
+    }
+  }
+}
+
+}  // namespace
+
+BOOST_AUTO_TEST_CASE(BoundOnCartesianModuleMatchesSurface) {
+  const GeometryContext gctx = GeometryContext::dangerouslyDefaultConstruct();
+  Transform3 transform = Transform3::Identity();
+  transform.translation() = Vector3(120., -35., 410.);
+  transform.linear() =
+      (AngleAxis3(0.4, Vector3::UnitZ()) * AngleAxis3(1.1, Vector3::UnitX()) *
+       AngleAxis3(-0.3, Vector3::UnitY()))
+          .toRotationMatrix();
+  auto surface = Surface::makeShared<PlaneSurface>(
+      transform, std::make_shared<RectangleBounds>(20., 40.));
+  RzModule module;
+  module.center = transform.translation();
+  module.u = transform.rotation().col(0);
+  module.v = transform.rotation().col(1);
+  module.normal = transform.rotation().col(2);
+  module.halfU = 20.;
+  module.halfV = 40.;
+  for (const Vector2& local : {Vector2(3., -7.), Vector2(-15., 31.)}) {
+    for (const Vector3& direction :
+         {Vector3(0.3, 0.2, 0.9), Vector3(-0.8, 0.1, 0.4)}) {
+      const auto [v, c] = stateOn(*surface, gctx, local, direction);
+      const std::optional<RzBoundState> closed = rzBoundOnModule(module, v, c);
+      BOOST_REQUIRE(closed.has_value());
+      expectSame(*closed, throughSurface(*surface, gctx, v, c));
+    }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(BoundOnPolarModuleMatchesSurface) {
+  const GeometryContext gctx = GeometryContext::dangerouslyDefaultConstruct();
+  Transform3 transform = Transform3::Identity();
+  transform.translation() = Vector3(0., 0., 2700.);
+  transform.linear() = AngleAxis3(0.7, Vector3::UnitZ()).toRotationMatrix();
+  // an annulus with its own origin at the surface origin, so that the bound
+  // coordinates are plain polar there
+  auto surface = Surface::makeShared<DiscSurface>(
+      transform, std::make_shared<AnnulusBounds>(400., 500., -0.1, 0.1,
+                                                 Vector2(0., 0.), 0.));
+  RzModule module;
+  // the box centre is not the surface origin; the closed form finds the
+  // origin back from it
+  module.localCenter = Vector2(450., 3.);
+  module.u = transform.rotation().col(0);
+  module.v = transform.rotation().col(1);
+  module.normal = transform.rotation().col(2);
+  module.center = transform.translation() + module.localCenter.x() * module.u +
+                  module.localCenter.y() * module.v;
+  module.polar = true;
+  module.polarIsPlain = true;
+  for (const Vector2& local : {Vector2(430., 0.05), Vector2(495., -0.08)}) {
+    for (const Vector3& direction :
+         {Vector3(0.15, 0.05, 0.98), Vector3(0.2, -0.1, 0.9)}) {
+      const auto [v, c] = stateOn(*surface, gctx, local, direction);
+      const std::optional<RzBoundState> closed = rzBoundOnModule(module, v, c);
+      BOOST_REQUIRE(closed.has_value());
+      expectSame(*closed, throughSurface(*surface, gctx, v, c));
+    }
+  }
+  module.polarIsPlain = false;
+  const auto [v, c] =
+      stateOn(*surface, gctx, Vector2(430., 0.), Vector3(0., 0., 1.));
+  BOOST_CHECK(!rzBoundOnModule(module, v, c).has_value());
 }

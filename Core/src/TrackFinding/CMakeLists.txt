@@ -5,6 +5,7 @@ target_sources(
         MeasurementSelector.cpp
         AmbiguityTrackClustering.cpp
         Rz/RzTransport.cpp
+        Rz/RzBound.cpp
         Rz/RzLayout.cpp
         Rz/RzMeasurementGrid.cpp
         Rz/RzTrackFinder.cpp
