@@ -18,16 +18,15 @@ namespace Acts::Experimental {
 
 RzMeasurementGrid::RzMeasurementGrid(const RzLayout& layout)
     : m_layout(&layout) {
-  m_moduleStart.assign(layout.modules.size() + 1, 0);
+  m_blocks.assign(layout.modules.size(), ModuleBlock{});
 }
 
 void RzMeasurementGrid::clear() {
   m_entries.clear();
   m_frames.clear();
   m_moduleOf.clear();
-  std::ranges::fill(m_moduleStart, 0u);
-  m_grouped = true;
-  m_lastModule = 0;
+  std::ranges::fill(m_blocks, ModuleBlock{});
+  m_contiguous = true;
 }
 
 void RzMeasurementGrid::reserve(std::size_t n) {
@@ -37,25 +36,27 @@ void RzMeasurementGrid::reserve(std::size_t n) {
 
 /// Grow the frame table to match the entries, so that a polar module's frames
 /// stay parallel to them however few polar modules the event has
-void RzMeasurementGrid::padFrames() {
-  if (!m_frames.empty()) {
-    m_frames.resize(m_entries.size());
-  }
-}
-
 std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
                                      const RzMeasurement& measurement,
                                      const RzMeasurementFrame& frame) {
-  if (module < m_lastModule) {
-    m_grouped = false;
+  ModuleBlock& block = m_blocks[module];
+  const std::uint32_t at = static_cast<std::uint32_t>(m_entries.size());
+  const bool polar = m_layout->modules[module].polar;
+  if (block.size == 0) {
+    block.begin = at;
+    if (polar) {
+      block.frame = static_cast<std::uint32_t>(m_frames.size());
+    }
+  } else if (block.begin + block.size != at) {
+    // this module's measurements were interrupted by another module's, so
+    // one run no longer holds them and `finalize` has to group them
+    m_contiguous = false;
   }
-  m_lastModule = module;
-  const std::uint32_t index = m_moduleStart[module + 1]++;
+  const std::uint32_t index = block.size++;
   m_entries.push_back(measurement);
   m_moduleOf.push_back(module);
-  if (m_layout->modules[module].polar) {
-    m_frames.resize(m_entries.size());
-    m_frames.back() = frame;
+  if (polar) {
+    m_frames.push_back(frame);
   }
   return index;
 }
@@ -63,15 +64,21 @@ std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
 void RzMeasurementGrid::addRange(std::uint32_t module,
                                  std::span<const RzMeasurement> measurements,
                                  std::span<const RzMeasurementFrame> frames) {
-  if (module < m_lastModule) {
-    m_grouped = false;
+  ModuleBlock& block = m_blocks[module];
+  const std::uint32_t at = static_cast<std::uint32_t>(m_entries.size());
+  const bool polar = m_layout->modules[module].polar;
+  if (block.size == 0) {
+    block.begin = at;
+    if (polar) {
+      block.frame = static_cast<std::uint32_t>(m_frames.size());
+    }
+  } else if (block.begin + block.size != at) {
+    m_contiguous = false;
   }
-  m_lastModule = module;
-  m_moduleStart[module + 1] += static_cast<std::uint32_t>(measurements.size());
+  block.size += static_cast<std::uint32_t>(measurements.size());
   m_entries.insert(m_entries.end(), measurements.begin(), measurements.end());
   m_moduleOf.insert(m_moduleOf.end(), measurements.size(), module);
-  if (!frames.empty()) {
-    m_frames.resize(m_entries.size() - measurements.size());
+  if (polar) {
     m_frames.insert(m_frames.end(), frames.begin(), frames.end());
   }
 }
@@ -173,36 +180,48 @@ std::uint32_t RzMeasurementGrid::addBound(
 }
 
 void RzMeasurementGrid::finalize() {
-  // `m_moduleStart[i + 1]` counts what module `i` holds; the prefix sum turns
-  // it into where module `i` starts
-  for (std::size_t i = 1; i < m_moduleStart.size(); ++i) {
-    m_moduleStart[i] += m_moduleStart[i - 1];
-  }
-  if (m_grouped) {
-    // the caller added in module order, so the entries already sit where the
-    // offsets say and there is nothing to move
-    padFrames();
+  if (m_contiguous) {
+    // every module's measurements arrived in one run, so the blocks already
+    // point at them and there is nothing to move — which is the case for any
+    // caller whose container is grouped by module, in whatever order it
+    // visits the modules
     return;
   }
-  // counting sort by module, permuting the entries themselves so that a
+  // Counting sort by module, permuting the entries themselves so that a
   // module's measurements are contiguous: the search reads one module at a
   // time and nothing else, and an entry is small enough that moving it costs
-  // less than the indirection would
-  padFrames();
+  // less than the indirection would. The blocks are laid out in module order
+  // here, which the search does not need but nothing forbids.
+  std::vector<std::uint32_t> fill(m_blocks.size());
+  std::vector<std::uint32_t> fillFrame(m_blocks.size());
+  std::uint32_t at = 0;
+  std::uint32_t atFrame = 0;
+  for (std::size_t m = 0; m < m_blocks.size(); ++m) {
+    ModuleBlock& block = m_blocks[m];
+    block.begin = at;
+    at += block.size;
+    if (m_layout->modules[m].polar && block.size != 0) {
+      block.frame = atFrame;
+      atFrame += block.size;
+    }
+    fill[m] = block.begin;
+    fillFrame[m] = block.frame;
+  }
   std::vector<RzMeasurement> sorted(m_entries.size());
   std::vector<RzMeasurementFrame> sortedFrames(m_frames.size());
-  std::vector<std::uint32_t> fill(m_moduleStart.begin(),
-                                  m_moduleStart.end() - 1);
-  const bool withFrames = !m_frames.empty();
+  // the frames were added in the order the polar entries were, so walking the
+  // entries in that order walks the frames too
+  std::uint32_t from = 0;
   for (std::uint32_t i = 0; i < m_moduleOf.size(); ++i) {
-    const std::uint32_t to = fill[m_moduleOf[i]]++;
-    sorted[to] = m_entries[i];
-    if (withFrames) {
-      sortedFrames[to] = m_frames[i];
+    const std::uint32_t m = m_moduleOf[i];
+    sorted[fill[m]++] = m_entries[i];
+    if (m_layout->modules[m].polar) {
+      sortedFrames[fillFrame[m]++] = m_frames[from++];
     }
   }
   m_entries.swap(sorted);
   m_frames.swap(sortedFrames);
+  m_contiguous = true;
 }
 
 }  // namespace Acts::Experimental

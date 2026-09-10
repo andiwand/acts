@@ -126,7 +126,8 @@ class RzMeasurementGrid {
                     const RzMeasurementFrame& frame = {});
 
   /// Add a whole module's measurements at once. A caller whose container is
-  /// grouped by module hands over one group here, and the grid never sorts.
+  /// grouped by module hands over one group here, which is one run by
+  /// construction, and the grid never sorts.
   /// @param module index into `RzLayout::modules`
   /// @param measurements the entries
   /// @param frames their axes, for a polar module only
@@ -183,8 +184,11 @@ class RzMeasurementGrid {
                                  std::uint32_t source,
                                  RzMeasurementFrame& frame);
 
-  /// Group what was added by module. A grid filled in module order, or filled
-  /// only through `addRange`, is already grouped and this does nothing.
+  /// Group what was added by module. Only a caller that split one module's
+  /// measurements — added another module's in between — leaves anything to
+  /// do: the modules themselves need no order, so a container grouped by
+  /// module is already grouped here whatever order it visits them in, and
+  /// this does nothing.
   void finalize();
 
   std::size_t size() const { return m_entries.size(); }
@@ -193,12 +197,11 @@ class RzMeasurementGrid {
   /// @param module index into `RzLayout::modules`
   /// @return the entries, contiguous, with their frames if the module is polar
   RzModuleMeasurements moduleRange(std::uint32_t module) const {
-    const std::uint32_t begin = m_moduleStart[module];
-    const std::uint32_t end = m_moduleStart[module + 1];
+    const ModuleBlock& block = m_blocks[module];
     RzModuleMeasurements r;
-    r.entries = {m_entries.data() + begin, m_entries.data() + end};
-    if (!m_frames.empty() && m_layout->modules[module].polar) {
-      r.frames = {m_frames.data() + begin, m_frames.data() + end};
+    r.entries = {m_entries.data() + block.begin, block.size};
+    if (block.frame != kRzNone) {
+      r.frames = {m_frames.data() + block.frame, block.size};
     }
     return r;
   }
@@ -253,18 +256,28 @@ class RzMeasurementGrid {
   }
 
  private:
-  void padFrames();
+  /// Where one module's measurements sit in the grid. The search asks for a
+  /// module and gets a span, so all it needs is where the module's run starts
+  /// and how long it is — not that the modules themselves are in any order.
+  struct ModuleBlock {
+    /// Index of the module's first measurement
+    std::uint32_t begin{};
+    /// How many it holds
+    std::uint32_t size{};
+    /// Index of its first frame, `kRzNone` for a cartesian module, whose
+    /// measurements all share the module's own axes
+    std::uint32_t frame{kRzNone};
+  };
 
   const RzLayout* m_layout{};
   std::vector<RzMeasurement> m_entries;
-  /// Parallel to `m_entries`, filled only once a polar module is added
+  /// One per measurement on a polar module, in the order they were added
   std::vector<RzMeasurementFrame> m_frames;
   std::vector<std::uint32_t> m_moduleOf;
-  std::vector<std::uint32_t> m_moduleStart;
-  /// Whether every add so far named a module at least as large as the one
-  /// before, so that the entries are already grouped
-  bool m_grouped{true};
-  std::uint32_t m_lastModule{0};
+  std::vector<ModuleBlock> m_blocks;
+  /// Whether every module's measurements have arrived in one run, so that the
+  /// blocks already describe them and nothing has to move
+  bool m_contiguous{true};
 };
 
 }  // namespace Acts::Experimental
