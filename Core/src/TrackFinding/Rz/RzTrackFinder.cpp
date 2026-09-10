@@ -126,6 +126,38 @@ bool RzTrackFinder::applyMaterial(State& state, const RzSurface& surface,
   return true;
 }
 
+void RzTrackFinder::regainEnergy(State& state, const RzSurface& surface,
+                                 int band, const Vector3& normal) const {
+  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
+  const double qOverP = state.v[eRzQOverP];
+  const double p = hyp.extractMomentum(qOverP);
+  const Vector3 dir = state.v.segment<3>(eRzDir0);
+  const double factor = 1. / std::max(std::abs(normal.dot(dir)), 1e-3);
+  double dE = 0.;
+  if (!surface.materialTables.empty()) {
+    const RzMaterialTable& t = surface.materialTables[band];
+    const double x =
+        (std::log(p) - RzMaterialTable::logMinP()) / RzMaterialTable::logStep();
+    const double xc =
+        std::clamp(x, 0., static_cast<double>(RzMaterialTable::kBins - 1));
+    const std::uint32_t i =
+        std::min(static_cast<std::uint32_t>(xc), RzMaterialTable::kBins - 2);
+    const double w = xc - i;
+    dE = ((1. - w) * t.energyLoss[i] + w * t.energyLoss[i + 1]) * factor;
+  } else {
+    const MaterialSlab& slab = surface.materialBands[band];
+    const MaterialSlab crossed(slab.material(),
+                               static_cast<float>(slab.thickness() * factor));
+    dE =
+        computeEnergyLossMean(crossed, hyp.absolutePdg(), hyp.mass(),
+                              static_cast<float>(qOverP), hyp.absoluteCharge());
+  }
+  const double mass = hyp.mass();
+  const double e = norm2(mass, p) + dE;
+  const double pNew = std::sqrt(e * e - mass * mass);
+  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
+}
+
 void RzTrackFinder::materialise(State& state, const Vector3& normal) const {
   Pending& p = state.pending;
   if (p.empty()) {
@@ -673,11 +705,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
           if (band < 0) {
             continue;
           }
-          const Vector3 normal = surfaceNormal(surface, state.v);
-          State only;
-          only.v = state.v;
-          applyMaterial(only, surface, band, normal, -1.);
-          state.v[eRzQOverP] = only.v[eRzQOverP];
+          regainEnergy(state, surface, band, surfaceNormal(surface, state.v));
         }
       }
     } else {
