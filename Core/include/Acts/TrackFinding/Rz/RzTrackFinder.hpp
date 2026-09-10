@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <numbers>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include <boost/container/static_vector.hpp>
@@ -185,9 +186,12 @@ class RzTrackFinder {
   ///        layer is searched before any transport
   /// @param candidate the result, cleared first
   /// @return true if the candidate has at least `minMeasurements` hits
+  /// @param seedEntries grid entries of the measurements the seed is made of.
+  ///        A layer that holds one is not searched: the measurement is taken.
   bool findTrack(const RzMeasurementGrid& grid, const RzVector& start,
                  const RzMatrix& startCovariance, std::uint32_t startModule,
-                 RzTrackCandidate& candidate) const;
+                 RzTrackCandidate& candidate,
+                 std::span<const std::uint32_t> seedEntries = {}) const;
 
  private:
   /// The scalars multiple scattering and energy loss straggling accumulate in
@@ -257,6 +261,16 @@ class RzTrackFinder {
   std::optional<Evaluation> evaluate(const State& state, const RzMeasurement& m,
                                      bool gate = true) const;
 
+  /// Take a measurement the caller says the track is made of, without
+  /// searching the layer for it. The seed's own measurements are known, and
+  /// looking for them costs a module window opened against the seed's
+  /// covariance - the widest the track ever has - and a full transport of
+  /// every measurement the crossed modules carry.
+  /// @return true if the measurement could be brought onto the track
+  bool takeKnownHit(const RzMeasurementGrid& grid, std::uint32_t entry,
+                    std::uint32_t layerIndex, std::uint32_t stop, State& state,
+                    RzTrackCandidate& candidate) const;
+
   /// Kalman update with an evaluated measurement, at the state's stop
   void update(State& state, const Evaluation& e) const;
 
@@ -303,7 +317,9 @@ class RzTrackFinder {
   /// @return the number of measurements accepted
   std::uint32_t searchLayer(const RzMeasurementGrid& grid, std::uint32_t layer,
                             std::uint32_t stop, const ModuleList& modules,
-                            State& state, RzTrackCandidate& candidate) const;
+                            State& state, RzTrackCandidate& candidate,
+                            std::uint32_t skipRounds = 0,
+                            std::uint32_t usedModule = kRzNone) const;
 
   /// The modules of the layer the state could have crossed, widened by where
   /// the state could be, which is what the search has to look at.
