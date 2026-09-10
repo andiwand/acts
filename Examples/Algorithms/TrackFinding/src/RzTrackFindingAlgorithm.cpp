@@ -154,6 +154,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   finderConfig.layersForMinMeasurements = m_cfg.layersForMinMeasurements;
   finderConfig.applyMaterial = m_cfg.applyMaterial;
   finderConfig.inwardSearch = m_cfg.inwardSearch;
+  finderConfig.backwardPass = m_cfg.backwardPass;
   finderConfig.backwardInflation = m_cfg.backwardInflation;
   finderConfig.backwardLayers = m_cfg.backwardLayers;
   finderConfig.backwardQOverPScale = m_cfg.backwardQOverPScale;
