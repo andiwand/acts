@@ -92,6 +92,12 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
   mutable std::atomic<std::size_t> m_nMeasurementsOnTracks{0};
   mutable std::atomic<std::size_t> m_nHolesOnTracks{0};
   mutable std::atomic<std::size_t> m_nBackwardFailures{0};
+  mutable std::atomic<std::size_t> m_nMeasurementsBinned{0};
+  /// Wall time in nanoseconds, so that the cost of preparing the measurements
+  /// can be compared with the cost of using them
+  mutable std::atomic<std::size_t> m_nsFill{0};
+  mutable std::atomic<std::size_t> m_nsFinalize{0};
+  mutable std::atomic<std::size_t> m_nsFind{0};
 };
 
 }  // namespace ActsExamples
