@@ -63,6 +63,7 @@ RzTrackFindingAlgorithm::RzTrackFindingAlgorithm(
   RzLayoutOptions options;
   options.phiBins = m_cfg.phiBins;
   options.alongBinWidth = m_cfg.alongBinWidth;
+  options.materialTables = m_cfg.materialTables;
   if (!m_cfg.excludeVolumes.empty()) {
     options.surfaceSelector =
         [exclude = m_cfg.excludeVolumes](const Acts::Surface& surface) {

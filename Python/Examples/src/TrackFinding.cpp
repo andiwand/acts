@@ -136,10 +136,11 @@ void addTrackFinding(py::module& mex) {
       RzTrackFindingAlgorithm, mex, "RzTrackFindingAlgorithm",
       inputMeasurements, inputInitialTrackParameters, outputTracks,
       trackingGeometry, magneticField, excludeVolumes, phiBins, alongBinWidth,
-      chi2Cut, windowSigmas, windowMin, maxHoles, maxConsecutiveHoles,
-      minMeasurements, maxMeasurementsPerLayer, ptMin, minMeasurementsAtLayer,
-      layersForMinMeasurements, applyMaterial, inwardSearch, backwardPass,
-      backwardInflation, backwardLayers, backwardQOverPScale);
+      materialTables, chi2Cut, windowSigmas, windowMin, maxHoles,
+      maxConsecutiveHoles, minMeasurements, maxMeasurementsPerLayer, ptMin,
+      minMeasurementsAtLayer, layersForMinMeasurements, applyMaterial,
+      inwardSearch, backwardPass, backwardInflation, backwardLayers,
+      backwardQOverPScale);
 
   ACTS_PYTHON_DECLARE_ALGORITHM(
       TrackParamsLookupEstimation, mex, "TrackParamsLookupEstimation",
