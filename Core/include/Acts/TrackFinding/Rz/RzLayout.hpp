@@ -236,7 +236,12 @@ struct RzLayoutOptions {
   /// Measurement bin width along the extended coordinate
   double alongBinWidth = 20 * UnitConstants::mm;
   /// Tabulate each band's effects for this particle, see `RzMaterialTable`.
-  /// Measured to buy nothing once the rest is in, so off.
+  /// Worth what the detector's material stops cost: the table path is one
+  /// `log` and a lerp against three out-of-line calls, a `MaterialSlab`, five
+  /// `logf` and four `sqrt`. The ODD measured nothing, having few of them;
+  /// the ITk walks about 36 a seed, where it is -5.6% of the finder
+  /// standalone and -3.8% of `findTrack` through Athena. Off by default
+  /// because building them costs a layout that may not need them.
   bool materialTables = false;
   ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
   /// The field, sampled once per surface into `RzSurface::bzTable`; empty
