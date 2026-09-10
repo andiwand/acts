@@ -185,6 +185,14 @@ struct RzLayout {
   std::vector<std::uint32_t> cylinders;
   /// Indices of the discs by increasing z
   std::vector<std::uint32_t> discs;
+  /// The discs' z and radial extent, in the same order: the navigation probes
+  /// every disc it passes in z and keeps almost none of them, so the probe
+  /// reads three contiguous doubles instead of chasing an `RzSurface`
+  std::vector<double> discCoord;
+  std::vector<double> discMin;
+  std::vector<double> discMax;
+  /// The cylinders' radii, in the same order and for the same reason
+  std::vector<double> cylCoord;
   std::vector<RzLayer> layers;
   std::vector<RzModule> modules;
   std::unordered_map<GeometryIdentifier, std::uint32_t> moduleIndex;
