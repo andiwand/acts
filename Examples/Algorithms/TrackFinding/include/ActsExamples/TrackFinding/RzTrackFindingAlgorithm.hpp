@@ -46,6 +46,8 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     std::vector<unsigned int> excludeVolumes;
     std::uint32_t phiBins = 64;
     double alongBinWidth = 20 * Acts::UnitConstants::mm;
+    /// Tabulate each material band per momentum, see `RzLayoutOptions`
+    bool materialTables = false;
 
     /// The finder's cuts, see `Acts::Experimental::RzTrackFinderConfig`
     double chi2Cut = 15.;
