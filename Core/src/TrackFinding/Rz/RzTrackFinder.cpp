@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 
 namespace Acts::Experimental {
@@ -1070,52 +1071,37 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   return true;
 }
 
-bool RzTrackFinder::findTrack(
-    const RzMeasurementAccessor& measurements, const RzVector& start,
-    const RzMatrix& startCovariance, std::uint32_t startModule,
-    RzTrackCandidate& candidate,
-    std::span<const RzSeedMeasurement> seedMeasurements) const {
+void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
+                              const RzTrackStart& start,
+                              RzTrackCandidate& candidate, Walk& walk) const {
   candidate.clear();
-  State state;
-  state.v = start;
-  state.anchor = start;
-  state.c = startCovariance;
+  walk = Walk{};
+  walk.candidate = &candidate;
+  State& state = walk.state;
+  state.v = start.parameters;
+  state.anchor = start.parameters;
+  state.c = start.covariance;
   state.bz = m_bz;
   state.anchorBz = m_bz;
 
   const RzLayout& layout = *m_layout;
-  // the layer each seed measurement sits on, so a crossing can ask in a few
-  // comparisons whether it is one the caller already knows the answer to
-  boost::container::static_vector<std::pair<std::uint32_t, RzSeedMeasurement>,
-                                  8>
-      knownHits;
-  for (const RzSeedMeasurement& entry : seedMeasurements) {
+  for (const RzSeedMeasurement& entry : start.seedMeasurements) {
     if (entry.module == kRzNone || entry.index == kRzNone ||
-        knownHits.size() == knownHits.capacity()) {
+        walk.knownHits.size() == walk.knownHits.capacity()) {
       continue;
     }
     const std::uint32_t layer = layout.modules[entry.module].layer;
     if (layer != kRzNone) {
-      knownHits.emplace_back(layer, entry);
+      walk.knownHits.emplace_back(layer, entry);
     }
   }
-  const auto knownAt = [&](std::uint32_t layer) {
-    for (const auto& [l, entry] : knownHits) {
-      if (l == layer) {
-        return entry;
-      }
-    }
-    return RzSeedMeasurement{};
-  };
-  std::uint32_t startSurface = kRzNone;
-  if (startModule != kRzNone) {
-    const std::uint32_t layer = layout.modules[startModule].layer;
-    startSurface = layout.layers[layer].surface;
-    state.bz =
-        bzAt(layout.surfaces[startSurface],
-             alongCoordinate(layout.surfaces[startSurface], state.v), m_bz);
+  if (start.module != kRzNone) {
+    const std::uint32_t layer = layout.modules[start.module].layer;
+    walk.startSurface = layout.layers[layer].surface;
+    const RzSurface& surface = layout.surfaces[walk.startSurface];
+    state.bz = bzAt(surface, alongCoordinate(surface, state.v), m_bz);
     state.anchorBz = state.bz;
-    const RzSeedMeasurement known = knownAt(layer);
+    const RzSeedMeasurement known = walk.knownAt(layer);
     const bool took =
         known.module != kRzNone &&
         takeKnownHit(measurements, known, layer, kRzNone, state, candidate);
@@ -1132,51 +1118,50 @@ bool RzTrackFinder::findTrack(
     }
   }
 
-  // navigation cursors: the next cylinder outward and the next disc along z
   const double r0 = norm2(state.v[eRzPos0], state.v[eRzPos1]);
-  std::size_t cyl = 0;
-  while (cyl < layout.cylinders.size() &&
-         layout.surfaces[layout.cylinders[cyl]].refCoord <= r0) {
-    ++cyl;
+  while (walk.cyl < layout.cylinders.size() &&
+         layout.surfaces[layout.cylinders[walk.cyl]].refCoord <= r0) {
+    ++walk.cyl;
   }
   const bool forward = state.v[eRzDir2] >= 0.;
-  const int discStep = forward ? 1 : -1;
-  std::ptrdiff_t disc =
+  walk.discStep = forward ? 1 : -1;
+  walk.disc =
       forward ? 0 : static_cast<std::ptrdiff_t>(layout.discs.size()) - 1;
-  auto discValid = [&]() {
-    return disc >= 0 && disc < static_cast<std::ptrdiff_t>(layout.discs.size());
-  };
-  while (discValid()) {
-    const double z = layout.surfaces[layout.discs[disc]].refCoord;
+  while (walk.disc >= 0 &&
+         walk.disc < static_cast<std::ptrdiff_t>(layout.discs.size())) {
+    const double z = layout.surfaces[layout.discs[walk.disc]].refCoord;
     if (forward ? z > state.v[eRzPos2] : z < state.v[eRzPos2]) {
       break;
     }
-    disc += discStep;
+    walk.disc += walk.discStep;
   }
 
   // the start layer has already run, and what it left is either measurements
   // or one hole; counting its hits as holes would spend the budget on them
-  std::uint32_t holes = 0;
   for (const RzTrackHit& hit : candidate.hits) {
-    holes += hit.isHole() ? 1 : 0;
+    walk.holes += hit.isHole() ? 1 : 0;
   }
-  std::uint32_t consecutiveHoles = holes;
-  std::uint32_t layersCrossed = 0;
-  std::uint32_t measurementsFound =
-      static_cast<std::uint32_t>(candidate.hits.size()) - holes;
-  ModuleList crossedModules;
-  bool cylindersLeft = true;
-  bool discsLeft = true;
-  // the state at the last accepted measurement is what the track keeps; the
-  // last stop may be the escape
-  State lastHit = state;
-  // what the last stop was: a track in the barrel stays there until a disc
-  // comes first, one in the endcap until a cylinder does, so the other
-  // kind's stop is looked at only once it can be nearer
-  bool inEndcap = false;
-  // the cylinder solve, kept while the state has not moved
-  std::uint32_t cylCached = kRzNone;
-  std::optional<double> cylCachedPath;
+  walk.consecutiveHoles = walk.holes;
+  walk.measurementsFound =
+      static_cast<std::uint32_t>(candidate.hits.size()) - walk.holes;
+  walk.lastHit = state;
+}
+
+bool RzTrackFinder::advanceWalk(Walk& walk) const {
+  if (walk.done) {
+    return false;
+  }
+  const RzLayout& layout = *m_layout;
+  State& state = walk.state;
+  RzTrackCandidate& candidate = *walk.candidate;
+  const auto discValid = [&]() {
+    return walk.disc >= 0 &&
+           walk.disc < static_cast<std::ptrdiff_t>(layout.discs.size());
+  };
+  const auto end = [&]() {
+    walk.done = true;
+    return false;
+  };
 
   while (true) {
     // how far the track may still go before it has turned the whole budget;
@@ -1187,7 +1172,7 @@ bool RzTrackFinder::findTrack(
         kappa > 0. ? (m_cfg.maxTurningAngle - state.turned) / kappa
                    : 2. * (layout.escapeRadius + layout.escapeHalfZ);
     if (maxPath <= 0.) {
-      break;
+      return end();
     }
 
     // The probe below runs several times per stop and keeps almost none of
@@ -1204,19 +1189,19 @@ bool RzTrackFinder::findTrack(
     const double dyDir = state.v[eRzDir1];
     const double halfKappaT = 0.5 * kappa * dTransverse;
     std::optional<double> sDisc;
-    while (discsLeft && discValid()) {
-      const std::size_t di = static_cast<std::size_t>(disc);
+    while (walk.discsLeft && discValid()) {
+      const std::size_t di = static_cast<std::size_t>(walk.disc);
       const double sTry = (layout.discCoord[di] - pz) * invDz;
       if (sTry <= 0.) {
         // behind us
         sDisc.reset();
-        disc += discStep;
+        walk.disc += walk.discStep;
         continue;
       }
       if (sTry > maxPath) {
         // z grows monotonically, so every disc beyond is out of reach too
         sDisc.reset();
-        discsLeft = false;
+        walk.discsLeft = false;
         break;
       }
       // the radius the straight line reaches in the disc's plane, with the
@@ -1232,7 +1217,7 @@ bool RzTrackFinder::findTrack(
       const double hi = layout.discMax[di] + sagitta;
       if ((lo > 0. && r2 < lo * lo) || r2 > hi * hi) {
         sDisc.reset();
-        disc += discStep;
+        walk.disc += walk.discStep;
         continue;
       }
       sDisc = sTry;
@@ -1240,10 +1225,10 @@ bool RzTrackFinder::findTrack(
     }
 
     std::optional<double> sCyl;
-    if (cylindersLeft && cyl < layout.cylinders.size()) {
-      const double rCyl = layout.cylCoord[cyl];
+    if (walk.cylindersLeft && walk.cyl < layout.cylinders.size()) {
+      const double rCyl = layout.cylCoord[walk.cyl];
       bool tryCylinder = true;
-      if (inEndcap && sDisc.has_value()) {
+      if (walk.inEndcap && sDisc.has_value()) {
         // the radius the track has reached at the disc, with the sagitta
         // over that path as the margin: short of the cylinder means the
         // disc comes first and the cylinder need not be solved
@@ -1251,34 +1236,34 @@ bool RzTrackFinder::findTrack(
         const double sagitta = halfKappaT * *sDisc * *sDisc;
         tryCylinder = rAtDisc + sagitta + 1. >= rCyl;
       }
-      if (tryCylinder && cylCached == cyl) {
+      if (tryCylinder && walk.cylCached == walk.cyl) {
         // an iteration that only rejected a disc left the state where it
         // was, so the Newton solve for this cylinder still holds
-        sCyl = cylCachedPath;
+        sCyl = walk.cylCachedPath;
       } else if (tryCylinder) {
         sCyl = helix.pathToCylinder(state.v, rCyl);
         if (!sCyl.has_value() || *sCyl > maxPath) {
           // the helix never reaches this radius, so none beyond it either
           sCyl.reset();
-          cylindersLeft = false;
+          walk.cylindersLeft = false;
         }
-        cylCached = cyl;
-        cylCachedPath = sCyl;
+        walk.cylCached = static_cast<std::uint32_t>(walk.cyl);
+        walk.cylCachedPath = sCyl;
       }
     }
     const bool takeCyl =
         sCyl.has_value() && (!sDisc.has_value() || *sCyl <= *sDisc);
     if (!sCyl.has_value() && !sDisc.has_value()) {
-      break;
+      return end();
     }
     const double s = takeCyl ? *sCyl : *sDisc;
     const std::uint32_t surfaceIndex =
-        takeCyl ? layout.cylinders[cyl] : layout.discs[disc];
+        takeCyl ? layout.cylinders[walk.cyl] : layout.discs[walk.disc];
     const RzSurface& surface = layout.surfaces[surfaceIndex];
     if (takeCyl) {
-      ++cyl;
+      ++walk.cyl;
     } else {
-      disc += discStep;
+      walk.disc += walk.discStep;
     }
 
     // land there: a stop off the surface's extent costs no covariance work
@@ -1289,7 +1274,7 @@ bool RzTrackFinder::findTrack(
       // the state itself stays put; the next candidate is measured from here
       continue;
     }
-    inEndcap = !takeCyl;
+    walk.inEndcap = !takeCyl;
     ++candidate.stops;
     const std::uint32_t stop =
         static_cast<std::uint32_t>(candidate.stopSurfaces.size());
@@ -1298,7 +1283,7 @@ bool RzTrackFinder::findTrack(
     candidate.stopAlong.push_back(along);
 
     state.v = landed;
-    cylCached = kRzNone;
+    walk.cylCached = kRzNone;
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(s);
     state.pending.advance(s);
@@ -1310,17 +1295,17 @@ bool RzTrackFinder::findTrack(
     if (r > layout.escapeRadius ||
         std::abs(state.v[eRzPos2]) > layout.escapeHalfZ ||
         state.turned > m_cfg.maxTurningAngle) {
-      break;
+      return end();
     }
 
-    if (surfaceIndex == startSurface) {
+    if (surfaceIndex == walk.startSurface) {
       continue;
     }
 
     if (m_cfg.applyMaterial) {
       if (const int band = surface.materialBandAt(along);
           band >= 0 && !applyMaterial(state, surface, band, normal)) {
-        break;
+        return end();
       }
     }
 
@@ -1329,83 +1314,150 @@ bool RzTrackFinder::findTrack(
     }
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
-    ++layersCrossed;
-    // a layer the seed names does not have to be searched for that hit
-    const RzSeedMeasurement known = knownAt(surface.layer);
-    const bool took = known.module != kRzNone &&
-                      takeKnownHit(measurements, known, surface.layer, stop,
-                                   state, candidate);
-    // one geometry pass: the modules the crossing landed on are what the
-    // search looks at, and whether there were any is the hole decision
-    bool onModule = false;
-    modulesAt(surface.layer, state, crossedModules, onModule);
-    if (crossedModules.empty()) {
-      if (took) {
-        // the caller's own measurement is on the track even where the window
-        // found no module to search for a second one
-        ++measurementsFound;
-        consecutiveHoles = 0;
-        lastHit = state;
-      } else {
-        // nothing to look at here
-      }
-      continue;
+    ++walk.layersCrossed;
+    walk.layer = surface.layer;
+    walk.stop = stop;
+    walk.normal = normal;
+    return true;
+  }
+}
+
+void RzTrackFinder::searchStop(const RzMeasurementAccessor& measurements,
+                               Walk& walk) const {
+  State& state = walk.state;
+  RzTrackCandidate& candidate = *walk.candidate;
+  // a layer the seed names does not have to be searched for that hit
+  const RzSeedMeasurement known = walk.knownAt(walk.layer);
+  const bool took =
+      known.module != kRzNone && takeKnownHit(measurements, known, walk.layer,
+                                              walk.stop, state, candidate);
+  // one geometry pass: the modules the crossing landed on are what the
+  // search looks at, and whether there were any is the hole decision
+  bool onModule = false;
+  modulesAt(walk.layer, state, walk.crossedModules, onModule);
+  if (walk.crossedModules.empty()) {
+    if (took) {
+      // the caller's own measurement is on the track even where the window
+      // found no module to search for a second one
+      ++walk.measurementsFound;
+      walk.consecutiveHoles = 0;
+      walk.lastHit = state;
     }
-    const std::uint32_t accepted =
-        searchLayer(measurements, surface.layer, stop, crossedModules, state,
-                    candidate, took ? 1u : 0u, took ? known.module : kRzNone) +
-        (took ? 1u : 0u);
-    if (accepted > 0) {
-      measurementsFound += accepted;
-      consecutiveHoles = 0;
-      lastHit = state;
-      // Branch stopper. A candidate that has picked up a measurement and is
-      // now soft was following noise: the transverse momentum comes out of
-      // the filter, so it is only meaningful once a measurement has moved it.
-      if (m_cfg.ptMin > 0.) {
-        const double qOverP = std::abs(state.v[eRzQOverP]);
-        const double sinTheta = norm2(state.v[eRzDir0], state.v[eRzDir1]);
-        if (qOverP > 0. && sinTheta / qOverP < m_cfg.ptMin) {
-          break;
-        }
-      }
-    } else if (!onModule) {
-      // passed between the modules: nothing was expected here
-      continue;
-    } else {
-      candidate.hits.push_back(
-          {surface.layer, kRzNone, stop, kRzNone, crossedModules.front(), 0.});
-      ++holes;
-      ++consecutiveHoles;
-      if (holes > m_cfg.maxHoles ||
-          consecutiveHoles > m_cfg.maxConsecutiveHoles) {
-        break;
+    // otherwise nothing to look at here
+    return;
+  }
+  const std::uint32_t accepted =
+      searchLayer(measurements, walk.layer, walk.stop, walk.crossedModules,
+                  state, candidate, took ? 1u : 0u,
+                  took ? known.module : kRzNone) +
+      (took ? 1u : 0u);
+  if (accepted > 0) {
+    walk.measurementsFound += accepted;
+    walk.consecutiveHoles = 0;
+    walk.lastHit = state;
+    // Branch stopper. A candidate that has picked up a measurement and is
+    // now soft was following noise: the transverse momentum comes out of
+    // the filter, so it is only meaningful once a measurement has moved it.
+    if (m_cfg.ptMin > 0.) {
+      const double qOverP = std::abs(state.v[eRzQOverP]);
+      const double sinTheta = norm2(state.v[eRzDir0], state.v[eRzDir1]);
+      if (qOverP > 0. && sinTheta / qOverP < m_cfg.ptMin) {
+        walk.done = true;
+        return;
       }
     }
-    // A candidate that has crossed this many layers and has too little to
-    // show for it will not reach `minMeasurements` either
-    if (m_cfg.layersForMinMeasurements > 0 &&
-        layersCrossed >= m_cfg.layersForMinMeasurements &&
-        measurementsFound < m_cfg.minMeasurementsAtLayer) {
-      break;
+  } else if (!onModule) {
+    // passed between the modules: nothing was expected here
+    return;
+  } else {
+    candidate.hits.push_back({walk.layer, kRzNone, walk.stop, kRzNone,
+                              walk.crossedModules.front(), 0.});
+    ++walk.holes;
+    ++walk.consecutiveHoles;
+    if (walk.holes > m_cfg.maxHoles ||
+        walk.consecutiveHoles > m_cfg.maxConsecutiveHoles) {
+      walk.done = true;
+      return;
     }
   }
+  // A candidate that has crossed this many layers and has too little to
+  // show for it will not reach `minMeasurements` either
+  if (m_cfg.layersForMinMeasurements > 0 &&
+      walk.layersCrossed >= m_cfg.layersForMinMeasurements &&
+      walk.measurementsFound < m_cfg.minMeasurementsAtLayer) {
+    walk.done = true;
+  }
+}
 
+bool RzTrackFinder::finishWalk(const RzMeasurementAccessor& measurements,
+                               Walk& walk) const {
+  RzTrackCandidate& candidate = *walk.candidate;
   while (!candidate.hits.empty() && candidate.hits.back().isHole()) {
     candidate.hits.pop_back();
   }
   for (const RzTrackHit& hit : candidate.hits) {
     (hit.isHole() ? candidate.holes : candidate.measurements) += 1;
   }
-  candidate.parameters = lastHit.v;
-  candidate.covariance = lastHit.c;
+  candidate.parameters = walk.lastHit.v;
+  candidate.covariance = walk.lastHit.c;
   if (candidate.measurements < m_cfg.minMeasurements) {
     return false;
   }
   if (m_cfg.backwardPass) {
-    backwardPass(measurements, lastHit, candidate);
+    backwardPass(measurements, walk.lastHit, candidate);
   }
   return true;
+}
+
+bool RzTrackFinder::findTrack(
+    const RzMeasurementAccessor& measurements, const RzVector& start,
+    const RzMatrix& startCovariance, std::uint32_t startModule,
+    RzTrackCandidate& candidate,
+    std::span<const RzSeedMeasurement> seedMeasurements) const {
+  Walk walk;
+  beginWalk(measurements,
+            RzTrackStart{start, startCovariance, startModule, seedMeasurements},
+            candidate, walk);
+  while (advanceWalk(walk)) {
+    searchStop(measurements, walk);
+  }
+  return finishWalk(measurements, walk);
+}
+
+void RzTrackFinder::findTracks(
+    const RzMeasurementAccessor& measurements,
+    std::span<const RzTrackStart> starts, std::size_t batch,
+    const std::function<void(std::size_t, bool, RzTrackCandidate&)>& onTrack)
+    const {
+  const std::size_t width = std::max<std::size_t>(1, batch);
+  std::vector<Walk> walks(std::min(width, starts.size()));
+  std::vector<RzTrackCandidate> candidates(walks.size());
+  for (std::size_t first = 0; first < starts.size(); first += width) {
+    const std::size_t n = std::min(width, starts.size() - first);
+    for (std::size_t i = 0; i < n; ++i) {
+      beginWalk(measurements, starts[first + i], candidates[i], walks[i]);
+    }
+    // in lockstep: every walk to its next stop, then every one searched
+    // there. The walks are independent, so while one waits on its helix
+    // solve or its cache miss the core can be at another's.
+    bool any = true;
+    while (any) {
+      any = false;
+      for (std::size_t i = 0; i < n; ++i) {
+        Walk& walk = walks[i];
+        walk.atStop = advanceWalk(walk);
+        any = any || walk.atStop;
+      }
+      for (std::size_t i = 0; i < n; ++i) {
+        if (walks[i].atStop) {
+          searchStop(measurements, walks[i]);
+        }
+      }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      onTrack(first + i, finishWalk(measurements, walks[i]), candidates[i]);
+    }
+  }
 }
 
 }  // namespace Acts::Experimental
