@@ -100,6 +100,8 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
   mutable std::atomic<std::size_t> m_nsFill{0};
   mutable std::atomic<std::size_t> m_nsFinalize{0};
   mutable std::atomic<std::size_t> m_nsFind{0};
+  mutable std::atomic<std::size_t> m_nsMake{0};
+  mutable std::atomic<std::size_t> m_nsMakeStates{0};
 };
 
 }  // namespace ActsExamples
