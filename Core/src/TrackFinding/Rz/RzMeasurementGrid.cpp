@@ -153,6 +153,10 @@ RzMeasurement RzMeasurementGrid::fromBound(
     frame.u = c * m.u + sn * m.v;
     frame.v = -sn * m.u + c * m.v;
     frame.normal = m.normal;
+    frame.uU = c;
+    frame.uV = sn;
+    frame.vU = -sn;
+    frame.vV = c;
     scale0 = 1.;
     scale1 = r;
     // the offset from the module centre, taken on the frame's own axes
@@ -172,6 +176,10 @@ RzMeasurement RzMeasurementGrid::fromBound(
     frame.u = jac.col(0) / scale0;
     frame.v = jac.col(1) / scale1;
     frame.normal = frame.u.cross(frame.v);
+    frame.uU = frame.u.dot(m.u);
+    frame.uV = frame.u.dot(m.v);
+    frame.vU = frame.v.dot(m.u);
+    frame.vV = frame.v.dot(m.v);
     const Vector3 d = position - m.center;
     e.loc0 = frame.u.dot(d);
     e.loc1 = frame.v.dot(d);
