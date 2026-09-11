@@ -408,7 +408,8 @@ std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
 }
 
 void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
-                              ModuleList& modules, bool& onModule) const {
+                              ModuleList& modules, bool& onModule,
+                              RzTrackCandidate& candidate) const {
   modules.clear();
   onModule = false;
   const RzLayout& layout = *m_layout;
@@ -437,11 +438,13 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
   const double sigmas2 = m_cfg.windowSigmas * m_cfg.windowSigmas;
   RzMeasurementGrid::visitBins(
       layout, layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
+        ++candidate.binsVisited;
         for (std::uint32_t i = layout.moduleBinStart[b];
              i < layout.moduleBinStart[b + 1]; ++i) {
           if (modules.size() == modules.capacity()) {
             return;
           }
+          ++candidate.modulesTested;
           const std::uint32_t index = layout.moduleOrder[i];
           const RzModule& m = layout.modules[index];
           const double alongNormal = m.normal.dot(dir);
@@ -541,12 +544,24 @@ std::uint32_t RzTrackFinder::searchLayer(
       if (group.entries.empty()) {
         continue;
       }
-      bool hoisted = false;
+      // The crossing of the module plane and the state's spread on the
+      // module's axes, once per module. A cartesian module's measurements
+      // are on those axes already. A polar module's each have their own
+      // axes, which turn within the same plane, so the same crossing and the
+      // same three quadratic forms serve them all: the residual and the
+      // spread on a measurement's axes are the module's ones rotated, four
+      // multiplies each, where placing the measurement in the global frame
+      // and projecting the covariance onto it afresh cost two 3x3 products.
+      bool crossed = false;
       double c0 = 0.;
       double c1 = 0.;
       double su0 = 0.;
       double sv0 = 0.;
-      if (!mod.polar) {
+      double cUU = 0.;
+      double cUV = 0.;
+      double cVV = 0.;
+      double spread = 0.;
+      {
         const double alongNormal = mod.normal.dot(d0);
         if (std::abs(alongNormal) > 1e-9) {
           const double s0 = mod.normal.dot(mod.center - p0) / alongNormal;
@@ -555,15 +570,61 @@ std::uint32_t RzTrackFinder::searchLayer(
           const Vector3 delta = p0 + s0 * d0 - mod.center;
           c0 = mod.u.dot(delta);
           c1 = mod.v.dot(delta);
-          const double spread = dirTrace * s0 * s0 + varPending;
-          su0 = mod.u.dot(cPos * mod.u) + spread;
-          sv0 = mod.v.dot(cPos * mod.v) + spread;
-          hoisted = su0 > 0. && sv0 > 0.;
+          spread = dirTrace * s0 * s0 + varPending;
+          cUU = mod.u.dot(cPos * mod.u);
+          cVV = mod.v.dot(cPos * mod.v);
+          su0 = cUU + spread;
+          sv0 = cVV + spread;
+          if (mod.polar) {
+            cUV = mod.u.dot(cPos * mod.v);
+          }
+          crossed = true;
         }
       }
+      const bool hoisted = crossed && !mod.polar && su0 > 0. && sv0 > 0.;
+      const bool polarGate = crossed && mod.polar && !group.frames.empty();
       for (std::uint32_t i = 0; i < group.entries.size(); ++i) {
         const RzMeasurement& m = group.entries[i];
         ++candidate.candidatesTested;
+        if (polarGate) {
+          // the module's crossing and spread turned onto this measurement's
+          // axes: the same gate `evaluate` would take, before the placement
+          // and the exact transport it would then go on to
+          const RzMeasurementFrame& f = group.frames[i];
+          const double r0 = f.uU * c0 + f.uV * c1;
+          const double r1 = f.vU * c0 + f.vV * c1;
+          const double s0v = f.uU * f.uU * cUU + 2. * f.uU * f.uV * cUV +
+                             f.uV * f.uV * cVV + spread;
+          const double s1v = f.vU * f.vU * cUU + 2. * f.vU * f.vV * cUV +
+                             f.vV * f.vV * cVV + spread;
+          if (s0v > 0. && s1v > 0.) {
+            ++candidate.polarTested;
+            double chi2Gate = 0.;
+            if (m.projector != RzProjector::Loc1) {
+              const double d = m.loc0 - r0;
+              chi2Gate += d * d / (s0v + m.cov00);
+            }
+            if (m.projector != RzProjector::Loc0) {
+              const double d = m.loc1 - r1;
+              chi2Gate += d * d / (s1v + m.cov11);
+            }
+            if (chi2Gate > gate2) {
+              continue;
+            }
+            const std::optional<Evaluation> e =
+                evaluate(state, place(mod, m, &f), false);
+            if (!e.has_value()) {
+              continue;
+            }
+            ++candidate.exactEvaluated;
+            if (e->chi2 < best.chi2) {
+              bestIndex = i;
+              bestModule = module;
+              best = *e;
+            }
+            continue;
+          }
+        }
         if (hoisted) {
           // chi2 = r0^2/s0 (+ r1^2/s1), tested without the divisions. Only
           // the best of these is worth a full transport: the straight-line
@@ -599,11 +660,13 @@ std::uint32_t RzTrackFinder::searchLayer(
         }
         const RzMeasurementFrame* frame =
             group.frames.empty() ? nullptr : &group.frames[i];
+        ++candidate.polarTested;
         const std::optional<Evaluation> e =
             evaluate(state, place(mod, m, frame), true);
         if (!e.has_value()) {
           continue;
         }
+        ++candidate.exactEvaluated;
         if (e->chi2 < best.chi2) {
           bestIndex = i;
           bestModule = module;
@@ -617,6 +680,7 @@ std::uint32_t RzTrackFinder::searchLayer(
       const RzModule& mod = m_layout->modules[bestGateModule];
       const Placed placed = place(
           mod, measurements(bestGateModule).entries[bestGateIndex], nullptr);
+      ++candidate.exactEvaluated;
       if (const std::optional<Evaluation> e = evaluate(state, placed, false);
           e.has_value() && e->chi2 < best.chi2) {
         bestIndex = bestGateIndex;
@@ -908,19 +972,16 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   }
   const bool travellingForward = state.v[eRzDir2] >= 0.;
   const int discStep = travellingForward ? -1 : 1;
+  // the first disc behind, by binary search on the sorted disc positions
   std::ptrdiff_t disc =
-      travellingForward ? static_cast<std::ptrdiff_t>(layout.discs.size()) - 1
-                        : 0;
+      travellingForward
+          ? std::ranges::lower_bound(layout.discCoord, state.v[eRzPos2]) -
+                layout.discCoord.begin() - 1
+          : std::ranges::upper_bound(layout.discCoord, state.v[eRzPos2]) -
+                layout.discCoord.begin();
   auto discValid = [&]() {
     return disc >= 0 && disc < static_cast<std::ptrdiff_t>(layout.discs.size());
   };
-  while (discValid()) {
-    const double z = layout.surfaces[layout.discs[disc]].refCoord;
-    if (travellingForward ? z < state.v[eRzPos2] : z > state.v[eRzPos2]) {
-      break;
-    }
-    disc += discStep;
-  }
 
   ModuleList crossedModules;
   // The same three things the outward walk had to stop wasting: the closest
@@ -1043,7 +1104,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
     // holes are the forward pass's business: this pass is here to pick up
     // what the seed's own layers hold, not to judge what is missing
     bool onModule = false;
-    modulesAt(surface.layer, state, crossedModules, onModule);
+    modulesAt(surface.layer, state, crossedModules, onModule, candidate);
     if (crossedModules.empty()) {
       continue;
     }
@@ -1121,7 +1182,7 @@ bool RzTrackFinder::findTrack(
         takeKnownHit(measurements, known, layer, kRzNone, state, candidate);
     ModuleList startModules;
     bool startOnModule = false;
-    modulesAt(layer, state, startModules, startOnModule);
+    modulesAt(layer, state, startModules, startOnModule, candidate);
     if (!startModules.empty() &&
         searchLayer(measurements, layer, kRzNone, startModules, state,
                     candidate, took ? 1u : 0u,
@@ -1141,18 +1202,16 @@ bool RzTrackFinder::findTrack(
   }
   const bool forward = state.v[eRzDir2] >= 0.;
   const int discStep = forward ? 1 : -1;
+  // the first disc ahead: the discs are sorted in z, so a binary search
+  // rather than a walk over all of them from one end for every seed
   std::ptrdiff_t disc =
-      forward ? 0 : static_cast<std::ptrdiff_t>(layout.discs.size()) - 1;
+      forward ? std::ranges::upper_bound(layout.discCoord, state.v[eRzPos2]) -
+                    layout.discCoord.begin()
+              : std::ranges::lower_bound(layout.discCoord, state.v[eRzPos2]) -
+                    layout.discCoord.begin() - 1;
   auto discValid = [&]() {
     return disc >= 0 && disc < static_cast<std::ptrdiff_t>(layout.discs.size());
   };
-  while (discValid()) {
-    const double z = layout.surfaces[layout.discs[disc]].refCoord;
-    if (forward ? z > state.v[eRzPos2] : z < state.v[eRzPos2]) {
-      break;
-    }
-    disc += discStep;
-  }
 
   // the start layer has already run, and what it left is either measurements
   // or one hole; counting its hits as holes would spend the budget on them
@@ -1338,7 +1397,7 @@ bool RzTrackFinder::findTrack(
     // one geometry pass: the modules the crossing landed on are what the
     // search looks at, and whether there were any is the hole decision
     bool onModule = false;
-    modulesAt(surface.layer, state, crossedModules, onModule);
+    modulesAt(surface.layer, state, crossedModules, onModule, candidate);
     if (crossedModules.empty()) {
       if (took) {
         // the caller's own measurement is on the track even where the window

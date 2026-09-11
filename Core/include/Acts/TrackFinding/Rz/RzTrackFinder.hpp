@@ -154,6 +154,16 @@ struct RzTrackCandidate {
   /// Counters for the cost analysis
   std::uint32_t stops{};
   std::uint32_t candidatesTested{};
+  /// Modules the layer lookups examined, and the bins they walked to find
+  /// them: what the measurement binning costs per stop
+  std::uint32_t modulesTested{};
+  std::uint32_t binsVisited{};
+  /// Candidates on polar modules, which the search cannot gate on the
+  /// module's axes and so places and evaluates one by one
+  std::uint32_t polarTested{};
+  /// Exact transports made: the gate's pick per round, the known hits, the
+  /// backward pass
+  std::uint32_t exactEvaluated{};
 
   void clear() {
     hits.clear();
@@ -170,6 +180,10 @@ struct RzTrackCandidate {
     pathLength = 0.;
     stops = 0;
     candidatesTested = 0;
+    modulesTested = 0;
+    binsVisited = 0;
+    polarTested = 0;
+    exactEvaluated = 0;
   }
 };
 
@@ -387,8 +401,9 @@ class RzTrackFinder {
   ///        widening — the hole decision, which must stay as tight as it was
   ///        or a track that merely passed near a module counts as having
   ///        missed one
+  /// @param candidate its counters take what the lookup examined
   void modulesAt(std::uint32_t layer, const State& state, ModuleList& modules,
-                 bool& onModule) const;
+                 bool& onModule, RzTrackCandidate& candidate) const;
 
   /// Path length back to an RZ surface, negative, or nothing
   /// @param guess where to start looking, the forward path with its sign
