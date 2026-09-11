@@ -81,6 +81,13 @@ struct RzMeasurementFrame {
   Vector3 v{Vector3::Zero()};
   /// `u x v`
   Vector3 normal{Vector3::Zero()};
+  /// The axes on the module's own: `u = uU * module.u + uV * module.v` and
+  /// likewise `v`, so that a search which has projected the state onto the
+  /// module's axes once can turn to this measurement's with four multiplies
+  double uU{1.};
+  double uV{0.};
+  double vU{0.};
+  double vV{1.};
 };
 
 /// The measurements on one module, and their frames if it is polar.
