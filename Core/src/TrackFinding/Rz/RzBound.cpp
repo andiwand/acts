@@ -43,9 +43,9 @@ void rzFillDirectionRows(const Vector3& direction, RzFreeToBoundMatrix& j) {
   j(eBoundQOverP, eRzQOverP) = 1.;
 }
 
-std::optional<RzBoundState> rzBoundOnModule(const RzModule& module,
-                                            const RzVector& v,
-                                            const RzMatrix& c) {
+std::optional<RzBoundState> rzBoundOnModule(
+    const RzModule& module, const RzVector& v, const RzMatrix& c,
+    const RzHelix::StepJacobian* transport) {
   if (module.polar && !module.polarIsPlain) {
     return std::nullopt;
   }
@@ -60,8 +60,8 @@ std::optional<RzBoundState> rzBoundOnModule(const RzModule& module,
   Vector3 row1;
   if (!module.polar) {
     const Vector3 d = position - module.center;
-    out.parameters[eBoundLoc0] = module.u.dot(d);
-    out.parameters[eBoundLoc1] = module.v.dot(d);
+    out.parameters[eBoundLoc0] = module.localCenter.x() + module.u.dot(d);
+    out.parameters[eBoundLoc1] = module.localCenter.y() + module.v.dot(d);
     row0 = module.u;
     row1 = module.v;
   } else {
@@ -90,6 +90,28 @@ std::optional<RzBoundState> rzBoundOnModule(const RzModule& module,
       std::sqrt(direction.x() * direction.x() + direction.y() * direction.y()),
       direction.z());
   out.parameters[eBoundQOverP] = v[eRzQOverP];
+  if (transport != nullptr) {
+    // Compose the sparse helix Jacobian with the bound rows before applying
+    // the covariance. There is no intermediate 7x7 transported covariance.
+    const auto& t = *transport;
+    RzFreeToBoundMatrix composed;
+    for (unsigned int r = 0; r < eBoundSize; ++r) {
+      const double w = j.row(r).dot(t.d);
+      composed(r, eRzPos0) = j(r, eRzPos0);
+      composed(r, eRzPos1) = j(r, eRzPos1);
+      composed(r, eRzPos2) = j(r, eRzPos2);
+      composed(r, eRzDir0) = t.f1 * j(r, eRzPos0) - t.f2 * j(r, eRzPos1) +
+                             t.cs * j(r, eRzDir0) - t.sn * j(r, eRzDir1);
+      composed(r, eRzDir1) = t.f2 * j(r, eRzPos0) + t.f1 * j(r, eRzPos1) +
+                             t.sn * j(r, eRzDir0) + t.cs * j(r, eRzDir1);
+      composed(r, eRzDir2) = t.s * j(r, eRzPos2) + j(r, eRzDir2);
+      composed(r, eRzQOverP) = t.a1 * j(r, eRzPos0) + t.a2 * j(r, eRzPos1) +
+                               t.b1 * j(r, eRzDir0) + t.b2 * j(r, eRzDir1) +
+                               j(r, eRzQOverP);
+      composed.row(r) += w * t.dsdv.transpose();
+    }
+    j = composed;
+  }
   out.covariance = rzBoundCovariance(j, c);
   return out;
 }

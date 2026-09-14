@@ -21,6 +21,7 @@
 #include "Acts/Propagator/Propagator.hpp"
 #include "Acts/Propagator/VoidNavigator.hpp"
 #include "Acts/Surfaces/AnnulusBounds.hpp"
+#include "Acts/Surfaces/ConvexPolygonBounds.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Surfaces/DiscSurface.hpp"
@@ -336,8 +337,39 @@ BOOST_AUTO_TEST_CASE(BoundOnCartesianModuleMatchesSurface) {
       const std::optional<RzBoundState> closed = rzBoundOnModule(module, v, c);
       BOOST_REQUIRE(closed.has_value());
       expectSame(*closed, throughSurface(*surface, gctx, v, c));
+      for (double distance : {-20., 0., 30.}) {
+        const RzHelix transportHelix(2. * UnitConstants::T);
+        RzVector before = v;
+        transportHelix.step(before, -distance);
+        const auto transport =
+            transportHelix.stepJacobianOnto(before, distance, v, module.normal);
+        const auto fused = rzBoundOnModule(module, v, c, &transport);
+        BOOST_REQUIRE(fused.has_value());
+        expectSame(*fused,
+                   throughSurface(*surface, gctx, v, transport.transport(c)));
+      }
     }
   }
+}
+
+BOOST_AUTO_TEST_CASE(BoundOnOffsetCartesianModuleMatchesSurface) {
+  const GeometryContext gctx = GeometryContext::dangerouslyDefaultConstruct();
+  const std::array<Vector2, 3> vertices = {Vector2(0., 0.), Vector2(20., 0.),
+                                           Vector2(0., 40.)};
+  auto surface = Surface::makeShared<PlaneSurface>(
+      Transform3::Identity(),
+      std::make_shared<ConvexPolygonBounds<3>>(vertices));
+  RzModule module;
+  module.localCenter = Vector2(10., 20.);
+  module.center = Vector3(10., 20., 0.);
+  module.u = Vector3::UnitX();
+  module.v = Vector3::UnitY();
+  module.normal = Vector3::UnitZ();
+  const auto [v, c] =
+      stateOn(*surface, gctx, Vector2(4., 8.), Vector3(0.2, 0.1, 0.97));
+  const auto bound = rzBoundOnModule(module, v, c);
+  BOOST_REQUIRE(bound.has_value());
+  expectSame(*bound, throughSurface(*surface, gctx, v, c));
 }
 
 BOOST_AUTO_TEST_CASE(BoundOnPolarModuleMatchesSurface) {
@@ -368,6 +400,17 @@ BOOST_AUTO_TEST_CASE(BoundOnPolarModuleMatchesSurface) {
       const std::optional<RzBoundState> closed = rzBoundOnModule(module, v, c);
       BOOST_REQUIRE(closed.has_value());
       expectSame(*closed, throughSurface(*surface, gctx, v, c));
+      for (double distance : {-20., 0., 30.}) {
+        const RzHelix transportHelix(2. * UnitConstants::T);
+        RzVector before = v;
+        transportHelix.step(before, -distance);
+        const auto transport =
+            transportHelix.stepJacobianOnto(before, distance, v, module.normal);
+        const auto fused = rzBoundOnModule(module, v, c, &transport);
+        BOOST_REQUIRE(fused.has_value());
+        expectSame(*fused,
+                   throughSurface(*surface, gctx, v, transport.transport(c)));
+      }
     }
   }
   module.polarIsPlain = false;

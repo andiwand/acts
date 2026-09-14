@@ -169,6 +169,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   finderConfig.applyMaterial = m_cfg.applyMaterial;
   finderConfig.inwardSearch = m_cfg.inwardSearch;
   finderConfig.backwardPass = m_cfg.backwardPass;
+  finderConfig.storeForwardStates = m_cfg.writeFilteredStates;
   finderConfig.backwardInflation = m_cfg.backwardInflation;
   finderConfig.backwardLayers = m_cfg.backwardLayers;
   finderConfig.backwardQOverPScale = m_cfg.backwardQOverPScale;
@@ -251,7 +252,6 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     const double dt = std::hypot(w[eRzDir0], w[eRzDir1]);
     const Acts::Vector3 normal(w[eRzDir0] / dt, w[eRzDir1] / dt, 0.);
     RzHelix::constrainToSurface(j, helix.derivative(w), normal);
-    const RzMatrix cPerigee = j * cInner * j.transpose();
     const Acts::Vector3 pos = w.segment<3>(eRzPos0);
     const Acts::Vector3 dir = w.segment<3>(eRzDir0);
     const auto bound = Acts::transformFreeToBoundParameters(
@@ -270,7 +270,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         jPerigee(r, a) = jf2b(r, kFreeOf[a]);
       }
     }
-    const Acts::BoundMatrix boundCov = rzBoundCovariance(jPerigee, cPerigee);
+    const RzFreeToBoundMatrix jComposed = jPerigee.lazyProduct(j);
+    const Acts::BoundMatrix boundCov = rzBoundCovariance(jComposed, cInner);
 
     auto track = tracks.makeTrack();
     track.setReferenceSurface(m_perigee);
@@ -285,8 +286,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
             m_layout.surfaces[m_layout.layers[hit.layer].surface].surface);
         continue;
       }
-      auto state = track.appendTrackState(Acts::TrackStatePropMask::Filtered |
-                                          Acts::TrackStatePropMask::Calibrated);
+      auto state = track.appendTrackState(
+          Acts::TrackStatePropMask::Calibrated |
+          (m_cfg.writeFilteredStates ? Acts::TrackStatePropMask::Filtered
+                                     : Acts::TrackStatePropMask::None));
       const RzModuleMeasurements on = grid.moduleRange(hit.module);
       const RzMeasurement& m = on.entries[hit.measurement];
       const RzModule& module = m_layout.modules[hit.module];
@@ -297,6 +300,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
                            state);
       state.typeFlags().setUnchecked(Acts::TrackStateFlag::HasMeasurement);
       state.chi2() = static_cast<float>(hit.chi2);
+      if (!m_cfg.writeFilteredStates) {
+        continue;
+      }
       if (hit.forwardState == kRzNone) {
         state.filtered().setZero();
         state.filteredCovariance().setIdentity();
@@ -312,16 +318,15 @@ ProcessCode RzTrackFindingAlgorithm::execute(
           on.frames.empty() ? module.v : on.frames[hit.measurement].v;
       const Acts::Vector3 measured = module.center + m.loc0 * au + m.loc1 * av;
       RzVector v = v0;
-      RzMatrix c;
+      std::optional<RzHelix::StepJacobian> transport;
       if (const std::optional<double> step =
               helix.pathToPlane(v0, measured, module.normal);
           step.has_value()) {
         helix.step(v, *step);
-        c = helix.stepJacobianOnto(v0, *step, v, module.normal).transport(c0);
-      } else {
-        c = c0;
+        transport = helix.stepJacobianOnto(v0, *step, v, module.normal);
       }
-      std::optional<RzBoundState> onModule = rzBoundOnModule(module, v, c);
+      std::optional<RzBoundState> onModule =
+          rzBoundOnModule(module, v, c0, transport ? &*transport : nullptr);
       if (!onModule.has_value()) {
         // through the surface, for a polar module the layout could not
         // confirm as plain polar
@@ -335,6 +340,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
           state.filteredCovariance().setIdentity();
           continue;
         }
+        const RzMatrix c = transport ? transport->transport(c0) : c0;
         Acts::FreeMatrix freeCov = Acts::FreeMatrix::Zero();
         for (unsigned int a = 0; a < eRzSize; ++a) {
           for (unsigned int b = 0; b < eRzSize; ++b) {

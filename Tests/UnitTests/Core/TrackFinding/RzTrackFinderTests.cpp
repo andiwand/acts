@@ -285,4 +285,82 @@ BOOST_AUTO_TEST_CASE(BatchedSearchMatchesIndividualTracks) {
   }
 }
 
+BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
+  RzLayout layout = makeLayout();
+  for (unsigned int i = 1; i < 5; ++i) {
+    auto surface = layout.surfaces.front();
+    surface.refCoord = 10. * i;
+    surface.layer = i;
+    layout.surfaces.push_back(surface);
+    auto layer = layout.layers.front();
+    layer.surface = i;
+    layer.binOffset = i;
+    layout.layers.push_back(layer);
+    auto module = layout.modules.front();
+    module.center.z() = surface.refCoord;
+    module.layer = i;
+    layout.modules.push_back(module);
+    layout.moduleOrder.push_back(i);
+    layout.moduleBinStart.push_back(i + 1);
+  }
+  RzMeasurementGrid grid(layout);
+  for (unsigned int i = 0; i < 5; ++i) {
+    layout.discs.push_back(i);
+    layout.discCoord.push_back(10. * i);
+    layout.discMin.push_back(1.);
+    layout.discMax.push_back(200.);
+    RzMeasurement pixel;
+    pixel.cov00 = 1.;
+    pixel.cov11 = 1.;
+    pixel.loc0 = 0.01 * i;
+    // Include a hole before the checkpoint: it must count measurements.
+    if (i != 1) {
+      grid.add(i, pixel);
+    }
+  }
+  grid.finalize();
+  for (bool backward : {false, true}) {
+    for (unsigned int layers : {0u, 2u, 6u}) {
+      for (bool inward : {false, true}) {
+        auto cfg = config();
+        cfg.backwardPass = backward;
+        cfg.backwardLayers = layers;
+        cfg.inwardSearch = inward;
+        RzTrackCandidate full, checkpoint;
+        RzMatrix c = covariance();
+        c.block<3, 3>(eRzDir0, eRzDir0).diagonal().setConstant(0.001);
+        c(eRzQOverP, eRzQOverP) = 0.01;
+        BOOST_REQUIRE(RzTrackFinder(cfg, layout, 0.)
+                          .findTrack(grid.accessor(), start(), c, 0, full));
+        cfg.storeForwardStates = false;
+        BOOST_REQUIRE(
+            RzTrackFinder(cfg, layout, 0.)
+                .findTrack(grid.accessor(), start(), c, 0, checkpoint));
+        BOOST_REQUIRE_EQUAL(full.measurements, 4u);
+        BOOST_CHECK_EQUAL(checkpoint.measurements, full.measurements);
+        BOOST_CHECK_EQUAL(checkpoint.holes, full.holes);
+        BOOST_CHECK_EQUAL(checkpoint.backwardFailure, full.backwardFailure);
+        BOOST_CHECK_EQUAL(checkpoint.chi2, full.chi2);
+        BOOST_CHECK(checkpoint.parameters == full.parameters);
+        BOOST_CHECK(checkpoint.covariance == full.covariance);
+        BOOST_CHECK_EQUAL(checkpoint.hasInner, full.hasInner);
+        BOOST_CHECK(checkpoint.innerParameters == full.innerParameters);
+        BOOST_CHECK(checkpoint.innerCovariance == full.innerCovariance);
+        BOOST_CHECK_LE(checkpoint.forwardStates.size(), 1u);
+        BOOST_REQUIRE_EQUAL(checkpoint.hits.size(), full.hits.size());
+        for (std::size_t i = 0; i < full.hits.size(); ++i) {
+          BOOST_CHECK_EQUAL(checkpoint.hits[i].module, full.hits[i].module);
+          BOOST_CHECK_EQUAL(checkpoint.hits[i].measurement,
+                            full.hits[i].measurement);
+        }
+        if (backward && layers == 2) {
+          BOOST_REQUIRE_EQUAL(checkpoint.forwardStates.size(), 1u);
+          BOOST_CHECK(checkpoint.forwardStates.front() ==
+                      full.forwardStates[1]);
+        }
+      }
+    }
+  }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -652,9 +652,7 @@ std::uint32_t RzTrackFinder::searchLayer(
       break;
     }
     update(state, best);
-    const std::uint32_t forwardState =
-        static_cast<std::uint32_t>(candidate.forwardStates.size());
-    candidate.forwardStates.emplace_back(state.v, state.c);
+    const std::uint32_t forwardState = saveForwardState(state, candidate);
     candidate.hits.push_back(
         {layerIndex, bestIndex, stop, forwardState, bestModule, best.chi2});
     candidate.chi2 += best.chi2;
@@ -662,6 +660,18 @@ std::uint32_t RzTrackFinder::searchLayer(
     ++accepted;
   }
   return accepted;
+}
+
+std::uint32_t RzTrackFinder::saveForwardState(
+    const State& state, RzTrackCandidate& candidate) const {
+  ++candidate.measurements;
+  if (!m_cfg.storeForwardStates &&
+      (!m_cfg.backwardPass || candidate.measurements != m_cfg.backwardLayers)) {
+    return kRzNone;
+  }
+  const auto index = static_cast<std::uint32_t>(candidate.forwardStates.size());
+  candidate.forwardStates.emplace_back(state.v, state.c);
+  return index;
 }
 
 bool RzTrackFinder::takeKnownHit(const RzMeasurementAccessor& measurements,
@@ -688,9 +698,7 @@ bool RzTrackFinder::takeKnownHit(const RzMeasurementAccessor& measurements,
   }
   ++candidate.exactEvaluated;
   update(state, *e);
-  const std::uint32_t forwardState =
-      static_cast<std::uint32_t>(candidate.forwardStates.size());
-  candidate.forwardStates.emplace_back(state.v, state.c);
+  const std::uint32_t forwardState = saveForwardState(state, candidate);
   candidate.hits.push_back(
       {layerIndex, seed.index, stop, forwardState, seed.module, e->chi2});
   candidate.chi2 += e->chi2;
@@ -1413,7 +1421,7 @@ bool RzTrackFinder::finishWalk(const RzMeasurementAccessor& measurements,
     candidate.hits.pop_back();
   }
   for (const RzTrackHit& hit : candidate.hits) {
-    (hit.isHole() ? candidate.holes : candidate.measurements) += 1;
+    candidate.holes += hit.isHole();
   }
   candidate.parameters = walk.lastHit.v;
   candidate.covariance = walk.lastHit.c;

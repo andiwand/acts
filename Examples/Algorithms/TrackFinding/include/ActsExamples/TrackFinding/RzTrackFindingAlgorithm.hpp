@@ -51,6 +51,8 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     /// How many seeds the finder follows in lockstep, stop by stop; 0 or 1
     /// follows each seed on its own
     std::size_t batchSize = 0;
+    /// Store filtered parameters and covariances on measurement states.
+    bool writeFilteredStates = true;
 
     /// The finder's cuts, see `Acts::Experimental::RzTrackFinderConfig`
     double chi2Cut = 15.;

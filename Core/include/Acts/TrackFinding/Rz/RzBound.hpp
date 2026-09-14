@@ -50,17 +50,18 @@ BoundMatrix rzBoundCovariance(const RzFreeToBoundMatrix& j, const RzMatrix& c);
 void rzFillDirectionRows(const Vector3& direction, RzFreeToBoundMatrix& j);
 
 /// The state as bound parameters on a module, from the module's frame. A
-/// cartesian module measures along its axes from its centre; a polar module
-/// measures the radius and azimuth about its surface origin, which the layout
-/// has checked to be plain polar. The state is taken to sit on the module
-/// plane already.
+/// cartesian module measures along its axes from the surface origin; a polar
+/// module measures the radius and azimuth about its surface origin, which the
+/// layout has checked to be plain polar. The state is taken to sit on the
+/// module plane already.
 /// @param module the module
 /// @param v the RZ state on the module plane
-/// @param c its covariance
+/// @param c covariance before transport, or on the module if transport is null
+/// @param transport optional transport from the covariance to the module
 /// @return the bound state, or nothing for a polar module the layout could
 ///         not confirm as plain polar, where the surface has to be asked
-std::optional<RzBoundState> rzBoundOnModule(const RzModule& module,
-                                            const RzVector& v,
-                                            const RzMatrix& c);
+std::optional<RzBoundState> rzBoundOnModule(
+    const RzModule& module, const RzVector& v, const RzMatrix& c,
+    const RzHelix::StepJacobian* transport = nullptr);
 
 }  // namespace Acts::Experimental
