@@ -58,8 +58,7 @@ void add(RzMeasurementGrid& grid, std::uint32_t module, std::uint32_t source,
   frame.u = Vector3(source, 0., 0.);
   frame.v = Vector3::UnitY();
   frame.normal = Vector3::UnitZ();
-  BOOST_CHECK_EQUAL(grid.add(module, measurement, frame),
-                    added[module].size());
+  BOOST_CHECK_EQUAL(grid.add(module, measurement, frame), added[module].size());
   added[module].push_back(source);
 }
 
@@ -198,6 +197,23 @@ BOOST_AUTO_TEST_CASE(AccessorSeesTheSameGrid) {
     for (std::size_t i = 0; i < sources.size(); ++i) {
       BOOST_CHECK_EQUAL(on.entries[i].source, sources[i]);
     }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(AppendAfterFinalizeKeepsModuleAndFramePairing) {
+  const RzLayout layout = makeLayout();
+  RzMeasurementGrid grid(layout);
+  Added added;
+  std::uint32_t source = 0;
+  for (const std::uint32_t module : {3u, 0u, 1u, 3u}) {
+    add(grid, module, source++, added);
+  }
+  grid.finalize();
+  checkHolds(grid, added);
+  for (const std::uint32_t module : {1u, 0u, 3u}) {
+    add(grid, module, source++, added);
+    grid.finalize();
+    checkHolds(grid, added);
   }
 }
 

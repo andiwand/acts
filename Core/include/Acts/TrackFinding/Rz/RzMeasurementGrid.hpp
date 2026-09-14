@@ -64,7 +64,7 @@ struct RzMeasurement {
   /// arm its variance was converted with: what the angle stands for in length
   /// grows with the distance from the frame's origin, and the entry sits at
   /// its own radius while the track crosses at another. Zero for a cartesian
-  /// frame, which has no such dependence.
+  /// frame or a radial-only measurement, which has no such dependence.
   double invLever{};
   RzProjector projector{RzProjector::Both};
   /// The caller's index of the measurement
