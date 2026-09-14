@@ -442,7 +442,7 @@ struct RzHelix {
   /// @param v the state
   /// @param point a point on the plane
   /// @param normal the plane normal
-  /// @return the path length, or nothing if the state runs parallel
+  /// @return the path length, or nothing if parallel or the solve does not converge
   std::optional<double> pathToPlane(const RzVector& v, const Vector3& point,
                                     const Vector3& normal) const;
 

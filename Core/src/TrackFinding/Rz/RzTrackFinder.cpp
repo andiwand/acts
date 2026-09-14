@@ -213,9 +213,10 @@ RzTrackFinder::Placed RzTrackFinder::place(
   const Vector3& av = frame != nullptr ? frame->v : mod.v;
   Placed p;
   p.position = mod.center + m.loc0 * au + m.loc1 * av;
-  const bool swapped = m.projector == RzProjector::Loc1;
-  // `u` is what the measurement holds, so that a strip's residual is always
-  // the first one
+  const bool swapped = m.projector == RzProjector::Loc1 ||
+                       (m.projector == RzProjector::Both && m.invLever != 0.);
+  // Put a strip's measured coordinate first. For a polar pixel, put the
+  // angular coordinate first too, so only its variance gets the lever factor.
   p.u = swapped ? av : au;
   p.v = swapped ? au : av;
   p.normal = p.u.cross(p.v);
@@ -331,7 +332,7 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
     Eigen::Matrix<double, 1, eRzSize> hv;
     projectRows(m.v, hv);
     covarianceTimes(hv, 1);
-    const double s01 = hv.dot(e.ch.col(0)) + m.cov01;
+    const double s01 = hv.dot(e.ch.col(0)) + m.cov01 * lever;
     const double s11 = hv.dot(e.ch.col(1)) + m.cov11;
     const double det = s00 * s11 - s01 * s01;
     if (det <= 0.) {
@@ -441,9 +442,6 @@ void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
         ++candidate.binsVisited;
         for (std::uint32_t i = layout.moduleBinStart[b];
              i < layout.moduleBinStart[b + 1]; ++i) {
-          if (modules.size() == modules.capacity()) {
-            return;
-          }
           ++candidate.modulesTested;
           const std::uint32_t index = layout.moduleOrder[i];
           const RzModule& m = layout.modules[index];
@@ -516,19 +514,14 @@ std::uint32_t RzTrackFinder::searchLayer(
     std::uint32_t bestModule = kRzNone;
     Evaluation best;
     best.chi2 = std::numeric_limits<double>::max();
-    // the best of the cartesian candidates by the straight-line chi2, which
-    // is transported exactly once the layer has been walked
-    std::uint32_t bestGateIndex = kRzNone;
-    std::uint32_t bestGateModule = kRzNone;
-    double bestGateChi2 = std::numeric_limits<double>::max();
     // Everything the gate needs except the measurement's own position and
     // variance belongs to the module and to the state, not to the
     // measurement: the plane crossing, the residual's origin along the
     // module axes, and the covariance projected on them and widened over
     // the distance to the module. Formed once per module here, the gate
     // costs a subtraction and two multiplies per measurement instead of a
-    // division and two quadratic forms. Polar modules carry their own axes
-    // per measurement, so they take the general path.
+    // division and two quadratic forms. Polar frames rotate these projections
+    // onto each measurement's axes.
     const Vector3 p0 = state.v.segment<3>(eRzPos0);
     const Vector3 d0 = state.v.segment<3>(eRzDir0);
     const SquareMatrix3 cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
@@ -586,6 +579,8 @@ std::uint32_t RzTrackFinder::searchLayer(
       for (std::uint32_t i = 0; i < group.entries.size(); ++i) {
         const RzMeasurement& m = group.entries[i];
         ++candidate.candidatesTested;
+        candidate.polarTested += mod.polar ? 1 : 0;
+        bool gated = hoisted;
         if (polarGate) {
           // the module's crossing and spread turned onto this measurement's
           // axes: the same gate `evaluate` would take, before the placement
@@ -598,7 +593,6 @@ std::uint32_t RzTrackFinder::searchLayer(
           const double s1v = f.vU * f.vU * cUU + 2. * f.vU * f.vV * cUV +
                              f.vV * f.vV * cVV + spread;
           if (s0v > 0. && s1v > 0.) {
-            ++candidate.polarTested;
             double chi2Gate = 0.;
             if (m.projector != RzProjector::Loc1) {
               const double d = m.loc0 - r0;
@@ -611,26 +605,12 @@ std::uint32_t RzTrackFinder::searchLayer(
             if (chi2Gate > gate2) {
               continue;
             }
-            const std::optional<Evaluation> e =
-                evaluate(state, place(mod, m, &f), false);
-            if (!e.has_value()) {
-              continue;
-            }
-            ++candidate.exactEvaluated;
-            if (e->chi2 < best.chi2) {
-              bestIndex = i;
-              bestModule = module;
-              best = *e;
-            }
-            continue;
+            gated = true;
           }
         }
         if (hoisted) {
-          // chi2 = r0^2/s0 (+ r1^2/s1), tested without the divisions. Only
-          // the best of these is worth a full transport: the straight-line
-          // chi2 is the same quantity with the covariance widened over the
-          // distance to the module, so it orders the candidates, and the one
-          // it picks is then evaluated exactly and has to pass the cut.
+          // The diagonal straight-line chi2 rejects distant measurements;
+          // it does not preserve the exact chi2 ordering or strip acceptance.
           double chi2Gate = 0.;
           if (m.projector != RzProjector::Loc1) {
             const double r0 = m.loc0 - c0;
@@ -651,18 +631,11 @@ std::uint32_t RzTrackFinder::searchLayer(
               continue;
             }
           }
-          if (chi2Gate < bestGateChi2) {
-            bestGateChi2 = chi2Gate;
-            bestGateIndex = i;
-            bestGateModule = module;
-          }
-          continue;
         }
         const RzMeasurementFrame* frame =
             group.frames.empty() ? nullptr : &group.frames[i];
-        ++candidate.polarTested;
         const std::optional<Evaluation> e =
-            evaluate(state, place(mod, m, frame), true);
+            evaluate(state, place(mod, m, frame), !gated);
         if (!e.has_value()) {
           continue;
         }
@@ -672,20 +645,6 @@ std::uint32_t RzTrackFinder::searchLayer(
           bestModule = module;
           best = *e;
         }
-      }
-    }
-    if (bestGateIndex != kRzNone) {
-      // only the one the gate picked is placed in the global frame and
-      // transported exactly
-      const RzModule& mod = m_layout->modules[bestGateModule];
-      const Placed placed = place(
-          mod, measurements(bestGateModule).entries[bestGateIndex], nullptr);
-      ++candidate.exactEvaluated;
-      if (const std::optional<Evaluation> e = evaluate(state, placed, false);
-          e.has_value() && e->chi2 < best.chi2) {
-        bestIndex = bestGateIndex;
-        bestModule = bestGateModule;
-        best = *e;
       }
     }
     if (bestIndex == kRzNone || best.chi2 > m_cfg.chi2Cut) {
@@ -698,9 +657,7 @@ std::uint32_t RzTrackFinder::searchLayer(
     candidate.hits.push_back(
         {layerIndex, bestIndex, stop, forwardState, bestModule, best.chi2});
     candidate.chi2 += best.chi2;
-    if (usedModules.size() < usedModules.capacity()) {
-      usedModules.push_back(bestModule);
-    }
+    usedModules.push_back(bestModule);
     ++accepted;
   }
   return accepted;
@@ -728,6 +685,7 @@ bool RzTrackFinder::takeKnownHit(const RzMeasurementAccessor& measurements,
       e->chi2 > m_cfg.gateFactor * m_cfg.chi2Cut) {
     return false;
   }
+  ++candidate.exactEvaluated;
   update(state, *e);
   const std::uint32_t forwardState =
       static_cast<std::uint32_t>(candidate.forwardStates.size());
@@ -835,6 +793,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
         if (!e.has_value()) {
           return false;
         }
+        ++candidate.exactEvaluated;
         update(state, *e);
       }
       ++hit;
@@ -858,7 +817,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
         const Vector3 normal = surfaceNormal(surface, state.v);
         state.travel(*s);
         state.bz = bzAt(surface, candidate.stopAlong[j], m_bz);
-        state.pending.advance(-*s);
+        state.pending.advance(*s);
         // The covariance is needed where there is something to update, and
         // where scattering is waiting to be put in: materialising it at the
         // stop it belongs to, and letting the Jacobians carry it from there,
@@ -899,13 +858,14 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
       helix.step(state.v, *s);
       state.travel(*s);
       state.moveCovariance(helixAt(state.anchorBz), m.normal);
-      state.pending.advance(std::abs(*s));
+      state.pending.advance(*s);
       materialise(state, m.normal);
       const std::optional<Evaluation> e = evaluate(state, m, false);
       if (!e.has_value()) {
         candidate.backwardFailure = 3;
         return;
       }
+      ++candidate.exactEvaluated;
       update(state, *e);
     }
     ++hit;
@@ -1086,7 +1046,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
     stateMoved = true;
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(step);
-    state.pending.advance(std::abs(step));
+    state.pending.advance(step);
     state.bz = bzAt(surface, along, m_bz);
 
     // going inward the particle gains back what it lost on the way out
@@ -1125,7 +1085,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   const Vector3 normal(end[eRzDir0] / dt, end[eRzDir1] / dt, 0.);
   state.v = end;
   state.travel(sEnd);
-  state.pending.advance(std::abs(sEnd));
+  state.pending.advance(sEnd);
   state.moveCovariance(helixAt(state.anchorBz), normal);
   materialise(state, normal);
   return true;

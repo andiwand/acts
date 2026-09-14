@@ -220,11 +220,11 @@ std::optional<double> RzHelix::pathToPlane(const RzVector& v,
     const double ds = f / df;
     s -= ds;
     // one step from the parabola is a converged one: its own size says so
-    if (std::abs(ds) < 1e-5) {
-      break;
+    if (std::abs(ds) < 1e-5 && std::isfinite(s)) {
+      return s;
     }
   }
-  return s;
+  return std::nullopt;
 }
 
 double RzHelix::pathToPerigee(const RzVector& v) const {

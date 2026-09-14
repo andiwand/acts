@@ -244,3 +244,13 @@ BOOST_AUTO_TEST_CASE(StepJacobianOntoMatchesDense) {
     }
   }
 }
+
+BOOST_AUTO_TEST_CASE(UnreachablePlaneHasNoIntersection) {
+  RzVector v = RzVector::Zero();
+  v[eRzDir0] = 1.;
+  v[eRzQOverP] = 1.;
+  const RzHelix unitHelix{1.};
+  // x(s) = sin(s), so the plane x = 2 is unreachable.
+  BOOST_CHECK(!unitHelix.pathToPlane(v, Vector3(2., 0., 0.), Vector3::UnitX())
+                   .has_value());
+}
