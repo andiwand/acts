@@ -27,9 +27,9 @@ using namespace ActsTests;
 
 using MagneticField = ConstantBField;
 using Stepper = AtlasStepper;
-using RiddersStepper = Experimental::RiddersStepper<Stepper>;
+using TestRiddersStepper = RiddersStepper<Stepper>;
 using TestPropagator = Propagator<Stepper>;
-using TestRiddersPropagator = Propagator<RiddersStepper>;
+using TestRiddersPropagator = Propagator<TestRiddersStepper>;
 
 // absolute parameter tolerances for position, direction, and absolute momentum
 constexpr auto epsPos = 1_um;
@@ -50,7 +50,7 @@ inline TestPropagator makePropagator(double bz) {
 
 inline TestRiddersPropagator makeRiddersPropagator(double bz) {
   auto magField = std::make_shared<MagneticField>(Vector3(0.0, 0.0, bz));
-  RiddersStepper stepper(std::move(magField));
+  TestRiddersStepper stepper(std::move(magField));
   return TestRiddersPropagator(std::move(stepper));
 }
 

@@ -27,9 +27,9 @@ using namespace UnitLiterals;
 
 using Stepper = StraightLineStepper;
 using TestPropagator = Propagator<Stepper>;
-using RiddersStepper = Experimental::RiddersStepper<Stepper>;
+using TestRiddersStepper = RiddersStepper<Stepper>;
 using TestPropagator = Propagator<Stepper>;
-using TestRiddersPropagator = Propagator<RiddersStepper>;
+using TestRiddersPropagator = Propagator<TestRiddersStepper>;
 
 // absolute parameter tolerances for position, direction, and absolute momentum
 constexpr auto epsPos = 1_um;
@@ -44,7 +44,7 @@ const MagneticFieldContext magCtx;
 
 const Stepper stepper;
 const TestPropagator propagator(stepper);
-const RiddersStepper riddersStepper(stepper);
+const TestRiddersStepper riddersStepper(stepper);
 const TestRiddersPropagator riddersPropagator(riddersStepper);
 
 }  // namespace

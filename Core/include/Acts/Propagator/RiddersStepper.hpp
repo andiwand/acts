@@ -30,7 +30,7 @@ class IVolumeMaterial;
 class MagneticFieldProvider;
 }  // namespace Acts
 
-namespace Acts::Experimental {
+namespace Acts {
 
 /// Collection of bound parameter variations, each entry is a pair of the index
 /// of the bound parameter
@@ -694,4 +694,4 @@ class RiddersStepper final {
   StepperImpl m_stepperImpl;
 };
 
-}  // namespace Acts::Experimental
+}  // namespace Acts
