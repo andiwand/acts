@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 using namespace Acts;
 using namespace Acts::Experimental;
@@ -221,6 +222,67 @@ BOOST_AUTO_TEST_CASE(BackwardScatteringHasSignedPositionDirectionCovariance) {
   BOOST_REQUIRE_EQUAL(candidate.backwardFailure, 0u);
   BOOST_CHECK_LT(candidate.innerCovariance(eRzPos0, eRzDir0), 0.);
   BOOST_CHECK_LT(candidate.innerCovariance(eRzPos1, eRzDir1), 0.);
+}
+
+BOOST_AUTO_TEST_CASE(BatchedSearchMatchesIndividualTracks) {
+  RzLayout layout = makeLayout(12);
+  layout.discs = {0};
+  layout.discCoord = {0.};
+  layout.discMin = {1.};
+  layout.discMax = {200.};
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  pixel.cov01 = 0.9;
+  pixel.loc0 = 1.;
+  pixel.loc1 = -1.;
+  grid.add(11, pixel);
+  pixel.loc0 = 1.1;
+  pixel.loc1 = 1.1;
+  grid.add(11, pixel);
+  grid.finalize();
+  const RzTrackFinder finder(config(), layout, 0.);
+  std::vector<RzTrackStart> starts(5);
+  std::vector<RzTrackCandidate> expected(starts.size());
+  std::vector<bool> found(starts.size());
+  for (std::size_t i = 0; i < starts.size(); ++i) {
+    auto& seed = starts[i];
+    seed.parameters = start();
+    seed.covariance = covariance();
+    // Approach the disc from both z directions, with an empty search among
+    // successful ones to check callback order and state reuse across batches.
+    seed.parameters[eRzDir2] = i % 2 == 0 ? 1. : -1.;
+    seed.parameters[eRzPos2] = -10. * seed.parameters[eRzDir2];
+    if (i == 2) {
+      seed.parameters[eRzPos0] = 500.;
+    }
+    found[i] = finder.findTrack(grid.accessor(), seed.parameters,
+                                seed.covariance, seed.module, expected[i]);
+    BOOST_REQUIRE_EQUAL(found[i], i != 2);
+    if (found[i]) {
+      BOOST_REQUIRE_EQUAL(expected[i].hits.front().module, 11u);
+      BOOST_REQUIRE_EQUAL(expected[i].hits.front().measurement, 1u);
+    }
+  }
+  for (std::size_t width : {0u, 1u, 2u, 3u, 8u}) {
+    std::size_t called = 0;
+    finder.findTracks(
+        grid.accessor(), starts, width,
+        [&](std::size_t index, bool ok, RzTrackCandidate& candidate) {
+          BOOST_REQUIRE_EQUAL(index, called++);
+          const auto& reference = expected[index];
+          BOOST_CHECK_EQUAL(ok, found[index]);
+          BOOST_CHECK_EQUAL(candidate.measurements, reference.measurements);
+          BOOST_CHECK_EQUAL(candidate.chi2, reference.chi2);
+          BOOST_CHECK_EQUAL(candidate.modulesTested, reference.modulesTested);
+          BOOST_CHECK_EQUAL(candidate.binsVisited, reference.binsVisited);
+          BOOST_CHECK_EQUAL(candidate.exactEvaluated, reference.exactEvaluated);
+          BOOST_CHECK(candidate.parameters == reference.parameters);
+          BOOST_CHECK(candidate.covariance == reference.covariance);
+        });
+    BOOST_CHECK_EQUAL(called, starts.size());
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
