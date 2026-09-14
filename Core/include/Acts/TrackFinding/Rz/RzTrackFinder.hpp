@@ -80,6 +80,9 @@ struct RzTrackFinderConfig {
   /// filter run the other way, started from the diagonal of the forward
   /// covariance inflated by `backwardInflation`, i.e. from nothing.
   bool backwardPass = true;
+  /// Retain every filtered state for output. Otherwise retain only the
+  /// checkpoint needed to start a partial backward pass.
+  bool storeForwardStates = true;
   double backwardInflation = 100.;
   /// Run the backward pass over the innermost this many measurements only,
   /// from the forward state at the outermost of them, with the forward
@@ -103,7 +106,7 @@ struct RzTrackHit {
   /// at, `kRzNone` for the layer the track started on
   std::uint32_t stop{kRzNone};
   /// Index into `RzTrackCandidate::forwardStates` of the forward state after
-  /// this measurement, `kRzNone` for a hole
+  /// this measurement, `kRzNone` for a hole or when the state was not retained
   std::uint32_t forwardState{kRzNone};
   /// For a hole, the module the track crossed without leaving a measurement;
   /// for a measurement it is the one of the measurement's grid entry
@@ -148,8 +151,8 @@ struct RzTrackCandidate {
   /// The coordinate along each stop's surface at the crossing, for its
   /// material band
   std::vector<double> stopAlong;
-  /// The forward state and covariance after each measurement, for a backward
-  /// pass that starts part way in
+  /// Retained forward states: every measurement when requested for output,
+  /// otherwise only the checkpoint for a partial backward pass
   std::vector<std::pair<RzVector, RzMatrix>> forwardStates;
   double chi2{};
   double pathLength{};
@@ -305,6 +308,9 @@ class RzTrackFinder {
     Eigen::Matrix<double, 2, 1> residual;
     Eigen::Matrix<double, 2, 2> sInv;
   };
+
+  std::uint32_t saveForwardState(const State& state,
+                                 RzTrackCandidate& candidate) const;
 
   /// A measurement placed in the global frame, as the exact transport needs
   /// it. The search holds measurements on their module's axes, which is all
