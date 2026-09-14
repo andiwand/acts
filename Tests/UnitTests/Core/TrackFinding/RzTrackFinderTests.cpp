@@ -1,0 +1,226 @@
+// This file is part of the ACTS project.
+//
+// Copyright (C) 2016 CERN for the benefit of the ACTS project
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#include <boost/test/unit_test.hpp>
+
+#include "Acts/Surfaces/DiscSurface.hpp"
+#include "Acts/Surfaces/RadialBounds.hpp"
+#include "Acts/TrackFinding/Rz/RzTrackFinder.hpp"
+
+#include <array>
+#include <cstdint>
+#include <memory>
+
+using namespace Acts;
+using namespace Acts::Experimental;
+
+namespace {
+RzLayout makeLayout(std::uint32_t modules = 1) {
+  RzLayout layout;
+  RzSurface surface;
+  surface.shape = RzShape::Disc;
+  surface.minBound = 1.;
+  surface.maxBound = 200.;
+  surface.layer = 0;
+  layout.surfaces.push_back(surface);
+  RzLayer layer;
+  layer.surface = 0;
+  layer.phiBins = 1;
+  layer.alongBins = 1;
+  layer.alongMin = 1.;
+  layer.alongMax = 200.;
+  layer.maxHalfExtent = 30.;
+  layout.layers.push_back(layer);
+  for (std::uint32_t i = 0; i < modules; ++i) {
+    RzModule module;
+    module.center = Vector3(100., 0., 0.);
+    module.u = Vector3::UnitX();
+    module.v = Vector3::UnitY();
+    module.normal = Vector3::UnitZ();
+    module.halfU = 20.;
+    module.halfV = 20.;
+    module.layer = 0;
+    layout.modules.push_back(module);
+    layout.moduleOrder.push_back(i);
+  }
+  layout.moduleBinStart = {0, modules};
+  layout.escapeRadius = 200.;
+  layout.escapeHalfZ = 200.;
+  return layout;
+}
+
+RzTrackFinderConfig config() {
+  RzTrackFinderConfig cfg;
+  cfg.minMeasurements = 1;
+  cfg.maxMeasurementsPerLayer = 1;
+  cfg.applyMaterial = false;
+  cfg.backwardPass = false;
+  return cfg;
+}
+
+RzVector start() {
+  RzVector v = RzVector::Zero();
+  v[eRzPos0] = 100.;
+  v[eRzDir2] = 1.;
+  v[eRzQOverP] = 1.;
+  return v;
+}
+
+RzMatrix covariance() {
+  RzMatrix c = RzMatrix::Zero();
+  c(eRzPos0, eRzPos0) = 1.;
+  c(eRzPos1, eRzPos1) = 1.;
+  return c;
+}
+}  // namespace
+
+BOOST_AUTO_TEST_SUITE(RzTrackFinderSuite)
+
+BOOST_AUTO_TEST_CASE(RejectedGateWinnerDoesNotHideValidStrip) {
+  const RzLayout layout = makeLayout();
+  RzMeasurementGrid grid(layout);
+  RzMeasurement strip;
+  strip.projector = RzProjector::Loc0;
+  strip.cov00 = 1.;
+  strip.loc1 = 100.;  // Best measured residual, but outside the strip extent.
+  grid.add(0, strip);
+  strip.loc0 = 1.;
+  strip.loc1 = 0.;
+  grid.add(0, strip);
+  grid.finalize();
+  RzTrackCandidate candidate;
+  BOOST_REQUIRE(
+      RzTrackFinder(config(), layout, 0.)
+          .findTrack(grid.accessor(), start(), covariance(), 0, candidate));
+  BOOST_REQUIRE_EQUAL(candidate.hits.size(), 1u);
+  BOOST_CHECK_EQUAL(candidate.hits.front().measurement, 1u);
+}
+
+BOOST_AUTO_TEST_CASE(ExactChi2OrdersCorrelatedPixels) {
+  const RzLayout layout = makeLayout();
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  pixel.cov01 = 0.9;
+  pixel.loc0 = 1.;
+  pixel.loc1 = -1.;
+  grid.add(0, pixel);
+  pixel.loc0 = 1.1;
+  pixel.loc1 = 1.1;
+  grid.add(0, pixel);
+  grid.finalize();
+  RzTrackCandidate candidate;
+  BOOST_REQUIRE(
+      RzTrackFinder(config(), layout, 0.)
+          .findTrack(grid.accessor(), start(), covariance(), 0, candidate));
+  BOOST_CHECK_EQUAL(candidate.hits.front().measurement, 1u);
+}
+
+BOOST_AUTO_TEST_CASE(SearchIncludesModulesBeyondInlineCapacity) {
+  const RzLayout layout = makeLayout(12);
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  grid.add(11, pixel);
+  grid.finalize();
+  RzTrackCandidate candidate;
+  BOOST_REQUIRE(
+      RzTrackFinder(config(), layout, 0.)
+          .findTrack(grid.accessor(), start(), covariance(), 0, candidate));
+  BOOST_CHECK_EQUAL(candidate.hits.front().module, 11u);
+}
+
+BOOST_AUTO_TEST_CASE(PolarCovarianceUsesAngularLeverOnly) {
+  for (bool plain : {false, true}) {
+    for (std::uint8_t dim : {1, 2}) {
+      RzLayout layout = makeLayout();
+      RzModule& module = layout.modules.front();
+      module.polar = true;
+      module.polarIsPlain = plain;
+      module.localCenter = Vector2(100., 0.);
+      module.boundCenter = Vector2(100., 0.);
+      const auto surface = Surface::makeShared<DiscSurface>(
+          Transform3::Identity(), std::make_shared<RadialBounds>(1., 200.));
+      const auto gctx = GeometryContext::dangerouslyDefaultConstruct();
+      RzMeasurementGrid grid(layout);
+      const std::array<std::uint8_t, 2> indices{0, 1};
+      const std::array<double, 2> params{100., 0.};
+      const std::array<double, 4> cov{4., 0.001, 0.001, 0.0001};
+      grid.addBound(0, *surface, gctx, dim, indices, params, cov, 0);
+      grid.finalize();
+      RzVector v = start();
+      v[eRzPos0] = 110.;
+      v[eRzPos1] = 1.;
+      auto cfg = config();
+      cfg.chi2Cut = 100.;
+      RzTrackCandidate candidate;
+      const std::array<RzSeedMeasurement, 1> seed{{{0, 0}}};
+      BOOST_REQUIRE(
+          RzTrackFinder(cfg, layout, 0.)
+              .findTrack(grid.accessor(), v, covariance(), 0, candidate, seed));
+      // Radial variance stays 4. Angular variance and cross covariance
+      // scale from radius 100 to the radial projection 110.
+      const double expected = dim == 1 ? 100. / 5.
+                                       : (100. * 2.21 - 20. * 0.11 + 5.) /
+                                             (5. * 2.21 - 0.11 * 0.11);
+      BOOST_CHECK_CLOSE(candidate.chi2, expected, 1e-8);
+    }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(BackwardScatteringHasSignedPositionDirectionCovariance) {
+  RzLayout layout = makeLayout();
+  RzSurface outer = layout.surfaces.front();
+  outer.refCoord = 10.;
+  outer.layer = 1;
+  outer.materialEdges = {1., 200.};
+  outer.materialBands.emplace_back(
+      Material::fromMolarDensity(93.7f, 465.2f, 28.0855f, 14.f, 0.083f), 1.f);
+  layout.surfaces.push_back(outer);
+  RzLayer layer = layout.layers.front();
+  layer.surface = 1;
+  layer.binOffset = 1;
+  layout.layers.push_back(layer);
+  RzModule module = layout.modules.front();
+  module.center.z() = 10.;
+  module.layer = 1;
+  layout.modules.push_back(module);
+  layout.moduleOrder = {0, 1};
+  layout.moduleBinStart = {0, 1, 2};
+  layout.discs = {0, 1};
+  layout.discCoord = {0., 10.};
+  layout.discMin = {1., 1.};
+  layout.discMax = {200., 200.};
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  grid.add(0, pixel);
+  grid.add(1, pixel);
+  grid.finalize();
+  auto cfg = config();
+  cfg.applyMaterial = true;
+  cfg.backwardPass = true;
+  cfg.backwardLayers = 0;
+  cfg.inwardSearch = false;
+  // Isolate the backward process noise from the initial covariance.
+  cfg.backwardInflation = 0.;
+  RzTrackCandidate candidate;
+  BOOST_REQUIRE(
+      RzTrackFinder(cfg, layout, 0.)
+          .findTrack(grid.accessor(), start(), covariance(), 0, candidate));
+  BOOST_REQUIRE_EQUAL(candidate.measurements, 2u);
+  BOOST_REQUIRE(candidate.hasInner);
+  BOOST_REQUIRE_EQUAL(candidate.backwardFailure, 0u);
+  BOOST_CHECK_LT(candidate.innerCovariance(eRzPos0, eRzDir0), 0.);
+  BOOST_CHECK_LT(candidate.innerCovariance(eRzPos1, eRzDir1), 0.);
+}
+
+BOOST_AUTO_TEST_SUITE_END()

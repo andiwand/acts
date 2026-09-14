@@ -27,6 +27,7 @@
 #include <span>
 #include <vector>
 
+#include <boost/container/small_vector.hpp>
 #include <boost/container/static_vector.hpp>
 
 namespace Acts::Experimental {
@@ -159,10 +160,9 @@ struct RzTrackCandidate {
   /// them: what the measurement binning costs per stop
   std::uint32_t modulesTested{};
   std::uint32_t binsVisited{};
-  /// Candidates on polar modules, which the search cannot gate on the
-  /// module's axes and so places and evaluates one by one
+  /// Candidates examined on polar modules
   std::uint32_t polarTested{};
-  /// Exact transports made: the gate's pick per round, the known hits, the
+  /// Successful measurement evaluations, including known hits and the
   /// backward pass
   std::uint32_t exactEvaluated{};
 
@@ -255,6 +255,7 @@ class RzTrackFinder {
     double varQOverP{};
 
     bool empty() const { return varAngle == 0. && varQOverP == 0.; }
+    // Signed path: position-direction correlations reverse when walking inward.
     void advance(double s) {
       varPosition += 2. * covAnglePosition * s + varAngle * s * s;
       covAnglePosition += varAngle * s;
@@ -402,11 +403,9 @@ class RzTrackFinder {
   /// surface with the given normal
   void materialise(State& state, const Vector3& normal) const;
 
-  /// How many modules of one layer a crossing can land on at once: a stereo
-  /// pair, an overlap in phi or along, and room to spare
-  static constexpr std::size_t kMaxModulesPerLayer = 8;
-  using ModuleList =
-      boost::container::static_vector<std::uint32_t, kMaxModulesPerLayer>;
+  /// Keep typical crossings inline, but allow a wide uncertainty window to
+  /// include more modules without silently truncating the search.
+  using ModuleList = boost::container::small_vector<std::uint32_t, 8>;
 
   /// Search the modules the state crosses and update with the best candidates
   /// @param measurements where to get a module's measurements

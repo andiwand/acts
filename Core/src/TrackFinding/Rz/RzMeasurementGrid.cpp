@@ -34,8 +34,6 @@ void RzMeasurementGrid::reserve(std::size_t n) {
   m_moduleOf.reserve(n);
 }
 
-/// Grow the frame table to match the entries, so that a polar module's frames
-/// stay parallel to them however few polar modules the event has
 std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
                                      const RzMeasurement& measurement,
                                      const RzMeasurementFrame& frame) {
@@ -189,8 +187,8 @@ RzMeasurement RzMeasurementGrid::fromBound(
   e.cov11 = var1 * scale1 * scale1;
   // the lever arm the azimuth was converted with: the distance from the polar
   // frame's origin, which is where the entry sits
-  const double leverScale = measuresLoc1 ? scale1 : scale0;
-  e.invLever = leverScale > 0. ? 1. / leverScale : 0.;
+  e.invLever =
+      e.projector != RzProjector::Loc0 && scale1 > 0. ? 1. / scale1 : 0.;
   return e;
 }
 
@@ -245,6 +243,11 @@ void RzMeasurementGrid::finalize() {
     if (m_layout->modules[m].polar) {
       sortedFrames[fillFrame[m]++] = m_frames[from++];
     }
+  }
+  // Keep the module tags in the same order for a subsequent append/finalize.
+  for (std::uint32_t m = 0; m < m_blocks.size(); ++m) {
+    const ModuleBlock& block = m_blocks[m];
+    std::fill_n(m_moduleOf.begin() + block.begin, block.size, m);
   }
   m_entries.swap(sorted);
   m_frames.swap(sortedFrames);
