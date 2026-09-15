@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 using namespace Acts;
@@ -360,6 +361,134 @@ BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
         }
       }
     }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(SharedPredictionMatchesKnownMeasurement) {
+  for (bool polar : {false, true}) {
+    for (RzProjector projector :
+         {RzProjector::Both, RzProjector::Loc0, RzProjector::Loc1}) {
+      RzLayout layout = makeLayout();
+      layout.modules.front().center.z() = 5.;
+      layout.modules.front().polar = polar;
+      RzMeasurementGrid grid(layout);
+      RzMeasurement m;
+      m.projector = projector;
+      m.cov00 = 0.4;
+      m.cov11 = 0.7;
+      m.cov01 = 0.1;
+      RzMeasurementFrame frame;
+      frame.u = Vector3(std::cos(0.3), std::sin(0.3), 0.);
+      frame.v = Vector3(-std::sin(0.3), std::cos(0.3), 0.);
+      m.invLever = polar ? 0.01 : 0.;
+      for (double offset : {2., 0.2, 1.}) {
+        m.loc0 = offset;
+        m.loc1 = offset;
+        if (polar) {
+          const double angle = 0.15 * offset;
+          frame.u = Vector3(std::cos(angle), std::sin(angle), 0.);
+          frame.v = Vector3(-std::sin(angle), std::cos(angle), 0.);
+          grid.add(0, m, frame);
+        } else {
+          grid.add(0, m);
+        }
+      }
+      grid.finalize();
+      RzTrackCandidate searched, known;
+      RzVector v = start();
+      v.segment<3>(eRzDir0) = Vector3(0.02, 0.01, 1.).normalized();
+      RzMatrix c = RzMatrix::Identity() * 0.01;
+      c(eRzPos0, eRzPos0) = 1.;
+      c(eRzPos1, eRzPos1) = 1.;
+      const RzTrackFinder finder(config(), layout, 2. * UnitConstants::T);
+      BOOST_REQUIRE(finder.findTrack(grid.accessor(), v, c, 0, searched));
+      BOOST_REQUIRE_EQUAL(searched.hits.size(), 1u);
+      const std::array<RzSeedMeasurement, 1> seed = {
+          RzSeedMeasurement{0, searched.hits.front().measurement}};
+      BOOST_REQUIRE(finder.findTrack(grid.accessor(), v, c, 0, known, seed));
+      BOOST_CHECK_SMALL(searched.chi2 - known.chi2, 1e-12);
+      BOOST_CHECK_SMALL((searched.parameters - known.parameters).norm(), 1e-12);
+      BOOST_CHECK_SMALL((searched.covariance - known.covariance).norm(), 1e-12);
+    }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(DenseSearchMatchesIndependentMeasurements) {
+  // An independently evaluated known hit is the oracle for each candidate.
+  // Exercise full gate batches, their tail, varying errors and correlations,
+  // swapped strip axes, and transitions between measurement projectors.
+  for (RzProjector projector :
+       {RzProjector::Both, RzProjector::Loc0, RzProjector::Loc1}) {
+    for (bool mixed : {false, true}) {
+      RzLayout layout = makeLayout();
+      layout.modules.front().center.z() = 5.;
+      RzMeasurementGrid grid(layout);
+      for (unsigned int i = 0; i < 67; ++i) {
+        RzMeasurement m;
+        m.projector = mixed && i % 7 == 0 ? RzProjector::Loc1 : projector;
+        m.loc0 = i % 9 == 0 ? 100. : 0.17 * (static_cast<int>(i % 23) - 11);
+        m.loc1 = i % 11 == 0 ? 100. : 0.13 * (static_cast<int>(i % 19) - 9);
+        m.cov00 = 0.1 + 0.03 * (i % 5);
+        m.cov11 = 0.2 + 0.07 * (i % 3);
+        m.cov01 = i % 2 == 0 ? 0.08 : -0.08;
+        grid.add(0, m);
+      }
+      grid.finalize();
+      RzVector v = start();
+      v.segment<3>(eRzDir0) = Vector3(0.02, 0.01, 1.).normalized();
+      RzMatrix c = RzMatrix::Identity() * 0.01;
+      c(eRzPos0, eRzPos0) = 1.;
+      c(eRzPos1, eRzPos1) = 1.;
+      c(eRzPos0, eRzPos1) = c(eRzPos1, eRzPos0) = 0.3;
+      const RzTrackFinder finder(config(), layout, 2. * UnitConstants::T);
+      RzTrackCandidate searched, best;
+      BOOST_REQUIRE(finder.findTrack(grid.accessor(), v, c, 0, searched));
+      bool found = false;
+      for (unsigned int i = 0; i < 67; ++i) {
+        const std::array<RzSeedMeasurement, 1> seed = {RzSeedMeasurement{0, i}};
+        RzTrackCandidate known;
+        if (finder.findTrack(grid.accessor(), v, c, 0, known, seed) &&
+            (!found || known.chi2 < best.chi2)) {
+          best = std::move(known);
+          found = true;
+        }
+      }
+      BOOST_REQUIRE(found);
+      BOOST_REQUIRE_EQUAL(searched.hits.size(), 1u);
+      BOOST_CHECK_EQUAL(searched.hits.front().measurement,
+                        best.hits.front().measurement);
+      BOOST_CHECK_SMALL(searched.chi2 - best.chi2, 1e-11);
+      BOOST_CHECK_SMALL((searched.parameters - best.parameters).norm(), 1e-11);
+      BOOST_CHECK_SMALL((searched.covariance - best.covariance).norm(), 1e-11);
+    }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(DuplicateMeasurementsKeepFirstIndex) {
+  RzLayout layout = makeLayout();
+  auto& module = layout.modules.front();
+  module.center.z() = 5.;
+  module.u = Vector3(std::cos(0.3), std::sin(0.3), 0.);
+  module.v = Vector3(-std::sin(0.3), std::cos(0.3), 0.);
+  for (double offset : {0.001, 0.1, 1.1, 1.7}) {
+    RzMeasurementGrid grid(layout);
+    RzMeasurement m;
+    m.loc0 = offset;
+    m.loc1 = 0.3;
+    m.cov00 = 0.1;
+    m.cov11 = 0.2;
+    m.cov01 = 0.03;
+    for (unsigned int i = 0; i < 8; ++i) {
+      grid.add(0, m);
+    }
+    grid.finalize();
+    RzVector v = start();
+    v.segment<3>(eRzDir0) = Vector3(0.02, 0.01, 1.).normalized();
+    RzTrackCandidate result;
+    BOOST_REQUIRE(RzTrackFinder(config(), layout, 2. * UnitConstants::T)
+                      .findTrack(grid.accessor(), v, covariance(), 0, result));
+    BOOST_REQUIRE_EQUAL(result.hits.size(), 1u);
+    BOOST_CHECK_EQUAL(result.hits.front().measurement, 0u);
   }
 }
 
