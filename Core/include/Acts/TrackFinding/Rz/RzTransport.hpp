@@ -446,6 +446,24 @@ struct RzHelix {
   std::optional<double> pathToPlane(const RzVector& v, const Vector3& point,
                                     const Vector3& normal) const;
 
+  /// A plane crossing together with the step that reached it
+  struct PlaneStep {
+    double s{};
+    RzVector state;
+    detail::StepTrig trig;
+  };
+
+  /// The same solve, keeping the last Newton iterate: its state and its
+  /// trigonometry, so that a caller needs no second step to get there. The
+  /// iterate is short of the root by the final correction, under 1e-5 in
+  /// path length.
+  /// @param v the state
+  /// @param point a point on the plane
+  /// @param normal the plane normal
+  /// @return the step, or nothing if parallel or the solve does not converge
+  std::optional<PlaneStep> stepToPlane(const RzVector& v, const Vector3& point,
+                                       const Vector3& normal) const;
+
   /// Path length to the point of closest approach to the beam axis, in the
   /// transverse plane. Negative when the perigee is behind the state.
   ///

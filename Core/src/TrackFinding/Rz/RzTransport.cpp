@@ -227,6 +227,51 @@ std::optional<double> RzHelix::pathToPlane(const RzVector& v,
   return std::nullopt;
 }
 
+std::optional<RzHelix::PlaneStep> RzHelix::stepToPlane(
+    const RzVector& v, const Vector3& point, const Vector3& normal) const {
+  const Vector3 p = v.segment<3>(eRzPos0);
+  const Vector3 d = v.segment<3>(eRzDir0);
+  const double along = normal.dot(d);
+  if (std::abs(along) < 1e-9) {
+    return std::nullopt;
+  }
+  const double straight = normal.dot(point - p) / along;
+  // Start from the parabola: the transverse bend over the straight path
+  // moves the crossing by half the acceleration times s^2, which leaves an
+  // error of the order of kappa^2 s^3, well inside one Newton step of the
+  // tolerance for any module distance a layer has.
+  const double k = kappa(v);
+  const double accel = k * (normal.x() * d.y() - normal.y() * d.x());
+  double s = straight;
+  if (accel != 0.) {
+    // along s + accel s^2 / 2 = along * straight, the root nearest straight
+    const double disc = along * along + 2. * accel * along * straight;
+    if (disc > 0.) {
+      const double q = -(along + std::copysign(std::sqrt(disc), along));
+      const double s1 = q / accel;
+      const double s2 = -2. * along * straight / q;
+      s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
+    }
+  }
+  for (int i = 0; i < 5; ++i) {
+    const detail::StepTrig trig = detail::stepTrig(k * s);
+    RzVector w = v;
+    step(w, s, trig);
+    const double f = normal.dot(w.segment<3>(eRzPos0) - point);
+    const double df = normal.dot(w.segment<3>(eRzDir0));
+    if (df == 0.) {
+      return std::nullopt;
+    }
+    const double ds = f / df;
+    // one step from the parabola is a converged one: its own size says so
+    if (std::abs(ds) < 1e-5 && std::isfinite(s)) {
+      return PlaneStep{s, w, trig};
+    }
+    s -= ds;
+  }
+  return std::nullopt;
+}
+
 double RzHelix::pathToPerigee(const RzVector& v) const {
   const double k = kappa(v);
   const double px = v[eRzPos0];

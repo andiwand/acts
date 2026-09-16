@@ -185,6 +185,18 @@ BOOST_DATA_TEST_CASE(DiscPlanePerigee, ptSamples * phiSamples * chargeSamples,
   helix.step(w, *sPlane);
   CHECK_CLOSE_ABS(normal.dot(w.segment<3>(eRzPos0) - point), 0., 1e-9_mm);
 
+  // the kept iterate is the same solve, one correction short, with the step
+  // and its trigonometry the ones for its own path
+  const std::optional<RzHelix::PlaneStep> planeStep =
+      helix.stepToPlane(v0, point, normal);
+  BOOST_REQUIRE(planeStep.has_value());
+  CHECK_CLOSE_ABS(planeStep->s, *sPlane, 1e-5_mm);
+  w = v0;
+  helix.step(w, planeStep->s);
+  BOOST_CHECK((w - planeStep->state).cwiseAbs().maxCoeff() < 1e-12);
+  CHECK_CLOSE_ABS(normal.dot(planeStep->state.segment<3>(eRzPos0) - point),
+                  0., 1e-5_mm);
+
   const double sPerigee = helix.pathToPerigee(v0);
   w = v0;
   helix.step(w, sPerigee);
@@ -426,5 +438,7 @@ BOOST_AUTO_TEST_CASE(UnreachablePlaneHasNoIntersection) {
   const RzHelix unitHelix{1.};
   // x(s) = sin(s), so the plane x = 2 is unreachable.
   BOOST_CHECK(!unitHelix.pathToPlane(v, Vector3(2., 0., 0.), Vector3::UnitX())
+                   .has_value());
+  BOOST_CHECK(!unitHelix.stepToPlane(v, Vector3(2., 0., 0.), Vector3::UnitX())
                    .has_value());
 }
