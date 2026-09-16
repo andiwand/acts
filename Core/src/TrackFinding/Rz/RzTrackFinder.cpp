@@ -273,16 +273,15 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
       return std::nullopt;
     }
   }
-  const std::optional<double> s =
-      helix.pathToPlane(state.v, m.position, m.normal);
-  if (!s.has_value() || std::abs(*s) > maxDistance) {
+  // the solve's last iterate is the step: one sincos for the solve, the
+  // step and its Jacobian, all of the same turning angle
+  const std::optional<RzHelix::PlaneStep> crossing =
+      helix.stepToPlane(state.v, m.position, m.normal);
+  if (!crossing.has_value() || std::abs(crossing->s) > maxDistance) {
     return std::nullopt;
   }
-  // one sincos for the step and for its Jacobian: both are of the same
-  // turning angle
-  const detail::StepTrig trig = detail::stepTrig(helix.kappa(state.v) * *s);
-  RzVector w = state.v;
-  helix.step(w, *s, trig);
+  const detail::StepTrig& trig = crossing->trig;
+  const RzVector& w = crossing->state;
   const Vector3 d = m.position - w.segment<3>(eRzPos0);
   const double ru = m.u.dot(d);
   const double rv = m.v.dot(d);
@@ -300,7 +299,8 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // formed, and C (H J)^T is what the update needs too
   Evaluation e;
   const Eigen::Matrix<double, 3, eRzSize> jPos =
-      helix.stepJacobianOnto(state.v, *s, w, m.normal, trig).positionRows();
+      helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
+          .positionRows();
   // the two products by hand: Eigen takes a 1x3 by 3x7 and a 7x7 by 7x1
   // through its general kernels, out of line, for 21 and 49 multiplies
   const auto projectRows = [&](const Vector3& axis,
