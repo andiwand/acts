@@ -235,33 +235,8 @@ RzTrackFinder::Placed RzTrackFinder::place(
   return p;
 }
 
-bool RzTrackFinder::setInnovation(Evaluation& e, double ru, double rv,
-                                  double s00, double s01, double s11,
-                                  bool pixel) {
-  e.sInv.setZero();
-  if (!pixel) {
-    e.sInv(0, 0) = 1. / s00;
-    e.chi2 = ru * ru * e.sInv(0, 0);
-  } else {
-    const double det = s00 * s11 - s01 * s01;
-    if (det <= 0.) {
-      return false;
-    }
-    e.sInv(0, 0) = s11 / det;
-    e.sInv(0, 1) = -s01 / det;
-    e.sInv(1, 0) = e.sInv(0, 1);
-    e.sInv(1, 1) = s00 / det;
-    e.chi2 = ru * ru * e.sInv(0, 0) + 2. * ru * rv * e.sInv(0, 1) +
-             rv * rv * e.sInv(1, 1);
-  }
-  e.residual << ru, rv;
-  return true;
-}
-
-template <bool Cache>
 std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
-    const State& state, const Placed& m, bool gate,
-    std::optional<Prediction>* prediction) const {
+    const State& state, const Placed& m, bool gate) const {
   // the straight-line crossing of the module plane first: it is the Newton
   // start anyway, and enough for the gate
   const Vector3 p0 = state.v.segment<3>(eRzPos0);
@@ -298,33 +273,17 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
       return std::nullopt;
     }
   }
-  std::optional<Prediction> local;
-  auto& cached = Cache ? *prediction : local;
-  // Frames may turn or swap axes within a module. Only reuse a prediction
-  // when the planes coincide; unusual measurement frames keep the exact path.
-  if (cached &&
-      (std::abs(std::abs(cached->normal.dot(m.normal)) - 1.) > 1e-12 ||
-       std::abs(cached->normal.dot(m.position - cached->planePosition)) >
-           1e-9)) {
-    return evaluate(state, m, false);
+  const std::optional<double> s =
+      helix.pathToPlane(state.v, m.position, m.normal);
+  if (!s.has_value() || std::abs(*s) > maxDistance) {
+    return std::nullopt;
   }
-  if (!cached) {
-    const std::optional<double> s =
-        helix.pathToPlane(state.v, m.position, m.normal);
-    if (!s.has_value() || std::abs(*s) > maxDistance) {
-      return std::nullopt;
-    }
-    const detail::StepTrig trig = detail::stepTrig(helix.kappa(state.v) * *s);
-    RzVector w = state.v;
-    helix.step(w, *s, trig);
-    cached.emplace();
-    cached->position = w.segment<3>(eRzPos0);
-    cached->planePosition = m.position;
-    cached->normal = m.normal;
-    cached->jPos =
-        helix.stepJacobianOnto(state.v, *s, w, m.normal, trig).positionRows();
-  }
-  const Vector3 d = m.position - cached->position;
+  // one sincos for the step and for its Jacobian: both are of the same
+  // turning angle
+  const detail::StepTrig trig = detail::stepTrig(helix.kappa(state.v) * *s);
+  RzVector w = state.v;
+  helix.step(w, *s, trig);
+  const Vector3 d = m.position - w.segment<3>(eRzPos0);
   const double ru = m.u.dot(d);
   const double rv = m.v.dot(d);
   if (!m.pixel && std::abs(rv) > m.halfV + m_cfg.stripMargin) {
@@ -340,22 +299,19 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // covariance moved to the module: the rows of H J, and only they, are
   // formed, and C (H J)^T is what the update needs too
   Evaluation e;
-  const auto project = [&](const Vector3& axis,
-                           Eigen::Matrix<double, 1, eRzSize>& h,
-                           unsigned int col) {
-    if constexpr (Cache) {
-      for (unsigned int i = 0; i < cached->projections; ++i) {
-        if (axis == cached->axes[i]) {
-          h = cached->rows.row(i);
-          e.ch.col(col) = cached->ch.col(i);
-          return;
-        }
-      }
-    }
+  const Eigen::Matrix<double, 3, eRzSize> jPos =
+      helix.stepJacobianOnto(state.v, *s, w, m.normal, trig).positionRows();
+  // the two products by hand: Eigen takes a 1x3 by 3x7 and a 7x7 by 7x1
+  // through its general kernels, out of line, for 21 and 49 multiplies
+  const auto projectRows = [&](const Vector3& axis,
+                               Eigen::Matrix<double, 1, eRzSize>& h) {
     for (unsigned int c = 0; c < eRzSize; ++c) {
-      h[c] = axis.x() * cached->jPos(0, c) + axis.y() * cached->jPos(1, c) +
-             axis.z() * cached->jPos(2, c);
+      h[c] =
+          axis.x() * jPos(0, c) + axis.y() * jPos(1, c) + axis.z() * jPos(2, c);
     }
+  };
+  const auto covarianceTimes = [&](const Eigen::Matrix<double, 1, eRzSize>& h,
+                                   unsigned int col) {
     for (unsigned int r = 0; r < eRzSize; ++r) {
       double acc = 0.;
       for (unsigned int c = 0; c < eRzSize; ++c) {
@@ -363,29 +319,34 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
       }
       e.ch(r, col) = acc;
     }
-    if (Cache && cached->projections < 2) {
-      const unsigned int i = cached->projections++;
-      cached->axes[i] = axis;
-      cached->rows.row(i) = h;
-      cached->ch.col(i) = e.ch.col(col);
-    }
   };
   Eigen::Matrix<double, 1, eRzSize> hu;
-  project(m.u, hu, 0);
+  projectRows(m.u, hu);
+  covarianceTimes(hu, 0);
   const double s00 = hu.dot(e.ch.col(0)) + cov00;
-  double s01 = 0.;
-  double s11 = 0.;
+  e.sInv.setZero();
   if (!m.pixel) {
     e.ch.col(1).setZero();
+    e.sInv(0, 0) = 1. / s00;
+    e.chi2 = ru * ru * e.sInv(0, 0);
   } else {
     Eigen::Matrix<double, 1, eRzSize> hv;
-    project(m.v, hv, 1);
-    s01 = hv.dot(e.ch.col(0)) + m.cov01 * lever;
-    s11 = hv.dot(e.ch.col(1)) + m.cov11;
+    projectRows(m.v, hv);
+    covarianceTimes(hv, 1);
+    const double s01 = hv.dot(e.ch.col(0)) + m.cov01 * lever;
+    const double s11 = hv.dot(e.ch.col(1)) + m.cov11;
+    const double det = s00 * s11 - s01 * s01;
+    if (det <= 0.) {
+      return std::nullopt;
+    }
+    e.sInv(0, 0) = s11 / det;
+    e.sInv(0, 1) = -s01 / det;
+    e.sInv(1, 0) = e.sInv(0, 1);
+    e.sInv(1, 1) = s00 / det;
+    e.chi2 = ru * ru * e.sInv(0, 0) + 2. * ru * rv * e.sInv(0, 1) +
+             rv * rv * e.sInv(1, 1);
   }
-  if (!setInnovation(e, ru, rv, s00, s01, s11, m.pixel)) {
-    return std::nullopt;
-  }
+  e.residual << ru, rv;
   return e;
 }
 
@@ -585,15 +546,6 @@ std::uint32_t RzTrackFinder::searchLayer(
       // spread on a measurement's axes are the module's ones rotated, four
       // multiplies each, where placing the measurement in the global frame
       // and projecting the covariance onto it afresh cost two 3x3 products.
-      std::optional<Prediction> prediction;
-      struct CartesianPrediction {
-        Vector2 position;
-        Eigen::Matrix<double, eRzSize, 2> ch;
-        SquareMatrix2 covariance;
-        RzProjector projector;
-      };
-      std::optional<CartesianPrediction> cartesian;
-
       bool crossed = false;
       double c0 = 0.;
       double c1 = 0.;
@@ -625,35 +577,7 @@ std::uint32_t RzTrackFinder::searchLayer(
       }
       const bool hoisted = crossed && !mod.polar && su0 > 0. && sv0 > 0.;
       const bool polarGate = crossed && mod.polar && !group.frames.empty();
-      std::array<bool, 4> blockPass{};
-      std::uint32_t blockEnd = 0;
       for (std::uint32_t i = 0; i < group.entries.size(); ++i) {
-        if (i >= blockEnd && hoisted && i + 4 <= group.entries.size() &&
-            group.entries[i].projector == RzProjector::Both &&
-            group.entries[i + 1].projector == RzProjector::Both &&
-            group.entries[i + 2].projector == RzProjector::Both &&
-            group.entries[i + 3].projector == RzProjector::Both) {
-          Eigen::Array4d r0, r1, v0, v1;
-          for (unsigned int lane = 0; lane < 4; ++lane) {
-            const auto& entry = group.entries[i + lane];
-            r0[lane] = entry.loc0 - c0;
-            r1[lane] = entry.loc1 - c1;
-            v0[lane] = su0 + entry.cov00;
-            v1[lane] = sv0 + entry.cov11;
-          }
-          const Eigen::Array4d q0 = r0.square();
-          const Eigen::Array4d q1 = r1.square();
-          const auto rejected = ((q0 > gate2 * v0) || (q1 > gate2 * v1)).eval();
-          if (rejected.all()) {
-            blockPass.fill(false);
-          } else {
-            const Eigen::Array4d chi2 = q0 / v0 + q1 / v1;
-            for (unsigned int lane = 0; lane < 4; ++lane) {
-              blockPass[lane] = !(rejected[lane] || chi2[lane] > gate2);
-            }
-          }
-          blockEnd = i + 4;
-        }
         const RzMeasurement& m = group.entries[i];
         ++candidate.candidatesTested;
         candidate.polarTested += mod.polar ? 1 : 0;
@@ -685,11 +609,7 @@ std::uint32_t RzTrackFinder::searchLayer(
             gated = true;
           }
         }
-        if (i < blockEnd) {
-          if (!blockPass[i + 4 - blockEnd]) {
-            continue;
-          }
-        } else if (hoisted) {
+        if (hoisted) {
           // The diagonal straight-line chi2 rejects distant measurements;
           // it does not preserve the exact chi2 ordering or strip acceptance.
           double chi2Gate = 0.;
@@ -715,61 +635,8 @@ std::uint32_t RzTrackFinder::searchLayer(
         }
         const RzMeasurementFrame* frame =
             group.frames.empty() ? nullptr : &group.frames[i];
-        std::optional<Evaluation> e;
-        if (!(gated && cartesian && m.invLever == 0. &&
-              m.projector == cartesian->projector)) {
-          const Placed placed = place(mod, m, frame);
-          e = group.entries.size() > 1
-                  ? evaluate<true>(state, placed, !gated, &prediction)
-                  : evaluate(state, placed, !gated);
-          // The Cartesian module frame is shared by all entries. Initialize
-          // from the first successful evaluation, preserving the generic path
-          // for custom frames, rotating axes and mixed projector orderings.
-          if (e && e->residual.allFinite() && prediction && frame == nullptr &&
-              m.invLever == 0. &&
-              prediction->projections >= (placed.pixel ? 2u : 1u) &&
-              prediction->axes[0] == placed.u &&
-              (!placed.pixel || prediction->axes[1] == placed.v)) {
-            cartesian.emplace();
-            cartesian->projector = m.projector;
-            const Vector3 localOrigin = prediction->position - mod.center;
-            cartesian->position =
-                Vector2{placed.u.dot(localOrigin), placed.v.dot(localOrigin)};
-            cartesian->ch = e->ch;
-            cartesian->covariance.setZero();
-            cartesian->covariance(0, 0) =
-                prediction->rows.row(0).dot(e->ch.col(0));
-            if (placed.pixel) {
-              cartesian->covariance(0, 1) =
-                  prediction->rows.row(1).dot(e->ch.col(0));
-              cartesian->covariance(1, 1) =
-                  prediction->rows.row(1).dot(e->ch.col(1));
-            }
-          }
-        }
-        if (gated && cartesian && m.invLever == 0. &&
-            m.projector == cartesian->projector) {
-          const bool swapped = m.projector == RzProjector::Loc1;
-          const double ru =
-              (swapped ? m.loc1 : m.loc0) - cartesian->position[0];
-          const double rv =
-              (swapped ? m.loc0 : m.loc1) - cartesian->position[1];
-          const bool pixel = m.projector == RzProjector::Both;
-          if (!pixel && std::abs(rv) > (swapped ? mod.halfU : mod.halfV) +
-                                           m_cfg.stripMargin) {
-            continue;
-          }
-          Evaluation value;
-          value.ch = cartesian->ch;
-          const double s00 =
-              cartesian->covariance(0, 0) + (swapped ? m.cov11 : m.cov00);
-          const double s01 = pixel ? cartesian->covariance(0, 1) + m.cov01 : 0.;
-          const double s11 = pixel ? cartesian->covariance(1, 1) + m.cov11 : 0.;
-          if (!setInnovation(value, ru, rv, s00, s01, s11, pixel)) {
-            continue;
-          }
-          e = value;
-        }
+        const std::optional<Evaluation> e =
+            evaluate(state, place(mod, m, frame), !gated);
         if (!e.has_value()) {
           continue;
         }

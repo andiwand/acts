@@ -20,7 +20,6 @@
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
-#include <array>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -310,22 +309,6 @@ class RzTrackFinder {
     Eigen::Matrix<double, 2, 2> sInv;
   };
 
-  /// Form the innovation inverse and chi2 from a projected prediction.
-  static bool setInnovation(Evaluation& e, double ru, double rv, double s00,
-                            double s01, double s11, bool pixel);
-
-  /// Transport shared by measurements on the same plane, at one search round.
-  struct Prediction {
-    Vector3 position;
-    Vector3 planePosition;
-    Vector3 normal;
-    Eigen::Matrix<double, 3, eRzSize> jPos;
-    std::array<Vector3, 2> axes;
-    Eigen::Matrix<double, 2, eRzSize> rows;
-    Eigen::Matrix<double, eRzSize, 2> ch;
-    unsigned int projections = 0;
-  };
-
   std::uint32_t saveForwardState(const State& state,
                                  RzTrackCandidate& candidate) const;
 
@@ -374,10 +357,8 @@ class RzTrackFinder {
   /// @param gate drop the measurement on the straight-line chi2 first; off
   ///        for a measurement the track is known to have
   /// @return nothing if the module cannot be reached or the strip is missed
-  template <bool Cache = false>
-  std::optional<Evaluation> evaluate(
-      const State& state, const Placed& m, bool gate = true,
-      std::optional<Prediction>* prediction = nullptr) const;
+  std::optional<Evaluation> evaluate(const State& state, const Placed& m,
+                                     bool gate = true) const;
 
   /// Take a measurement the caller says the track is made of, without
   /// searching the layer for it. The seed's own measurements are known, and
