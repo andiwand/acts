@@ -529,6 +529,15 @@ std::uint32_t RzTrackFinder::searchLayer(
     const double dirTrace = state.c.block<3, 3>(eRzDir0, eRzDir0).trace();
     const double varPending = state.pending.varPosition;
     const double gate2 = m_cfg.gateFactor * m_cfg.chi2Cut;
+    // The gate runs over every crossed module first; what passes is
+    // transported afterwards, best gate chi2 first, within the window
+    struct Survivor {
+      double gateChi2;
+      std::uint32_t module;
+      std::uint32_t index;
+      bool gated;
+    };
+    boost::container::small_vector<Survivor, 16> survivors;
     for (const std::uint32_t module : modules) {
       if (std::ranges::find(usedModules, module) != usedModules.end()) {
         continue;
@@ -607,6 +616,8 @@ std::uint32_t RzTrackFinder::searchLayer(
               continue;
             }
             gated = true;
+            survivors.push_back({chi2Gate, module, i, true});
+            continue;
           }
         }
         if (hoisted) {
@@ -632,20 +643,47 @@ std::uint32_t RzTrackFinder::searchLayer(
               continue;
             }
           }
-        }
-        const RzMeasurementFrame* frame =
-            group.frames.empty() ? nullptr : &group.frames[i];
-        const std::optional<Evaluation> e =
-            evaluate(state, place(mod, m, frame), !gated);
-        if (!e.has_value()) {
+          survivors.push_back({chi2Gate, module, i, true});
           continue;
         }
-        ++candidate.exactEvaluated;
-        if (e->chi2 < best.chi2) {
-          bestIndex = i;
-          bestModule = module;
-          best = *e;
-        }
+        // no gate of its own here: `evaluate` gates it, and it is always
+        // looked at
+        survivors.push_back({-1., module, i, gated});
+      }
+    }
+    double window = std::numeric_limits<double>::max();
+    if (m_cfg.exactWindowFactor > 0. && survivors.size() > 1) {
+      // a stable sort keeps the module order among equal gate chi2, so the
+      // exact comparison sees ties in the order it always has
+      std::stable_sort(survivors.begin(), survivors.end(),
+                       [](const Survivor& a, const Survivor& b) {
+                         return a.gateChi2 < b.gateChi2;
+                       });
+      const auto first = std::ranges::find_if(
+          survivors, [](const Survivor& c) { return c.gateChi2 >= 0.; });
+      if (first != survivors.end()) {
+        window = m_cfg.exactWindowFactor * first->gateChi2 +
+                 m_cfg.exactWindowOffset;
+      }
+    }
+    for (const Survivor& c : survivors) {
+      if (c.gateChi2 > window) {
+        break;
+      }
+      const RzModule& mod = m_layout->modules[c.module];
+      const RzModuleMeasurements group = measurements(c.module);
+      const RzMeasurementFrame* frame =
+          group.frames.empty() ? nullptr : &group.frames[c.index];
+      const std::optional<Evaluation> e = evaluate(
+          state, place(mod, group.entries[c.index], frame), !c.gated);
+      if (!e.has_value()) {
+        continue;
+      }
+      ++candidate.exactEvaluated;
+      if (e->chi2 < best.chi2) {
+        bestIndex = c.index;
+        bestModule = c.module;
+        best = *e;
       }
     }
     if (bestIndex == kRzNone || best.chi2 > m_cfg.chi2Cut) {
