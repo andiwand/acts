@@ -40,6 +40,17 @@ struct RzTrackFinderConfig {
   /// distance, exceeds this many times `chi2Cut` is dropped before the exact
   /// transport is built for it
   double gateFactor = 4.;
+  /// Of the candidates that pass the gate, only those whose straight-line
+  /// chi2 is at most `exactWindowFactor` times the best one's plus
+  /// `exactWindowOffset` are transported exactly; the exact chi2 picks among
+  /// them. The winner is the gate's best in 96% of accepted ITk rounds and
+  /// within twice its gate chi2 in 99.4%, while most candidates past the
+  /// window sit on other modules and each cost a full transport. Off by
+  /// default: on ITk ttbar a factor of 2 (3) with offset 1 (2) saves 2-3% of
+  /// the search and loses 0.5% (0.3%) of the strip hits. A factor of zero
+  /// transports every candidate that passes the gate.
+  double exactWindowFactor = 0.;
+  double exactWindowOffset = 1.;
   /// Search window in units of the predicted position uncertainty
   double windowSigmas = 5.;
   /// Search window added on top, in length
