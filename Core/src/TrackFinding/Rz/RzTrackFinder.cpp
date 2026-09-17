@@ -662,8 +662,8 @@ std::uint32_t RzTrackFinder::searchLayer(
       const auto first = std::ranges::find_if(
           survivors, [](const Survivor& c) { return c.gateChi2 >= 0.; });
       if (first != survivors.end()) {
-        window = m_cfg.exactWindowFactor * first->gateChi2 +
-                 m_cfg.exactWindowOffset;
+        window =
+            m_cfg.exactWindowFactor * first->gateChi2 + m_cfg.exactWindowOffset;
       }
     }
     for (const Survivor& c : survivors) {
@@ -674,8 +674,8 @@ std::uint32_t RzTrackFinder::searchLayer(
       const RzModuleMeasurements group = measurements(c.module);
       const RzMeasurementFrame* frame =
           group.frames.empty() ? nullptr : &group.frames[c.index];
-      const std::optional<Evaluation> e = evaluate(
-          state, place(mod, group.entries[c.index], frame), !c.gated);
+      const std::optional<Evaluation> e =
+          evaluate(state, place(mod, group.entries[c.index], frame), !c.gated);
       if (!e.has_value()) {
         continue;
       }
