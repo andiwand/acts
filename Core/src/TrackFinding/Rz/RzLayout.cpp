@@ -480,29 +480,32 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
   }
 
   if (options.fieldSampler) {
-    // Bz along each surface, the mean over four azimuths
+    // Bz and Br along each surface, the mean over four azimuths
     for (RzSurface& surface : layout.surfaces) {
       surface.fieldBinWidth = options.fieldBinWidth;
       const auto bins = static_cast<std::size_t>(
           std::max(1., std::ceil((surface.maxBound - surface.minBound) /
                                  options.fieldBinWidth)));
       surface.bzTable.resize(bins);
+      surface.brTable.resize(bins);
       for (std::size_t i = 0; i < bins; ++i) {
         const double along =
             surface.minBound + (i + 0.5) * options.fieldBinWidth;
-        double sum = 0.;
+        double sumZ = 0.;
+        double sumR = 0.;
         for (const double phi : {0., 0.5 * std::numbers::pi, std::numbers::pi,
                                  1.5 * std::numbers::pi}) {
           const double r =
               surface.shape == RzShape::Cylinder ? surface.refCoord : along;
           const double z =
               surface.shape == RzShape::Cylinder ? along : surface.refCoord;
-          sum += options
-                     .fieldSampler(
-                         Vector3(r * std::cos(phi), r * std::sin(phi), z))
-                     .z();
+          const Vector3 b = options.fieldSampler(
+              Vector3(r * std::cos(phi), r * std::sin(phi), z));
+          sumZ += b.z();
+          sumR += b.x() * std::cos(phi) + b.y() * std::sin(phi);
         }
-        surface.bzTable[i] = 0.25 * sum;
+        surface.bzTable[i] = 0.25 * sumZ;
+        surface.brTable[i] = 0.25 * sumR;
       }
     }
   }

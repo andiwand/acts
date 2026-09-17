@@ -91,6 +91,9 @@ struct RzTrackFinderConfig {
   /// filter run the other way, started from the diagonal of the forward
   /// covariance inflated by `backwardInflation`, i.e. from nothing.
   bool backwardPass = true;
+  /// Correct the helix in `Bz` for the radial field, where the layout carries
+  /// it: first order, on every step between two surfaces
+  bool radialField = true;
   /// Retain every filtered state for output. Otherwise retain only the
   /// checkpoint needed to start a partial backward pass.
   bool storeForwardStates = true;
@@ -292,6 +295,12 @@ class RzTrackFinder {
     /// `Bz` the state moves in from here, and the one at the anchor
     double bz{};
     double anchorBz{};
+    /// The radial field where the state stands
+    double br{};
+    /// What the radial field's kicks since the anchor add to the q/p column
+    /// of the anchor's Jacobian, for the position and the direction rows
+    Vector3 brQopPosition{Vector3::Zero()};
+    Vector3 brQopDirection{Vector3::Zero()};
 
     /// Walk on without the covariance
     void travel(double s) { pathSince += s; }
@@ -300,10 +309,17 @@ class RzTrackFinder {
       if (pathSince == 0.) {
         return;
       }
-      c = helix.stepJacobianOnto(anchor, pathSince, v, normal).transport(c);
+      c = helix
+              .stepJacobianOnto(
+                  anchor, pathSince, v, normal,
+                  detail::stepTrig(helix.kappa(anchor) * pathSince),
+                  brQopPosition, brQopDirection)
+              .transport(c);
       anchor = v;
       anchorBz = bz;
       pathSince = 0.;
+      brQopPosition.setZero();
+      brQopDirection.setZero();
     }
   };
 

@@ -65,6 +65,90 @@ const auto chargeSamples = bdata::make({-1., 1.});
 
 BOOST_AUTO_TEST_SUITE(RzTransportSuite)
 
+namespace {
+
+/// The equation of motion in `Bz` plus a radial field of constant magnitude,
+/// by RK4 in small steps
+RzVector integrateRadial(RzVector v, double s, double bz, double br) {
+  const auto rhs = [&](const RzVector& x) {
+    const double r = std::hypot(x[eRzPos0], x[eRzPos1]);
+    const Vector3 b(br * x[eRzPos0] / r, br * x[eRzPos1] / r, bz);
+    const Vector3 d = x.segment<3>(eRzDir0);
+    RzVector out = RzVector::Zero();
+    out.segment<3>(eRzPos0) = d;
+    out.segment<3>(eRzDir0) = x[eRzQOverP] * d.cross(b);
+    return out;
+  };
+  const int n = 2000;
+  const double h = s / n;
+  for (int i = 0; i < n; ++i) {
+    const RzVector k1 = rhs(v);
+    const RzVector k2 = rhs(v + 0.5 * h * k1);
+    const RzVector k3 = rhs(v + 0.5 * h * k2);
+    const RzVector k4 = rhs(v + h * k3);
+    v += h / 6. * (k1 + 2. * k2 + 2. * k3 + k4);
+  }
+  return v;
+}
+
+}  // namespace
+
+// The ITk strip endcap: B_r is 15-30% of B_z there
+BOOST_DATA_TEST_CASE(RadialKickMatchesIntegration,
+                     bdata::make({1_GeV, 10_GeV, 100_GeV}) *
+                         bdata::make({-300_mm, 300_mm}) *
+                         bdata::make({-1., 1.}),
+                     pt, s, charge) {
+  const double br = 0.4_T;
+  const double theta = 0.3;
+  RzVector v0;
+  v0[eRzPos0] = 400_mm;
+  v0[eRzPos1] = 150_mm;
+  v0[eRzPos2] = 2600_mm;
+  v0[eRzDir0] = std::sin(theta) * std::cos(0.4);
+  v0[eRzDir1] = std::sin(theta) * std::sin(0.4);
+  v0[eRzDir2] = std::cos(theta);
+  v0[eRzQOverP] = charge * std::sin(theta) / pt;
+
+  const RzVector exact = integrateRadial(v0, s, kBz, br);
+  RzVector helixOnly = v0;
+  helix.step(helixOnly, s);
+  RzVector kicked = helixOnly;
+  Vector3 qopPosition = Vector3::Zero();
+  Vector3 qopDirection = Vector3::Zero();
+  rzRadialKick(kicked, v0, s, br, br, qopPosition, qopDirection);
+
+  // what the helix misses, and what the kick leaves of it
+  const double missPosition = (helixOnly - exact).segment<3>(eRzPos0).norm();
+  const double leftPosition = (kicked - exact).segment<3>(eRzPos0).norm();
+  const double missDirection = (helixOnly - exact).segment<3>(eRzDir0).norm();
+  const double leftDirection = (kicked - exact).segment<3>(eRzDir0).norm();
+  BOOST_CHECK_GT(missPosition, 0.);
+  BOOST_CHECK_LT(leftPosition, 0.05 * missPosition);
+  BOOST_CHECK_LT(leftDirection, 0.05 * missDirection);
+
+  // the q/p column: the helix's plus the kick's, against finite differences.
+  // The kick is first order and does not turn with the helix, which leaves
+  // a relative kappa * s of it: 5% at 1 GeV over 300 mm.
+  const double h = 1e-4 * std::abs(v0[eRzQOverP]);
+  RzVector up = v0;
+  RzVector down = v0;
+  up[eRzQOverP] += h;
+  down[eRzQOverP] -= h;
+  const RzVector numeric =
+      (integrateRadial(up, s, kBz, br) - integrateRadial(down, s, kBz, br)) /
+      (2. * h);
+  const RzMatrix j = helix.stepJacobian(v0, s);
+  RzVector analytic = j.col(eRzQOverP);
+  analytic.segment<3>(eRzPos0) += qopPosition;
+  analytic.segment<3>(eRzDir0) += qopDirection;
+  const RzVector helixColumn = j.col(eRzQOverP);
+  BOOST_CHECK_LT((analytic - numeric).segment<3>(eRzPos0).norm(),
+                 0.1 * (helixColumn - numeric).segment<3>(eRzPos0).norm());
+  BOOST_CHECK_LT((analytic - numeric).segment<3>(eRzDir0).norm(),
+                 0.1 * (helixColumn - numeric).segment<3>(eRzDir0).norm());
+}
+
 BOOST_DATA_TEST_CASE(StepMatchesRungeKutta,
                      ptSamples * phiSamples * thetaSamples * chargeSamples, pt,
                      phi, theta, charge) {
@@ -194,8 +278,8 @@ BOOST_DATA_TEST_CASE(DiscPlanePerigee, ptSamples * phiSamples * chargeSamples,
   w = v0;
   helix.step(w, planeStep->s);
   BOOST_CHECK((w - planeStep->state).cwiseAbs().maxCoeff() < 1e-12);
-  CHECK_CLOSE_ABS(normal.dot(planeStep->state.segment<3>(eRzPos0) - point),
-                  0., 1e-5_mm);
+  CHECK_CLOSE_ABS(normal.dot(planeStep->state.segment<3>(eRzPos0) - point), 0.,
+                  1e-5_mm);
 
   const double sPerigee = helix.pathToPerigee(v0);
   w = v0;
