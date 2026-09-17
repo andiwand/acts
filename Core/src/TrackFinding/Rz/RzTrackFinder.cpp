@@ -1106,6 +1106,16 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
     if (surface.layer == kRzNone) {
       continue;
     }
+    // A layer the track already has a hit or a hole on has been searched,
+    // by the forward pass or at the start. The walk begins on the innermost
+    // measurement's surface and a refilter can leave the state a rounding
+    // error past it, which the cursors then take for a layer still ahead:
+    // searched again, it hands the track its own measurement twice.
+    if (std::ranges::any_of(candidate.hits, [&](const RzTrackHit& hit) {
+          return hit.layer == surface.layer;
+        })) {
+      continue;
+    }
     state.moveCovariance(helixAt(state.anchorBz), normal);
     materialise(state, normal);
     // holes are the forward pass's business: this pass is here to pick up
