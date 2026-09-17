@@ -302,4 +302,30 @@ double RzHelix::pathToPerigee(const RzVector& v) const {
   return -gamma / k;
 }
 
+void rzRadialKick(RzVector& v, const RzVector& from, double s, double br0,
+                  double br1, Vector3& qopPosition, Vector3& qopDirection) {
+  if (br0 == 0. && br1 == 0.) {
+    return;
+  }
+  const double r = std::hypot(from[eRzPos0], from[eRzPos1]);
+  if (r <= 0.) {
+    return;
+  }
+  const double rx = from[eRzPos0] / r;
+  const double ry = from[eRzPos1] / r;
+  const double dx = from[eRzDir0];
+  const double dy = from[eRzDir1];
+  const double dz = from[eRzDir2];
+  // dir x r_hat
+  const Vector3 k(-dz * ry, dz * rx, dx * ry - dy * rx);
+  const double positionPerQop = (2. * br0 + br1) / 6. * s * s;
+  const double directionPerQop = 0.5 * (br0 + br1) * s;
+  const double qop = from[eRzQOverP];
+  v.segment<3>(eRzPos0) += qop * positionPerQop * k;
+  v.segment<3>(eRzDir0) += qop * directionPerQop * k;
+  v.segment<3>(eRzDir0).normalize();
+  qopPosition += s * qopDirection + positionPerQop * k;
+  qopDirection += directionPerQop * k;
+}
+
 }  // namespace Acts::Experimental

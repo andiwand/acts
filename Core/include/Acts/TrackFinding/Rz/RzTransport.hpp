@@ -199,6 +199,10 @@ struct RzHelix {
     double sn{};
     double b1{};
     double b2{};
+    /// z and dz from q/p: zero for the helix, what a field off the z axis
+    /// adds
+    double a3{};
+    double b3{};
     /// The derivative of the end state and `ds/d(start)`; the rank-1 term
     /// is their outer product
     RzVector d{RzVector::Zero()};
@@ -216,12 +220,13 @@ struct RzHelix {
                    a1 * x[eRzQOverP] + d[eRzPos0] * w;
       y[eRzPos1] = x[eRzPos1] - f2 * x[eRzDir0] + f1 * x[eRzDir1] +
                    a2 * x[eRzQOverP] + d[eRzPos1] * w;
-      y[eRzPos2] = x[eRzPos2] + s * x[eRzDir2] + d[eRzPos2] * w;
+      y[eRzPos2] =
+          x[eRzPos2] + s * x[eRzDir2] + a3 * x[eRzQOverP] + d[eRzPos2] * w;
       y[eRzDir0] = cs * x[eRzDir0] + sn * x[eRzDir1] + b1 * x[eRzQOverP] +
                    d[eRzDir0] * w;
       y[eRzDir1] = -sn * x[eRzDir0] + cs * x[eRzDir1] + b2 * x[eRzQOverP] +
                    d[eRzDir1] * w;
-      y[eRzDir2] = x[eRzDir2];
+      y[eRzDir2] = x[eRzDir2] + b3 * x[eRzQOverP];
       y[eRzQOverP] = x[eRzQOverP];
     }
 
@@ -345,9 +350,13 @@ struct RzHelix {
   /// @param normal the surface normal at the end
   /// @param t `stepTrig(kappa(v0) * s)`
   /// @return the Jacobian
-  StepJacobian stepJacobianOnto(const RzVector& v0, double s,
-                                const RzVector& end, const Vector3& normal,
-                                const detail::StepTrig& t) const {
+  /// @param qopPosition added to the position rows' q/p column, for what
+  ///        the helix does not model
+  /// @param qopDirection the same for the direction rows
+  StepJacobian stepJacobianOnto(
+      const RzVector& v0, double s, const RzVector& end, const Vector3& normal,
+      const detail::StepTrig& t, const Vector3& qopPosition = Vector3::Zero(),
+      const Vector3& qopDirection = Vector3::Zero()) const {
     const double dx = v0[eRzDir0];
     const double dy = v0[eRzDir1];
     const double g1 = s * s * t.dsinc;
@@ -364,6 +373,12 @@ struct RzHelix {
     j.sn = t.sn;
     j.b1 = bz * s * dys;
     j.b2 = -bz * s * dxs;
+    j.a1 += qopPosition.x();
+    j.a2 += qopPosition.y();
+    j.a3 = qopPosition.z();
+    j.b1 += qopDirection.x();
+    j.b2 += qopDirection.y();
+    j.b3 = qopDirection.z();
     j.d = derivative(end);
     // ds/d(start) = -(n^T J_pos) / (n . d_end), with the position rows of
     // the free Jacobian written out
@@ -377,7 +392,7 @@ struct RzHelix {
     j.dsdv[eRzDir0] = n0 * j.f1 - n1 * j.f2;
     j.dsdv[eRzDir1] = n0 * j.f2 + n1 * j.f1;
     j.dsdv[eRzDir2] = n2 * s;
-    j.dsdv[eRzQOverP] = n0 * j.a1 + n1 * j.a2;
+    j.dsdv[eRzQOverP] = n0 * j.a1 + n1 * j.a2 + n2 * j.a3;
     j.dsdv *= -1. / along;
     return j;
   }
@@ -487,5 +502,26 @@ struct RzHelix {
     return w[eRzPos0] * w[eRzPos0] + w[eRzPos1] * w[eRzPos1] - radius * radius;
   }
 };
+
+/// The first-order effect of a radial field on a step the helix in `Bz` alone
+/// has taken. `d(dir)/ds` gains `q/p Br (dir x r_hat)`, which for a track
+/// running along z turns it in azimuth: the coordinate an endcap strip
+/// measures, and one a field along z alone gets wrong by `Br L^2 / (2 p)`
+/// over a gap `L`. `Br` is taken linear in the path between the two ends,
+/// which weights the start by 2/3 for the position and by 1/2 for the
+/// direction; `r_hat` and the direction are the start's. The terms of second
+/// order in the field are left out, below a percent of this for any track
+/// that crosses more than one strip disc.
+/// @param v the state after the helix step, corrected in place
+/// @param from the state before the step
+/// @param s the path length of the step, may be negative
+/// @param br0 the radial field at the start
+/// @param br1 the radial field at the end
+/// @param qopPosition accumulated `d(position)/d(q/p)` of the kicks since the
+///        covariance was last moved, updated: an earlier change of direction
+///        carries on over this step as a straight line
+/// @param qopDirection the same for the direction
+void rzRadialKick(RzVector& v, const RzVector& from, double s, double br0,
+                  double br1, Vector3& qopPosition, Vector3& qopDirection);
 
 }  // namespace Acts::Experimental

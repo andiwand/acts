@@ -91,6 +91,9 @@ struct RzSurface {
   /// `Bz` along the surface, one value per `fieldBinWidth` from `minBound`,
   /// averaged over azimuth; empty for a constant field
   std::vector<double> bzTable;
+  /// The radial field along the surface, `B . r_hat`, binned and averaged as
+  /// `bzTable`; empty for a constant field
+  std::vector<double> brTable;
   double fieldBinWidth{};
 
   /// The field at a crossing, or nothing if the surface carries no table
@@ -105,6 +108,19 @@ struct RzSurface {
     const std::size_t i = static_cast<std::size_t>(std::clamp<std::int64_t>(
         bin, 0, static_cast<std::int64_t>(bzTable.size()) - 1));
     return bzTable[i];
+  }
+  /// The radial field at a crossing, zero without a table
+  /// @param along z on a cylinder, r on a disc
+  /// @return `Br`
+  double brAt(double along) const {
+    if (brTable.empty()) {
+      return 0.;
+    }
+    const auto bin =
+        static_cast<std::int64_t>((along - minBound) / fieldBinWidth);
+    const std::size_t i = static_cast<std::size_t>(std::clamp<std::int64_t>(
+        bin, 0, static_cast<std::int64_t>(brTable.size()) - 1));
+    return brTable[i];
   }
   /// Index into `RzLayout::layers` if sensitive
   std::uint32_t layer{kRzNone};

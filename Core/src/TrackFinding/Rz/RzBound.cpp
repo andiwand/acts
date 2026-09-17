@@ -106,7 +106,8 @@ std::optional<RzBoundState> rzBoundOnModule(
                              t.sn * j(r, eRzDir0) + t.cs * j(r, eRzDir1);
       composed(r, eRzDir2) = t.s * j(r, eRzPos2) + j(r, eRzDir2);
       composed(r, eRzQOverP) = t.a1 * j(r, eRzPos0) + t.a2 * j(r, eRzPos1) +
-                               t.b1 * j(r, eRzDir0) + t.b2 * j(r, eRzDir1) +
+                               t.a3 * j(r, eRzPos2) + t.b1 * j(r, eRzDir0) +
+                               t.b2 * j(r, eRzDir1) + t.b3 * j(r, eRzDir2) +
                                j(r, eRzQOverP);
       composed.row(r) += w * t.dsdv.transpose();
     }

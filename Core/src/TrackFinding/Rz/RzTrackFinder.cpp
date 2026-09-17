@@ -50,6 +50,22 @@ namespace {
 double bzAt(const RzSurface& surface, double along, double fallback) {
   return surface.bzAt(along).value_or(fallback);
 }
+
+/// `rzRadialKick` on a step that landed on a surface; on a disc the state is
+/// slid back onto it along its direction, on a cylinder the kick is
+/// tangential and leaves it there.
+void radialKick(bool enabled, RzVector& v, const RzVector& from, double s,
+                double br0, double br1, const RzSurface& surface,
+                Vector3& qopPosition, Vector3& qopDirection) {
+  if (!enabled) {
+    return;
+  }
+  rzRadialKick(v, from, s, br0, br1, qopPosition, qopDirection);
+  if (surface.shape == RzShape::Disc && v[eRzDir2] != 0.) {
+    const double back = (surface.refCoord - v[eRzPos2]) / v[eRzDir2];
+    v.segment<3>(eRzPos0) += back * v.segment<3>(eRzDir0);
+  }
+}
 }  // namespace
 
 bool RzTrackFinder::applyMaterial(State& state, const MaterialSlab& slab,
@@ -786,6 +802,10 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
   state.v = startV;
   state.anchor = startV;
   state.bz = forward.bz;
+  state.br = hit->stop != kRzNone
+                 ? m_layout->surfaces[candidate.stopSurfaces[hit->stop]].brAt(
+                       candidate.stopAlong[hit->stop])
+                 : forward.br;
   state.anchorBz = forward.bz;
   {
     const Vector3 d = startV.segment<3>(eRzDir0);
@@ -860,10 +880,15 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
           candidate.backwardFailure = 1;
           return;
         }
+        const RzVector from = state.v;
         helix.step(state.v, *s);
+        const double brLanded = surface.brAt(candidate.stopAlong[j]);
+        radialKick(m_cfg.radialField, state.v, from, *s, state.br, brLanded,
+                   surface, state.brQopPosition, state.brQopDirection);
         const Vector3 normal = surfaceNormal(surface, state.v);
         state.travel(*s);
         state.bz = bzAt(surface, candidate.stopAlong[j], m_bz);
+        state.br = brLanded;
         state.pending.advance(*s);
         // The covariance is needed where there is something to update, and
         // where scattering is waiting to be put in: materialising it at the
@@ -1089,12 +1114,16 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
     candidate.stopAlong.push_back(along);
     ++candidate.stops;
 
+    const double brLanded = surface.brAt(along);
+    radialKick(m_cfg.radialField, landed, state.v, step, state.br, brLanded,
+               surface, state.brQopPosition, state.brQopDirection);
     state.v = landed;
     stateMoved = true;
     const Vector3 normal = surfaceNormal(surface, state.v);
     state.travel(step);
     state.pending.advance(step);
     state.bz = bzAt(surface, along, m_bz);
+    state.br = brLanded;
 
     // going inward the particle gains back what it lost on the way out
     if (m_cfg.applyMaterial) {
@@ -1177,6 +1206,7 @@ void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
     walk.startSurface = layout.layers[layer].surface;
     const RzSurface& surface = layout.surfaces[walk.startSurface];
     state.bz = bzAt(surface, alongCoordinate(surface, state.v), m_bz);
+    state.br = surface.brAt(alongCoordinate(surface, state.v));
     state.anchorBz = state.bz;
     const RzSeedMeasurement known = walk.knownAt(layer);
     const bool took =
@@ -1355,6 +1385,9 @@ bool RzTrackFinder::advanceWalk(Walk& walk) const {
     candidate.stopPaths.push_back(s);
     candidate.stopAlong.push_back(along);
 
+    const double brLanded = surface.brAt(along);
+    radialKick(m_cfg.radialField, landed, state.v, s, state.br, brLanded,
+               surface, state.brQopPosition, state.brQopDirection);
     state.v = landed;
     walk.cylCached = kRzNone;
     const Vector3 normal = surfaceNormal(surface, state.v);
@@ -1362,6 +1395,7 @@ bool RzTrackFinder::advanceWalk(Walk& walk) const {
     state.pending.advance(s);
     state.turned += std::abs(helix.kappa(state.v)) * s;
     state.bz = bzAt(surface, along, m_bz);
+    state.br = brLanded;
     candidate.pathLength += s;
 
     const double r = norm2(state.v[eRzPos0], state.v[eRzPos1]);
