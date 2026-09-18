@@ -253,8 +253,10 @@ RzTrackFinder::Placed RzTrackFinder::place(
   return p;
 }
 
+template <bool Cache>
 std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
-    const State& state, const Placed& m, bool gate, bool useTime) const {
+    const State& state, const Placed& m, bool gate, bool useTime,
+    std::optional<Prediction>* prediction) const {
   // the straight-line crossing of the module plane first: it is the Newton
   // start anyway, and enough for the gate
   const Vector3 p0 = state.v.segment<3>(eRzPos0);
@@ -293,8 +295,24 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   }
   // the solve's last iterate is the step: one sincos for the solve, the
   // step and its Jacobian, all of the same turning angle
-  const std::optional<RzHelix::PlaneStep> crossing =
-      helix.stepToPlane(state.v, m.position, m.normal);
+  std::optional<RzHelix::PlaneStep> crossing;
+  if constexpr (Cache) {
+    // Rotating measurement frames can change the plane within a module.
+    if (*prediction && (*prediction)->normal == m.normal &&
+        std::abs(m.normal.dot(m.position - (*prediction)->planePosition)) <
+            1e-12) {
+      crossing = (*prediction)->crossing;
+    }
+  }
+  if (!crossing) {
+    crossing = helix.stepToPlane(state.v, m.position, m.normal);
+    if constexpr (Cache) {
+      if (crossing) {
+        prediction->emplace(
+            Prediction{m.position, m.normal, *crossing, {}, false});
+      }
+    }
+  }
   if (!crossing.has_value() || std::abs(crossing->s) > maxDistance) {
     return std::nullopt;
   }
@@ -328,9 +346,20 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // covariance moved to the module: the rows of H J, and only they, are
   // formed, and C (H J)^T is what the update needs too
   Evaluation e;
-  const Eigen::Matrix<double, 3, eRzSize> jPos =
-      helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
-          .positionRows();
+  Eigen::Matrix<double, 3, eRzSize> jPos;
+  if constexpr (Cache) {
+    if ((*prediction)->hasJacobian) {
+      jPos = (*prediction)->jPos;
+    } else {
+      jPos = helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
+                 .positionRows();
+      (*prediction)->jPos = jPos;
+      (*prediction)->hasJacobian = true;
+    }
+  } else {
+    jPos = helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
+               .positionRows();
+  }
   // the two products by hand: Eigen takes a 1x3 by 3x7 and a 7x7 by 7x1
   // through its general kernels, out of line, for 21 and 49 multiplies
   const auto projectRows = [&](const Vector3& axis,
@@ -706,7 +735,10 @@ std::uint32_t RzTrackFinder::searchLayer(
             m_cfg.exactWindowFactor * first->gateChi2 + m_cfg.exactWindowOffset;
       }
     }
-    for (const Survivor& c : survivors) {
+    std::optional<Prediction> prediction;
+    std::uint32_t predictionModule = kRzNone;
+    for (std::size_t i = 0; i < survivors.size(); ++i) {
+      const Survivor& c = survivors[i];
       if (c.gateChi2 > window) {
         break;
       }
@@ -714,8 +746,18 @@ std::uint32_t RzTrackFinder::searchLayer(
       const RzModuleMeasurements group = measurements(c.module);
       const RzMeasurementFrame* frame =
           group.frames.empty() ? nullptr : &group.frames[c.index];
+      if (predictionModule != c.module) {
+        prediction.reset();
+        predictionModule = c.module;
+      }
+      const Placed placed = place(mod, group.entries[c.index], frame);
+      const bool sharedPlane =
+          (i + 1 < survivors.size() && survivors[i + 1].module == c.module) ||
+          prediction.has_value();
       const std::optional<Evaluation> e =
-          evaluate(state, place(mod, group.entries[c.index], frame), !c.gated);
+          sharedPlane
+              ? evaluate<true>(state, placed, !c.gated, true, &prediction)
+              : evaluate(state, placed, !c.gated);
       if (!e.has_value()) {
         continue;
       }

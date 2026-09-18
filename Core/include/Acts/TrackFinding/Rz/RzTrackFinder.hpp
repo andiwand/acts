@@ -349,6 +349,15 @@ class RzTrackFinder {
     Eigen::Matrix<double, 2, 2> sInv;
   };
 
+  /// Exact transport shared by surviving hits on the same module plane.
+  struct Prediction {
+    Vector3 planePosition;
+    Vector3 normal;
+    RzHelix::PlaneStep crossing;
+    Eigen::Matrix<double, 3, eRzSize> jPos;
+    bool hasJacobian = false;
+  };
+
   std::uint32_t saveForwardState(const State& state,
                                  RzTrackCandidate& candidate) const;
 
@@ -399,9 +408,11 @@ class RzTrackFinder {
   /// @param gate drop the measurement on the straight-line chi2 first; off
   ///        for a measurement the track is known to have
   /// @return nothing if the module cannot be reached or the strip is missed
-  std::optional<Evaluation> evaluate(const State& state, const Placed& m,
-                                     bool gate = true,
-                                     bool useTime = true) const;
+  template <bool Cache = false>
+  std::optional<Evaluation> evaluate(
+      const State& state, const Placed& m, bool gate = true,
+      bool useTime = true,
+      std::optional<Prediction>* prediction = nullptr) const;
 
   /// Take a measurement the caller says the track is made of, without
   /// searching the layer for it. The seed's own measurements are known, and
