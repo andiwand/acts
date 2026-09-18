@@ -241,6 +241,8 @@ RzTrackFinder::Placed RzTrackFinder::place(
   p.cov11 = swapped ? m.cov00 : m.cov11;
   p.cov01 = m.cov01;
   p.invLever = m.invLever;
+  p.time = m.time;
+  p.timeVariance = m.timeVariance;
   // the room a search opens along a strip: the module's extent along the
   // coordinate it does not measure, and for a polar frame, where neither
   // bound coordinate is a module axis, the box in either direction
@@ -252,7 +254,7 @@ RzTrackFinder::Placed RzTrackFinder::place(
 }
 
 std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
-    const State& state, const Placed& m, bool gate) const {
+    const State& state, const Placed& m, bool gate, bool useTime) const {
   // the straight-line crossing of the module plane first: it is the Newton
   // start anyway, and enough for the gate
   const Vector3 p0 = state.v.segment<3>(eRzPos0);
@@ -298,6 +300,18 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   }
   const detail::StepTrig& trig = crossing->trig;
   const RzVector& w = crossing->state;
+  double timeChi2 = 0.;
+  double timeResidual = 0.;
+  double timeGain = 0.;
+  if (useTime && m.timeVariance > 0.) {
+    const double mOverP = state.massOverCharge * state.v[eRzQOverP];
+    const double predictedTime =
+        state.time + crossing->s * std::sqrt(1. + mOverP * mOverP);
+    timeResidual = m.time - predictedTime;
+    const double variance = state.timeVariance + m.timeVariance;
+    timeChi2 = timeResidual * timeResidual / variance;
+    timeGain = state.timeVariance / variance;
+  }
   const Vector3 d = m.position - w.segment<3>(eRzPos0);
   const double ru = m.u.dot(d);
   const double rv = m.v.dot(d);
@@ -363,10 +377,18 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
              rv * rv * e.sInv(1, 1);
   }
   e.residual << ru, rv;
+  e.chi2 += timeChi2;
+  e.timeResidual = timeResidual;
+  e.timeGain = timeGain;
+  e.hasTime = useTime && m.timeVariance > 0.;
   return e;
 }
 
 void RzTrackFinder::update(State& state, const Evaluation& e) const {
+  if (e.hasTime) {
+    state.time += e.timeGain * e.timeResidual;
+    state.timeVariance *= 1. - e.timeGain;
+  }
   const Eigen::Matrix<double, eRzSize, 2> k = e.ch * e.sInv;
   state.v += k * e.residual;
   state.v.segment<3>(eRzDir0).normalize();
@@ -512,12 +534,8 @@ std::uint32_t RzTrackFinder::searchLayer(
     std::uint32_t stop, const ModuleList& modules, State& state,
     RzTrackCandidate& candidate, std::uint32_t skipRounds,
     std::uint32_t usedModule) const {
-  // The modules are what the crossing landed on; which of their measurements
-  // is worth the full transport is `evaluate`'s gate, which takes the
-  // straight-line crossing of the module plane and a diagonal chi2 against
-  // the covariance widened over the module distance. A window in the stop's
-  // own (phi, along) cannot do that job: the module is offset from the RZ
-  // surface, so the track meets it somewhere else entirely.
+  // Gate at each crossed module before the exact transport: an RZ-stop window
+  // would miss hits on modules offset from that stop.
   std::uint32_t accepted = 0;
   ModuleList usedModules;
   if (usedModule != kRzNone) {
@@ -531,20 +549,16 @@ std::uint32_t RzTrackFinder::searchLayer(
     std::uint32_t bestModule = kRzNone;
     Evaluation best;
     best.chi2 = std::numeric_limits<double>::max();
-    // Everything the gate needs except the measurement's own position and
-    // variance belongs to the module and to the state, not to the
-    // measurement: the plane crossing, the residual's origin along the
-    // module axes, and the covariance projected on them and widened over
-    // the distance to the module. Formed once per module here, the gate
-    // costs a subtraction and two multiplies per measurement instead of a
-    // division and two quadratic forms. Polar frames rotate these projections
-    // onto each measurement's axes.
+    // Reuse the straight-line crossing and covariance projection across a
+    // module's hits; rotate them for each polar measurement frame.
     const Vector3 p0 = state.v.segment<3>(eRzPos0);
     const Vector3 d0 = state.v.segment<3>(eRzDir0);
     const SquareMatrix3 cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
     const double dirTrace = state.c.block<3, 3>(eRzDir0, eRzDir0).trace();
     const double varPending = state.pending.varPosition;
     const double gate2 = m_cfg.gateFactor * m_cfg.chi2Cut;
+    const double mOverP = state.massOverCharge * state.v[eRzQOverP];
+    const double timePerPath = std::sqrt(1. + mOverP * mOverP);
     // The gate runs over every crossed module first; what passes is
     // transported afterwards, best gate chi2 first, within the window
     struct Survivor {
@@ -580,10 +594,12 @@ std::uint32_t RzTrackFinder::searchLayer(
       double cUV = 0.;
       double cVV = 0.;
       double spread = 0.;
+      double moduleStep = 0.;
       {
         const double alongNormal = mod.normal.dot(d0);
         if (std::abs(alongNormal) > 1e-9) {
           const double s0 = mod.normal.dot(mod.center - p0) / alongNormal;
+          moduleStep = s0;
           // the crossing on the module's own axes, which is the frame the
           // measurements are already in, so a residual is a subtraction
           const Vector3 delta = p0 + s0 * d0 - mod.center;
@@ -606,6 +622,14 @@ std::uint32_t RzTrackFinder::searchLayer(
         const RzMeasurement& m = group.entries[i];
         ++candidate.candidatesTested;
         candidate.polarTested += mod.polar ? 1 : 0;
+        if (crossed && m.timeVariance > 0.) {
+          const double predictedTime = state.time + moduleStep * timePerPath;
+          const double residual = m.time - predictedTime;
+          if (residual * residual >
+              gate2 * (state.timeVariance + m.timeVariance)) {
+            continue;
+          }
+        }
         bool gated = hoisted;
         if (polarGate) {
           // the module's crossing and spread turned onto this measurement's
@@ -801,12 +825,14 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
   State state;
   state.v = startV;
   state.anchor = startV;
-  state.bz = forward.bz;
-  state.br = hit->stop != kRzNone
-                 ? m_layout->surfaces[candidate.stopSurfaces[hit->stop]].brAt(
-                       candidate.stopAlong[hit->stop])
-                 : forward.br;
-  state.anchorBz = forward.bz;
+  const RzSurface& startSurface =
+      m_layout->surfaces[m_layout->layers[hit->layer].surface];
+  const double startAlong = hit->stop == kRzNone
+                                ? alongCoordinate(startSurface, startV)
+                                : candidate.stopAlong[hit->stop];
+  state.bz = bzAt(startSurface, startAlong, m_bz);
+  state.br = startSurface.brAt(startAlong);
+  state.anchorBz = state.bz;
   {
     const Vector3 d = startV.segment<3>(eRzDir0);
     const Vector3 n = placeHit(measurements, *hit).normal;
@@ -851,12 +877,13 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
   // the forward pass at a stop went: transport, material, materialise,
   // update; replayed from the last hit inwards that is: update the stop's
   // hits, its material, transport to the stop before, materialise
+  // The backward refit carries only the spatial state, so it omits time.
   auto updateHitsAt = [&](std::uint32_t stop) {
     // hits are stored outward, so this stop's hits are the next ones inward
     while (hit != candidate.hits.rend() && hit->stop == stop) {
       if (!hit->isHole()) {
         const std::optional<Evaluation> e =
-            evaluate(state, placeHit(measurements, *hit), false);
+            evaluate(state, placeHit(measurements, *hit), false, false);
         if (!e.has_value()) {
           return false;
         }
@@ -932,7 +959,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
       state.moveCovariance(helixAt(state.anchorBz), m.normal);
       state.pending.advance(*s);
       materialise(state, m.normal);
-      const std::optional<Evaluation> e = evaluate(state, m, false);
+      const std::optional<Evaluation> e = evaluate(state, m, false, false);
       if (!e.has_value()) {
         candidate.backwardFailure = 3;
         return;
@@ -1187,6 +1214,11 @@ void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
   state.v = start.parameters;
   state.anchor = start.parameters;
   state.c = start.covariance;
+  state.time = start.time;
+  state.timeVariance = start.timeVariance;
+  const float absCharge = m_cfg.particleHypothesis.absoluteCharge();
+  state.massOverCharge =
+      absCharge > 0. ? m_cfg.particleHypothesis.mass() / absCharge : 0.;
   state.bz = m_bz;
   state.anchorBz = m_bz;
 

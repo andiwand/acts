@@ -436,12 +436,10 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   tracksTemp.addColumn<unsigned int>("trackGroup");
   Acts::ProxyAccessor<unsigned int> seedNumber("trackGroup");
 
-  unsigned int nSeed = 0;
-
   // A map indicating whether a seed has been discovered already
   SeedCoverage seedCoverage;
 
-  auto addTrack = [&](const TrackProxy& track) {
+  auto addTrack = [&](const TrackProxy& track, std::size_t seedIndex) {
     ++m_nFoundTracks;
 
     // trim the track if requested
@@ -462,6 +460,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
     auto destProxy = tracks.makeTrack();
     // make sure we copy track states!
     destProxy.copyFrom(track);
+    // The dynamic seed column is not copied with the built-in track fields.
+    seedNumber(destProxy) = static_cast<unsigned int>(seedIndex);
   };
 
   if (seeds != nullptr && m_cfg.seedDeduplication) {
@@ -510,8 +510,6 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
     auto firstRootBranch = tracksTemp.makeTrack();
     auto firstResult = findTracks(firstInitialParameters, firstFindOptions,
                                   tracksTemp, firstRootBranch);
-    nSeed++;
-
     if (!firstResult.ok()) {
       m_nFailedSeeds++;
       ACTS_WARNING("Track finding failed for seed " << iSeed << " with error"
@@ -541,9 +539,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
       // number of second tracks found
       std::size_t nSecond = 0;
 
-      // Set the seed number, this number decrease by 1 since the seed number
-      // has already been updated
-      seedNumber(trackCandidate) = nSeed - 1;
+      seedNumber(trackCandidate) = static_cast<unsigned int>(iSeed);
 
       if (m_cfg.twoWay) {
         std::optional<Acts::VectorMultiTrajectory::TrackStateProxy>
@@ -656,7 +652,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
                 }
               }
 
-              addTrack(trackCandidate);
+              addTrack(trackCandidate, iSeed);
 
               ++nSecond;
             }
@@ -689,7 +685,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
           continue;
         }
 
-        addTrack(trackCandidate);
+        addTrack(trackCandidate, iSeed);
       }
     }
   }

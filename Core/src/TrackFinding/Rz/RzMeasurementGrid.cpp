@@ -196,11 +196,13 @@ std::uint32_t RzMeasurementGrid::addBound(
     std::uint32_t module, const Surface& surface, const GeometryContext& gctx,
     std::uint8_t dim, std::span<const std::uint8_t> boundIndices,
     std::span<const double> boundParams, std::span<const double> boundCov,
-    std::uint32_t source) {
+    std::uint32_t source, double time, double timeVariance) {
   RzMeasurementFrame frame;
-  const RzMeasurement e =
+  RzMeasurement e =
       fromBound(*m_layout, module, surface, gctx, dim, boundIndices,
                 boundParams, boundCov, source, frame);
+  e.time = time;
+  e.timeVariance = timeVariance;
   return add(module, e, frame);
 }
 

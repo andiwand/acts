@@ -92,7 +92,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   const TrackParametersContainer& initialParameters =
       m_inputInitialTrackParameters(ctx);
 
-  // the field at the origin is the field everywhere, for now
+  // The central field is the fallback where a surface has no field table.
   auto fieldCache = m_cfg.magneticField->makeCache(ctx.magFieldContext);
   const auto field =
       m_cfg.magneticField->getField(Acts::Vector3::Zero(), fieldCache);
@@ -121,7 +121,16 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     std::array<double, 4> cov{};
     std::array<std::uint8_t, 2> rows{};
     std::uint8_t dim = 0;
-    for (std::size_t a = 0; a < measurement.size() && dim < 2; ++a) {
+    double hitTime = 0.;
+    double hitTimeVariance = 0.;
+    for (std::size_t a = 0; a < measurement.size(); ++a) {
+      if (subspace[a] == Acts::eBoundTime) {
+        hitTime = values[a];
+        hitTimeVariance = covariance(a, a);
+      }
+      if (dim == 2) {
+        continue;
+      }
       if (subspace[a] != Acts::eBoundLoc0 && subspace[a] != Acts::eBoundLoc1) {
         continue;
       }
@@ -140,7 +149,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     }
     grid.addBound(module->second, *m_layout.modules[module->second].surface,
                   ctx.recoGeoContext, dim, std::span(indices.data(), dim),
-                  std::span(params.data(), dim), std::span(cov.data(), 4), i);
+                  std::span(params.data(), dim), std::span(cov.data(), 4), i,
+                  hitTime, hitTimeVariance);
   }
   const auto tFill1 = Clock::now();
   grid.finalize();
@@ -206,6 +216,11 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     rz.parameters.segment<3>(eRzPos0) = position;
     rz.parameters.segment<3>(eRzDir0) = direction;
     rz.parameters[eRzQOverP] = start.qOverP();
+    rz.time = start.parameters()[Acts::eBoundTime];
+    rz.timeVariance =
+        start.covariance().has_value()
+            ? (*start.covariance())(Acts::eBoundTime, Acts::eBoundTime)
+            : 0.;
     if (start.covariance().has_value()) {
       const Acts::BoundToFreeMatrix j =
           start.referenceSurface().boundToFreeJacobian(ctx.recoGeoContext,
@@ -231,9 +246,6 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     if (!found) {
       return;
     }
-    ++nTracks;
-    nMeasurements += candidate.measurements;
-    nHoles += candidate.holes;
     if (candidate.backwardFailure != 0) {
       ++nBackwardFailures;
       ACTS_DEBUG("Backward pass failed with "
@@ -260,6 +272,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       ACTS_WARNING("Perigee conversion failed: " << bound.error().message());
       return;
     }
+    ++nTracks;
+    nMeasurements += candidate.measurements;
+    nHoles += candidate.holes;
     // the perigee's own Jacobian, on the seven components the RZ state has;
     // the product is formed on them rather than on the 8x8 with a zero time
     const Acts::FreeToBoundMatrix jf2b =
@@ -317,13 +332,21 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       const Acts::Vector3& av =
           on.frames.empty() ? module.v : on.frames[hit.measurement].v;
       const Acts::Vector3 measured = module.center + m.loc0 * au + m.loc1 * av;
+      const RzSurface& stopSurface =
+          m_layout.surfaces[m_layout.layers[hit.layer].surface];
+      const double along = hit.stop == kRzNone
+                               ? (stopSurface.shape == RzShape::Disc
+                                      ? v0.segment<2>(eRzPos0).norm()
+                                      : v0[eRzPos2])
+                               : candidate.stopAlong[hit.stop];
+      const RzHelix stateHelix{stopSurface.bzAt(along).value_or(finder.bz())};
       RzVector v = v0;
       std::optional<RzHelix::StepJacobian> transport;
       if (const std::optional<double> step =
-              helix.pathToPlane(v0, measured, module.normal);
+              stateHelix.pathToPlane(v0, measured, module.normal);
           step.has_value()) {
-        helix.step(v, *step);
-        transport = helix.stepJacobianOnto(v0, *step, v, module.normal);
+        stateHelix.step(v, *step);
+        transport = stateHelix.stepJacobianOnto(v0, *step, v, module.normal);
       }
       std::optional<RzBoundState> onModule =
           rzBoundOnModule(module, v, c0, transport ? &*transport : nullptr);

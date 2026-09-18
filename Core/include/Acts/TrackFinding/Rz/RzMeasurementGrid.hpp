@@ -66,6 +66,9 @@ struct RzMeasurement {
   /// its own radius while the track crosses at another. Zero for a cartesian
   /// frame or a radial-only measurement, which has no such dependence.
   double invLever{};
+  /// Optional measured time and variance; zero variance means no time value.
+  float time{};
+  float timeVariance{};
   RzProjector projector{RzProjector::Both};
   /// The caller's index of the measurement
   std::uint32_t source{kRzNone};
@@ -163,8 +166,8 @@ class RzMeasurementGrid {
                          const GeometryContext& gctx, std::uint8_t dim,
                          std::span<const std::uint8_t> boundIndices,
                          std::span<const double> boundParams,
-                         std::span<const double> boundCov,
-                         std::uint32_t source);
+                         std::span<const double> boundCov, std::uint32_t source,
+                         double time = 0., double timeVariance = 0.);
 
   /// Convert a measurement in the surface's own bound coordinates into the
   /// module's frame, without adding it. A caller that keeps its own container

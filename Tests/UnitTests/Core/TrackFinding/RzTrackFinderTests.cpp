@@ -13,6 +13,7 @@
 #include "Acts/TrackFinding/Rz/RzTrackFinder.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -121,6 +122,34 @@ BOOST_AUTO_TEST_CASE(ExactChi2OrdersCorrelatedPixels) {
       RzTrackFinder(config(), layout, 0.)
           .findTrack(grid.accessor(), start(), covariance(), 0, candidate));
   BOOST_CHECK_EQUAL(candidate.hits.front().measurement, 1u);
+}
+
+BOOST_AUTO_TEST_CASE(TimeRejectsCloserPileupHit) {
+  const RzLayout layout = makeLayout();
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  pixel.time = 100.;
+  pixel.timeVariance = 1.;
+  grid.add(0, pixel);
+  pixel.loc0 = 1.;
+  pixel.time = 0.;
+  grid.add(0, pixel);
+  grid.finalize();
+  RzTrackStart startState{start(), covariance()};
+  startState.module = 0;
+  startState.timeVariance = 1.;
+  const std::array starts{startState};
+  bool found = false;
+  RzTrackFinder(config(), layout, 0.)
+      .findTracks(grid.accessor(), starts, 1,
+                  [&](std::size_t, bool ok, RzTrackCandidate& candidate) {
+                    found = ok;
+                    BOOST_REQUIRE_EQUAL(candidate.hits.size(), 1u);
+                    BOOST_CHECK_EQUAL(candidate.hits.front().measurement, 1u);
+                  });
+  BOOST_CHECK(found);
 }
 
 BOOST_AUTO_TEST_CASE(SearchIncludesModulesBeyondInlineCapacity) {
@@ -361,6 +390,65 @@ BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
       }
     }
   }
+}
+
+BOOST_AUTO_TEST_CASE(PartialBackwardUsesCheckpointField) {
+  RzLayout layout = makeLayout();
+  for (unsigned int i = 1; i < 3; ++i) {
+    auto surface = layout.surfaces.front();
+    surface.refCoord = 10. * i;
+    surface.layer = i;
+    layout.surfaces.push_back(surface);
+    auto layer = layout.layers.front();
+    layer.surface = i;
+    layer.binOffset = i;
+    layout.layers.push_back(layer);
+    auto module = layout.modules.front();
+    module.center.z() = surface.refCoord;
+    module.layer = i;
+    layout.modules.push_back(module);
+    layout.moduleOrder.push_back(i);
+    layout.moduleBinStart.push_back(i + 1);
+    layout.discs.push_back(i);
+    layout.discCoord.push_back(surface.refCoord);
+    layout.discMin.push_back(1.);
+    layout.discMax.push_back(200.);
+  }
+  layout.surfaces[0].bzTable = {0.002};
+  layout.surfaces[1].bzTable = {0.003};
+  for (auto& surface : layout.surfaces) {
+    surface.fieldBinWidth = 200.;
+  }
+  RzMeasurementGrid grid(layout);
+  RzMeasurement pixel;
+  pixel.cov00 = 1.;
+  pixel.cov11 = 1.;
+  for (unsigned int i = 0; i < 3; ++i) {
+    grid.add(i, pixel);
+  }
+  grid.finalize();
+  auto cfg = config();
+  cfg.backwardPass = true;
+  cfg.backwardLayers = 2;
+  cfg.inwardSearch = false;
+  RzMatrix c = covariance();
+  c.block<3, 3>(eRzDir0, eRzDir0).diagonal().setConstant(0.001);
+  RzVector v = start();
+  v[eRzDir0] = 0.1;
+  v[eRzDir2] = std::sqrt(0.99);
+  RzTrackCandidate reference, changed;
+  layout.surfaces[2].bzTable = {0.004};
+  BOOST_REQUIRE(RzTrackFinder(cfg, layout, 0.)
+                    .findTrack(grid.accessor(), v, c, 0, reference));
+  layout.surfaces[2].bzTable = {-0.004};
+  BOOST_REQUIRE(RzTrackFinder(cfg, layout, 0.)
+                    .findTrack(grid.accessor(), v, c, 0, changed));
+  BOOST_REQUIRE_EQUAL(reference.backwardFailure, 0u);
+  BOOST_REQUIRE_EQUAL(changed.backwardFailure, 0u);
+  BOOST_CHECK(
+      reference.innerParameters.isApprox(changed.innerParameters, 1e-12));
+  BOOST_CHECK(
+      reference.innerCovariance.isApprox(changed.innerCovariance, 1e-12));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

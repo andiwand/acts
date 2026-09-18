@@ -20,6 +20,7 @@
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -216,6 +217,8 @@ struct RzTrackStart {
   /// The measurements the seed is made of. A layer that holds one is not
   /// searched: the measurement is taken.
   std::span<const RzSeedMeasurement> seedMeasurements{};
+  double time{};
+  double timeVariance{};
 };
 
 class RzTrackFinder {
@@ -282,6 +285,9 @@ class RzTrackFinder {
   struct State {
     RzVector v;
     RzMatrix c;
+    double time{};
+    double timeVariance{};
+    double massOverCharge{};
     Pending pending;
     double turned{};
     /// Where the covariance sits: the state it was last moved to or updated
@@ -303,7 +309,11 @@ class RzTrackFinder {
     Vector3 brQopDirection{Vector3::Zero()};
 
     /// Walk on without the covariance
-    void travel(double s) { pathSince += s; }
+    void travel(double s) {
+      pathSince += s;
+      const double mOverP = massOverCharge * v[eRzQOverP];
+      time += s * std::sqrt(1. + mOverP * mOverP);
+    }
     /// Bring the covariance to the state, on a surface with the given normal
     void moveCovariance(const RzHelix& helix, const Vector3& normal) {
       if (pathSince == 0.) {
@@ -330,6 +340,9 @@ class RzTrackFinder {
   /// as updating on the module and costs no covariance transport.
   struct Evaluation {
     double chi2{};
+    double timeResidual{};
+    double timeGain{};
+    bool hasTime{};
     /// `C (H J)^T`, one column per measured coordinate
     Eigen::Matrix<double, eRzSize, 2> ch;
     Eigen::Matrix<double, 2, 1> residual;
@@ -356,6 +369,8 @@ class RzTrackFinder {
     /// Variance along `v`, unused by a strip
     double cov11{};
     double invLever{};
+    double time{};
+    double timeVariance{};
     /// Room along `v`, the coordinate a strip does not measure
     double halfV{};
     /// How far from the RZ stop the module may be met
@@ -385,7 +400,8 @@ class RzTrackFinder {
   ///        for a measurement the track is known to have
   /// @return nothing if the module cannot be reached or the strip is missed
   std::optional<Evaluation> evaluate(const State& state, const Placed& m,
-                                     bool gate = true) const;
+                                     bool gate = true,
+                                     bool useTime = true) const;
 
   /// Take a measurement the caller says the track is made of, without
   /// searching the layer for it. The seed's own measurements are known, and
