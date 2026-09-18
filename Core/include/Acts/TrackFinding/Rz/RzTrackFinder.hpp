@@ -35,10 +35,6 @@ struct RzTrackFinderConfig {
   double chi2Cut = 15.;
   /// Limit for the straight-line pre-gate, relative to `chi2Cut`.
   double gateFactor = 4.;
-  /// Restrict exact transports by pre-gate chi2; zero evaluates all survivors.
-  /// Kept off by default because restricting it lost strip hits on ITk.
-  double exactWindowFactor = 0.;
-  double exactWindowOffset = 1.;
   /// Search window in units of the predicted position uncertainty
   double windowSigmas = 5.;
   /// Search window added on top, in length
@@ -106,6 +102,19 @@ struct RzSeedMeasurement {
   std::uint32_t index{kRzNone};
 };
 
+/// A filtered state, including the independent scalar time estimate.
+struct RzTrackState {
+  RzVector parameters;
+  RzMatrix covariance;
+  double time{};
+  double timeVariance{};
+  /// Accumulated time updates, used to transfer later timing information
+  /// inward.
+  double timeCorrection{};
+
+  bool operator==(const RzTrackState&) const = default;
+};
+
 struct RzTrackCandidate {
   /// The state at the end of the forward pass, on the last measurement
   RzVector parameters{RzVector::Zero()};
@@ -113,6 +122,10 @@ struct RzTrackCandidate {
   /// Backward-refitted inner state, at perigee after an inward search.
   RzVector innerParameters{RzVector::Zero()};
   RzMatrix innerCovariance{RzMatrix::Zero()};
+  double time{};
+  double timeVariance{};
+  double innerTime{};
+  double innerTimeVariance{};
   bool hasInner{false};
   /// Whether the inner state is already at the closest approach.
   bool innerAtPerigee{false};
@@ -132,7 +145,7 @@ struct RzTrackCandidate {
   std::vector<double> stopAlong;
   /// Retained forward states: every measurement when requested for output,
   /// otherwise only the checkpoint for a partial backward pass
-  std::vector<std::pair<RzVector, RzMatrix>> forwardStates;
+  std::vector<RzTrackState> forwardStates;
   double chi2{};
   double pathLength{};
   /// Counters for the cost analysis

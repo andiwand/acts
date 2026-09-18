@@ -20,6 +20,7 @@
 #include "ActsExamples/Framework/IAlgorithm.hpp"
 #include "ActsExamples/Framework/ProcessCode.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>

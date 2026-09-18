@@ -37,8 +37,6 @@ struct StepTrig {
 
 inline StepTrig stepTrig(double u) {
   StepTrig t;
-  t.sn = std::sin(u);
-  t.cs = std::cos(u);
   const double u2 = u * u;
   // The direct derivative formulas cancel near zero. At this threshold the
   // omitted series terms are at double-precision rounding scale.
@@ -47,8 +45,12 @@ inline StepTrig stepTrig(double u) {
     t.versc = u * (0.5 + u2 * (-1. / 24. + u2 / 720.));
     t.dsinc = u * (-1. / 3. + u2 * (1. / 30. - u2 / 840.));
     t.dversc = 0.5 + u2 * (-1. / 8. + u2 * (1. / 144. - u2 / 5760.));
+    t.sn = u * t.sinc;
+    t.cs = 1. - u * t.versc;
     return t;
   }
+  t.sn = std::sin(u);
+  t.cs = std::cos(u);
   // Avoid cancellation except near cos(u) = -1.
   const double oneMinusCos =
       1. + t.cs > 1e-3 ? t.sn * t.sn / (1. + t.cs) : 1. - t.cs;
@@ -243,7 +245,7 @@ struct RzHelix {
                a2 * x(eRzQOverP, col);
       });
       row(eRzPos2, [&](std::uint32_t col) {
-        return x(eRzPos2, col) + s * x(eRzDir2, col);
+        return x(eRzPos2, col) + s * x(eRzDir2, col) + a3 * x(eRzQOverP, col);
       });
       row(eRzDir0, [&](std::uint32_t col) {
         return cs * x(eRzDir0, col) + sn * x(eRzDir1, col) +
@@ -254,7 +256,7 @@ struct RzHelix {
                b2 * x(eRzQOverP, col);
       });
       for (std::uint32_t col = 0; col <= eRzDir2; ++col) {
-        y(eRzDir2, col) = x(eRzDir2, col);
+        y(eRzDir2, col) = x(eRzDir2, col) + b3 * x(eRzQOverP, col);
       }
       for (std::uint32_t col = 0; col < eRzSize; ++col) {
         y(eRzQOverP, col) = x(eRzQOverP, col);
@@ -282,6 +284,7 @@ struct RzHelix {
       r(1, eRzQOverP) = a2;
       r(2, eRzPos2) = 1.;
       r(2, eRzDir2) = s;
+      r(2, eRzQOverP) = a3;
       for (std::uint32_t i = 0; i < 3; ++i) {
         r.row(i) += d[eRzPos0 + i] * dsdv.transpose();
       }
@@ -298,6 +301,7 @@ struct RzHelix {
       j(eRzDir1, eRzDir0) = -sn;
       j(eRzDir1, eRzDir1) = cs;
       j(eRzDir1, eRzQOverP) = b2;
+      j(eRzDir2, eRzQOverP) = b3;
       j.row(eRzDir0) += d[eRzDir0] * dsdv.transpose();
       j.row(eRzDir1) += d[eRzDir1] * dsdv.transpose();
       return j;

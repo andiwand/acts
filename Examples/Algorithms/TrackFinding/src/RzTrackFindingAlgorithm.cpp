@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <stdexcept>
 
 namespace ActsExamples {
@@ -206,8 +207,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   std::uint64_t nMeasurements = 0;
   std::uint64_t nHoles = 0;
   std::uint64_t nBackwardFailures = 0;
-  // every seed as the finder starts from it: bound to the RZ free state,
-  // time dropped, on the module the seed's surface is
+  // Convert seed parameters to the spatial state and scalar time.
   std::vector<RzTrackStart> starts;
   starts.reserve(initialParameters.size());
   for (const TrackParameters& start : initialParameters) {
@@ -240,6 +240,11 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     }
   }
 
+  const auto timeOfFlight = [&](double path, double qOverP) {
+    const auto& particle = finderConfig.particleHypothesis;
+    const double mOverP = particle.mass() / particle.extractMomentum(qOverP);
+    return path * std::sqrt(1. + mOverP * mOverP);
+  };
   const auto onTrack = [&](std::size_t /*index*/, bool found,
                            RzTrackCandidate& candidate) {
     nStops += candidate.stops;
@@ -268,7 +273,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     const Acts::Vector3 pos = w.segment<3>(eRzPos0);
     const Acts::Vector3 dir = w.segment<3>(eRzDir0);
     const auto bound = Acts::transformFreeToBoundParameters(
-        pos, 0., dir, w[eRzQOverP], *m_perigee, ctx.recoGeoContext);
+        pos,
+        (candidate.hasInner ? candidate.innerTime : candidate.time) +
+            timeOfFlight(s, w[eRzQOverP]),
+        dir, w[eRzQOverP], *m_perigee, ctx.recoGeoContext);
     if (!bound.ok()) {
       ACTS_WARNING("Perigee conversion failed: " << bound.error().message());
       return;
@@ -293,6 +301,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     track.setReferenceSurface(m_perigee);
     track.parameters() = *bound;
     track.covariance() = boundCov;
+    track.covariance()(Acts::eBoundTime, Acts::eBoundTime) =
+        candidate.hasInner ? candidate.innerTimeVariance
+                           : candidate.timeVariance;
     const auto tStates = Clock::now();
     for (const RzTrackHit& hit : candidate.hits) {
       if (hit.isHole()) {
@@ -324,10 +335,11 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         state.filteredCovariance().setIdentity();
         continue;
       }
-      // The finder updates at the RZ stop the measurement was found from,
-      // not on the module, so the state is walked the last bit onto the
-      // module plane, which is the surface the track state lives on
-      const auto& [v0, c0] = candidate.forwardStates[hit.forwardState];
+      // Transport the saved RZ state onto the measurement plane.
+      const auto& saved = candidate.forwardStates[hit.forwardState];
+      const auto& v0 = saved.parameters;
+      const auto& c0 = saved.covariance;
+      double time = saved.time;
       const Acts::Vector3& au =
           on.frames.empty() ? module.u : on.frames[hit.measurement].u;
       const Acts::Vector3& av =
@@ -346,6 +358,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
       if (const std::optional<double> step =
               stateHelix.pathToPlane(v0, measured, module.normal);
           step.has_value()) {
+        time += timeOfFlight(*step, v[eRzQOverP]);
         stateHelix.step(v, *step);
         transport = stateHelix.stepJacobianOnto(v0, *step, v, module.normal);
       }
@@ -377,6 +390,9 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         stateCov(Acts::eBoundTime, Acts::eBoundTime) = 1.;
         onModule = RzBoundState{*stateBound, stateCov};
       }
+      onModule->parameters[Acts::eBoundTime] = time;
+      onModule->covariance(Acts::eBoundTime, Acts::eBoundTime) =
+          saved.timeVariance;
       state.filtered() = onModule->parameters;
       state.filteredCovariance() = onModule->covariance;
     }

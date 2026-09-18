@@ -8,6 +8,8 @@
 
 #include "Acts/TrackFinding/Rz/RzBound.hpp"
 
+#include "Acts/Utilities/MathHelpers.hpp"
+
 #include <cmath>
 
 namespace Acts::Experimental {
@@ -30,7 +32,7 @@ void rzFillDirectionRows(const Vector3& direction, RzFreeToBoundMatrix& j) {
   const double dx = direction.x();
   const double dy = direction.y();
   const double dz = direction.z();
-  const double sinTheta = std::sqrt(std::max(0., 1. - dz * dz));
+  const double sinTheta = fastHypot(dx, dy);
   const double invSinTheta = sinTheta > 0. ? 1. / sinTheta : 0.;
   const double cosPhi = dx * invSinTheta;
   const double sinPhi = dy * invSinTheta;

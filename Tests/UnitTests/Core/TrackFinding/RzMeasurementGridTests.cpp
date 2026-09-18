@@ -12,8 +12,10 @@
 #include "Acts/TrackFinding/Rz/RzLayout.hpp"
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 
+#include <array>
 #include <cstdint>
 #include <map>
+#include <numbers>
 #include <vector>
 
 using namespace Acts;
@@ -57,7 +59,6 @@ void add(RzMeasurementGrid& grid, std::uint32_t module, std::uint32_t source,
   RzMeasurementFrame frame;
   frame.u = Vector3(source, 0., 0.);
   frame.v = Vector3::UnitY();
-  frame.normal = Vector3::UnitZ();
   BOOST_CHECK_EQUAL(grid.add(module, measurement, frame), added[module].size());
   added[module].push_back(source);
 }
@@ -85,6 +86,29 @@ BOOST_AUTO_TEST_SUITE(RzMeasurementGridSuite)
 
 // A caller that adds each module's measurements in one run leaves nothing for
 // `finalize` to do, whatever order it visits the modules in.
+BOOST_AUTO_TEST_CASE(LayoutVisitsWrappedBinsOnce) {
+  RzLayout layout = makeLayout();
+  auto& layer = layout.layers.front();
+  layer.phiBins = 4;
+  layer.alongBins = 3;
+  layer.alongMin = 0.;
+  layer.alongMax = 3.;
+  for (double phi : {-std::numbers::pi, 0., std::numbers::pi}) {
+    std::array<std::uint32_t, 12> visits{};
+    layout.visitBins(0, phi, 1.5, 4. * std::numbers::pi, 10.,
+                     [&](std::uint32_t bin) { ++visits.at(bin); });
+    for (auto count : visits) {
+      BOOST_CHECK_EQUAL(count, 1u);
+    }
+  }
+  std::array<std::uint32_t, 12> visits{};
+  layout.visitBins(0, 0., 1.5, 0.1, 10.,
+                   [&](std::uint32_t bin) { ++visits.at(bin); });
+  for (std::uint32_t i = 0; i < visits.size(); ++i) {
+    BOOST_CHECK_EQUAL(visits[i], i < 3 || i >= 9 ? 1u : 0u);
+  }
+}
+
 BOOST_AUTO_TEST_CASE(RunsInAnyModuleOrder) {
   const RzLayout layout = makeLayout();
   RzMeasurementGrid grid(layout);

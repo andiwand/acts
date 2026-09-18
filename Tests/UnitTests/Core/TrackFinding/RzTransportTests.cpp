@@ -348,6 +348,52 @@ BOOST_AUTO_TEST_CASE(StepJacobianOntoMatchesDense) {
   }
 }
 
+BOOST_AUTO_TEST_CASE(SmallAngleTrigMatchesLibm) {
+  for (const double u : {0., 1e-12, -1e-8, 1e-5, -1e-3, 0.009999999,
+                         -0.009999999, 0.01, -0.01}) {
+    const auto t = Acts::Experimental::detail::stepTrig(u);
+    BOOST_CHECK_SMALL(t.sn - std::sin(u), 2e-16);
+    BOOST_CHECK_SMALL(t.cs - std::cos(u), 2e-16);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(BoundDirectionRowsNearBeamAxis) {
+  const Vector3 direction(1e-9, -2e-9, 1.);
+  RzFreeToBoundMatrix j = RzFreeToBoundMatrix::Zero();
+  rzFillDirectionRows(direction, j);
+  const double transverse2 = direction.head<2>().squaredNorm();
+  BOOST_CHECK_CLOSE(j(eBoundPhi, eRzDir0), -direction.y() / transverse2, 1e-10);
+  BOOST_CHECK_CLOSE(j(eBoundPhi, eRzDir1), direction.x() / transverse2, 1e-10);
+  BOOST_CHECK_CLOSE(j(eBoundTheta, eRzDir0),
+                    direction.x() / std::sqrt(transverse2), 1e-10);
+}
+
+BOOST_AUTO_TEST_CASE(RadialJacobianProductsMatchDense) {
+  const RzVector v = makeState(1_GeV, 0.7, 1.2, 1.);
+  const double s = 37_mm;
+  RzVector end = v;
+  helix.step(end, s);
+  const Vector3 qopPosition(0.02, -0.03, 0.04);
+  const Vector3 qopDirection(-0.001, 0.002, -0.003);
+  for (const Vector3& normal :
+       {Vector3::UnitZ().eval(), Vector3(0.6, 0., 0.8)}) {
+    RzMatrix dense = helix.stepJacobian(v, s);
+    dense.block<3, 1>(eRzPos0, eRzQOverP) += qopPosition;
+    dense.block<3, 1>(eRzDir0, eRzQOverP) += qopDirection;
+    RzHelix::constrainToSurface(dense, helix.derivative(end), normal);
+    const auto sparse = helix.stepJacobianOnto(
+        v, s, end, normal,
+        Acts::Experimental::detail::stepTrig(helix.kappa(v) * s), qopPosition,
+        qopDirection);
+    RzMatrix c = RzMatrix::Random();
+    c = (c * c.transpose()).eval();
+    CHECK_CLOSE_ABS(sparse.dense(), dense, 1e-12);
+    CHECK_CLOSE_ABS(sparse.applyLeft(c), RzMatrix(dense * c), 1e-10);
+    CHECK_CLOSE_ABS(sparse.transport(c),
+                    RzMatrix(dense * c * dense.transpose()), 1e-9 * c.norm());
+  }
+}
+
 // The closed-form bound conversion against what the surface says, on a
 // tilted plane and on an annulus disc, for a state on the surface
 

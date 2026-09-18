@@ -120,12 +120,7 @@ RzMeasurement RzMeasurementGrid::fromBound(
   }
 
   if (!m.polar) {
-    // A cartesian frame is the module's own, which the layout read off the
-    // surface once: the offset from the centre is the difference of the bound
-    // coordinates, the map to the module axes is the identity, and the
-    // variance is already a length squared. Nothing here touches the surface,
-    // which is what makes this path a copy — and it is every pixel and every
-    // barrel strip.
+    // Cartesian measurements already use the module axes and length units.
     const Vector2 offset = local - m.boundCenter;
     e.loc0 = offset.x();
     e.loc1 = offset.y();
@@ -150,7 +145,6 @@ RzMeasurement RzMeasurementGrid::fromBound(
     const double sn = std::sin(local[1]);
     frame.u = c * m.u + sn * m.v;
     frame.v = -sn * m.u + c * m.v;
-    frame.normal = m.normal;
     frame.uU = c;
     frame.uV = sn;
     frame.vU = -sn;
@@ -173,7 +167,6 @@ RzMeasurement RzMeasurementGrid::fromBound(
     scale1 = jac.col(1).norm();
     frame.u = jac.col(0) / scale0;
     frame.v = jac.col(1) / scale1;
-    frame.normal = frame.u.cross(frame.v);
     frame.uU = frame.u.dot(m.u);
     frame.uV = frame.u.dot(m.v);
     frame.vU = frame.v.dot(m.u);

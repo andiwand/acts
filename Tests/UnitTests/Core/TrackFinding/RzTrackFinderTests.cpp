@@ -56,6 +56,33 @@ RzLayout makeLayout(std::uint32_t modules = 1) {
   return layout;
 }
 
+RzLayout makeDiscLayout(std::uint32_t layers) {
+  RzLayout layout = makeLayout();
+  for (std::uint32_t i = 0; i < layers; ++i) {
+    if (i != 0) {
+      auto surface = layout.surfaces.front();
+      surface.refCoord = 10. * i;
+      surface.layer = i;
+      layout.surfaces.push_back(surface);
+      auto layer = layout.layers.front();
+      layer.surface = i;
+      layer.binOffset = i;
+      layout.layers.push_back(layer);
+      auto module = layout.modules.front();
+      module.center.z() = surface.refCoord;
+      module.layer = i;
+      layout.modules.push_back(module);
+      layout.moduleOrder.push_back(i);
+      layout.moduleBinStart.push_back(i + 1);
+    }
+    layout.discs.push_back(i);
+    layout.discCoord.push_back(10. * i);
+    layout.discMin.push_back(1.);
+    layout.discMax.push_back(200.);
+  }
+  return layout;
+}
+
 RzTrackFinderConfig config() {
   RzTrackFinderConfig cfg;
   cfg.minMeasurements = 1;
@@ -150,6 +177,77 @@ BOOST_AUTO_TEST_CASE(TimeRejectsCloserPileupHit) {
                     BOOST_CHECK_EQUAL(candidate.hits.front().measurement, 1u);
                   });
   BOOST_CHECK(found);
+}
+
+BOOST_AUTO_TEST_CASE(InwardSearchRetainsForwardTime) {
+  const RzLayout layout = makeDiscLayout(3);
+  auto cfg = config();
+  cfg.backwardPass = true;
+  cfg.inwardSearch = true;
+  const double dz = std::sqrt(0.99);
+  const double betaInv =
+      std::sqrt(1. + std::pow(cfg.particleHypothesis.mass(), 2));
+  for (std::uint32_t backwardLayers : {0u, 1u}) {
+    cfg.backwardLayers = backwardLayers;
+    std::array<RzTrackCandidate, 2> results;
+    for (std::uint32_t trial = 0; trial < 2; ++trial) {
+      const double offset = 42. + 100. * trial;
+      RzMeasurementGrid grid(layout);
+      for (std::uint32_t i = 0; i < 3; ++i) {
+        RzMeasurement pixel;
+        pixel.loc0 = (10. * i - 10.) * 0.1 / dz;
+        pixel.cov00 = 1.;
+        pixel.cov11 = 1.;
+        pixel.time = offset + 10. * i / dz * betaInv + (i == 2 ? 0.2 : 0.);
+        pixel.timeVariance = 1.;
+        grid.add(i, pixel);
+      }
+      grid.finalize();
+      RzTrackStart seed{start(), covariance()};
+      seed.parameters[eRzPos2] = 10.;
+      seed.parameters[eRzDir0] = 0.1;
+      seed.parameters[eRzDir2] = dz;
+      seed.module = 1;
+      seed.time = offset + 10. / dz * betaInv;
+      seed.timeVariance = 1.;
+      const std::array starts{seed};
+      RzTrackFinder(cfg, layout, 0.)
+          .findTracks(grid.accessor(), starts, 1,
+                      [&](std::size_t, bool found, RzTrackCandidate& result) {
+                        BOOST_REQUIRE(found);
+                        BOOST_CHECK_EQUAL(result.measurements, 3u);
+                        BOOST_CHECK_EQUAL(result.backwardFailure, 0u);
+                        BOOST_CHECK(result.hasInner);
+                        results[trial] = result;
+                      });
+    }
+    BOOST_CHECK_SMALL(results[1].innerTime - results[0].innerTime - 100., 1e-4);
+    BOOST_CHECK(
+        results[0].innerParameters.isApprox(results[1].innerParameters, 1e-12));
+  }
+}
+
+BOOST_AUTO_TEST_CASE(KnownHitsBeyondInlineCapacityAreRetained) {
+  const RzLayout layout = makeDiscLayout(9);
+  RzMeasurementGrid grid(layout);
+  std::array<RzSeedMeasurement, 9> known;
+  for (std::uint32_t i = 0; i < known.size(); ++i) {
+    RzMeasurement pixel;
+    pixel.cov00 = pixel.cov11 = 1.;
+    grid.add(i, pixel);
+    pixel.loc0 = i == 8 ? 1. : 0.;
+    grid.add(i, pixel);
+    known[i] = {i, 1};
+  }
+  grid.finalize();
+  RzTrackCandidate candidate;
+  BOOST_REQUIRE(RzTrackFinder(config(), layout, 0.)
+                    .findTrack(grid.accessor(), start(), covariance(), 0,
+                               candidate, known));
+  BOOST_REQUIRE_EQUAL(candidate.measurements, 9u);
+  for (const auto& hit : candidate.hits) {
+    BOOST_CHECK_EQUAL(hit.measurement, 1u);
+  }
 }
 
 BOOST_AUTO_TEST_CASE(SearchIncludesModulesBeyondInlineCapacity) {
@@ -315,29 +413,9 @@ BOOST_AUTO_TEST_CASE(BatchedSearchMatchesIndividualTracks) {
 }
 
 BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
-  RzLayout layout = makeLayout();
-  for (unsigned int i = 1; i < 5; ++i) {
-    auto surface = layout.surfaces.front();
-    surface.refCoord = 10. * i;
-    surface.layer = i;
-    layout.surfaces.push_back(surface);
-    auto layer = layout.layers.front();
-    layer.surface = i;
-    layer.binOffset = i;
-    layout.layers.push_back(layer);
-    auto module = layout.modules.front();
-    module.center.z() = surface.refCoord;
-    module.layer = i;
-    layout.modules.push_back(module);
-    layout.moduleOrder.push_back(i);
-    layout.moduleBinStart.push_back(i + 1);
-  }
+  const RzLayout layout = makeDiscLayout(5);
   RzMeasurementGrid grid(layout);
   for (unsigned int i = 0; i < 5; ++i) {
-    layout.discs.push_back(i);
-    layout.discCoord.push_back(10. * i);
-    layout.discMin.push_back(1.);
-    layout.discMax.push_back(200.);
     RzMeasurement pixel;
     pixel.cov00 = 1.;
     pixel.cov11 = 1.;
@@ -366,6 +444,7 @@ BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
             RzTrackFinder(cfg, layout, 0.)
                 .findTrack(grid.accessor(), start(), c, 0, checkpoint));
         BOOST_REQUIRE_EQUAL(full.measurements, 4u);
+        BOOST_CHECK_EQUAL(full.holes, 1u);
         BOOST_CHECK_EQUAL(checkpoint.measurements, full.measurements);
         BOOST_CHECK_EQUAL(checkpoint.holes, full.holes);
         BOOST_CHECK_EQUAL(checkpoint.backwardFailure, full.backwardFailure);
@@ -393,27 +472,7 @@ BOOST_AUTO_TEST_CASE(CheckpointHistoryMatchesFullHistory) {
 }
 
 BOOST_AUTO_TEST_CASE(PartialBackwardUsesCheckpointField) {
-  RzLayout layout = makeLayout();
-  for (unsigned int i = 1; i < 3; ++i) {
-    auto surface = layout.surfaces.front();
-    surface.refCoord = 10. * i;
-    surface.layer = i;
-    layout.surfaces.push_back(surface);
-    auto layer = layout.layers.front();
-    layer.surface = i;
-    layer.binOffset = i;
-    layout.layers.push_back(layer);
-    auto module = layout.modules.front();
-    module.center.z() = surface.refCoord;
-    module.layer = i;
-    layout.modules.push_back(module);
-    layout.moduleOrder.push_back(i);
-    layout.moduleBinStart.push_back(i + 1);
-    layout.discs.push_back(i);
-    layout.discCoord.push_back(surface.refCoord);
-    layout.discMin.push_back(1.);
-    layout.discMax.push_back(200.);
-  }
+  RzLayout layout = makeDiscLayout(3);
   layout.surfaces[0].bzTable = {0.002};
   layout.surfaces[1].bzTable = {0.003};
   for (auto& surface : layout.surfaces) {

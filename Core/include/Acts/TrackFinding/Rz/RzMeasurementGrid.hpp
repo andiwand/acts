@@ -61,8 +61,6 @@ struct RzMeasurementFrame {
   Vector3 u{Vector3::Zero()};
   /// The direction `loc1` is measured along
   Vector3 v{Vector3::Zero()};
-  /// `u x v`
-  Vector3 normal{Vector3::Zero()};
   /// Coordinates of these axes in the module frame.
   double uU{1.};
   double uV{0.};
@@ -185,50 +183,6 @@ class RzMeasurementGrid {
     RzMeasurementAccessor a;
     a.connect<&RzMeasurementGrid::moduleRange>(this);
     return a;
-  }
-
-  /// Visit every global bin of a layer a window touches
-  /// @param layout the layout
-  /// @param layer the layer
-  /// @param phi azimuth of the point
-  /// @param along z on a cylinder, r on a disc
-  /// @param halfPhi half width of the window in azimuth
-  /// @param halfAlong half width along
-  /// @param visitor called with each global bin
-  template <typename visitor_t>
-  static void visitBins(const RzLayout& layout, std::uint32_t layer, double phi,
-                        double along, double halfPhi, double halfAlong,
-                        visitor_t&& visitor) {
-    const RzLayer& l = layout.layers[layer];
-    const double phiWidth = l.phiBinWidth();
-    const double alongWidth = l.alongBinWidth();
-    const std::int32_t phiLo =
-        static_cast<std::int32_t>(std::floor((phi - halfPhi) / phiWidth));
-    const std::int32_t phiHi =
-        static_cast<std::int32_t>(std::floor((phi + halfPhi) / phiWidth));
-    const std::int32_t nPhi = static_cast<std::int32_t>(l.phiBins);
-    const std::int32_t alongLoRaw = static_cast<std::int32_t>(
-        std::floor((along - halfAlong - l.alongMin) / alongWidth));
-    const std::int32_t alongHiRaw = static_cast<std::int32_t>(
-        std::floor((along + halfAlong - l.alongMin) / alongWidth));
-    const std::int32_t alongLo = std::max(alongLoRaw, 0);
-    const std::int32_t alongHi =
-        std::min(alongHiRaw, static_cast<std::int32_t>(l.alongBins) - 1);
-    if (alongLo > alongHi) {
-      return;
-    }
-    // a window wider than the full circle visits each bin once
-    const std::int32_t phiCount = std::min(phiHi - phiLo + 1, nPhi);
-    for (std::int32_t i = 0; i < phiCount; ++i) {
-      std::int32_t p = (phiLo + i) % nPhi;
-      if (p < 0) {
-        p += nPhi;
-      }
-      for (std::int32_t a = alongLo; a <= alongHi; ++a) {
-        visitor(l.binOffset + static_cast<std::uint32_t>(p) * l.alongBins +
-                static_cast<std::uint32_t>(a));
-      }
-    }
   }
 
  private:
