@@ -127,8 +127,6 @@ struct RzTrackCandidate {
   double innerTime{};
   double innerTimeVariance{};
   bool hasInner{false};
-  /// Whether the inner state is already at the closest approach.
-  bool innerAtPerigee{false};
   /// Why the backward pass gave up, 0 if it did not
   std::uint32_t backwardFailure{};
   /// Measurements and holes in the order they were found, holes after the
@@ -147,15 +145,12 @@ struct RzTrackCandidate {
   /// otherwise only the checkpoint for a partial backward pass
   std::vector<RzTrackState> forwardStates;
   double chi2{};
-  double pathLength{};
   /// Counters for the cost analysis
   std::uint32_t stops{};
   std::uint32_t candidatesTested{};
   /// Module and bin visits made by the layer lookup.
   std::uint32_t modulesTested{};
   std::uint32_t binsVisited{};
-  /// Candidates examined on polar modules
-  std::uint32_t polarTested{};
   /// Successful measurement evaluations, including known hits and the
   /// backward pass
   std::uint32_t exactEvaluated{};
@@ -169,15 +164,12 @@ struct RzTrackCandidate {
     measurements = 0;
     holes = 0;
     hasInner = false;
-    innerAtPerigee = false;
     backwardFailure = 0;
     chi2 = 0.;
-    pathLength = 0.;
     stops = 0;
     candidatesTested = 0;
     modulesTested = 0;
     binsVisited = 0;
-    polarTested = 0;
     exactEvaluated = 0;
   }
 };

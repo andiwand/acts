@@ -220,11 +220,7 @@ std::optional<RzModule> describeModule(const Surface& surface,
   } else {
     m.boundCenter = centre;
   }
-  // A disc maps its bound coordinates to the local frame as plain polar, so
-  // the fill can place a measurement with one sine and one cosine instead of
-  // asking the surface four times. Check it here rather than assume it: the
-  // point the surface reaches and the direction the radius moves it in, both
-  // against the closed form.
+  // Check the polar position and radial derivative before using the fast map.
   if (m.polar) {
     const double r = m.boundCenter[0];
     const double phi = m.boundCenter[1];
@@ -246,10 +242,7 @@ std::optional<RzModule> describeModule(const Surface& surface,
   return m;
 }
 
-/// Material a geometry puts on the sensitive modules themselves rather than
-/// on the layer, taken as the mean over the modules and stacked onto every
-/// band of the layer's surface. The ODD carries none; the generic detector
-/// does.
+/// Average module material and add it to every layer material band.
 void foldModuleMaterial(const SurfaceArray& array, RzSurface& out) {
   std::vector<MaterialSlab> slabs;
   for (const Surface* surface : array.surfaces()) {
@@ -308,16 +301,6 @@ std::int32_t RzSurface::materialBandAt(double along) const {
   }
   const auto edge = std::ranges::upper_bound(materialEdges, along);
   return static_cast<std::int32_t>(edge - materialEdges.begin()) - 1;
-}
-
-const MaterialSlab* RzSurface::materialAt(double along) const {
-  if (materialBands.empty() || along < materialEdges.front() ||
-      along >= materialEdges.back()) {
-    return nullptr;
-  }
-  const auto edge = std::ranges::upper_bound(materialEdges, along);
-  return &materialBands[static_cast<std::size_t>(edge - materialEdges.begin()) -
-                        1];
 }
 
 double RzLayer::phiBinWidth() const {

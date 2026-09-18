@@ -92,14 +92,11 @@ class RzMeasurementGrid {
   /// Drop the measurements of the last event
   void clear();
 
-  /// Make room for a known number of measurements, so that filling does not
-  /// grow and copy. A caller knows how many it is about to hand over.
+  /// Reserve measurement storage.
   /// @param n the number of measurements about to be added
   void reserve(std::size_t n);
 
-  /// Add one measurement already on the module's own axes. This is the
-  /// cheapest form and does no arithmetic: a caller whose measurements are
-  /// cartesian offsets on the module needs nothing else.
+  /// Add a measurement already expressed in the module frame.
   /// @param module index into `RzLayout::modules`
   /// @param measurement the entry
   /// @param frame its own axes, for a polar module only
@@ -107,9 +104,7 @@ class RzMeasurementGrid {
   std::uint32_t add(std::uint32_t module, const RzMeasurement& measurement,
                     const RzMeasurementFrame& frame = {});
 
-  /// Add a whole module's measurements at once. A caller whose container is
-  /// grouped by module hands over one group here, which is one run by
-  /// construction, and the grid never sorts.
+  /// Append a module's measurements; contiguous module runs need no sorting.
   /// @param module index into `RzLayout::modules`
   /// @param measurements the entries
   /// @param frames their axes, for a polar module only
@@ -186,9 +181,7 @@ class RzMeasurementGrid {
   }
 
  private:
-  /// Where one module's measurements sit in the grid. The search asks for a
-  /// module and gets a span, so all it needs is where the module's run starts
-  /// and how long it is — not that the modules themselves are in any order.
+  /// Contiguous entries and optional polar frames for one module.
   struct ModuleBlock {
     /// Index of the module's first measurement
     std::uint32_t begin{};
@@ -199,14 +192,15 @@ class RzMeasurementGrid {
     std::uint32_t frame{kRzNone};
   };
 
+  ModuleBlock& prepareModule(std::uint32_t module);
+
   const RzLayout* m_layout{};
   std::vector<RzMeasurement> m_entries;
   /// One per measurement on a polar module, in the order they were added
   std::vector<RzMeasurementFrame> m_frames;
   std::vector<std::uint32_t> m_moduleOf;
   std::vector<ModuleBlock> m_blocks;
-  /// Whether every module's measurements have arrived in one run, so that the
-  /// blocks already describe them and nothing has to move
+  /// True if every module occupies one contiguous run.
   bool m_contiguous{true};
 };
 

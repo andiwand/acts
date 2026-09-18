@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <numbers>
+#include <type_traits>
 
 namespace Acts::Experimental {
 
@@ -53,6 +54,55 @@ std::optional<double> straightPathToCylinder(const RzVector& v, double radius) {
   return std::nullopt;
 }
 
+template <bool ReturnState>
+std::optional<std::conditional_t<ReturnState, RzHelix::PlaneStep, double>>
+intersectPlane(const RzHelix& helix, const RzVector& v, const Vector3& point,
+               const Vector3& normal) {
+  const Vector3 p = v.segment<3>(eRzPos0);
+  const Vector3 d = v.segment<3>(eRzDir0);
+  const double along = normal.dot(d);
+  if (std::abs(along) < 1e-9) {
+    return std::nullopt;
+  }
+  const double straight = normal.dot(point - p) / along;
+  // Use the parabolic crossing as the initial Newton estimate.
+  const double k = helix.kappa(v);
+  const double accel = k * (normal.x() * d.y() - normal.y() * d.x());
+  double s = straight;
+  if (accel != 0.) {
+    // along s + accel s^2 / 2 = along * straight, the root nearest straight
+    const double disc = along * along + 2. * accel * along * straight;
+    if (disc > 0.) {
+      const double q = -(along + std::copysign(std::sqrt(disc), along));
+      const double s1 = q / accel;
+      const double s2 = -2. * along * straight / q;
+      s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
+    }
+  }
+  for (std::int32_t i = 0; i < 5; ++i) {
+    const detail::StepTrig trig = detail::stepTrig(k * s);
+    RzVector w = v;
+    helix.step(w, s, trig);
+    const double f = normal.dot(w.segment<3>(eRzPos0) - point);
+    const double df = normal.dot(w.segment<3>(eRzDir0));
+    if (df == 0.) {
+      return std::nullopt;
+    }
+    const double ds = f / df;
+    const double corrected = s - ds;
+    if (std::abs(ds) < 1e-5 && std::isfinite(ReturnState ? s : corrected)) {
+      // Keep the cached state and trig at their evaluated path length.
+      if constexpr (ReturnState) {
+        return RzHelix::PlaneStep{s, w, trig};
+      } else {
+        return corrected;
+      }
+    }
+    s = corrected;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 std::optional<double> RzHelix::pathToCylinder(const RzVector& v,
@@ -61,10 +111,8 @@ std::optional<double> RzHelix::pathToCylinder(const RzVector& v,
   if (std::abs(k) < kStraightKappa) {
     return straightPathToCylinder(v, radius);
   }
-  // Circle against circle: the crossing points of the track's transverse
-  // circle with the cylinder's, then the turning angle from the chord to
-  // the nearer one ahead. No transcendental but one asin, and no
-  // cancellation: d^2 - rho^2 = |p|^2 - 2 p.r0 is formed directly.
+  // Intersect transverse circles, then convert the nearer forward chord to
+  // path length. Form d^2 - rho^2 directly to avoid cancellation.
   const double px = v[eRzPos0];
   const double py = v[eRzPos1];
   const double dx = v[eRzDir0];
@@ -187,91 +235,12 @@ std::optional<double> RzHelix::pathToCylinderClosedForm(const RzVector& v,
 std::optional<double> RzHelix::pathToPlane(const RzVector& v,
                                            const Vector3& point,
                                            const Vector3& normal) const {
-  const Vector3 p = v.segment<3>(eRzPos0);
-  const Vector3 d = v.segment<3>(eRzDir0);
-  const double along = normal.dot(d);
-  if (std::abs(along) < 1e-9) {
-    return std::nullopt;
-  }
-  const double straight = normal.dot(point - p) / along;
-  // Start from the parabola: the transverse bend over the straight path
-  // moves the crossing by half the acceleration times s^2, which leaves an
-  // error of the order of kappa^2 s^3, well inside one Newton step of the
-  // tolerance for any module distance a layer has.
-  const double k = kappa(v);
-  const double accel = k * (normal.x() * d.y() - normal.y() * d.x());
-  double s = straight;
-  if (accel != 0.) {
-    // along s + accel s^2 / 2 = along * straight, the root nearest straight
-    const double disc = along * along + 2. * accel * along * straight;
-    if (disc > 0.) {
-      const double q = -(along + std::copysign(std::sqrt(disc), along));
-      const double s1 = q / accel;
-      const double s2 = -2. * along * straight / q;
-      s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
-    }
-  }
-  for (std::int32_t i = 0; i < 5; ++i) {
-    RzVector w = v;
-    step(w, s);
-    const double f = normal.dot(w.segment<3>(eRzPos0) - point);
-    const double df = normal.dot(w.segment<3>(eRzDir0));
-    if (df == 0.) {
-      return std::nullopt;
-    }
-    const double ds = f / df;
-    s -= ds;
-    // one step from the parabola is a converged one: its own size says so
-    if (std::abs(ds) < 1e-5 && std::isfinite(s)) {
-      return s;
-    }
-  }
-  return std::nullopt;
+  return intersectPlane<false>(*this, v, point, normal);
 }
 
 std::optional<RzHelix::PlaneStep> RzHelix::stepToPlane(
     const RzVector& v, const Vector3& point, const Vector3& normal) const {
-  const Vector3 p = v.segment<3>(eRzPos0);
-  const Vector3 d = v.segment<3>(eRzDir0);
-  const double along = normal.dot(d);
-  if (std::abs(along) < 1e-9) {
-    return std::nullopt;
-  }
-  const double straight = normal.dot(point - p) / along;
-  // Start from the parabola: the transverse bend over the straight path
-  // moves the crossing by half the acceleration times s^2, which leaves an
-  // error of the order of kappa^2 s^3, well inside one Newton step of the
-  // tolerance for any module distance a layer has.
-  const double k = kappa(v);
-  const double accel = k * (normal.x() * d.y() - normal.y() * d.x());
-  double s = straight;
-  if (accel != 0.) {
-    // along s + accel s^2 / 2 = along * straight, the root nearest straight
-    const double disc = along * along + 2. * accel * along * straight;
-    if (disc > 0.) {
-      const double q = -(along + std::copysign(std::sqrt(disc), along));
-      const double s1 = q / accel;
-      const double s2 = -2. * along * straight / q;
-      s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
-    }
-  }
-  for (std::int32_t i = 0; i < 5; ++i) {
-    const detail::StepTrig trig = detail::stepTrig(k * s);
-    RzVector w = v;
-    step(w, s, trig);
-    const double f = normal.dot(w.segment<3>(eRzPos0) - point);
-    const double df = normal.dot(w.segment<3>(eRzDir0));
-    if (df == 0.) {
-      return std::nullopt;
-    }
-    const double ds = f / df;
-    // one step from the parabola is a converged one: its own size says so
-    if (std::abs(ds) < 1e-5 && std::isfinite(s)) {
-      return PlaneStep{s, w, trig};
-    }
-    s -= ds;
-  }
-  return std::nullopt;
+  return intersectPlane<true>(*this, v, point, normal);
 }
 
 double RzHelix::pathToPerigee(const RzVector& v) const {

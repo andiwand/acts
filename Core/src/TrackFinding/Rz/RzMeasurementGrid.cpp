@@ -34,26 +34,30 @@ void RzMeasurementGrid::reserve(std::size_t n) {
   m_moduleOf.reserve(n);
 }
 
-std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
-                                     const RzMeasurement& measurement,
-                                     const RzMeasurementFrame& frame) {
+RzMeasurementGrid::ModuleBlock& RzMeasurementGrid::prepareModule(
+    std::uint32_t module) {
   ModuleBlock& block = m_blocks[module];
   const std::uint32_t at = static_cast<std::uint32_t>(m_entries.size());
-  const bool polar = m_layout->modules[module].polar;
   if (block.size == 0) {
     block.begin = at;
-    if (polar) {
+    if (m_layout->modules[module].polar) {
       block.frame = static_cast<std::uint32_t>(m_frames.size());
     }
   } else if (block.begin + block.size != at) {
-    // this module's measurements were interrupted by another module's, so
-    // one run no longer holds them and `finalize` has to group them
+    // Interleaved modules need regrouping in finalize().
     m_contiguous = false;
   }
+  return block;
+}
+
+std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
+                                     const RzMeasurement& measurement,
+                                     const RzMeasurementFrame& frame) {
+  ModuleBlock& block = prepareModule(module);
   const std::uint32_t index = block.size++;
   m_entries.push_back(measurement);
   m_moduleOf.push_back(module);
-  if (polar) {
+  if (m_layout->modules[module].polar) {
     m_frames.push_back(frame);
   }
   return index;
@@ -62,21 +66,11 @@ std::uint32_t RzMeasurementGrid::add(std::uint32_t module,
 void RzMeasurementGrid::addRange(std::uint32_t module,
                                  std::span<const RzMeasurement> measurements,
                                  std::span<const RzMeasurementFrame> frames) {
-  ModuleBlock& block = m_blocks[module];
-  const std::uint32_t at = static_cast<std::uint32_t>(m_entries.size());
-  const bool polar = m_layout->modules[module].polar;
-  if (block.size == 0) {
-    block.begin = at;
-    if (polar) {
-      block.frame = static_cast<std::uint32_t>(m_frames.size());
-    }
-  } else if (block.begin + block.size != at) {
-    m_contiguous = false;
-  }
+  ModuleBlock& block = prepareModule(module);
   block.size += static_cast<std::uint32_t>(measurements.size());
   m_entries.insert(m_entries.end(), measurements.begin(), measurements.end());
   m_moduleOf.insert(m_moduleOf.end(), measurements.size(), module);
-  if (polar) {
+  if (m_layout->modules[module].polar) {
     m_frames.insert(m_frames.end(), frames.begin(), frames.end());
   }
 }
@@ -102,8 +96,7 @@ RzMeasurement RzMeasurementGrid::fromBound(
   for (std::uint8_t i = 0; i < dim; ++i) {
     local[boundIndices[i]] = boundParams[i];
   }
-  // whichever order the caller measures in, the variance of a coordinate
-  // sits in that coordinate's own slot
+  // Map covariance entries to their coordinate slots, regardless of order.
   const bool measuresLoc1 = dim == 1 && boundIndices[0] == 1;
   const bool swapped = dim == 2 && boundIndices[0] == 1;
   double var0 = 0.;
@@ -130,16 +123,11 @@ RzMeasurement RzMeasurementGrid::fromBound(
     return e;
   }
 
-  // The frame is the measurement's own, because a polar frame turns with the
-  // strip, and the two scales are what turn a variance in the bound
-  // coordinates into one in length units.
+  // Polar axes depend on the hit; convert covariance to length units.
   double scale0 = 0.;
   double scale1 = 0.;
   if (m.polarIsPlain) {
-    // A disc places its bound coordinates as plain polar in the surface
-    // frame, which the layout checked against the surface. So the radius is
-    // the first bound coordinate, the azimuth turns the module's own axes,
-    // and nothing here calls the surface at all.
+    // The layout verified this plain polar map against the surface.
     const double r = local[0];
     const double c = std::cos(local[1]);
     const double sn = std::sin(local[1]);
@@ -155,10 +143,7 @@ RzMeasurement RzMeasurementGrid::fromBound(
     e.loc0 = r - (c * m.localCenter.x() + sn * m.localCenter.y());
     e.loc1 = sn * m.localCenter.x() - c * m.localCenter.y();
   } else {
-    // d(global) / d(bound local): the surface's own rotation, composed with
-    // the bounds' map to the cartesian frame. Its columns are the directions
-    // the two bound coordinates move the point in, and their lengths are the
-    // scales.
+    // Jacobian columns give the measurement axes and their length scales.
     const Vector3 position = surface.localToGlobal(gctx, local, m.normal);
     Eigen::Matrix<double, 3, 2> jac =
         surface.localToGlobalTransform(gctx).rotation().leftCols<2>();
@@ -178,8 +163,7 @@ RzMeasurement RzMeasurementGrid::fromBound(
   e.cov00 = var0 * scale0 * scale0;
   e.cov01 = cov01 * scale0 * scale1;
   e.cov11 = var1 * scale1 * scale1;
-  // the lever arm the azimuth was converted with: the distance from the polar
-  // frame's origin, which is where the entry sits
+  // Inverse angular scale used to convert variance to length units.
   e.invLever =
       e.projector != RzProjector::Loc0 && scale1 > 0. ? 1. / scale1 : 0.;
   return e;
@@ -201,17 +185,10 @@ std::uint32_t RzMeasurementGrid::addBound(
 
 void RzMeasurementGrid::finalize() {
   if (m_contiguous) {
-    // every module's measurements arrived in one run, so the blocks already
-    // point at them and there is nothing to move — which is the case for any
-    // caller whose container is grouped by module, in whatever order it
-    // visits the modules
+    // Each module already occupies one contiguous run.
     return;
   }
-  // Counting sort by module, permuting the entries themselves so that a
-  // module's measurements are contiguous: the search reads one module at a
-  // time and nothing else, and an entry is small enough that moving it costs
-  // less than the indirection would. The blocks are laid out in module order
-  // here, which the search does not need but nothing forbids.
+  // Counting-sort entries and frames into contiguous module blocks.
   std::vector<std::uint32_t> fill(m_blocks.size());
   std::vector<std::uint32_t> fillFrame(m_blocks.size());
   std::uint32_t at = 0;
@@ -229,8 +206,7 @@ void RzMeasurementGrid::finalize() {
   }
   std::vector<RzMeasurement> sorted(m_entries.size());
   std::vector<RzMeasurementFrame> sortedFrames(m_frames.size());
-  // the frames were added in the order the polar entries were, so walking the
-  // entries in that order walks the frames too
+  // Frames follow the insertion order of polar entries.
   std::uint32_t from = 0;
   for (std::uint32_t i = 0; i < m_moduleOf.size(); ++i) {
     const std::uint32_t m = m_moduleOf[i];

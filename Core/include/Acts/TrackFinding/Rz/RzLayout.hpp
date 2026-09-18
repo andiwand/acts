@@ -126,11 +126,6 @@ struct RzSurface {
     return minBound <= along && along <= maxBound;
   }
 
-  /// The material a crossing meets, or nothing
-  /// @param along z on a cylinder, r on a disc
-  /// @return the slab, or nullptr for none
-  const MaterialSlab* materialAt(double along) const;
-
   /// The band a crossing meets
   /// @param along z on a cylinder, r on a disc
   /// @return the band index, or -1 for none
@@ -152,9 +147,7 @@ struct RzModule {
   /// The bound coordinates are not the module's own axes: they are polar
   /// (r, phi) in the surface frame, which is an annulus disc
   bool polar{false};
-  /// Whether a polar module's bound coordinates are plain polar in the
-  /// surface frame, so that the fill needs a sine and a cosine and never the
-  /// surface. Set when the layout checked it against the surface itself.
+  /// Plain polar coordinates, verified against the surface during layout.
   bool polarIsPlain{false};
   /// The module's centre in the surface's own cartesian frame, which is what
   /// a plain polar measurement is placed against
@@ -198,13 +191,11 @@ struct RzLayout {
   std::vector<std::uint32_t> cylinders;
   /// Indices of the discs by increasing z
   std::vector<std::uint32_t> discs;
-  /// The discs' z and radial extent, in the same order: the navigation probes
-  /// every disc it passes in z and keeps almost none of them, so the probe
-  /// reads three contiguous doubles instead of chasing an `RzSurface`
+  /// Contiguous disc coordinates and bounds for navigation probes.
   std::vector<double> discCoord;
   std::vector<double> discMin;
   std::vector<double> discMax;
-  /// The cylinders' radii, in the same order and for the same reason
+  /// Contiguous cylinder radii for navigation probes.
   std::vector<double> cylCoord;
   std::vector<RzLayer> layers;
   std::vector<RzModule> modules;

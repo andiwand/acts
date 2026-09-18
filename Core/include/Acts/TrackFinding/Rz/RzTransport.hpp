@@ -106,8 +106,7 @@ struct RzHelix {
     step(v, s, detail::stepTrig(kappa(v) * s));
   }
 
-  /// The same with the trigonometry of the turning angle `kappa * s` already
-  /// taken, for a caller that needs it for the Jacobian of the same step too
+  /// Step with cached trigonometry, also reusable for the Jacobian.
   /// @param v the state
   /// @param s the path length
   /// @param t `stepTrig(kappa(v) * s)`
@@ -397,17 +396,14 @@ struct RzHelix {
     }
   }
 
-  /// Smallest positive path length to a cylinder around the beam axis, or
-  /// nothing if the helix never reaches it on its way forward. Newton from
-  /// the straight-line crossing for the mildly curved case, which is every
-  /// layer gap a tracker has, and the closed form otherwise.
+  /// Smallest positive path to a cylinder, or nothing if unreachable.
+  /// Uses transverse circle intersections with an angular-solve fallback.
   /// @param v the state
   /// @param radius the cylinder radius
   /// @return the path length
   std::optional<double> pathToCylinder(const RzVector& v, double radius) const;
 
-  /// The same by the closed form alone: the law of cosines for the turning
-  /// angle, polished once. Exact for any curvature, dearer in transcendentals.
+  /// Angular cylinder-intersection solution, polished by Newton iteration.
   /// @param v the state
   /// @param radius the cylinder radius
   /// @return the path length
@@ -431,9 +427,8 @@ struct RzHelix {
     return s;
   }
 
-  /// Path length to a plane, by Newton iteration from the straight-line
-  /// estimate. May be negative: a module sits on either side of the RZ
-  /// surface the state was brought to.
+  /// Plane crossing by Newton iteration from a parabolic estimate.
+  /// May be negative for modules behind the current RZ stop.
   /// @param v the state
   /// @param point a point on the plane
   /// @param normal the plane normal
@@ -448,10 +443,8 @@ struct RzHelix {
     detail::StepTrig trig;
   };
 
-  /// The same solve, keeping the last Newton iterate: its state and its
-  /// trigonometry, so that a caller needs no second step to get there. The
-  /// iterate is short of the root by the final correction, under 1e-5 in
-  /// path length.
+  /// Plane crossing with cached state and trigonometry at the last iterate.
+  /// Omits the final path correction, whose magnitude is below 1e-5.
   /// @param v the state
   /// @param point a point on the plane
   /// @param normal the plane normal
@@ -459,39 +452,18 @@ struct RzHelix {
   std::optional<PlaneStep> stepToPlane(const RzVector& v, const Vector3& point,
                                        const Vector3& normal) const;
 
-  /// Path length to the point of closest approach to the beam axis, in the
-  /// transverse plane. Negative when the perigee is behind the state.
-  ///
-  /// The axis is x = y = 0, not a configurable beam line: the whole RZ
-  /// description is in (r, z) about it. A caller whose beam spot is offset
-  /// gets the closest approach to the axis, which is the right point to
-  /// express on its own perigee surface only as long as the offset is small
-  /// against the scale over which the track curves.
+  /// Signed path to transverse closest approach to the x = y = 0 axis.
+  /// For an offset beam line this approximates the perigee only when the
+  /// offset is small compared with the curvature radius.
   /// @param v the state
   /// @return the path length
   double pathToPerigee(const RzVector& v) const;
-
-  /// Residual of the cylinder equation at a path length, for polishing
-  /// @param v the state
-  /// @param s the path length
-  /// @param radius the cylinder radius
-  /// @return `|p_T(s)|^2 - radius^2`
-  double cylinderResidual(const RzVector& v, double s, double radius) const {
-    RzVector w = v;
-    step(w, s);
-    return w[eRzPos0] * w[eRzPos0] + w[eRzPos1] * w[eRzPos1] - radius * radius;
-  }
 };
 
-/// The first-order effect of a radial field on a step the helix in `Bz` alone
-/// has taken. `d(dir)/ds` gains `q/p Br (dir x r_hat)`, which for a track
-/// running along z turns it in azimuth: the coordinate an endcap strip
-/// measures, and one a field along z alone gets wrong by `Br L^2 / (2 p)`
-/// over a gap `L`. `Br` is taken linear in the path between the two ends,
-/// which weights the start by 2/3 for the position and by 1/2 for the
-/// direction; `r_hat` and the direction are the start's. The terms of second
-/// order in the field are left out, below a percent of this for any track
-/// that crosses more than one strip disc.
+/// First-order radial-field correction after a Bz helix step.
+/// Integrates q/p Br (dir x r_hat), with Br linear along the path and the
+/// starting direction and radial unit vector held fixed. Higher-order field
+/// terms are omitted.
 /// @param v the state after the helix step, corrected in place
 /// @param from the state before the step
 /// @param s the path length of the step, may be negative

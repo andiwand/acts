@@ -15,11 +15,8 @@
 namespace Acts::Experimental {
 
 BoundMatrix rzBoundCovariance(const RzFreeToBoundMatrix& j, const RzMatrix& c) {
-  // Coefficient-based products, asked for by name: Eigen's size heuristics
-  // can send a 6x8 by 8x8 through its blocked GEMM, with the packing that
-  // costs more than the product, and a scalar loop of length seven is a
-  // latency chain. The time row of J is zero, so its row and column of the
-  // result are zero and the time variance is set by hand.
+  // Avoid blocked GEMM packing for these small matrices.
+  // The spatial Jacobian has a zero time row; supply its variance below.
   const Eigen::Matrix<double, eBoundSize, eRzSize> jc = j.lazyProduct(c);
   BoundMatrix out = jc.lazyProduct(j.transpose());
   out(eBoundTime, eBoundTime) = 1.;
@@ -55,9 +52,7 @@ std::optional<RzBoundState> rzBoundOnModule(
   const Vector3 direction = v.segment<3>(eRzDir0);
   RzBoundState out;
   RzFreeToBoundMatrix j = RzFreeToBoundMatrix::Zero();
-  // the two position rows: the module axes for a cartesian module; for a
-  // polar one the radial and the azimuthal direction about the surface
-  // origin, the latter over the radius, as the disc surface writes them
+  // Position rows use Cartesian axes or the local polar Jacobian.
   Vector3 row0;
   Vector3 row1;
   if (!module.polar) {

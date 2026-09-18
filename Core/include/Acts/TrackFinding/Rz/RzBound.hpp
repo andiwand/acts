@@ -37,9 +37,7 @@ using RzFreeToBoundMatrix = Eigen::Matrix<double, eBoundSize, eRzSize>;
 /// @return the bound covariance
 BoundMatrix rzBoundCovariance(const RzFreeToBoundMatrix& j, const RzMatrix& c);
 
-/// The rows of the free-to-bound Jacobian that every surface shares: the
-/// direction to azimuth and polar angle, and q/p to itself. The position rows
-/// are the caller's.
+/// Fill the phi, theta and q/p rows of the free-to-bound Jacobian.
 /// @param direction the unit direction
 /// @param j the Jacobian, position rows left as they are
 void rzFillDirectionRows(const Vector3& direction, RzFreeToBoundMatrix& j);
