@@ -79,7 +79,7 @@ std::optional<RzBoundState> rzBoundOnModule(
     row0 = cosPhi * module.u + sinPhi * module.v;
     row1 = (cosPhi * module.v - sinPhi * module.u) * invR;
   }
-  for (unsigned int k = 0; k < 3; ++k) {
+  for (std::uint32_t k = 0; k < 3; ++k) {
     j(eBoundLoc0, eRzPos0 + k) = row0[k];
     j(eBoundLoc1, eRzPos0 + k) = row1[k];
   }
@@ -95,7 +95,7 @@ std::optional<RzBoundState> rzBoundOnModule(
     // the covariance. There is no intermediate 7x7 transported covariance.
     const auto& t = *transport;
     RzFreeToBoundMatrix composed;
-    for (unsigned int r = 0; r < eBoundSize; ++r) {
+    for (std::uint32_t r = 0; r < eBoundSize; ++r) {
       const double w = j.row(r).dot(t.d);
       composed(r, eRzPos0) = j(r, eRzPos0);
       composed(r, eRzPos1) = j(r, eRzPos1);

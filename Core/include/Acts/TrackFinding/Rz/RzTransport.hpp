@@ -9,38 +9,19 @@
 #pragma once
 
 /// @file
-/// Closed-form helix transport of a free track state in a field along z, with
-/// the Jacobian the Kalman filter needs and the intersections the RZ navigation
-/// needs. Everything here is in double and cancellation-safe for stiff tracks.
+/// Helix transport, Jacobians, and RZ intersections in an axial field.
 
-#include "Acts/Definitions/Algebra.hpp"
+#include "Acts/TrackFinding/Rz/RzTypes.hpp"
 
 #include <cmath>
 #include <optional>
+#include <span>
 
 namespace Acts::Experimental {
 
-/// Components of the free state the RZ finder transports: position, unit
-/// direction and q/p. Time is not carried.
-enum RzIndices : unsigned int {
-  eRzPos0 = 0,
-  eRzPos1 = 1,
-  eRzPos2 = 2,
-  eRzDir0 = 3,
-  eRzDir1 = 4,
-  eRzDir2 = 5,
-  eRzQOverP = 6,
-  eRzSize = 7,
-};
-
-using RzVector = Eigen::Matrix<double, eRzSize, 1>;
-using RzMatrix = Eigen::Matrix<double, eRzSize, eRzSize>;
-
 namespace detail {
 
-/// The trigonometry of one helix step, from a single sincos: the sine and
-/// cosine of the turning angle `u`, and the four finite ratios the step and
-/// its Jacobian are built from, each free of cancellation.
+/// Trigonometric terms for a helix step and its Jacobian.
 struct StepTrig {
   double sn{};
   double cs{};
@@ -59,6 +40,8 @@ inline StepTrig stepTrig(double u) {
   t.sn = std::sin(u);
   t.cs = std::cos(u);
   const double u2 = u * u;
+  // The direct derivative formulas cancel near zero. At this threshold the
+  // omitted series terms are at double-precision rounding scale.
   if (std::abs(u) < 1e-2) {
     t.sinc = 1. + u2 * (-1. / 6. + u2 / 120.);
     t.versc = u * (0.5 + u2 * (-1. / 24. + u2 / 720.));
@@ -66,8 +49,7 @@ inline StepTrig stepTrig(double u) {
     t.dversc = 0.5 + u2 * (-1. / 8. + u2 * (1. / 144. - u2 / 5760.));
     return t;
   }
-  // 1 - cos(u) as sin^2 / (1 + cos), which does not cancel for small u; the
-  // direct form is fine where the cosine is near -1
+  // Avoid cancellation except near cos(u) = -1.
   const double oneMinusCos =
       1. + t.cs > 1e-3 ? t.sn * t.sn / (1. + t.cs) : 1. - t.cs;
   t.sinc = t.sn / u;
@@ -79,10 +61,7 @@ inline StepTrig stepTrig(double u) {
 
 }  // namespace detail
 
-/// A helix in a constant magnetic field along z. The equation of motion is
-/// `d(dir)/ds = q/p * dir x B`, so with `kappa = q/p * Bz` the transverse
-/// direction turns by `-kappa * s` over a path length `s` and the transverse
-/// position circles the centre `(x + dy / kappa, y - dx / kappa)`.
+/// Helix in a constant axial field, with curvature `q/p * Bz`.
 struct RzHelix {
   /// Field along z in native units
   double bz{};
@@ -92,9 +71,7 @@ struct RzHelix {
   /// @return `q/p * Bz`, in inverse length
   double kappa(const RzVector& v) const { return v[eRzQOverP] * bz; }
 
-  /// The state that runs the same helix the other way: direction and charge
-  /// flipped. A positive path length on it is a negative one on the original,
-  /// which is how the intersections are asked for backwards.
+  /// Reverse direction and charge to traverse the same helix backwards.
   /// @param v the state
   /// @return the reversed state
   static RzVector reversed(const RzVector& v) {
@@ -182,11 +159,7 @@ struct RzHelix {
     return j;
   }
 
-  /// The Jacobian of one step onto a surface kept as what it is: the
-  /// identity, twelve helix entries and a rank-1 term for the path length
-  /// depending on the start state. Applying it to a matrix column by column
-  /// costs half of what the dense product does, and the three position
-  /// rows an innovation needs come without the rest.
+  /// Sparse step Jacobian plus the rank-one path-length correction.
   struct StepJacobian {
     /// The helix entries: position from direction and q/p, direction from
     /// direction and q/p, z from dz
@@ -211,7 +184,8 @@ struct RzHelix {
     /// `J x` for one column
     /// @param x the column
     /// @param y the result
-    void applyLeft(const double* x, double* y) const {
+    void applyLeft(std::span<const double, eRzSize> x,
+                   std::span<double, eRzSize> y) const {
       const double w = dsdv[eRzPos0] * x[eRzPos0] + dsdv[eRzPos1] * x[eRzPos1] +
                        dsdv[eRzPos2] * x[eRzPos2] + dsdv[eRzDir0] * x[eRzDir0] +
                        dsdv[eRzDir1] * x[eRzDir1] + dsdv[eRzDir2] * x[eRzDir2] +
@@ -235,8 +209,9 @@ struct RzHelix {
     /// @return the product
     RzMatrix applyLeft(const RzMatrix& x) const {
       RzMatrix y;
-      for (unsigned int c = 0; c < eRzSize; ++c) {
-        applyLeft(x.col(c).data(), y.col(c).data());
+      for (std::uint32_t c = 0; c < eRzSize; ++c) {
+        applyLeft(std::span<const double, eRzSize>{x.col(c).data(), eRzSize},
+                  std::span<double, eRzSize>{y.col(c).data(), eRzSize});
       }
       return y;
     }
@@ -250,42 +225,42 @@ struct RzHelix {
       const RzMatrix jc = applyLeft(c);
       const RzMatrix x = jc.transpose();
       double w[eRzSize];
-      for (unsigned int col = 0; col < eRzSize; ++col) {
+      for (std::uint32_t col = 0; col < eRzSize; ++col) {
         w[col] = dsdv.dot(x.col(col));
       }
       RzMatrix y;
-      auto row = [&](unsigned int r, auto&& entry) {
-        for (unsigned int col = 0; col <= r; ++col) {
+      auto row = [&](std::uint32_t r, auto&& entry) {
+        for (std::uint32_t col = 0; col <= r; ++col) {
           y(r, col) = entry(col) + d[r] * w[col];
         }
       };
-      row(eRzPos0, [&](unsigned int col) {
+      row(eRzPos0, [&](std::uint32_t col) {
         return x(eRzPos0, col) + f1 * x(eRzDir0, col) + f2 * x(eRzDir1, col) +
                a1 * x(eRzQOverP, col);
       });
-      row(eRzPos1, [&](unsigned int col) {
+      row(eRzPos1, [&](std::uint32_t col) {
         return x(eRzPos1, col) - f2 * x(eRzDir0, col) + f1 * x(eRzDir1, col) +
                a2 * x(eRzQOverP, col);
       });
-      row(eRzPos2, [&](unsigned int col) {
+      row(eRzPos2, [&](std::uint32_t col) {
         return x(eRzPos2, col) + s * x(eRzDir2, col);
       });
-      row(eRzDir0, [&](unsigned int col) {
+      row(eRzDir0, [&](std::uint32_t col) {
         return cs * x(eRzDir0, col) + sn * x(eRzDir1, col) +
                b1 * x(eRzQOverP, col);
       });
-      row(eRzDir1, [&](unsigned int col) {
+      row(eRzDir1, [&](std::uint32_t col) {
         return -sn * x(eRzDir0, col) + cs * x(eRzDir1, col) +
                b2 * x(eRzQOverP, col);
       });
-      for (unsigned int col = 0; col <= eRzDir2; ++col) {
+      for (std::uint32_t col = 0; col <= eRzDir2; ++col) {
         y(eRzDir2, col) = x(eRzDir2, col);
       }
-      for (unsigned int col = 0; col < eRzSize; ++col) {
+      for (std::uint32_t col = 0; col < eRzSize; ++col) {
         y(eRzQOverP, col) = x(eRzQOverP, col);
       }
-      for (unsigned int r = 0; r < eRzSize; ++r) {
-        for (unsigned int col = r + 1; col < eRzSize; ++col) {
+      for (std::uint32_t r = 0; r < eRzSize; ++r) {
+        for (std::uint32_t col = r + 1; col < eRzSize; ++col) {
           y(r, col) = y(col, r);
         }
       }
@@ -307,7 +282,7 @@ struct RzHelix {
       r(1, eRzQOverP) = a2;
       r(2, eRzPos2) = 1.;
       r(2, eRzDir2) = s;
-      for (unsigned int i = 0; i < 3; ++i) {
+      for (std::uint32_t i = 0; i < 3; ++i) {
         r.row(i) += d[eRzPos0 + i] * dsdv.transpose();
       }
       return r;
@@ -409,9 +384,10 @@ struct RzHelix {
         -(normal.transpose() * j.block<3, eRzSize>(eRzPos0, 0)) / along;
     // the outer product by hand: the derivative has no dz and no q/p
     // component, and Eigen's general path is a call with a temporary
-    for (const unsigned int r : {eRzPos0, eRzPos1, eRzPos2, eRzDir0, eRzDir1}) {
+    for (const std::uint32_t r :
+         {eRzPos0, eRzPos1, eRzPos2, eRzDir0, eRzDir1}) {
       const double dr = derivativeEnd[r];
-      for (unsigned int c = 0; c < eRzSize; ++c) {
+      for (std::uint32_t c = 0; c < eRzSize; ++c) {
         j(r, c) += dr * dsdv[c];
       }
     }

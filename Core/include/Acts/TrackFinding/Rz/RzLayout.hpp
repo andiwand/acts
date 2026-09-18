@@ -9,10 +9,7 @@
 #pragma once
 
 /// @file
-/// The RZ skeleton of a tracker the finder navigates: cylinders and discs,
-/// each with the material it carries and, if sensitive, the modules that hang
-/// off it. Built once from a Gen1 tracking geometry, whose layers already are
-/// cylinders and discs.
+/// RZ navigation surfaces and modules built from tracking geometry.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
@@ -20,13 +17,13 @@
 #include "Acts/Geometry/GeometryContext.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
+#include "Acts/TrackFinding/Rz/RzTypes.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -40,9 +37,6 @@ class Logger;
 
 namespace Acts::Experimental {
 
-/// Stands for "none" wherever an index is optional.
-constexpr std::uint32_t kRzNone = std::numeric_limits<std::uint32_t>::max();
-
 /// The two shapes the layout is made of.
 enum class RzShape : std::uint8_t {
   /// At a fixed radius, extending along z
@@ -51,11 +45,7 @@ enum class RzShape : std::uint8_t {
   Disc,
 };
 
-/// The effects of one material band on one particle species, tabulated
-/// against the momentum so that a stop costs a lookup rather than the Bethe
-/// and Highland formulas. Values are for the band's own thickness; a crossing
-/// at an angle scales them by the path factor, the scattering with its
-/// logarithmic correction kept exact.
+/// Momentum-tabulated material effects for one band and particle species.
 struct RzMaterialTable {
   static constexpr std::uint32_t kBins = 48;
   /// Logarithmic momentum grid
@@ -65,7 +55,7 @@ struct RzMaterialTable {
   std::array<float, kBins> theta0Sq{};
   std::array<float, kBins> energyLoss{};
   std::array<float, kBins> sigmaQOverPSq{};
-  /// `ln(t / X0)` of the band, for the Highland factor at a path factor
+  /// `ln(t / X0)` for the Highland correction.
   float logThicknessInX0{};
 
   static double logMinP() { return std::log(kMinP); }
@@ -144,7 +134,7 @@ struct RzSurface {
   /// The band a crossing meets
   /// @param along z on a cylinder, r on a disc
   /// @return the band index, or -1 for none
-  int materialBandAt(double along) const;
+  std::int32_t materialBandAt(double along) const;
 };
 
 /// A sensitive module: a plane with its frame, which is all the finder needs
@@ -251,13 +241,7 @@ struct RzLayoutOptions {
   std::uint32_t phiBins = 64;
   /// Measurement bin width along the extended coordinate
   double alongBinWidth = 20 * UnitConstants::mm;
-  /// Tabulate each band's effects for this particle, see `RzMaterialTable`.
-  /// Worth what the detector's material stops cost: the table path is one
-  /// `log` and a lerp against three out-of-line calls, a `MaterialSlab`, five
-  /// `logf` and four `sqrt`. The ODD measured nothing, having few of them;
-  /// the ITk walks about 36 a seed, where it is -5.6% of the finder
-  /// standalone and -3.8% of `findTrack` through Athena. Off by default
-  /// because building them costs a layout that may not need them.
+  /// Tabulate material effects by momentum; useful for material-rich layouts.
   bool materialTables = false;
   ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
   /// The field, sampled once per surface into `RzSurface::bzTable`; empty

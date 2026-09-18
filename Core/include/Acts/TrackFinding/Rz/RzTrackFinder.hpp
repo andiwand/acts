@@ -9,9 +9,7 @@
 #pragma once
 
 /// @file
-/// Track finding on an RZ layout: a free-frame Kalman filter walked from stop
-/// to stop by closed-form helix transport, with the material of the stops
-/// accumulated between updates.
+/// Kalman track finding on an RZ layout with closed-form helix transport.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/Units.hpp"
@@ -19,8 +17,8 @@
 #include "Acts/TrackFinding/Rz/RzLayout.hpp"
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
+#include "Acts/TrackFinding/Rz/RzTypes.hpp"
 
-#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <numbers>
@@ -29,27 +27,16 @@
 #include <vector>
 
 #include <boost/container/small_vector.hpp>
-#include <boost/container/static_vector.hpp>
 
 namespace Acts::Experimental {
 
 struct RzTrackFinderConfig {
   /// Largest chi2 a measurement is accepted with
   double chi2Cut = 15.;
-  /// A candidate whose chi2 along the straight line, against the covariance
-  /// at the stop widened by the direction uncertainty over the module
-  /// distance, exceeds this many times `chi2Cut` is dropped before the exact
-  /// transport is built for it
+  /// Limit for the straight-line pre-gate, relative to `chi2Cut`.
   double gateFactor = 4.;
-  /// Of the candidates that pass the gate, only those whose straight-line
-  /// chi2 is at most `exactWindowFactor` times the best one's plus
-  /// `exactWindowOffset` are transported exactly; the exact chi2 picks among
-  /// them. The winner is the gate's best in 96% of accepted ITk rounds and
-  /// within twice its gate chi2 in 99.4%, while most candidates past the
-  /// window sit on other modules and each cost a full transport. Off by
-  /// default: on ITk ttbar a factor of 2 (3) with offset 1 (2) saves 2-3% of
-  /// the search and loses 0.5% (0.3%) of the strip hits. A factor of zero
-  /// transports every candidate that passes the gate.
+  /// Restrict exact transports by pre-gate chi2; zero evaluates all survivors.
+  /// Kept off by default because restricting it lost strip hits on ITk.
   double exactWindowFactor = 0.;
   double exactWindowOffset = 1.;
   /// Search window in units of the predicted position uncertainty
@@ -60,8 +47,7 @@ struct RzTrackFinderConfig {
   double maxModuleDistance = 50. * UnitConstants::mm;
   /// Extra room along a strip on top of its half length
   double stripMargin = 2. * UnitConstants::mm;
-  /// Room around a module's edge within which a crossing still counts as on
-  /// the module, for the hole decision
+  /// Edge tolerance for the hole decision.
   double moduleEdgeTolerance = 0.5 * UnitConstants::mm;
   std::uint32_t maxHoles = 3;
   std::uint32_t maxConsecutiveHoles = 2;
@@ -70,44 +56,25 @@ struct RzTrackFinderConfig {
   std::uint32_t maxMeasurementsPerLayer = 2;
   /// Stop once the track has turned this far in the transverse plane
   double maxTurningAngle = std::numbers::pi;
-  /// Branch stopper: drop a candidate whose filtered transverse momentum has
-  /// fallen below this, checked after each measurement. The seed's own
-  /// estimate is not trusted for it — the first update has to have happened.
-  /// Zero switches it off.
+  /// Minimum filtered transverse momentum after an update; zero disables it.
   double ptMin = 0.;
-  /// A candidate that has not reached this many measurements by the time it
-  /// has crossed this many sensitive layers is dropped. Zero switches it off.
+  /// Early hit-count stop; `layersForMinMeasurements == 0` disables it.
   std::uint32_t minMeasurementsAtLayer = 0;
   std::uint32_t layersForMinMeasurements = 0;
   bool applyMaterial = true;
-  /// Carry on inward past the innermost measurement, searching the layers
-  /// between it and the beam line, and end at the closest approach. Without
-  /// it a seed built from outer space points yields a track that starts where
-  /// the seed did and never sees anything inside it, which both loses those
-  /// hits and stops deduplication recognising the seeds that would have found
-  /// them.
+  /// Search from the innermost hit to the beam line and closest approach.
   bool inwardSearch = true;
-  /// Refilter the found measurements backwards from the forward result, so
-  /// that the parameters at the inner end carry every hit's information: a
-  /// filter run the other way, started from the diagonal of the forward
-  /// covariance inflated by `backwardInflation`, i.e. from nothing.
+  /// Refilter inward so the inner state uses all found measurements.
   bool backwardPass = true;
-  /// Correct the helix in `Bz` for the radial field, where the layout carries
-  /// it: first order, on every step between two surfaces
+  /// Apply the first-order radial-field correction at each step.
   bool radialField = true;
   /// Retain every filtered state for output. Otherwise retain only the
   /// checkpoint needed to start a partial backward pass.
   bool storeForwardStates = true;
   double backwardInflation = 100.;
-  /// Run the backward pass over the innermost this many measurements only,
-  /// from the forward state at the outermost of them, with the forward
-  /// filter's final q/p and its variance as the prior: the impact parameters
-  /// come from the inner hits, the momentum from the whole track. Zero runs
-  /// it over every measurement.
+  /// Number of inner measurements to refilter; zero refilters all.
   std::uint32_t backwardLayers = 6;
-  /// In a partial backward pass, what the forward q/p variance is scaled by
-  /// as the prior: the inner hits already went into it, so 1 double-counts
-  /// them; 0 freezes q/p at the forward value and restores its variance after
+  /// Scale the forward q/p prior variance; zero freezes q/p during refitting.
   double backwardQOverPScale = 1.;
   ParticleHypothesis particleHypothesis = ParticleHypothesis::pion();
 };
@@ -143,14 +110,11 @@ struct RzTrackCandidate {
   /// The state at the end of the forward pass, on the last measurement
   RzVector parameters{RzVector::Zero()};
   RzMatrix covariance{RzMatrix::Zero()};
-  /// The state at the inner end after the backward pass, if run: at the
-  /// closest approach to the beam axis when the inward search ran, otherwise
-  /// at the first measurement
+  /// Backward-refitted inner state, at perigee after an inward search.
   RzVector innerParameters{RzVector::Zero()};
   RzMatrix innerCovariance{RzMatrix::Zero()};
   bool hasInner{false};
-  /// Whether `innerParameters` are already at the closest approach, so that a
-  /// caller has nothing left to extrapolate
+  /// Whether the inner state is already at the closest approach.
   bool innerAtPerigee{false};
   /// Why the backward pass gave up, 0 if it did not
   std::uint32_t backwardFailure{};
@@ -174,8 +138,7 @@ struct RzTrackCandidate {
   /// Counters for the cost analysis
   std::uint32_t stops{};
   std::uint32_t candidatesTested{};
-  /// Modules the layer lookups examined, and the bins they walked to find
-  /// them: what the measurement binning costs per stop
+  /// Module and bin visits made by the layer lookup.
   std::uint32_t modulesTested{};
   std::uint32_t binsVisited{};
   /// Candidates examined on polar modules
@@ -206,8 +169,7 @@ struct RzTrackCandidate {
   }
 };
 
-/// Where a track search starts: the state, its covariance, the module it
-/// sits on and the measurements the seed is made of
+/// Start state, module, and optional known seed measurements.
 struct RzTrackStart {
   RzVector parameters{RzVector::Zero()};
   RzMatrix covariance{RzMatrix::Zero()};
@@ -234,339 +196,79 @@ class RzTrackFinder {
   /// The field the finder falls back on where a surface has no table
   double bz() const { return m_bz; }
 
-  /// Follow a track outward from a start state.
-  /// @param measurements where to get a module's measurements
-  /// @param start the start state
-  /// @param startCovariance its covariance
-  /// @param startModule the module the start state sits on, or `kRzNone`; its
-  ///        layer is searched before any transport
-  /// @param candidate the result, cleared first
-  /// @return true if the candidate has at least `minMeasurements` hits
-  /// @param seedMeasurements the measurements the seed is made of. A layer
-  ///        that holds one is not searched: the measurement is taken.
+  /// Follow one start state; known seed measurements are taken directly.
+  /// @return true if the candidate has enough measurements.
   bool findTrack(
       const RzMeasurementAccessor& measurements, const RzVector& start,
       const RzMatrix& startCovariance, std::uint32_t startModule,
       RzTrackCandidate& candidate,
       std::span<const RzSeedMeasurement> seedMeasurements = {}) const;
 
-  /// Follow many tracks, a batch of them in lockstep: every walk of the
-  /// batch is moved to its next sensitive stop, then every one is searched
-  /// and updated there, and so on until the batch has ended. One walk is a
-  /// chain, each stop waiting on the one before; the walks of a batch are
-  /// independent, so the core has other work to do while one waits.
-  /// @param measurements where to get a module's measurements
-  /// @param starts the start of every track
-  /// @param batch how many walks go in lockstep; 0 or 1 is one at a time
-  /// @param onTrack called once per start, in order, with its index, whether
-  ///        a track was found and the candidate
+  /// Follow starts in batches; `onTrack` receives each result in input order.
+  /// A batch size of zero or one processes one track at a time.
   void findTracks(const RzMeasurementAccessor& measurements,
                   std::span<const RzTrackStart> starts, std::size_t batch,
                   const std::function<void(std::size_t, bool,
                                            RzTrackCandidate&)>& onTrack) const;
 
  private:
-  /// The scalars multiple scattering and energy loss straggling accumulate in
-  /// between two materialisations into the covariance
-  struct Pending {
-    double varAngle{};
-    double varPosition{};
-    double covAnglePosition{};
-    double varQOverP{};
-
-    bool empty() const { return varAngle == 0. && varQOverP == 0.; }
-    // Signed path: position-direction correlations reverse when walking inward.
-    void advance(double s) {
-      varPosition += 2. * covAnglePosition * s + varAngle * s * s;
-      covAnglePosition += varAngle * s;
-    }
-  };
-
-  struct State {
-    RzVector v;
-    RzMatrix c;
-    double time{};
-    double timeVariance{};
-    double massOverCharge{};
-    Pending pending;
-    double turned{};
-    /// Where the covariance sits: the state it was last moved to or updated
-    /// at, and the path walked since. The covariance is moved once per
-    /// sensitive stop by the Jacobian of that whole path, one helix step
-    /// from the anchor: the passive stops in between only re-parametrise
-    /// the same map, and the energy loss at them changes the curvature by
-    /// too little to matter for a Jacobian.
-    RzVector anchor;
-    double pathSince{};
-    /// `Bz` the state moves in from here, and the one at the anchor
-    double bz{};
-    double anchorBz{};
-    /// The radial field where the state stands
-    double br{};
-    /// What the radial field's kicks since the anchor add to the q/p column
-    /// of the anchor's Jacobian, for the position and the direction rows
-    Vector3 brQopPosition{Vector3::Zero()};
-    Vector3 brQopDirection{Vector3::Zero()};
-
-    /// Walk on without the covariance
-    void travel(double s) {
-      pathSince += s;
-      const double mOverP = massOverCharge * v[eRzQOverP];
-      time += s * std::sqrt(1. + mOverP * mOverP);
-    }
-    /// Bring the covariance to the state, on a surface with the given normal
-    void moveCovariance(const RzHelix& helix, const Vector3& normal) {
-      if (pathSince == 0.) {
-        return;
-      }
-      c = helix
-              .stepJacobianOnto(
-                  anchor, pathSince, v, normal,
-                  detail::stepTrig(helix.kappa(anchor) * pathSince),
-                  brQopPosition, brQopDirection)
-              .transport(c);
-      anchor = v;
-      anchorBz = bz;
-      pathSince = 0.;
-      brQopPosition.setZero();
-      brQopDirection.setZero();
-    }
-  };
-
-  /// What evaluating a measurement against a state yields: the residual on
-  /// the module, and the measurement pulled back to where the state is, as
-  /// the rows of `H J` with `J` the transport to the module. The update then
-  /// happens at the state's own stop, which for the linear model is the same
-  /// as updating on the module and costs no covariance transport.
-  struct Evaluation {
-    double chi2{};
-    double timeResidual{};
-    double timeGain{};
-    bool hasTime{};
-    /// `C (H J)^T`, one column per measured coordinate
-    Eigen::Matrix<double, eRzSize, 2> ch;
-    Eigen::Matrix<double, 2, 1> residual;
-    Eigen::Matrix<double, 2, 2> sInv;
-  };
-
-  /// Exact transport shared by surviving hits on the same module plane.
-  struct Prediction {
-    Vector3 planePosition;
-    Vector3 normal;
-    RzHelix::PlaneStep crossing;
-    Eigen::Matrix<double, 3, eRzSize> jPos;
-    bool hasJacobian = false;
-  };
-
-  std::uint32_t saveForwardState(const State& state,
-                                 RzTrackCandidate& candidate) const;
-
-  /// A measurement placed in the global frame, as the exact transport needs
-  /// it. The search holds measurements on their module's axes, which is all
-  /// the gate reads; this is what the few that survive the gate are expanded
-  /// into.
-  struct Placed {
-    Vector3 position{Vector3::Zero()};
-    /// The direction the measured coordinate is taken along
-    Vector3 u{Vector3::Zero()};
-    /// The other one, which a strip does not measure
-    Vector3 v{Vector3::Zero()};
-    Vector3 normal{Vector3::Zero()};
-    /// Variance along `u`
-    double cov00{};
-    double cov01{};
-    /// Variance along `v`, unused by a strip
-    double cov11{};
-    double invLever{};
-    double time{};
-    double timeVariance{};
-    /// Room along `v`, the coordinate a strip does not measure
-    double halfV{};
-    /// How far from the RZ stop the module may be met
-    double maxDistance{};
-    bool pixel{};
-  };
-
-  /// Place a hit's measurement in the global frame
-  /// @param measurements where to get a module's measurements
-  /// @param hit the hit, which names its module and the index within it
-  /// @return the placed measurement
-  Placed placeHit(const RzMeasurementAccessor& measurements,
-                  const RzTrackHit& hit) const;
-
-  /// Place a measurement in the global frame
-  /// @param mod the module it sits on
-  /// @param m the measurement
-  /// @param frame its own axes, or nullptr for a cartesian module, whose
-  ///        measurements all share the module's
-  /// @return the placed measurement
-  Placed place(const RzModule& mod, const RzMeasurement& m,
-               const RzMeasurementFrame* frame) const;
-
-  /// Take the residual of a measurement against the state brought to its
-  /// module, and its chi2, with the state's covariance as the prediction's
-  /// @param gate drop the measurement on the straight-line chi2 first; off
-  ///        for a measurement the track is known to have
-  /// @return nothing if the module cannot be reached or the strip is missed
-  template <bool Cache = false>
-  std::optional<Evaluation> evaluate(
-      const State& state, const Placed& m, bool gate = true,
-      bool useTime = true,
-      std::optional<Prediction>* prediction = nullptr) const;
-
-  /// Take a measurement the caller says the track is made of, without
-  /// searching the layer for it. The seed's own measurements are known, and
-  /// looking for them costs a module window opened against the seed's
-  /// covariance - the widest the track ever has - and a full transport of
-  /// every measurement the crossed modules carry.
-  /// @return true if the measurement could be brought onto the track
-  bool takeKnownHit(const RzMeasurementAccessor& measurements,
-                    const RzSeedMeasurement& seed, std::uint32_t layerIndex,
-                    std::uint32_t stop, State& state,
-                    RzTrackCandidate& candidate) const;
-
-  /// Kalman update with an evaluated measurement, at the state's stop
-  void update(State& state, const Evaluation& e) const;
-
-  /// Apply the material of a stop: energy loss to the state now, scattering
-  /// and straggling to `pending`
-  /// @param direction +1 along the track, -1 against it (energy is regained)
-  /// @return false if the track ranged out
-  bool applyMaterial(State& state, const MaterialSlab& slab,
-                     const Vector3& normal, double direction = 1.) const;
-
-  /// The same from a band's table, the formulas as the fallback
-  bool applyMaterial(State& state, const RzSurface& surface, int band,
-                     const Vector3& normal, double direction = 1.) const;
-
-  /// Give the state back the mean energy a stop took from it, and nothing
-  /// else: the scattering and straggling of a stop the backward pass skips
-  /// are not wanted, only the momentum the track had there
-  void regainEnergy(State& state, const RzSurface& surface, int band,
-                    const Vector3& normal) const;
-
-  /// Refilter the candidate's measurements from the outer end inwards
-  void backwardPass(const RzMeasurementAccessor& measurements,
-                    const State& forward, RzTrackCandidate& candidate) const;
-
-  /// Walk inward from the state, searching every sensitive layer between it
-  /// and the beam line, and leave the state at the closest approach.
-  /// @param measurements where to get a module's measurements
-  /// @param state the state at the innermost measurement, moved to the
-  ///        closest approach
-  /// @param candidate the hits found are appended, outward to inward
-  /// @return false if the closest approach could not be reached
-  bool inwardSearch(const RzMeasurementAccessor& measurements, State& state,
-                    RzTrackCandidate& candidate) const;
-
-  /// Add `pending` to the covariance and project the position part onto the
-  /// surface with the given normal
-  void materialise(State& state, const Vector3& normal) const;
-
-  /// Keep typical crossings inline, but allow a wide uncertainty window to
-  /// include more modules without silently truncating the search.
+  struct Pending;
+  struct State;
+  struct Evaluation;
+  struct Prediction;
+  struct Placed;
+  struct Walk;
   using ModuleList = boost::container::small_vector<std::uint32_t, 8>;
 
-  /// Search the modules the state crosses and update with the best candidates
-  /// @param measurements where to get a module's measurements
-  /// @param layer the layer the modules belong to
-  /// @param stop the stop the layer is at, `kRzNone` for the start layer
-  /// @param modules the modules the crossing landed on, from `modulesAt`
-  /// @return the number of measurements accepted
+  // Forward walk and navigation.
+  void beginWalk(const RzMeasurementAccessor& measurements,
+                 const RzTrackStart& start, RzTrackCandidate& candidate,
+                 Walk& walk) const;
+  bool advanceWalk(Walk& walk) const;
+  void searchStop(const RzMeasurementAccessor& measurements, Walk& walk) const;
+  bool finishWalk(const RzMeasurementAccessor& measurements, Walk& walk) const;
+  std::optional<double> pathBackward(const RzHelix& helix, const RzVector& v,
+                                     const RzSurface& surface,
+                                     double guess) const;
+
+  // Module and measurement search.
+  void modulesAt(std::uint32_t layer, const State& state, ModuleList& modules,
+                 bool& onModule, RzTrackCandidate& candidate) const;
   std::uint32_t searchLayer(const RzMeasurementAccessor& measurements,
                             std::uint32_t layer, std::uint32_t stop,
                             const ModuleList& modules, State& state,
                             RzTrackCandidate& candidate,
                             std::uint32_t skipRounds = 0,
                             std::uint32_t usedModule = kRzNone) const;
+  Placed place(const RzModule& module, const RzMeasurement& measurement,
+               const RzMeasurementFrame* frame) const;
+  Placed placeHit(const RzMeasurementAccessor& measurements,
+                  const RzTrackHit& hit) const;
+  template <bool Cache = false>
+  std::optional<Evaluation> evaluate(
+      const State& state, const Placed& measurement, bool gate = true,
+      bool useTime = true,
+      std::optional<Prediction>* prediction = nullptr) const;
+  bool takeKnownHit(const RzMeasurementAccessor& measurements,
+                    const RzSeedMeasurement& seed, std::uint32_t layerIndex,
+                    std::uint32_t stop, State& state,
+                    RzTrackCandidate& candidate) const;
 
-  /// The modules of the layer the state could have crossed, widened by where
-  /// the state could be, which is what the search has to look at.
-  /// @param layer the layer
-  /// @param state the state at the stop
-  /// @param modules filled with the modules, cleared first
-  /// @param onModule set if the crossing lands on a module without the
-  ///        widening — the hole decision, which must stay as tight as it was
-  ///        or a track that merely passed near a module counts as having
-  ///        missed one
-  /// @param candidate its counters take what the lookup examined
-  void modulesAt(std::uint32_t layer, const State& state, ModuleList& modules,
-                 bool& onModule, RzTrackCandidate& candidate) const;
-
-  /// Path length back to an RZ surface, negative, or nothing
-  /// @param guess where to start looking, the forward path with its sign
-  ///        flipped
-  std::optional<double> pathBackward(const RzHelix& helix, const RzVector& v,
-                                     const RzSurface& surface,
-                                     double guess) const;
-
-  /// The forward walk of one track between the steps it is taken in: the
-  /// state, the navigation cursors and the counters, which is what the loop
-  /// of a track followed on its own keeps on the stack
-  struct Walk {
-    State state;
-    /// the state at the last accepted measurement is what the track keeps;
-    /// the last stop may be the escape
-    State lastHit;
-    RzTrackCandidate* candidate{};
-    /// the layer each seed measurement sits on, so a crossing can ask in a
-    /// few comparisons whether it is one the caller already knows the
-    /// answer to
-    boost::container::static_vector<std::pair<std::uint32_t, RzSeedMeasurement>,
-                                    8>
-        knownHits;
-    std::uint32_t startSurface{kRzNone};
-    /// navigation cursors: the next cylinder outward and the next disc
-    /// along z
-    std::size_t cyl{};
-    std::ptrdiff_t disc{};
-    int discStep{1};
-    bool cylindersLeft{true};
-    bool discsLeft{true};
-    /// what the last stop was: a track in the barrel stays there until a
-    /// disc comes first, one in the endcap until a cylinder does, so the
-    /// other kind's stop is looked at only once it can be nearer
-    bool inEndcap{false};
-    /// the cylinder solve, kept while the state has not moved
-    std::uint32_t cylCached{kRzNone};
-    std::optional<double> cylCachedPath;
-    std::uint32_t holes{};
-    std::uint32_t consecutiveHoles{};
-    std::uint32_t layersCrossed{};
-    std::uint32_t measurementsFound{};
-    /// the walk has ended, one way or another
-    bool done{false};
-    /// the walk stands on a sensitive stop, ready for the search
-    bool atStop{false};
-    std::uint32_t layer{kRzNone};
-    std::uint32_t stop{kRzNone};
-    Vector3 normal{Vector3::Zero()};
-    ModuleList crossedModules;
-
-    RzSeedMeasurement knownAt(std::uint32_t layerIndex) const {
-      for (const auto& [l, entry] : knownHits) {
-        if (l == layerIndex) {
-          return entry;
-        }
-      }
-      return RzSeedMeasurement{};
-    }
-  };
-
-  /// Set a walk up at its start, and search the start layer
-  void beginWalk(const RzMeasurementAccessor& measurements,
-                 const RzTrackStart& start, RzTrackCandidate& candidate,
-                 Walk& walk) const;
-  /// Move a walk to its next sensitive stop, through the passive ones and
-  /// their material, and bring the covariance there
-  /// @return false once the walk has ended
-  bool advanceWalk(Walk& walk) const;
-  /// Search the layer a walk stands on and update with what it finds; the
-  /// walk may end here on its hole or momentum budget
-  void searchStop(const RzMeasurementAccessor& measurements, Walk& walk) const;
-  /// Close the candidate, and refilter it if it is a track
-  /// @return true if the candidate has at least `minMeasurements` hits
-  bool finishWalk(const RzMeasurementAccessor& measurements, Walk& walk) const;
+  // Filtering and material.
+  void update(State& state, const Evaluation& evaluation) const;
+  std::uint32_t saveForwardState(const State& state,
+                                 RzTrackCandidate& candidate) const;
+  void materialise(State& state, const Vector3& normal) const;
+  bool applyMaterial(State& state, const MaterialSlab& slab,
+                     const Vector3& normal, double direction = 1.) const;
+  bool applyMaterial(State& state, const RzSurface& surface, std::int32_t band,
+                     const Vector3& normal, double direction = 1.) const;
+  void regainEnergy(State& state, const RzSurface& surface, std::int32_t band,
+                    const Vector3& normal) const;
+  void backwardPass(const RzMeasurementAccessor& measurements,
+                    const State& forward, RzTrackCandidate& candidate) const;
+  bool inwardSearch(const RzMeasurementAccessor& measurements, State& state,
+                    RzTrackCandidate& candidate) const;
 
   RzTrackFinderConfig m_cfg;
   const RzLayout* m_layout{};

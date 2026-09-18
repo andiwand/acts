@@ -26,10 +26,7 @@
 
 namespace ActsExamples {
 
-/// Track finding on the RZ skeleton of the tracking geometry, one track per
-/// initial parameter set, forward only. Tracks come out with their parameters
-/// at the perigee and their measurements as track states, so the truth
-/// matcher and the performance writers apply unchanged.
+/// Build tracks from initial parameters with the RZ finder.
 class RzTrackFindingAlgorithm final : public IAlgorithm {
  public:
   struct Config {
@@ -43,13 +40,12 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
     /// Measurement binning per layer, see `Acts::Experimental::RzLayoutOptions`
     /// Volumes whose sensitive surfaces are not searched (their material
     /// stays), e.g. the HGTD behind the ITk
-    std::vector<unsigned int> excludeVolumes;
+    std::vector<std::uint32_t> excludeVolumes;
     std::uint32_t phiBins = 64;
     double alongBinWidth = 20 * Acts::UnitConstants::mm;
     /// Tabulate each material band per momentum, see `RzLayoutOptions`
     bool materialTables = false;
-    /// How many seeds the finder follows in lockstep, stop by stop; 0 or 1
-    /// follows each seed on its own
+    /// Seeds followed in lockstep; zero or one runs them separately.
     std::size_t batchSize = 0;
     /// Store filtered parameters and covariances on measurement states.
     bool writeFilteredStates = true;
@@ -92,21 +88,21 @@ class RzTrackFindingAlgorithm final : public IAlgorithm {
       this, "InputInitialTrackParameters"};
   WriteDataHandle<ConstTrackContainer> m_outputTracks{this, "OutputTracks"};
 
-  mutable std::atomic<std::size_t> m_nSeeds{0};
-  mutable std::atomic<std::size_t> m_nTracks{0};
-  mutable std::atomic<std::size_t> m_nStops{0};
-  mutable std::atomic<std::size_t> m_nCandidates{0};
-  mutable std::atomic<std::size_t> m_nMeasurementsOnTracks{0};
-  mutable std::atomic<std::size_t> m_nHolesOnTracks{0};
-  mutable std::atomic<std::size_t> m_nBackwardFailures{0};
-  mutable std::atomic<std::size_t> m_nMeasurementsBinned{0};
+  mutable std::atomic<std::uint64_t> m_nSeeds{0};
+  mutable std::atomic<std::uint64_t> m_nTracks{0};
+  mutable std::atomic<std::uint64_t> m_nStops{0};
+  mutable std::atomic<std::uint64_t> m_nCandidates{0};
+  mutable std::atomic<std::uint64_t> m_nMeasurementsOnTracks{0};
+  mutable std::atomic<std::uint64_t> m_nHolesOnTracks{0};
+  mutable std::atomic<std::uint64_t> m_nBackwardFailures{0};
+  mutable std::atomic<std::uint64_t> m_nMeasurementsBinned{0};
   /// Wall time in nanoseconds, so that the cost of preparing the measurements
   /// can be compared with the cost of using them
-  mutable std::atomic<std::size_t> m_nsFill{0};
-  mutable std::atomic<std::size_t> m_nsFinalize{0};
-  mutable std::atomic<std::size_t> m_nsFind{0};
-  mutable std::atomic<std::size_t> m_nsMake{0};
-  mutable std::atomic<std::size_t> m_nsMakeStates{0};
+  mutable std::atomic<std::uint64_t> m_nsFill{0};
+  mutable std::atomic<std::uint64_t> m_nsFinalize{0};
+  mutable std::atomic<std::uint64_t> m_nsFind{0};
+  mutable std::atomic<std::uint64_t> m_nsMake{0};
+  mutable std::atomic<std::uint64_t> m_nsMakeStates{0};
 };
 
 }  // namespace ActsExamples

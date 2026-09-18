@@ -9,11 +9,14 @@
 #include "Acts/TrackFinding/Rz/RzTrackFinder.hpp"
 
 #include "Acts/Material/Interactions.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <limits>
+
+#include <boost/container/static_vector.hpp>
 
 namespace Acts::Experimental {
 
@@ -68,6 +71,167 @@ void radialKick(bool enabled, RzVector& v, const RzVector& from, double s,
 }
 }  // namespace
 
+/// The scalars multiple scattering and energy loss straggling accumulate in
+/// between two materialisations into the covariance
+struct RzTrackFinder::Pending {
+  double varAngle{};
+  double varPosition{};
+  double covAnglePosition{};
+  double varQOverP{};
+
+  bool empty() const { return varAngle == 0. && varQOverP == 0.; }
+  // Signed path: position-direction correlations reverse when walking inward.
+  void advance(double s) {
+    varPosition += 2. * covAnglePosition * s + varAngle * s * s;
+    covAnglePosition += varAngle * s;
+  }
+};
+
+struct RzTrackFinder::State {
+  RzVector v;
+  RzMatrix c;
+  double time{};
+  double timeVariance{};
+  double massOverCharge{};
+  Pending pending;
+  double turned{};
+  /// Covariance anchor and path since its last transport.
+  RzVector anchor;
+  double pathSince{};
+  /// `Bz` the state moves in from here, and the one at the anchor
+  double bz{};
+  double anchorBz{};
+  /// The radial field where the state stands
+  double br{};
+  /// What the radial field's kicks since the anchor add to the q/p column
+  /// of the anchor's Jacobian, for the position and the direction rows
+  Vector3 brQopPosition{Vector3::Zero()};
+  Vector3 brQopDirection{Vector3::Zero()};
+
+  /// Walk on without the covariance
+  void travel(double s) {
+    pathSince += s;
+    const double mOverP = massOverCharge * v[eRzQOverP];
+    time += s * std::sqrt(1. + mOverP * mOverP);
+  }
+  /// Bring the covariance to the state, on a surface with the given normal
+  void moveCovariance(const RzHelix& helix, const Vector3& normal) {
+    if (pathSince == 0.) {
+      return;
+    }
+    c = helix
+            .stepJacobianOnto(anchor, pathSince, v, normal,
+                              detail::stepTrig(helix.kappa(anchor) * pathSince),
+                              brQopPosition, brQopDirection)
+            .transport(c);
+    anchor = v;
+    anchorBz = bz;
+    pathSince = 0.;
+    brQopPosition.setZero();
+    brQopDirection.setZero();
+  }
+};
+
+/// Residual and projected covariance at the current stop.
+struct RzTrackFinder::Evaluation {
+  double chi2{};
+  double timeResidual{};
+  double timeGain{};
+  bool hasTime{};
+  /// `C (H J)^T`, one column per measured coordinate
+  Eigen::Matrix<double, eRzSize, 2> ch;
+  Eigen::Matrix<double, 2, 1> residual;
+  Eigen::Matrix<double, 2, 2> sInv;
+};
+
+/// Exact transport shared by surviving hits on the same module plane.
+struct RzTrackFinder::Prediction {
+  Vector3 planePosition;
+  Vector3 normal;
+  RzHelix::PlaneStep crossing;
+  Eigen::Matrix<double, 3, eRzSize> jPos;
+  bool hasJacobian = false;
+};
+
+/// A measurement placed in the global frame, as the exact transport needs
+/// it. The search holds measurements on their module's axes, which is all
+/// the gate reads; this is what the few that survive the gate are expanded
+/// into.
+struct RzTrackFinder::Placed {
+  Vector3 position{Vector3::Zero()};
+  /// The direction the measured coordinate is taken along
+  Vector3 u{Vector3::Zero()};
+  /// The other one, which a strip does not measure
+  Vector3 v{Vector3::Zero()};
+  Vector3 normal{Vector3::Zero()};
+  /// Variance along `u`
+  double cov00{};
+  double cov01{};
+  /// Variance along `v`, unused by a strip
+  double cov11{};
+  double invLever{};
+  double time{};
+  double timeVariance{};
+  /// Room along `v`, the coordinate a strip does not measure
+  double halfV{};
+  /// How far from the RZ stop the module may be met
+  double maxDistance{};
+  bool pixel{};
+};
+
+/// The forward walk of one track between the steps it is taken in: the
+/// state, the navigation cursors and the counters, which is what the loop
+/// of a track followed on its own keeps on the stack
+struct RzTrackFinder::Walk {
+  State state;
+  /// the state at the last accepted measurement is what the track keeps;
+  /// the last stop may be the escape
+  State lastHit;
+  RzTrackCandidate* candidate{};
+  /// the layer each seed measurement sits on, so a crossing can ask in a
+  /// few comparisons whether it is one the caller already knows the
+  /// answer to
+  boost::container::static_vector<std::pair<std::uint32_t, RzSeedMeasurement>,
+                                  8>
+      knownHits;
+  std::uint32_t startSurface{kRzNone};
+  /// navigation cursors: the next cylinder outward and the next disc
+  /// along z
+  std::size_t cyl{};
+  std::int32_t disc{};
+  std::int32_t discStep{1};
+  bool cylindersLeft{true};
+  bool discsLeft{true};
+  /// what the last stop was: a track in the barrel stays there until a
+  /// disc comes first, one in the endcap until a cylinder does, so the
+  /// other kind's stop is looked at only once it can be nearer
+  bool inEndcap{false};
+  /// the cylinder solve, kept while the state has not moved
+  std::uint32_t cylCached{kRzNone};
+  std::optional<double> cylCachedPath;
+  std::uint32_t holes{};
+  std::uint32_t consecutiveHoles{};
+  std::uint32_t layersCrossed{};
+  std::uint32_t measurementsFound{};
+  /// the walk has ended, one way or another
+  bool done{false};
+  /// the walk stands on a sensitive stop, ready for the search
+  bool atStop{false};
+  std::uint32_t layer{kRzNone};
+  std::uint32_t stop{kRzNone};
+  Vector3 normal{Vector3::Zero()};
+  ModuleList crossedModules;
+
+  RzSeedMeasurement knownAt(std::uint32_t layerIndex) const {
+    for (const auto& [l, entry] : knownHits) {
+      if (l == layerIndex) {
+        return entry;
+      }
+    }
+    return RzSeedMeasurement{};
+  }
+};
+
 bool RzTrackFinder::applyMaterial(State& state, const MaterialSlab& slab,
                                   const Vector3& normal,
                                   double direction) const {
@@ -102,7 +266,7 @@ bool RzTrackFinder::applyMaterial(State& state, const MaterialSlab& slab,
 }
 
 bool RzTrackFinder::applyMaterial(State& state, const RzSurface& surface,
-                                  int band, const Vector3& normal,
+                                  std::int32_t band, const Vector3& normal,
                                   double direction) const {
   if (surface.materialTables.empty()) {
     return applyMaterial(state, surface.materialBands[band], normal, direction);
@@ -144,7 +308,8 @@ bool RzTrackFinder::applyMaterial(State& state, const RzSurface& surface,
 }
 
 void RzTrackFinder::regainEnergy(State& state, const RzSurface& surface,
-                                 int band, const Vector3& normal) const {
+                                 std::int32_t band,
+                                 const Vector3& normal) const {
   const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
   const double qOverP = state.v[eRzQOverP];
   const double p = hyp.extractMomentum(qOverP);
@@ -193,7 +358,7 @@ void RzTrackFinder::materialise(State& state, const Vector3& normal) const {
   // projection `I - d n^T / (n.d)` is a rank-1 update on the position rows
   // and then on the position columns
   const Vector3 dOver = d / normal.dot(d);
-  for (unsigned int c = 0; c < eRzSize; ++c) {
+  for (std::uint32_t c = 0; c < eRzSize; ++c) {
     const double nc = normal.x() * state.c(eRzPos0, c) +
                       normal.y() * state.c(eRzPos1, c) +
                       normal.z() * state.c(eRzPos2, c);
@@ -201,7 +366,7 @@ void RzTrackFinder::materialise(State& state, const Vector3& normal) const {
     state.c(eRzPos1, c) -= dOver.y() * nc;
     state.c(eRzPos2, c) -= dOver.z() * nc;
   }
-  for (unsigned int r = 0; r < eRzSize; ++r) {
+  for (std::uint32_t r = 0; r < eRzSize; ++r) {
     const double nr = normal.x() * state.c(r, eRzPos0) +
                       normal.y() * state.c(r, eRzPos1) +
                       normal.z() * state.c(r, eRzPos2);
@@ -364,16 +529,16 @@ std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
   // through its general kernels, out of line, for 21 and 49 multiplies
   const auto projectRows = [&](const Vector3& axis,
                                Eigen::Matrix<double, 1, eRzSize>& h) {
-    for (unsigned int c = 0; c < eRzSize; ++c) {
+    for (std::uint32_t c = 0; c < eRzSize; ++c) {
       h[c] =
           axis.x() * jPos(0, c) + axis.y() * jPos(1, c) + axis.z() * jPos(2, c);
     }
   };
   const auto covarianceTimes = [&](const Eigen::Matrix<double, 1, eRzSize>& h,
-                                   unsigned int col) {
-    for (unsigned int r = 0; r < eRzSize; ++r) {
+                                   std::uint32_t col) {
+    for (std::uint32_t r = 0; r < eRzSize; ++r) {
       double acc = 0.;
-      for (unsigned int c = 0; c < eRzSize; ++c) {
+      for (std::uint32_t c = 0; c < eRzSize; ++c) {
         acc += state.c(r, c) * h[c];
       }
       e.ch(r, col) = acc;
@@ -425,8 +590,8 @@ void RzTrackFinder::update(State& state, const Evaluation& e) const {
   // C - K (C H^T)^T is symmetric by construction, so the lower triangle is
   // formed and mirrored rather than the whole product averaged with its
   // transpose
-  for (unsigned int r = 0; r < eRzSize; ++r) {
-    for (unsigned int c = 0; c <= r; ++c) {
+  for (std::uint32_t r = 0; r < eRzSize; ++r) {
+    for (std::uint32_t c = 0; c <= r; ++c) {
       const double d = k(r, 0) * e.ch(c, 0) + k(r, 1) * e.ch(c, 1);
       state.c(r, c) -= d;
       state.c(c, r) = state.c(r, c);
@@ -446,7 +611,7 @@ std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
   // Newton from the forward path: the state has moved by an update or two
   // since, so the root is next to the guess
   double s = guess;
-  for (int i = 0; i < 6; ++i) {
+  for (std::int32_t i = 0; i < 6; ++i) {
     RzVector w = v;
     helix.step(w, s);
     const double f = w[eRzPos0] * w[eRzPos0] + w[eRzPos1] * w[eRzPos1] -
@@ -903,7 +1068,8 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
         for (std::uint32_t j = outerStop; j != innerStop && j != kRzNone; --j) {
           const RzSurface& surface =
               m_layout->surfaces[candidate.stopSurfaces[j]];
-          const int band = surface.materialBandAt(candidate.stopAlong[j]);
+          const std::int32_t band =
+              surface.materialBandAt(candidate.stopAlong[j]);
           if (band < 0) {
             continue;
           }
@@ -939,7 +1105,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
 
   std::uint32_t stop = hit->stop;
   if (stop != kRzNone) {
-    for (std::ptrdiff_t j = static_cast<std::ptrdiff_t>(stop); j >= 0; --j) {
+    for (std::int32_t j = static_cast<std::int32_t>(stop); j >= 0; --j) {
       const RzSurface& surface = m_layout->surfaces[candidate.stopSurfaces[j]];
       if (static_cast<std::uint32_t>(j) != stop) {
         const RzHelix helix = helixAt(state.bz);
@@ -976,7 +1142,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
       }
       if (m_cfg.applyMaterial) {
         const Vector3 normal = surfaceNormal(surface, state.v);
-        if (const int band =
+        if (const std::int32_t band =
                 surface.materialBandAt(alongCoordinate(surface, state.v));
             band >= 0 && !applyMaterial(state, surface, band, normal, -1.)) {
           candidate.backwardFailure = 2;
@@ -1023,7 +1189,7 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
     const bool reached = inwardSearch(measurements, state, candidate);
     if (candidate.hits.size() > before) {
       const auto first =
-          candidate.hits.begin() + static_cast<std::ptrdiff_t>(before);
+          candidate.hits.begin() + static_cast<std::int32_t>(before);
       std::reverse(first, candidate.hits.end());
       std::rotate(candidate.hits.begin(), first, candidate.hits.end());
       // the counts the forward pass took no longer describe the track
@@ -1067,21 +1233,21 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   // cursors, mirrored: cylinders inward from the current radius, discs back
   // toward z = 0 against the direction of travel
   const double r0 = norm2(state.v[eRzPos0], state.v[eRzPos1]);
-  std::ptrdiff_t cyl = static_cast<std::ptrdiff_t>(layout.cylinders.size()) - 1;
+  std::int32_t cyl = static_cast<std::int32_t>(layout.cylinders.size()) - 1;
   while (cyl >= 0 && layout.surfaces[layout.cylinders[cyl]].refCoord >= r0) {
     --cyl;
   }
   const bool travellingForward = state.v[eRzDir2] >= 0.;
-  const int discStep = travellingForward ? -1 : 1;
+  const std::int32_t discStep = travellingForward ? -1 : 1;
   // the first disc behind, by binary search on the sorted disc positions
-  std::ptrdiff_t disc =
+  std::int32_t disc =
       travellingForward
           ? std::ranges::lower_bound(layout.discCoord, state.v[eRzPos2]) -
                 layout.discCoord.begin() - 1
           : std::ranges::upper_bound(layout.discCoord, state.v[eRzPos2]) -
                 layout.discCoord.begin();
   auto discValid = [&]() {
-    return disc >= 0 && disc < static_cast<std::ptrdiff_t>(layout.discs.size());
+    return disc >= 0 && disc < static_cast<std::int32_t>(layout.discs.size());
   };
 
   ModuleList crossedModules;
@@ -1099,7 +1265,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   double dxIn = 0.;
   double dyIn = 0.;
   double halfKappaTIn = 0.;
-  std::ptrdiff_t cylCached = -1;
+  std::int32_t cylCached = -1;
   std::optional<double> cylCachedPath;
   while (true) {
     if (stateMoved) {
@@ -1196,7 +1362,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
 
     // going inward the particle gains back what it lost on the way out
     if (m_cfg.applyMaterial) {
-      if (const int band = surface.materialBandAt(along);
+      if (const std::int32_t band = surface.materialBandAt(along);
           band >= 0 && !applyMaterial(state, surface, band, normal, -1.)) {
         return false;
       }
@@ -1233,7 +1399,7 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
   const double sEnd = endHelix.pathToPerigee(state.v);
   RzVector end = state.v;
   endHelix.step(end, sEnd);
-  const double dt = std::hypot(end[eRzDir0], end[eRzDir1]);
+  const double dt = fastHypot(end[eRzDir0], end[eRzDir1]);
   if (dt <= 0.) {
     return false;
   }
@@ -1333,7 +1499,7 @@ bool RzTrackFinder::advanceWalk(Walk& walk) const {
   RzTrackCandidate& candidate = *walk.candidate;
   const auto discValid = [&]() {
     return walk.disc >= 0 &&
-           walk.disc < static_cast<std::ptrdiff_t>(layout.discs.size());
+           walk.disc < static_cast<std::int32_t>(layout.discs.size());
   };
   const auto end = [&]() {
     walk.done = true;
@@ -1484,7 +1650,7 @@ bool RzTrackFinder::advanceWalk(Walk& walk) const {
     }
 
     if (m_cfg.applyMaterial) {
-      if (const int band = surface.materialBandAt(along);
+      if (const std::int32_t band = surface.materialBandAt(along);
           band >= 0 && !applyMaterial(state, surface, band, normal)) {
         return end();
       }

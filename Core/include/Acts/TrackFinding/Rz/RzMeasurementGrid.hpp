@@ -9,14 +9,7 @@
 #pragma once
 
 /// @file
-/// The measurements of one event, held per module of an `RzLayout` and in the
-/// module's own frame. The finder walks to a stop, asks the layout which
-/// modules the track crosses there, and asks for those modules' measurements —
-/// so the index is by module, not by a window in the layer.
-///
-/// A caller reaches the search either by filling `RzMeasurementGrid`, one
-/// measurement or one module at a time, or by handing the finder its own
-/// `RzMeasurementAccessor`, which is asked once per module the search crosses.
+/// Event measurements indexed by module, with an optional custom accessor.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Geometry/GeometryContext.hpp"
@@ -39,16 +32,8 @@ enum class RzProjector : std::uint8_t {
   Both,
 };
 
-/// One measurement as the finder sees it: an offset from the module centre
-/// along a pair of axes in the module's plane, and the variance of that
-/// offset. A module is a plane, so two numbers place the measurement on it and
-/// the module supplies the rest — the normal, the extent and the distance the
-/// search may meet it at.
-///
-/// The axes are the module's own, `RzModule::u` and `RzModule::v`, unless the
-/// module is polar, in which case each measurement carries its own
-/// `RzMeasurementFrame`. A coordinate the measurement does not hold sits at
-/// zero, the module centre, which is where a strip's extent is measured from.
+/// Local offset and covariance on a module. Polar entries carry their own
+/// frame; an unmeasured coordinate is zero at the module centre.
 struct RzMeasurement {
   /// Offset from the module centre along the first axis
   double loc0{};
@@ -60,11 +45,7 @@ struct RzMeasurement {
   double cov01{};
   /// Variance of `loc1`
   double cov11{};
-  /// For a measurement whose bound frame is polar, the reciprocal of the lever
-  /// arm its variance was converted with: what the angle stands for in length
-  /// grows with the distance from the frame's origin, and the entry sits at
-  /// its own radius while the track crosses at another. Zero for a cartesian
-  /// frame or a radial-only measurement, which has no such dependence.
+  /// Inverse lever arm for a polar angular variance; zero otherwise.
   double invLever{};
   /// Optional measured time and variance; zero variance means no time value.
   float time{};
@@ -74,9 +55,7 @@ struct RzMeasurement {
   std::uint32_t source{kRzNone};
 };
 
-/// The axes of a measurement whose bound coordinates are not the module's own.
-/// An annulus strip measures an azimuth, so its frame turns with the strip and
-/// no two strips on the module share one.
+/// Per-measurement axes for polar modules, where each strip has its own frame.
 struct RzMeasurementFrame {
   /// The direction `loc0` is measured along
   Vector3 u{Vector3::Zero()};
@@ -84,9 +63,7 @@ struct RzMeasurementFrame {
   Vector3 v{Vector3::Zero()};
   /// `u x v`
   Vector3 normal{Vector3::Zero()};
-  /// The axes on the module's own: `u = uU * module.u + uV * module.v` and
-  /// likewise `v`, so that a search which has projected the state onto the
-  /// module's axes once can turn to this measurement's with four multiplies
+  /// Coordinates of these axes in the module frame.
   double uU{1.};
   double uV{0.};
   double vU{0.};
@@ -101,10 +78,7 @@ struct RzModuleMeasurements {
   std::span<const RzMeasurementFrame> frames;
 };
 
-/// Where the search gets a module's measurements. It asks once per module it
-/// crosses, so an accessor that converts from a framework's own container pays
-/// that conversion only for the modules a track reaches, and never for the
-/// rest of the event.
+/// Fetch measurements for one crossed module.
 /// @param module index into `RzLayout::modules`
 /// @return the measurements on that module, contiguous
 using RzMeasurementAccessor =
@@ -145,11 +119,7 @@ class RzMeasurementGrid {
                 std::span<const RzMeasurement> measurements,
                 std::span<const RzMeasurementFrame> frames = {});
 
-  /// Add a measurement given in the surface's own bound coordinates, whatever
-  /// local frame that is. A cartesian frame needs only the module centre,
-  /// which the layout read off the surface once. A polar frame (an annulus
-  /// strip measures an azimuth) needs the bounds' map to the cartesian frame,
-  /// and this is the only path that touches the surface at all.
+  /// Convert and add a measurement in the surface's bound coordinates.
   /// @param module index into `RzLayout::modules`
   /// @param surface the module's surface, whose bounds give the local frame
   /// @param gctx the geometry context
@@ -169,10 +139,7 @@ class RzMeasurementGrid {
                          std::span<const double> boundCov, std::uint32_t source,
                          double time = 0., double timeVariance = 0.);
 
-  /// Convert a measurement in the surface's own bound coordinates into the
-  /// module's frame, without adding it. A caller that keeps its own container
-  /// and serves the search through an `RzMeasurementAccessor` uses this to
-  /// build its entries.
+  /// Convert bound coordinates to a module-frame entry without adding it.
   /// @param layout the layout the module belongs to
   /// @param module index into `RzLayout::modules`
   /// @param surface the module's surface, whose bounds give the local frame
@@ -194,11 +161,7 @@ class RzMeasurementGrid {
                                  std::uint32_t source,
                                  RzMeasurementFrame& frame);
 
-  /// Group what was added by module. Only a caller that split one module's
-  /// measurements — added another module's in between — leaves anything to
-  /// do: the modules themselves need no order, so a container grouped by
-  /// module is already grouped here whatever order it visits them in, and
-  /// this does nothing.
+  /// Group entries by module if they were added out of order.
   void finalize();
 
   std::size_t size() const { return m_entries.size(); }
@@ -239,26 +202,29 @@ class RzMeasurementGrid {
     const RzLayer& l = layout.layers[layer];
     const double phiWidth = l.phiBinWidth();
     const double alongWidth = l.alongBinWidth();
-    const int phiLo = static_cast<int>(std::floor((phi - halfPhi) / phiWidth));
-    const int phiHi = static_cast<int>(std::floor((phi + halfPhi) / phiWidth));
-    const int nPhi = static_cast<int>(l.phiBins);
-    const int alongLoRaw = static_cast<int>(
+    const std::int32_t phiLo =
+        static_cast<std::int32_t>(std::floor((phi - halfPhi) / phiWidth));
+    const std::int32_t phiHi =
+        static_cast<std::int32_t>(std::floor((phi + halfPhi) / phiWidth));
+    const std::int32_t nPhi = static_cast<std::int32_t>(l.phiBins);
+    const std::int32_t alongLoRaw = static_cast<std::int32_t>(
         std::floor((along - halfAlong - l.alongMin) / alongWidth));
-    const int alongHiRaw = static_cast<int>(
+    const std::int32_t alongHiRaw = static_cast<std::int32_t>(
         std::floor((along + halfAlong - l.alongMin) / alongWidth));
-    const int alongLo = std::max(alongLoRaw, 0);
-    const int alongHi = std::min(alongHiRaw, static_cast<int>(l.alongBins) - 1);
+    const std::int32_t alongLo = std::max(alongLoRaw, 0);
+    const std::int32_t alongHi =
+        std::min(alongHiRaw, static_cast<std::int32_t>(l.alongBins) - 1);
     if (alongLo > alongHi) {
       return;
     }
     // a window wider than the full circle visits each bin once
-    const int phiCount = std::min(phiHi - phiLo + 1, nPhi);
-    for (int i = 0; i < phiCount; ++i) {
-      int p = (phiLo + i) % nPhi;
+    const std::int32_t phiCount = std::min(phiHi - phiLo + 1, nPhi);
+    for (std::int32_t i = 0; i < phiCount; ++i) {
+      std::int32_t p = (phiLo + i) % nPhi;
       if (p < 0) {
         p += nPhi;
       }
-      for (int a = alongLo; a <= alongHi; ++a) {
+      for (std::int32_t a = alongLo; a <= alongHi; ++a) {
         visitor(l.binOffset + static_cast<std::uint32_t>(p) * l.alongBins +
                 static_cast<std::uint32_t>(a));
       }

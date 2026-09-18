@@ -25,6 +25,7 @@
 #include "Acts/Surfaces/SurfaceBounds.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/Logger.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -166,11 +167,7 @@ void sampleMaterial(const Surface& surface, RzSurface& out,
   out.materialEdges.back() = out.maxBound;
 }
 
-/// A sensitive plane as the finder sees it, or nothing for a shape it cannot
-/// project onto.
-/// A planar module, or an annulus-bounded disc (ITk strip endcaps): the
-/// frame is the surface's, the box the vertices' in that frame, and the
-/// centre the box's, which for an annulus is not the surface origin.
+/// Describe a planar or annulus module in the frame used by the finder.
 std::optional<RzModule> describeModule(const Surface& surface,
                                        const GeometryContext& gctx) {
   std::vector<Vector2> vertices;
@@ -304,13 +301,13 @@ RzMaterialTable tabulate(const MaterialSlab& slab,
   return t;
 }
 
-int RzSurface::materialBandAt(double along) const {
+std::int32_t RzSurface::materialBandAt(double along) const {
   if (materialBands.empty() || along < materialEdges.front() ||
       along >= materialEdges.back()) {
     return -1;
   }
   const auto edge = std::ranges::upper_bound(materialEdges, along);
-  return static_cast<int>(edge - materialEdges.begin()) - 1;
+  return static_cast<std::int32_t>(edge - materialEdges.begin()) - 1;
 }
 
 const MaterialSlab* RzSurface::materialAt(double along) const {
@@ -330,12 +327,13 @@ double RzLayer::phiBinWidth() const {
 std::uint32_t RzLayout::bin(std::uint32_t layerIndex, double phi,
                             double along) const {
   const RzLayer& layer = layers[layerIndex];
-  const int nPhi = static_cast<int>(layer.phiBins);
-  int p = static_cast<int>(std::floor(phi / layer.phiBinWidth()));
+  const std::int32_t nPhi = static_cast<std::int32_t>(layer.phiBins);
+  std::int32_t p =
+      static_cast<std::int32_t>(std::floor(phi / layer.phiBinWidth()));
   p = ((p % nPhi) + nPhi) % nPhi;
-  int a = static_cast<int>(
+  std::int32_t a = static_cast<std::int32_t>(
       std::floor((along - layer.alongMin) / layer.alongBinWidth()));
-  a = std::clamp(a, 0, static_cast<int>(layer.alongBins) - 1);
+  a = std::clamp(a, 0, static_cast<std::int32_t>(layer.alongBins) - 1);
   return layer.binOffset + static_cast<std::uint32_t>(p) * layer.alongBins +
          static_cast<std::uint32_t>(a);
 }
@@ -433,13 +431,12 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
         module.layer = layerIndex;
         const double offset =
             rz->shape == RzShape::Cylinder
-                ? std::hypot(module.center.x(), module.center.y()) -
-                      rz->refCoord
+                ? fastHypot(module.center.x(), module.center.y()) - rz->refCoord
                 : module.center.z() - rz->refCoord;
         rzLayer.halfThickness =
             std::max(rzLayer.halfThickness, std::abs(offset));
-        rzLayer.maxHalfExtent = std::max(
-            rzLayer.maxHalfExtent, std::hypot(module.halfU, module.halfV));
+        rzLayer.maxHalfExtent = std::max(rzLayer.maxHalfExtent,
+                                         fastHypot(module.halfU, module.halfV));
         rzLayer.moduleDistance =
             std::max(options.moduleDistance, 3. * rzLayer.halfThickness);
         layout.moduleIndex.emplace(
@@ -535,7 +532,7 @@ RzLayout makeRzLayout(const TrackingGeometry& trackingGeometry,
     const double phi = std::atan2(m.center.y(), m.center.x());
     const double along = surface.shape == RzShape::Cylinder
                              ? m.center.z()
-                             : std::hypot(m.center.x(), m.center.y());
+                             : fastHypot(m.center.x(), m.center.y());
     binOf[i] = layout.bin(m.layer, phi, along);
     ++layout.moduleBinStart[binOf[i] + 1];
   }

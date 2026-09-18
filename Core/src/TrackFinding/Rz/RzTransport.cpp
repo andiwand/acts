@@ -8,6 +8,8 @@
 
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
 
+#include "Acts/Utilities/MathHelpers.hpp"
+
 #include <algorithm>
 #include <numbers>
 
@@ -168,7 +170,7 @@ std::optional<double> RzHelix::pathToCylinderClosedForm(const RzVector& v,
   // one Newton polish on the exact residual takes out the rounding of the
   // closed form, which loses digits for stiff tracks where |c| ~ rho
   double s = *best;
-  for (int i = 0; i < 2; ++i) {
+  for (std::int32_t i = 0; i < 2; ++i) {
     RzVector w = v;
     step(w, s);
     const double f =
@@ -209,7 +211,7 @@ std::optional<double> RzHelix::pathToPlane(const RzVector& v,
       s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
     }
   }
-  for (int i = 0; i < 5; ++i) {
+  for (std::int32_t i = 0; i < 5; ++i) {
     RzVector w = v;
     step(w, s);
     const double f = normal.dot(w.segment<3>(eRzPos0) - point);
@@ -253,7 +255,7 @@ std::optional<RzHelix::PlaneStep> RzHelix::stepToPlane(
       s = std::abs(s1 - straight) < std::abs(s2 - straight) ? s1 : s2;
     }
   }
-  for (int i = 0; i < 5; ++i) {
+  for (std::int32_t i = 0; i < 5; ++i) {
     const detail::StepTrig trig = detail::stepTrig(k * s);
     RzVector w = v;
     step(w, s, trig);
@@ -307,7 +309,7 @@ void rzRadialKick(RzVector& v, const RzVector& from, double s, double br0,
   if (br0 == 0. && br1 == 0.) {
     return;
   }
-  const double r = std::hypot(from[eRzPos0], from[eRzPos1]);
+  const double r = fastHypot(from[eRzPos0], from[eRzPos1]);
   if (r <= 0.) {
     return;
   }

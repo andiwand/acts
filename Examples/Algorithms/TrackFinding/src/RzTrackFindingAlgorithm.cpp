@@ -17,6 +17,7 @@
 #include "Acts/TrackFinding/Rz/RzBound.hpp"
 #include "Acts/TrackFinding/Rz/RzMeasurementGrid.hpp"
 #include "Acts/TrackFinding/Rz/RzTransport.hpp"
+#include "Acts/Utilities/MathHelpers.hpp"
 #include "Acts/Utilities/TrackHelpers.hpp"
 #include "ActsExamples/EventData/IndexSourceLink.hpp"
 #include "ActsExamples/EventData/MeasurementCalibration.hpp"
@@ -33,7 +34,7 @@ namespace {
 using namespace Acts::Experimental;
 
 /// The free components the RZ state carries, in the order of `RzIndices`
-constexpr std::array<unsigned int, eRzSize> kFreeOf = {
+constexpr std::array<std::uint32_t, eRzSize> kFreeOf = {
     Acts::eFreePos0, Acts::eFreePos1, Acts::eFreePos2,  Acts::eFreeDir0,
     Acts::eFreeDir1, Acts::eFreeDir2, Acts::eFreeQOverP};
 
@@ -155,10 +156,10 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   const auto tFill1 = Clock::now();
   grid.finalize();
   const auto tFill2 = Clock::now();
-  m_nsFill += static_cast<std::size_t>(
+  m_nsFill += static_cast<std::uint64_t>(
       std::chrono::duration_cast<std::chrono::nanoseconds>(tFill1 - tFill0)
           .count());
-  m_nsFinalize += static_cast<std::size_t>(
+  m_nsFinalize += static_cast<std::uint64_t>(
       std::chrono::duration_cast<std::chrono::nanoseconds>(tFill2 - tFill1)
           .count());
   m_nMeasurementsBinned += grid.size();
@@ -199,12 +200,12 @@ ProcessCode RzTrackFindingAlgorithm::execute(
   // and copy: on average a track a seed here, sixteen states a track
   trackContainer->reserve(initialParameters.size());
   trackStateContainer->reserve(16 * initialParameters.size());
-  std::size_t nTracks = 0;
-  std::size_t nStops = 0;
-  std::size_t nCandidates = 0;
-  std::size_t nMeasurements = 0;
-  std::size_t nHoles = 0;
-  std::size_t nBackwardFailures = 0;
+  std::uint64_t nTracks = 0;
+  std::uint64_t nStops = 0;
+  std::uint64_t nCandidates = 0;
+  std::uint64_t nMeasurements = 0;
+  std::uint64_t nHoles = 0;
+  std::uint64_t nBackwardFailures = 0;
   // every seed as the finder starts from it: bound to the RZ free state,
   // time dropped, on the module the seed's surface is
   std::vector<RzTrackStart> starts;
@@ -226,8 +227,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
           start.referenceSurface().boundToFreeJacobian(ctx.recoGeoContext,
                                                        position, direction);
       const Acts::FreeMatrix free = j * (*start.covariance()) * j.transpose();
-      for (unsigned int a = 0; a < eRzSize; ++a) {
-        for (unsigned int b = 0; b < eRzSize; ++b) {
+      for (std::uint32_t a = 0; a < eRzSize; ++a) {
+        for (std::uint32_t b = 0; b < eRzSize; ++b) {
           rz.covariance(a, b) = free(kFreeOf[a], kFreeOf[b]);
         }
       }
@@ -261,7 +262,7 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     const double s = helix.pathToPerigee(w);
     RzMatrix j = helix.stepJacobian(w, s);
     helix.step(w, s);
-    const double dt = std::hypot(w[eRzDir0], w[eRzDir1]);
+    const double dt = Acts::fastHypot(w[eRzDir0], w[eRzDir1]);
     const Acts::Vector3 normal(w[eRzDir0] / dt, w[eRzDir1] / dt, 0.);
     RzHelix::constrainToSurface(j, helix.derivative(w), normal);
     const Acts::Vector3 pos = w.segment<3>(eRzPos0);
@@ -280,8 +281,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     const Acts::FreeToBoundMatrix jf2b =
         m_perigee->freeToBoundJacobian(ctx.recoGeoContext, pos, dir);
     RzFreeToBoundMatrix jPerigee;
-    for (unsigned int r = 0; r < Acts::eBoundSize; ++r) {
-      for (unsigned int a = 0; a < eRzSize; ++a) {
+    for (std::uint32_t r = 0; r < Acts::eBoundSize; ++r) {
+      for (std::uint32_t a = 0; a < eRzSize; ++a) {
         jPerigee(r, a) = jf2b(r, kFreeOf[a]);
       }
     }
@@ -365,8 +366,8 @@ ProcessCode RzTrackFindingAlgorithm::execute(
         }
         const RzMatrix c = transport ? transport->transport(c0) : c0;
         Acts::FreeMatrix freeCov = Acts::FreeMatrix::Zero();
-        for (unsigned int a = 0; a < eRzSize; ++a) {
-          for (unsigned int b = 0; b < eRzSize; ++b) {
+        for (std::uint32_t a = 0; a < eRzSize; ++a) {
+          for (std::uint32_t b = 0; b < eRzSize; ++b) {
             freeCov(kFreeOf[a], kFreeOf[b]) = c(a, b);
           }
         }
@@ -381,17 +382,17 @@ ProcessCode RzTrackFindingAlgorithm::execute(
     }
     Acts::calculateTrackQuantities(track);
     const auto tEnd = Clock::now();
-    m_nsMakeStates += static_cast<std::size_t>(
+    m_nsMakeStates += static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(tEnd - tStates)
             .count());
-    m_nsMake += static_cast<std::size_t>(
+    m_nsMake += static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::nanoseconds>(tEnd - tMake)
             .count());
   };
   finder.findTracks(accessor, starts, m_cfg.batchSize, onTrack);
 
   const auto tFind1 = Clock::now();
-  m_nsFind += static_cast<std::size_t>(
+  m_nsFind += static_cast<std::uint64_t>(
       std::chrono::duration_cast<std::chrono::nanoseconds>(tFind1 - tFind0)
           .count());
   m_nSeeds += initialParameters.size();

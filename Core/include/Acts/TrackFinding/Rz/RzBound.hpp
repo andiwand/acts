@@ -9,12 +9,7 @@
 #pragma once
 
 /// @file
-/// An RZ free state expressed as bound parameters on the module it sits on,
-/// in closed form from the module's own frame. The surface would give the
-/// same answer, through two virtual calls, a general transform inverse and a
-/// product on an 8x8 matrix whose time row and column are zero; a track
-/// state is written once per measurement, and this is most of what writing
-/// it costs.
+/// Convert an RZ free state to bound parameters on its module.
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Definitions/TrackParametrization.hpp"
@@ -49,17 +44,12 @@ BoundMatrix rzBoundCovariance(const RzFreeToBoundMatrix& j, const RzMatrix& c);
 /// @param j the Jacobian, position rows left as they are
 void rzFillDirectionRows(const Vector3& direction, RzFreeToBoundMatrix& j);
 
-/// The state as bound parameters on a module, from the module's frame. A
-/// cartesian module measures along its axes from the surface origin; a polar
-/// module measures the radius and azimuth about its surface origin, which the
-/// layout has checked to be plain polar. The state is taken to sit on the
-/// module plane already.
+/// Convert a state already on the module plane to bound parameters.
 /// @param module the module
 /// @param v the RZ state on the module plane
 /// @param c covariance before transport, or on the module if transport is null
 /// @param transport optional transport from the covariance to the module
-/// @return the bound state, or nothing for a polar module the layout could
-///         not confirm as plain polar, where the surface has to be asked
+/// @return the bound state, or nothing if the polar frame is unsupported
 std::optional<RzBoundState> rzBoundOnModule(
     const RzModule& module, const RzVector& v, const RzMatrix& c,
     const RzHelix::StepJacobian* transport = nullptr);
