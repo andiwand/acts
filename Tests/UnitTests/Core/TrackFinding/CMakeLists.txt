@@ -9,3 +9,8 @@ target_include_directories(
     ActsUnitTestRzPropagation
     PRIVATE ${PROJECT_SOURCE_DIR}/Core/src/TrackFinding/Rz
 )
+add_unittest(RzFiltering RzFilteringTests.cpp)
+target_include_directories(
+    ActsUnitTestRzFiltering
+    PRIVATE ${PROJECT_SOURCE_DIR}/Core/src/TrackFinding/Rz
+)

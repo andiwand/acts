@@ -10,56 +10,12 @@
 
 #include <boost/container/small_vector.hpp>
 
+#include "RzMeasurement.hpp"
 #include "RzPropagation.hpp"
 
 namespace Acts::Experimental::detail::rz {
 
 using ModuleList = boost::container::small_vector<std::uint32_t, 8>;
-
-/// Residual and projected covariance at the current stop.
-struct Evaluation {
-  double chi2{};
-  double timeResidual{};
-  double timeGain{};
-  bool hasTime{};
-  bool pixel{};
-  /// `C (H J)^T`, one column per measured coordinate
-  Eigen::Matrix<double, eRzSize, 2> ch;
-  Eigen::Matrix<double, 2, 1> residual;
-  Eigen::Matrix<double, 2, 2> sInv;
-};
-
-/// Exact transport shared by surviving hits on the same module plane.
-struct Prediction {
-  Vector3 planePosition;
-  Vector3 normal;
-  RzHelix::PlaneStep crossing;
-  Eigen::Matrix<double, 3, eRzSize> jPos;
-  bool hasJacobian = false;
-};
-
-/// Global measurement frame, constructed only for exact evaluation.
-struct Placed {
-  Vector3 position{Vector3::Zero()};
-  /// The direction the measured coordinate is taken along
-  Vector3 u{Vector3::Zero()};
-  /// The other one, which a strip does not measure
-  Vector3 v{Vector3::Zero()};
-  Vector3 normal{Vector3::Zero()};
-  /// Variance along `u`
-  double cov00{};
-  double cov01{};
-  /// Variance along `v`, unused by a strip
-  double cov11{};
-  double invLever{};
-  double time{};
-  double timeVariance{};
-  /// Room along `v`, the coordinate a strip does not measure
-  double halfV{};
-  /// How far from the RZ stop the module may be met
-  double maxDistance{};
-  bool pixel{};
-};
 
 /// State, navigation cursors and counters for one forward walk.
 struct Walk {
@@ -96,7 +52,9 @@ class Finder {
       : m_cfg(config),
         m_layout(&layout),
         m_bz(bz),
-        m_stepper(config, bz),
+        m_evaluator(config.maxModuleDistance,
+                    config.gateFactor * config.chi2Cut, config.stripMargin),
+        m_stepper(config.radialField, bz),
         m_propagator(config, layout, m_stepper) {}
   Finder(const Finder&) = delete;
   Finder& operator=(const Finder&) = delete;
@@ -132,22 +90,14 @@ class Finder {
                             RzTrackCandidate& candidate,
                             std::uint32_t skipRounds = 0,
                             std::uint32_t usedModule = kRzNone) const;
-  Placed place(const RzModule& module, const RzMeasurement& measurement,
-               const RzMeasurementFrame* frame) const;
   Placed placeHit(const RzMeasurementAccessor& measurements,
                   const RzTrackHit& hit) const;
-  template <bool Cache = false>
-  std::optional<Evaluation> evaluate(
-      const State& state, const Placed& measurement, bool gate = true,
-      bool useTime = true,
-      std::optional<Prediction>* prediction = nullptr) const;
   bool takeKnownHit(const RzMeasurementAccessor& measurements,
                     const RzSeedMeasurement& seed, std::uint32_t layerIndex,
                     std::uint32_t stop, State& state,
                     RzTrackCandidate& candidate) const;
 
   // Filtering and backward refit.
-  void update(State& state, const Evaluation& evaluation) const;
   std::uint32_t saveForwardState(const State& state,
                                  RzTrackCandidate& candidate) const;
   void backwardPass(const RzMeasurementAccessor& measurements,
@@ -158,6 +108,7 @@ class Finder {
   const RzTrackFinderConfig& m_cfg;
   const RzLayout* m_layout;
   double m_bz;
+  MeasurementEvaluator m_evaluator;
   Stepper m_stepper;
   Propagator m_propagator;
 };

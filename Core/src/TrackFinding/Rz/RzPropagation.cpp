@@ -8,7 +8,6 @@
 
 #include "RzPropagation.hpp"
 
-#include "Acts/Material/Interactions.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
@@ -37,19 +36,6 @@ double bzAt(const RzSurface& surface, double along, double fallback) {
 
 namespace {
 
-auto materialInterpolator(double momentum) {
-  const double x = (std::log(momentum) - RzMaterialTable::logMinP()) /
-                   RzMaterialTable::logStep();
-  const double xc =
-      std::clamp(x, 0., static_cast<double>(RzMaterialTable::kBins - 1));
-  const std::uint32_t i =
-      std::min(static_cast<std::uint32_t>(xc), RzMaterialTable::kBins - 2);
-  const double w = xc - i;
-  return [i, w](const std::array<float, RzMaterialTable::kBins>& a) {
-    return (1. - w) * a[i] + w * a[i + 1];
-  };
-}
-
 /// Apply the radial kick and project disc crossings back onto their plane.
 void radialKick(RzVector& v, const RzVector& from, double s, double br0,
                 double br1, const RzSurface& surface, Vector3& qopPosition,
@@ -62,135 +48,10 @@ void radialKick(RzVector& v, const RzVector& from, double s, double br0,
 }
 }  // namespace
 
-bool Stepper::applyMaterial(State& state, const MaterialSlab& slab,
-                            const Vector3& normal, double direction) const {
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double cosIncidence = std::max(std::abs(normal.dot(dir)), 1e-3);
-  const MaterialSlab crossed(
-      slab.material(), static_cast<float>(slab.thickness() / cosIncidence));
-
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const float mass = hyp.mass();
-  const float absQ = hyp.absoluteCharge();
-  const PdgParticle pdg = hyp.absolutePdg();
-  const double qOverP = state.v[eRzQOverP];
-
-  const double theta0 = computeMultipleScatteringTheta0(
-      crossed, pdg, mass, static_cast<float>(qOverP), absQ);
-  state.pending.varAngle += theta0 * theta0;
-  const double sigmaQOverP = computeEnergyLossLandauSigmaQOverP(
-      crossed, mass, static_cast<float>(qOverP), absQ);
-  state.pending.varQOverP += sigmaQOverP * sigmaQOverP;
-
-  const double dE = computeEnergyLossMean(crossed, pdg, mass,
-                                          static_cast<float>(qOverP), absQ);
-  const double p = hyp.extractMomentum(qOverP);
-  const double e = fastHypot(mass, p) - direction * dE;
-  if (e <= mass) {
-    return false;
-  }
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-  return true;
-}
-
-bool Stepper::applyMaterial(State& state, const RzSurface& surface,
-                            std::int32_t band, const Vector3& normal,
-                            double direction) const {
-  if (surface.materialTables.empty()) {
-    return applyMaterial(state, surface.materialBands[band], normal, direction);
-  }
-  const RzMaterialTable& t = surface.materialTables[band];
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const double qOverP = state.v[eRzQOverP];
-  const double p = hyp.extractMomentum(qOverP);
-  const auto lerp = materialInterpolator(p);
-
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double factor = 1. / std::max(std::abs(normal.dot(dir)), 1e-3);
-  // Highland: theta0^2 ~ t (1 + 0.038 ln(t/X0))^2, so the path factor enters
-  // the logarithm as well as the thickness
-  const double lnT = t.logThicknessInX0;
-  const double highland =
-      (1. + 0.038 * (lnT + std::log(factor))) / (1. + 0.038 * lnT);
-  state.pending.varAngle += lerp(t.theta0Sq) * factor * highland * highland;
-  state.pending.varQOverP += lerp(t.sigmaQOverPSq) * factor;
-
-  const double dE = lerp(t.energyLoss) * factor;
-  const double mass = hyp.mass();
-  const double e = fastHypot(mass, p) - direction * dE;
-  if (e <= mass) {
-    return false;
-  }
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-  return true;
-}
-
-void Stepper::regainEnergy(State& state, const RzSurface& surface,
-                           std::int32_t band, const Vector3& normal) const {
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const double qOverP = state.v[eRzQOverP];
-  const double p = hyp.extractMomentum(qOverP);
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double factor = 1. / std::max(std::abs(normal.dot(dir)), 1e-3);
-  double dE = 0.;
-  if (!surface.materialTables.empty()) {
-    const RzMaterialTable& t = surface.materialTables[band];
-    dE = materialInterpolator(p)(t.energyLoss) * factor;
-  } else {
-    const MaterialSlab& slab = surface.materialBands[band];
-    const MaterialSlab crossed(slab.material(),
-                               static_cast<float>(slab.thickness() * factor));
-    dE =
-        computeEnergyLossMean(crossed, hyp.absolutePdg(), hyp.mass(),
-                              static_cast<float>(qOverP), hyp.absoluteCharge());
-  }
-  const double mass = hyp.mass();
-  const double e = fastHypot(mass, p) + dE;
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-}
-
-void Stepper::materialise(State& state, const Vector3& normal) const {
-  Pending& p = state.pending;
-  if (p.empty()) {
-    return;
-  }
-  const Vector3 d = state.v.segment<3>(eRzDir0);
-  const SquareMatrix3 transverse =
-      SquareMatrix3::Identity() - d * d.transpose();
-  state.c.block<3, 3>(eRzDir0, eRzDir0) += p.varAngle * transverse;
-  state.c.block<3, 3>(eRzPos0, eRzPos0) += p.varPosition * transverse;
-  state.c.block<3, 3>(eRzPos0, eRzDir0) += p.covAnglePosition * transverse;
-  state.c.block<3, 3>(eRzDir0, eRzPos0) += p.covAnglePosition * transverse;
-  state.c(eRzQOverP, eRzQOverP) += p.varQOverP;
-  // Project position noise onto the surface along the track:
-  // apply I - d n^T / (n.d) to the position rows and columns.
-  const Vector3 dOver = d / normal.dot(d);
-  for (std::uint32_t c = 0; c < eRzSize; ++c) {
-    const double nc = normal.x() * state.c(eRzPos0, c) +
-                      normal.y() * state.c(eRzPos1, c) +
-                      normal.z() * state.c(eRzPos2, c);
-    state.c(eRzPos0, c) -= dOver.x() * nc;
-    state.c(eRzPos1, c) -= dOver.y() * nc;
-    state.c(eRzPos2, c) -= dOver.z() * nc;
-  }
-  for (std::uint32_t r = 0; r < eRzSize; ++r) {
-    const double nr = normal.x() * state.c(r, eRzPos0) +
-                      normal.y() * state.c(r, eRzPos1) +
-                      normal.z() * state.c(r, eRzPos2);
-    state.c(r, eRzPos0) -= dOver.x() * nr;
-    state.c(r, eRzPos1) -= dOver.y() * nr;
-    state.c(r, eRzPos2) -= dOver.z() * nr;
-  }
-  p = Pending{};
-}
-
 Vector3 Stepper::land(State& state, RzVector& landed, double path,
                       const RzSurface& surface, double along) const {
   const double brLanded = surface.brAt(along);
-  if (m_cfg.radialField) {
+  if (m_radialField) {
     radialKick(landed, state.v, path, state.br, brLanded, surface,
                state.brQopPosition, state.brQopDirection);
   }
@@ -386,7 +247,8 @@ std::optional<Crossing> Propagator::advance(State& state,
 
     if (m_cfg.applyMaterial) {
       if (const std::int32_t band = surface.materialBandAt(along);
-          band >= 0 && !m_stepper.applyMaterial(state, surface, band, normal)) {
+          band >= 0 && !applyMaterial(state, m_cfg.particleHypothesis, surface,
+                                      band, normal)) {
         propagation.status = PropagationStatus::MaterialFailure;
         return std::nullopt;
       }
@@ -396,7 +258,7 @@ std::optional<Crossing> Propagator::advance(State& state,
       continue;
     }
     state.moveCovariance(RzHelix{state.anchorBz}, normal);
-    m_stepper.materialise(state, normal);
+    state.materialise(normal);
     return Crossing{surface.layer, stop};
   }
 }

@@ -10,71 +10,12 @@
 
 #include "Acts/TrackFinding/Rz/RzTrackFinder.hpp"
 
-#include <cmath>
 #include <iterator>
 #include <optional>
 
+#include "RzState.hpp"
+
 namespace Acts::Experimental::detail::rz {
-
-/// Process noise accumulated between covariance materialisations.
-struct Pending {
-  double varAngle{};
-  double varPosition{};
-  double covAnglePosition{};
-  double varQOverP{};
-
-  bool empty() const { return varAngle == 0. && varQOverP == 0.; }
-  // Signed path: position-direction correlations reverse when walking inward.
-  void advance(double s) {
-    varPosition += 2. * covAnglePosition * s + varAngle * s * s;
-    covAnglePosition += varAngle * s;
-  }
-};
-
-struct State {
-  RzVector v;
-  RzMatrix c;
-  double time{};
-  double timeVariance{};
-  double timeCorrection{};
-  double massOverCharge{};
-  Pending pending;
-  double turned{};
-  /// Covariance anchor and path since its last transport.
-  RzVector anchor;
-  double pathSince{};
-  /// `Bz` the state moves in from here, and the one at the anchor
-  double bz{};
-  double anchorBz{};
-  /// The radial field where the state stands
-  double br{};
-  /// Accumulated radial-field correction to the Jacobian q/p column.
-  Vector3 brQopPosition{Vector3::Zero()};
-  Vector3 brQopDirection{Vector3::Zero()};
-
-  /// Walk on without the covariance
-  void travel(double s) {
-    pathSince += s;
-    const double mOverP = massOverCharge * v[eRzQOverP];
-    time += s * std::sqrt(1. + mOverP * mOverP);
-  }
-  /// Bring the covariance to the state, on a surface with the given normal
-  void moveCovariance(const RzHelix& helix, const Vector3& normal) {
-    if (pathSince == 0.) {
-      return;
-    }
-    c = helix
-            .stepJacobianOnto(anchor, pathSince, v, normal,
-                              detail::stepTrig(helix.kappa(anchor) * pathSince),
-                              brQopPosition, brQopDirection)
-            .transport(c);
-    anchor = v;
-    anchorBz = bz;
-    pathSince = 0.;
-    brQopPosition.setZero();
-    brQopDirection.setZero();
-  }
-};
 
 struct NavigationState {
   /// Next outward cylinder and next disc along z.
@@ -131,23 +72,15 @@ class Navigator {
   const RzLayout& m_layout;
 };
 
-/// Parameter transport, deferred covariance transport and material effects.
+/// Parameter transport and field updates.
 class Stepper {
  public:
-  Stepper(const RzTrackFinderConfig& config, double bz)
-      : m_cfg(config), m_bz(bz) {}
+  Stepper(bool radialField, double bz) : m_radialField(radialField), m_bz(bz) {}
   Vector3 land(State& state, RzVector& landed, double path,
                const RzSurface& surface, double along) const;
-  void materialise(State& state, const Vector3& normal) const;
-  bool applyMaterial(State& state, const MaterialSlab& slab,
-                     const Vector3& normal, double direction = 1.) const;
-  bool applyMaterial(State& state, const RzSurface& surface, std::int32_t band,
-                     const Vector3& normal, double direction = 1.) const;
-  void regainEnergy(State& state, const RzSurface& surface, std::int32_t band,
-                    const Vector3& normal) const;
 
  private:
-  const RzTrackFinderConfig& m_cfg;
+  bool m_radialField;
   double m_bz;
 };
 

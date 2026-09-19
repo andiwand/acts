@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(NextCrossingUsesFilteredDirection) {
 
   RzTrackFinderConfig cfg;
   cfg.applyMaterial = false;
-  const rz::Stepper stepper(cfg, 0.);
+  const rz::Stepper stepper(cfg.radialField, 0.);
   const rz::Propagator propagator(cfg, layout, stepper);
   auto state = start();
   state.v[eRzDir0] = state.v[eRzDir2] = std::sqrt(0.5);
@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(PassiveMaterialPrecedesYieldAndBreakStopsTransport) {
         Material::fromMolarDensity(93.7f, 465.2f, 28.0855f, 14.f, 0.083f), 1.f);
   }
   const RzTrackFinderConfig cfg;
-  const rz::Stepper stepper(cfg, 0.);
+  const rz::Stepper stepper(cfg.radialField, 0.);
   const rz::Propagator propagator(cfg, layout, stepper);
   auto state = start();
   rz::PropagationState propagation;
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(ExhaustedTurningBudgetYieldsNothing) {
   const RzLayout layout = discLayout();
   RzTrackFinderConfig cfg;
   cfg.maxTurningAngle = 0.;
-  const rz::Stepper stepper(cfg, 2. * UnitConstants::T);
+  const rz::Stepper stepper(cfg.radialField, 2. * UnitConstants::T);
   const rz::Propagator propagator(cfg, layout, stepper);
   auto state = start();
   state.bz = state.anchorBz = 2. * UnitConstants::T;
@@ -155,7 +155,7 @@ BOOST_AUTO_TEST_CASE(MaterialFailureStopsPropagation) {
       Material::fromMolarDensity(93.7f, 465.2f, 28.0855f, 14.f, 0.083f),
       10000.f);
   const RzTrackFinderConfig cfg;
-  const rz::Stepper stepper(cfg, 0.);
+  const rz::Stepper stepper(cfg.radialField, 0.);
   const rz::Propagator propagator(cfg, layout, stepper);
   auto state = start();
   rz::PropagationState propagation;

@@ -145,8 +145,8 @@ void Finder::backwardPass(const RzMeasurementAccessor& measurements,
           if (band < 0) {
             continue;
           }
-          m_stepper.regainEnergy(state, surface, band,
-                                 surfaceNormal(surface, state.v));
+          regainEnergy(state, m_cfg.particleHypothesis, surface, band,
+                       surfaceNormal(surface, state.v));
         }
       }
     } else {
@@ -161,13 +161,13 @@ void Finder::backwardPass(const RzMeasurementAccessor& measurements,
     // hits are stored outward, so this stop's hits are the next ones inward
     while (hit != candidate.hits.rend() && hit->stop == stop) {
       if (!hit->isHole()) {
-        const std::optional<Evaluation> e =
-            evaluate(state, placeHit(measurements, *hit), false, false);
+        const std::optional<Evaluation> e = m_evaluator.evaluate(
+            state, placeHit(measurements, *hit), false, false);
         if (!e.has_value()) {
           return false;
         }
         ++candidate.exactEvaluated;
-        update(state, *e);
+        kalmanUpdate(state, *e);
       }
       ++hit;
     }
@@ -196,7 +196,7 @@ void Finder::backwardPass(const RzMeasurementAccessor& measurements,
             (hit != candidate.hits.rend() &&
              hit->stop == static_cast<std::uint32_t>(j))) {
           state.moveCovariance(RzHelix{state.anchorBz}, normal);
-          m_stepper.materialise(state, normal);
+          state.materialise(normal);
         }
       }
       if (!updateHitsAt(static_cast<std::uint32_t>(j))) {
@@ -207,8 +207,8 @@ void Finder::backwardPass(const RzMeasurementAccessor& measurements,
         const Vector3 normal = surfaceNormal(surface, state.v);
         if (const std::int32_t band =
                 surface.materialBandAt(alongCoordinate(surface, state.v));
-            band >= 0 &&
-            !m_stepper.applyMaterial(state, surface, band, normal, -1.)) {
+            band >= 0 && !applyMaterial(state, m_cfg.particleHypothesis,
+                                        surface, band, normal, -1.)) {
           candidate.backwardFailure = 2;
           return;
         }
@@ -230,14 +230,15 @@ void Finder::backwardPass(const RzMeasurementAccessor& measurements,
       state.travel(*s);
       state.moveCovariance(RzHelix{state.anchorBz}, m.normal);
       state.pending.advance(*s);
-      m_stepper.materialise(state, m.normal);
-      const std::optional<Evaluation> e = evaluate(state, m, false, false);
+      state.materialise(m.normal);
+      const std::optional<Evaluation> e =
+          m_evaluator.evaluate(state, m, false, false);
       if (!e.has_value()) {
         candidate.backwardFailure = 3;
         return;
       }
       ++candidate.exactEvaluated;
-      update(state, *e);
+      kalmanUpdate(state, *e);
     }
     ++hit;
   }
@@ -413,8 +414,8 @@ bool Finder::inwardSearch(const RzMeasurementAccessor& measurements,
     // going inward the particle gains back what it lost on the way out
     if (m_cfg.applyMaterial) {
       if (const std::int32_t band = surface.materialBandAt(along);
-          band >= 0 &&
-          !m_stepper.applyMaterial(state, surface, band, normal, -1.)) {
+          band >= 0 && !applyMaterial(state, m_cfg.particleHypothesis, surface,
+                                      band, normal, -1.)) {
         return false;
       }
     }
@@ -429,7 +430,7 @@ bool Finder::inwardSearch(const RzMeasurementAccessor& measurements,
       continue;
     }
     state.moveCovariance(RzHelix{state.anchorBz}, normal);
-    m_stepper.materialise(state, normal);
+    state.materialise(normal);
     // Inward extension adds measurements without counting new holes.
     bool onModule = false;
     modulesAt(surface.layer, state, crossedModules, onModule, candidate);
@@ -454,7 +455,7 @@ bool Finder::inwardSearch(const RzMeasurementAccessor& measurements,
   state.travel(sEnd);
   state.pending.advance(sEnd);
   state.moveCovariance(RzHelix{state.anchorBz}, normal);
-  m_stepper.materialise(state, normal);
+  state.materialise(normal);
   return true;
 }
 
