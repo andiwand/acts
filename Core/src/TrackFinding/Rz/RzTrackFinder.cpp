@@ -53,12 +53,9 @@ auto materialInterpolator(double momentum) {
 }
 
 /// Apply the radial kick and project disc crossings back onto their plane.
-void radialKick(bool enabled, RzVector& v, const RzVector& from, double s,
-                double br0, double br1, const RzSurface& surface,
-                Vector3& qopPosition, Vector3& qopDirection) {
-  if (!enabled) {
-    return;
-  }
+void radialKick(RzVector& v, const RzVector& from, double s, double br0,
+                double br1, const RzSurface& surface, Vector3& qopPosition,
+                Vector3& qopDirection) {
   rzRadialKick(v, from, s, br0, br1, qopPosition, qopDirection);
   if (surface.shape == RzShape::Disc && v[eRzDir2] != 0.) {
     const double back = (surface.refCoord - v[eRzPos2]) / v[eRzDir2];
@@ -1074,8 +1071,10 @@ void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
         const RzVector from = state.v;
         helix.step(state.v, *s);
         const double brLanded = surface.brAt(candidate.stopAlong[j]);
-        radialKick(m_cfg.radialField, state.v, from, *s, state.br, brLanded,
-                   surface, state.brQopPosition, state.brQopDirection);
+        if (m_cfg.radialField) {
+          radialKick(state.v, from, *s, state.br, brLanded, surface,
+                     state.brQopPosition, state.brQopDirection);
+        }
         const Vector3 normal = surfaceNormal(surface, state.v);
         state.travel(*s);
         state.bz = bzAt(surface, candidate.stopAlong[j], m_bz);
@@ -1301,8 +1300,10 @@ bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
     ++candidate.stops;
 
     const double brLanded = surface.brAt(along);
-    radialKick(m_cfg.radialField, landed, state.v, step, state.br, brLanded,
-               surface, state.brQopPosition, state.brQopDirection);
+    if (m_cfg.radialField) {
+      radialKick(landed, state.v, step, state.br, brLanded, surface,
+                 state.brQopPosition, state.brQopDirection);
+    }
     state.v = landed;
     stateMoved = true;
     const Vector3 normal = surfaceNormal(surface, state.v);
@@ -1568,8 +1569,10 @@ bool RzTrackFinder::advanceWalk(Walk& walk) const {
     candidate.stopAlong.push_back(along);
 
     const double brLanded = surface.brAt(along);
-    radialKick(m_cfg.radialField, landed, state.v, s, state.br, brLanded,
-               surface, state.brQopPosition, state.brQopDirection);
+    if (m_cfg.radialField) {
+      radialKick(landed, state.v, s, state.br, brLanded, surface,
+                 state.brQopPosition, state.brQopDirection);
+    }
     state.v = landed;
     walk.cylCached = kRzNone;
     const Vector3 normal = surfaceNormal(surface, state.v);
