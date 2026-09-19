@@ -6,1364 +6,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "Acts/TrackFinding/Rz/RzTrackFinder.hpp"
-
-#include "Acts/Material/Interactions.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
 
 #include <algorithm>
-#include <cmath>
-#include <functional>
-#include <limits>
 
-namespace Acts::Experimental {
+#include "RzTrackFinderImpl.hpp"
 
-namespace {
+namespace Acts::Experimental::detail::rz {
 
-/// The normal of an RZ surface at a position on it
-Vector3 surfaceNormal(const RzSurface& surface, const RzVector& v) {
-  if (surface.shape == RzShape::Disc) {
-    return Vector3::UnitZ();
-  }
-  const double r = fastHypot(v[eRzPos0], v[eRzPos1]);
-  return Vector3(v[eRzPos0] / r, v[eRzPos1] / r, 0.);
-}
-
-/// The coordinate an RZ surface extends in, at a position
-double alongCoordinate(const RzSurface& surface, const RzVector& v) {
-  return surface.shape == RzShape::Cylinder ? v[eRzPos2]
-                                            : fastHypot(v[eRzPos0], v[eRzPos1]);
-}
-/// A surface's field at a crossing, or the constant one
-double bzAt(const RzSurface& surface, double along, double fallback) {
-  return surface.bzAt(along).value_or(fallback);
-}
-
-auto materialInterpolator(double momentum) {
-  const double x = (std::log(momentum) - RzMaterialTable::logMinP()) /
-                   RzMaterialTable::logStep();
-  const double xc =
-      std::clamp(x, 0., static_cast<double>(RzMaterialTable::kBins - 1));
-  const std::uint32_t i =
-      std::min(static_cast<std::uint32_t>(xc), RzMaterialTable::kBins - 2);
-  const double w = xc - i;
-  return [i, w](const std::array<float, RzMaterialTable::kBins>& a) {
-    return (1. - w) * a[i] + w * a[i + 1];
-  };
-}
-
-/// Apply the radial kick and project disc crossings back onto their plane.
-void radialKick(RzVector& v, const RzVector& from, double s, double br0,
-                double br1, const RzSurface& surface, Vector3& qopPosition,
-                Vector3& qopDirection) {
-  rzRadialKick(v, from, s, br0, br1, qopPosition, qopDirection);
-  if (surface.shape == RzShape::Disc && v[eRzDir2] != 0.) {
-    const double back = (surface.refCoord - v[eRzPos2]) / v[eRzDir2];
-    v.segment<3>(eRzPos0) += back * v.segment<3>(eRzDir0);
-  }
-}
-}  // namespace
-
-/// Process noise accumulated between covariance materialisations.
-struct RzTrackFinder::Pending {
-  double varAngle{};
-  double varPosition{};
-  double covAnglePosition{};
-  double varQOverP{};
-
-  bool empty() const { return varAngle == 0. && varQOverP == 0.; }
-  // Signed path: position-direction correlations reverse when walking inward.
-  void advance(double s) {
-    varPosition += 2. * covAnglePosition * s + varAngle * s * s;
-    covAnglePosition += varAngle * s;
-  }
-};
-
-struct RzTrackFinder::State {
-  RzVector v;
-  RzMatrix c;
-  double time{};
-  double timeVariance{};
-  double timeCorrection{};
-  double massOverCharge{};
-  Pending pending;
-  double turned{};
-  /// Covariance anchor and path since its last transport.
-  RzVector anchor;
-  double pathSince{};
-  /// `Bz` the state moves in from here, and the one at the anchor
-  double bz{};
-  double anchorBz{};
-  /// The radial field where the state stands
-  double br{};
-  /// What the radial field's kicks since the anchor add to the q/p column
-  /// of the anchor's Jacobian, for the position and the direction rows
-  Vector3 brQopPosition{Vector3::Zero()};
-  Vector3 brQopDirection{Vector3::Zero()};
-
-  /// Walk on without the covariance
-  void travel(double s) {
-    pathSince += s;
-    const double mOverP = massOverCharge * v[eRzQOverP];
-    time += s * std::sqrt(1. + mOverP * mOverP);
-  }
-  /// Bring the covariance to the state, on a surface with the given normal
-  void moveCovariance(const RzHelix& helix, const Vector3& normal) {
-    if (pathSince == 0.) {
-      return;
-    }
-    c = helix
-            .stepJacobianOnto(anchor, pathSince, v, normal,
-                              detail::stepTrig(helix.kappa(anchor) * pathSince),
-                              brQopPosition, brQopDirection)
-            .transport(c);
-    anchor = v;
-    anchorBz = bz;
-    pathSince = 0.;
-    brQopPosition.setZero();
-    brQopDirection.setZero();
-  }
-};
-
-/// Residual and projected covariance at the current stop.
-struct RzTrackFinder::Evaluation {
-  double chi2{};
-  double timeResidual{};
-  double timeGain{};
-  bool hasTime{};
-  bool pixel{};
-  /// `C (H J)^T`, one column per measured coordinate
-  Eigen::Matrix<double, eRzSize, 2> ch;
-  Eigen::Matrix<double, 2, 1> residual;
-  Eigen::Matrix<double, 2, 2> sInv;
-};
-
-/// Exact transport shared by surviving hits on the same module plane.
-struct RzTrackFinder::Prediction {
-  Vector3 planePosition;
-  Vector3 normal;
-  RzHelix::PlaneStep crossing;
-  Eigen::Matrix<double, 3, eRzSize> jPos;
-  bool hasJacobian = false;
-};
-
-/// Global measurement frame, constructed only for exact evaluation.
-struct RzTrackFinder::Placed {
-  Vector3 position{Vector3::Zero()};
-  /// The direction the measured coordinate is taken along
-  Vector3 u{Vector3::Zero()};
-  /// The other one, which a strip does not measure
-  Vector3 v{Vector3::Zero()};
-  Vector3 normal{Vector3::Zero()};
-  /// Variance along `u`
-  double cov00{};
-  double cov01{};
-  /// Variance along `v`, unused by a strip
-  double cov11{};
-  double invLever{};
-  double time{};
-  double timeVariance{};
-  /// Room along `v`, the coordinate a strip does not measure
-  double halfV{};
-  /// How far from the RZ stop the module may be met
-  double maxDistance{};
-  bool pixel{};
-};
-
-/// State, navigation cursors and counters for one forward walk.
-struct RzTrackFinder::Walk {
-  State state;
-  /// Output state, excluding any transport beyond the last measurement.
-  State lastHit;
-  RzTrackCandidate* candidate{};
-  /// Known seed measurements and their layers.
-  boost::container::small_vector<std::pair<std::uint32_t, RzSeedMeasurement>, 8>
-      knownHits;
-  std::uint32_t startSurface{kRzNone};
-  /// navigation cursors: the next cylinder outward and the next disc
-  /// along z
-  std::size_t cyl{};
-  std::int32_t disc{};
-  std::int32_t discStep{1};
-  bool cylindersLeft{true};
-  bool discsLeft{true};
-  /// Last stop type; probe the other type only when it could be nearer.
-  bool inEndcap{false};
-  /// the cylinder solve, kept while the state has not moved
-  std::uint32_t cylCached{kRzNone};
-  std::optional<double> cylCachedPath;
-  std::uint32_t holes{};
-  std::uint32_t consecutiveHoles{};
-  std::uint32_t layersCrossed{};
-  std::uint32_t measurementsFound{};
-  /// the walk has ended, one way or another
-  bool done{false};
-  /// the walk stands on a sensitive stop, ready for the search
-  bool atStop{false};
-  std::uint32_t layer{kRzNone};
-  std::uint32_t stop{kRzNone};
-  Vector3 normal{Vector3::Zero()};
-  ModuleList crossedModules;
-
-  RzSeedMeasurement knownAt(std::uint32_t layerIndex) const {
-    for (const auto& [l, entry] : knownHits) {
-      if (l == layerIndex) {
-        return entry;
-      }
-    }
-    return RzSeedMeasurement{};
-  }
-};
-
-RzTrackFinder::RzTrackFinder(const RzTrackFinderConfig& config,
-                             const RzLayout& layout, double bz)
-    : m_cfg(config), m_layout(&layout), m_bz(bz) {}
-
-bool RzTrackFinder::applyMaterial(State& state, const MaterialSlab& slab,
-                                  const Vector3& normal,
-                                  double direction) const {
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double cosIncidence = std::max(std::abs(normal.dot(dir)), 1e-3);
-  const MaterialSlab crossed(
-      slab.material(), static_cast<float>(slab.thickness() / cosIncidence));
-
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const float mass = hyp.mass();
-  const float absQ = hyp.absoluteCharge();
-  const PdgParticle pdg = hyp.absolutePdg();
-  const double qOverP = state.v[eRzQOverP];
-
-  const double theta0 = computeMultipleScatteringTheta0(
-      crossed, pdg, mass, static_cast<float>(qOverP), absQ);
-  state.pending.varAngle += theta0 * theta0;
-  const double sigmaQOverP = computeEnergyLossLandauSigmaQOverP(
-      crossed, mass, static_cast<float>(qOverP), absQ);
-  state.pending.varQOverP += sigmaQOverP * sigmaQOverP;
-
-  const double dE = computeEnergyLossMean(crossed, pdg, mass,
-                                          static_cast<float>(qOverP), absQ);
-  const double p = hyp.extractMomentum(qOverP);
-  const double e = fastHypot(mass, p) - direction * dE;
-  if (e <= mass) {
-    return false;
-  }
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-  return true;
-}
-
-bool RzTrackFinder::applyMaterial(State& state, const RzSurface& surface,
-                                  std::int32_t band, const Vector3& normal,
-                                  double direction) const {
-  if (surface.materialTables.empty()) {
-    return applyMaterial(state, surface.materialBands[band], normal, direction);
-  }
-  const RzMaterialTable& t = surface.materialTables[band];
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const double qOverP = state.v[eRzQOverP];
-  const double p = hyp.extractMomentum(qOverP);
-  const auto lerp = materialInterpolator(p);
-
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double factor = 1. / std::max(std::abs(normal.dot(dir)), 1e-3);
-  // Highland: theta0^2 ~ t (1 + 0.038 ln(t/X0))^2, so the path factor enters
-  // the logarithm as well as the thickness
-  const double lnT = t.logThicknessInX0;
-  const double highland =
-      (1. + 0.038 * (lnT + std::log(factor))) / (1. + 0.038 * lnT);
-  state.pending.varAngle += lerp(t.theta0Sq) * factor * highland * highland;
-  state.pending.varQOverP += lerp(t.sigmaQOverPSq) * factor;
-
-  const double dE = lerp(t.energyLoss) * factor;
-  const double mass = hyp.mass();
-  const double e = fastHypot(mass, p) - direction * dE;
-  if (e <= mass) {
-    return false;
-  }
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-  return true;
-}
-
-void RzTrackFinder::regainEnergy(State& state, const RzSurface& surface,
-                                 std::int32_t band,
-                                 const Vector3& normal) const {
-  const ParticleHypothesis& hyp = m_cfg.particleHypothesis;
-  const double qOverP = state.v[eRzQOverP];
-  const double p = hyp.extractMomentum(qOverP);
-  const Vector3 dir = state.v.segment<3>(eRzDir0);
-  const double factor = 1. / std::max(std::abs(normal.dot(dir)), 1e-3);
-  double dE = 0.;
-  if (!surface.materialTables.empty()) {
-    const RzMaterialTable& t = surface.materialTables[band];
-    dE = materialInterpolator(p)(t.energyLoss) * factor;
-  } else {
-    const MaterialSlab& slab = surface.materialBands[band];
-    const MaterialSlab crossed(slab.material(),
-                               static_cast<float>(slab.thickness() * factor));
-    dE =
-        computeEnergyLossMean(crossed, hyp.absolutePdg(), hyp.mass(),
-                              static_cast<float>(qOverP), hyp.absoluteCharge());
-  }
-  const double mass = hyp.mass();
-  const double e = fastHypot(mass, p) + dE;
-  const double pNew = std::sqrt(e * e - mass * mass);
-  state.v[eRzQOverP] = hyp.qOverP(pNew, hyp.extractCharge(qOverP));
-}
-
-void RzTrackFinder::materialise(State& state, const Vector3& normal) const {
-  Pending& p = state.pending;
-  if (p.empty()) {
-    return;
-  }
-  const Vector3 d = state.v.segment<3>(eRzDir0);
-  const SquareMatrix3 transverse =
-      SquareMatrix3::Identity() - d * d.transpose();
-  state.c.block<3, 3>(eRzDir0, eRzDir0) += p.varAngle * transverse;
-  state.c.block<3, 3>(eRzPos0, eRzPos0) += p.varPosition * transverse;
-  state.c.block<3, 3>(eRzPos0, eRzDir0) += p.covAnglePosition * transverse;
-  state.c.block<3, 3>(eRzDir0, eRzPos0) += p.covAnglePosition * transverse;
-  state.c(eRzQOverP, eRzQOverP) += p.varQOverP;
-  // Project position noise onto the surface along the track:
-  // apply I - d n^T / (n.d) to the position rows and columns.
-  const Vector3 dOver = d / normal.dot(d);
-  for (std::uint32_t c = 0; c < eRzSize; ++c) {
-    const double nc = normal.x() * state.c(eRzPos0, c) +
-                      normal.y() * state.c(eRzPos1, c) +
-                      normal.z() * state.c(eRzPos2, c);
-    state.c(eRzPos0, c) -= dOver.x() * nc;
-    state.c(eRzPos1, c) -= dOver.y() * nc;
-    state.c(eRzPos2, c) -= dOver.z() * nc;
-  }
-  for (std::uint32_t r = 0; r < eRzSize; ++r) {
-    const double nr = normal.x() * state.c(r, eRzPos0) +
-                      normal.y() * state.c(r, eRzPos1) +
-                      normal.z() * state.c(r, eRzPos2);
-    state.c(r, eRzPos0) -= dOver.x() * nr;
-    state.c(r, eRzPos1) -= dOver.y() * nr;
-    state.c(r, eRzPos2) -= dOver.z() * nr;
-  }
-  p = Pending{};
-}
-
-RzTrackFinder::Placed RzTrackFinder::placeHit(
-    const RzMeasurementAccessor& measurements, const RzTrackHit& hit) const {
-  const RzModuleMeasurements group = measurements(hit.module);
-  const RzMeasurementFrame* frame =
-      group.frames.empty() ? nullptr : &group.frames[hit.measurement];
-  return place(m_layout->modules[hit.module], group.entries[hit.measurement],
-               frame);
-}
-
-RzTrackFinder::Placed RzTrackFinder::place(
-    const RzModule& mod, const RzMeasurement& m,
-    const RzMeasurementFrame* frame) const {
-  // the axes the measurement was taken on: the module's own, unless it is
-  // polar, where every strip carries its own
-  const Vector3& au = frame != nullptr ? frame->u : mod.u;
-  const Vector3& av = frame != nullptr ? frame->v : mod.v;
-  Placed p;
-  p.position = mod.center + m.loc0 * au + m.loc1 * av;
-  const bool swapped = m.projector == RzProjector::Loc1 ||
-                       (m.projector == RzProjector::Both && m.invLever != 0.);
-  // Put a strip's measured coordinate first. For a polar pixel, put the
-  // angular coordinate first too, so only its variance gets the lever factor.
-  p.u = swapped ? av : au;
-  p.v = swapped ? au : av;
-  p.normal = p.u.cross(p.v);
-  p.cov00 = swapped ? m.cov11 : m.cov00;
-  p.cov11 = swapped ? m.cov00 : m.cov11;
-  p.cov01 = m.cov01;
-  p.invLever = m.invLever;
-  p.time = m.time;
-  p.timeVariance = m.timeVariance;
-  // the room a search opens along a strip: the module's extent along the
-  // coordinate it does not measure, and for a polar frame, where neither
-  // bound coordinate is a module axis, the box in either direction
-  p.halfV = frame != nullptr ? std::max(mod.halfU, mod.halfV)
-                             : (swapped ? mod.halfU : mod.halfV);
-  p.maxDistance = m_layout->layers[mod.layer].moduleDistance;
-  p.pixel = m.projector == RzProjector::Both;
-  return p;
-}
-
-template <bool Cache>
-std::optional<RzTrackFinder::Evaluation> RzTrackFinder::evaluate(
-    const State& state, const Placed& m, bool gate, bool useTime,
-    std::optional<Prediction>* prediction) const {
-  // the straight-line crossing of the module plane first: it is the Newton
-  // start anyway, and enough for the gate
-  const Vector3 p0 = state.v.segment<3>(eRzPos0);
-  const Vector3 d0 = state.v.segment<3>(eRzDir0);
-  const double along = m.normal.dot(d0);
-  if (std::abs(along) < 1e-9) {
-    return std::nullopt;
-  }
-  const double s0 = m.normal.dot(m.position - p0) / along;
-  const double maxDistance = std::max(m_cfg.maxModuleDistance, m.maxDistance);
-  if (std::abs(s0) > maxDistance) {
-    return std::nullopt;
-  }
-  const RzHelix helix = helixAt(state.bz);
-  // Reject distant hits using a straight-line residual and covariance widened
-  // by direction uncertainty before computing the exact transport.
-  if (gate) {
-    const Vector3 d = m.position - (p0 + s0 * d0);
-    const double ru = m.u.dot(d);
-    const double rv = m.v.dot(d);
-    const auto cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
-    const double spread =
-        state.c.block<3, 3>(eRzDir0, eRzDir0).trace() * s0 * s0 +
-        state.pending.varPosition;
-    const double su = m.u.dot(cPos * m.u) + m.cov00 + spread;
-    double chi2 = ru * ru / su;
-    if (m.pixel) {
-      const double sv = m.v.dot(cPos * m.v) + m.cov11 + spread;
-      chi2 += rv * rv / sv;
-    }
-    if (chi2 > m_cfg.gateFactor * m_cfg.chi2Cut) {
-      return std::nullopt;
-    }
-  }
-  // the solve's last iterate is the step: one sincos for the solve, the
-  // step and its Jacobian, all of the same turning angle
-  std::optional<RzHelix::PlaneStep> crossing;
-  if constexpr (Cache) {
-    // Rotating measurement frames can change the plane within a module.
-    if (*prediction && (*prediction)->normal == m.normal &&
-        std::abs(m.normal.dot(m.position - (*prediction)->planePosition)) <
-            1e-12) {
-      crossing = (*prediction)->crossing;
-    }
-  }
-  if (!crossing) {
-    crossing = helix.stepToPlane(state.v, m.position, m.normal);
-    if constexpr (Cache) {
-      if (crossing) {
-        prediction->emplace(
-            Prediction{m.position, m.normal, *crossing, {}, false});
-      }
-    }
-  }
-  if (!crossing.has_value() || std::abs(crossing->s) > maxDistance) {
-    return std::nullopt;
-  }
-  const detail::StepTrig& trig = crossing->trig;
-  const RzVector& w = crossing->state;
-  double timeChi2 = 0.;
-  double timeResidual = 0.;
-  double timeGain = 0.;
-  if (useTime && m.timeVariance > 0.) {
-    const double mOverP = state.massOverCharge * state.v[eRzQOverP];
-    const double predictedTime =
-        state.time + crossing->s * std::sqrt(1. + mOverP * mOverP);
-    timeResidual = m.time - predictedTime;
-    const double variance = state.timeVariance + m.timeVariance;
-    timeChi2 = timeResidual * timeResidual / variance;
-    timeGain = state.timeVariance / variance;
-  }
-  const Vector3 d = m.position - w.segment<3>(eRzPos0);
-  const double ru = m.u.dot(d);
-  const double rv = m.v.dot(d);
-  if (!m.pixel && std::abs(rv) > m.halfV + m_cfg.stripMargin) {
-    return std::nullopt;
-  }
-  // Rescale angular variance from the measured radius to the crossing radius.
-  const double lever = 1. - rv * m.invLever;
-  const double cov00 = m.cov00 * lever * lever;
-  // S = H C H^T + R with H the two frame axes on the position block of the
-  // covariance moved to the module: the rows of H J, and only they, are
-  // formed, and C (H J)^T is what the update needs too
-  Evaluation e;
-  Eigen::Matrix<double, 3, eRzSize> jPos;
-  if constexpr (Cache) {
-    if ((*prediction)->hasJacobian) {
-      jPos = (*prediction)->jPos;
-    } else {
-      jPos = helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
-                 .positionRows();
-      (*prediction)->jPos = jPos;
-      (*prediction)->hasJacobian = true;
-    }
-  } else {
-    jPos = helix.stepJacobianOnto(state.v, crossing->s, w, m.normal, trig)
-               .positionRows();
-  }
-  // the two products by hand: Eigen takes a 1x3 by 3x7 and a 7x7 by 7x1
-  // through its general kernels, out of line, for 21 and 49 multiplies
-  const auto projectRows = [&](const Vector3& axis,
-                               Eigen::Matrix<double, 1, eRzSize>& h) {
-    for (std::uint32_t c = 0; c < eRzSize; ++c) {
-      h[c] =
-          axis.x() * jPos(0, c) + axis.y() * jPos(1, c) + axis.z() * jPos(2, c);
-    }
-  };
-  const auto covarianceTimes = [&](const Eigen::Matrix<double, 1, eRzSize>& h,
-                                   std::uint32_t col) {
-    for (std::uint32_t r = 0; r < eRzSize; ++r) {
-      double acc = 0.;
-      for (std::uint32_t c = 0; c < eRzSize; ++c) {
-        acc += state.c(r, c) * h[c];
-      }
-      e.ch(r, col) = acc;
-    }
-  };
-  Eigen::Matrix<double, 1, eRzSize> hu;
-  projectRows(m.u, hu);
-  covarianceTimes(hu, 0);
-  const double s00 = hu.dot(e.ch.col(0)) + cov00;
-  if (!(s00 > 0.)) {
-    return std::nullopt;
-  }
-  e.sInv.setZero();
-  if (!m.pixel) {
-    e.ch.col(1).setZero();
-    e.sInv(0, 0) = 1. / s00;
-    e.chi2 = ru * ru * e.sInv(0, 0);
-  } else {
-    Eigen::Matrix<double, 1, eRzSize> hv;
-    projectRows(m.v, hv);
-    covarianceTimes(hv, 1);
-    const double s01 = hv.dot(e.ch.col(0)) + m.cov01 * lever;
-    const double s11 = hv.dot(e.ch.col(1)) + m.cov11;
-    const double det = s00 * s11 - s01 * s01;
-    if (!(det > 0.)) {
-      return std::nullopt;
-    }
-    e.sInv(0, 0) = s11 / det;
-    e.sInv(0, 1) = -s01 / det;
-    e.sInv(1, 0) = e.sInv(0, 1);
-    e.sInv(1, 1) = s00 / det;
-    e.chi2 = ru * ru * e.sInv(0, 0) + 2. * ru * rv * e.sInv(0, 1) +
-             rv * rv * e.sInv(1, 1);
-  }
-  e.residual << ru, rv;
-  e.chi2 += timeChi2;
-  e.pixel = m.pixel;
-  e.timeResidual = timeResidual;
-  e.timeGain = timeGain;
-  e.hasTime = useTime && m.timeVariance > 0.;
-  return e;
-}
-
-void RzTrackFinder::update(State& state, const Evaluation& e) const {
-  if (e.hasTime) {
-    const double correction = e.timeGain * e.timeResidual;
-    state.time += correction;
-    state.timeCorrection += correction;
-    state.timeVariance *= 1. - e.timeGain;
-  }
-  if (!e.pixel) {
-    const RzVector k = e.ch.col(0) * e.sInv(0, 0);
-    state.v += k * e.residual[0];
-    state.v.segment<3>(eRzDir0).normalize();
-    state.anchor = state.v;
-    for (std::uint32_t r = 0; r < eRzSize; ++r) {
-      for (std::uint32_t c = 0; c <= r; ++c) {
-        state.c(r, c) -= k[r] * e.ch(c, 0);
-        state.c(c, r) = state.c(r, c);
-      }
-    }
-    return;
-  }
-  const Eigen::Matrix<double, eRzSize, 2> k = e.ch * e.sInv;
-  state.v += k * e.residual;
-  state.v.segment<3>(eRzDir0).normalize();
-  state.anchor = state.v;
-  // C - K (C H^T)^T is symmetric by construction, so the lower triangle is
-  // formed and mirrored rather than the whole product averaged with its
-  // transpose
-  for (std::uint32_t r = 0; r < eRzSize; ++r) {
-    for (std::uint32_t c = 0; c <= r; ++c) {
-      const double d = k(r, 0) * e.ch(c, 0) + k(r, 1) * e.ch(c, 1);
-      state.c(r, c) -= d;
-      state.c(c, r) = state.c(r, c);
-    }
-  }
-}
-
-std::optional<double> RzTrackFinder::pathBackward(const RzHelix& helix,
-                                                  const RzVector& v,
-                                                  const RzSurface& surface,
-                                                  double guess) const {
-  if (surface.shape == RzShape::Disc) {
-    const double dz = v[eRzDir2];
-    return dz != 0. ? std::optional((surface.refCoord - v[eRzPos2]) / dz)
-                    : std::nullopt;
-  }
-  // Newton from the forward path: the state has moved by an update or two
-  // since, so the root is next to the guess
-  double s = guess;
-  for (std::int32_t i = 0; i < 6; ++i) {
-    RzVector w = v;
-    helix.step(w, s);
-    const double f = w[eRzPos0] * w[eRzPos0] + w[eRzPos1] * w[eRzPos1] -
-                     surface.refCoord * surface.refCoord;
-    const double df = 2. * (w[eRzPos0] * w[eRzDir0] + w[eRzPos1] * w[eRzDir1]);
-    if (df == 0.) {
-      break;
-    }
-    const double ds = f / df;
-    s -= ds;
-    // a nanometre: every physical scale here is millimetres, and each further
-    // iteration is a full helix step
-    if (std::abs(ds) < 1e-6) {
-      // a root far from the guess is the other crossing of the circle
-      if (std::abs(s - guess) < std::max(20., 0.2 * std::abs(guess))) {
-        return s;
-      }
-      break;
-    }
-  }
-  // the closed form the other way round, as a fallback
-  const RzVector r = RzHelix::reversed(v);
-  const std::optional<double> back = helix.pathToCylinder(r, surface.refCoord);
-  if (!back.has_value()) {
-    return std::nullopt;
-  }
-  return -*back;
-}
-
-void RzTrackFinder::modulesAt(std::uint32_t layerIndex, const State& state,
-                              ModuleList& modules, bool& onModule,
-                              RzTrackCandidate& candidate) const {
-  modules.clear();
-  onModule = false;
-  const RzLayout& layout = *m_layout;
-  const RzLayer& layer = layout.layers[layerIndex];
-  const RzSurface& surface = layout.surfaces[layer.surface];
-  const RzVector& v = state.v;
-  const double r = fastHypot(v[eRzPos0], v[eRzPos1]);
-  const double phi = std::atan2(v[eRzPos1], v[eRzPos0]);
-  const double along = alongCoordinate(surface, v);
-
-  // Where the state could be, not just where it is: the module test has to
-  // open by the same amount the layer search used to, or a module just past
-  // the crossing point is never looked at and its measurement is lost.
-  const auto cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
-  const double varPending = state.pending.varPosition;
-  // the largest variance along any direction is at most the trace
-  const double sigmaMax = std::sqrt(std::max(0., cPos.trace() + varPending));
-  const double window = m_cfg.windowSigmas * sigmaMax + m_cfg.windowMin;
-
-  const double room = layer.maxHalfExtent + m_cfg.moduleEdgeTolerance + window;
-  const Vector3 p = v.segment<3>(eRzPos0);
-  const Vector3 dir = v.segment<3>(eRzDir0);
-  const double kappa = std::abs(helixAt(state.bz).kappa(v));
-  const double maxDistance =
-      std::max(m_cfg.maxModuleDistance, layer.moduleDistance);
-  const double sigmas2 = m_cfg.windowSigmas * m_cfg.windowSigmas;
-  layout.visitBins(
-      layerIndex, phi, along, room / r, room, [&](std::uint32_t b) {
-        ++candidate.binsVisited;
-        for (std::uint32_t i = layout.moduleBinStart[b];
-             i < layout.moduleBinStart[b + 1]; ++i) {
-          ++candidate.modulesTested;
-          const std::uint32_t index = layout.moduleOrder[i];
-          const RzModule& m = layout.modules[index];
-          const double alongNormal = m.normal.dot(dir);
-          if (std::abs(alongNormal) < 1e-9) {
-            continue;
-          }
-          const double s = m.normal.dot(m.center - p) / alongNormal;
-          if (std::abs(s) > maxDistance) {
-            continue;
-          }
-          const Vector3 d = p + s * dir - m.center;
-          // Add sagitta and edge tolerance first; compute projected variance
-          // only for modules outside that margin, comparing squared distances.
-          const double sagitta = 0.5 * kappa * s * s;
-          const double fixed =
-              m_cfg.moduleEdgeTolerance + sagitta + m_cfg.windowMin;
-          const double du = std::abs(m.u.dot(d)) - m.halfU - fixed;
-          if (du > 0.) {
-            const double varU = std::max(0., m.u.dot(cPos * m.u) + varPending);
-            if (du * du > sigmas2 * varU) {
-              continue;
-            }
-          }
-          const double dv = std::abs(m.v.dot(d)) - m.halfV - fixed;
-          if (dv > 0.) {
-            const double varV = std::max(0., m.v.dot(cPos * m.v) + varPending);
-            if (dv * dv > sigmas2 * varV) {
-              continue;
-            }
-          }
-          if (std::ranges::find(modules, index) == modules.end()) {
-            modules.push_back(index);
-          }
-          // the hole decision, on the crossing itself rather than on where
-          // the state might be
-          const double tight = m_cfg.moduleEdgeTolerance + sagitta;
-          if (std::abs(m.u.dot(d)) <= m.halfU + tight &&
-              std::abs(m.v.dot(d)) <= m.halfV + tight) {
-            onModule = true;
-          }
-        }
-      });
-}
-
-std::uint32_t RzTrackFinder::searchLayer(
-    const RzMeasurementAccessor& measurements, std::uint32_t layerIndex,
-    std::uint32_t stop, const ModuleList& modules, State& state,
-    RzTrackCandidate& candidate, std::uint32_t skipRounds,
-    std::uint32_t usedModule) const {
-  // Gate at each crossed module before the exact transport: an RZ-stop window
-  // would miss hits on modules offset from that stop.
-  std::uint32_t accepted = 0;
-  ModuleList usedModules;
-  if (usedModule != kRzNone) {
-    // a measurement the caller named is already on the track; the layer may
-    // still hold the overlap hit, on one of its other modules
-    usedModules.push_back(usedModule);
-  }
-  for (std::uint32_t round = skipRounds; round < m_cfg.maxMeasurementsPerLayer;
-       ++round) {
-    std::uint32_t bestIndex = kRzNone;
-    std::uint32_t bestModule = kRzNone;
-    Evaluation best;
-    best.chi2 = std::numeric_limits<double>::max();
-    // Reuse the straight-line crossing and covariance projection across a
-    // module's hits; rotate them for each polar measurement frame.
-    const Vector3 p0 = state.v.segment<3>(eRzPos0);
-    const Vector3 d0 = state.v.segment<3>(eRzDir0);
-    const SquareMatrix3 cPos = state.c.block<3, 3>(eRzPos0, eRzPos0);
-    const double dirTrace = state.c.block<3, 3>(eRzDir0, eRzDir0).trace();
-    const double varPending = state.pending.varPosition;
-    const double gate2 = m_cfg.gateFactor * m_cfg.chi2Cut;
-    const double mOverP = state.massOverCharge * state.v[eRzQOverP];
-    const double timePerPath = std::sqrt(1. + mOverP * mOverP);
-    // Evaluate survivors exactly in their original module and hit order.
-    struct Survivor {
-      std::uint32_t module;
-      std::uint32_t index;
-      bool gated;
-    };
-    boost::container::small_vector<Survivor, 16> survivors;
-    for (const std::uint32_t module : modules) {
-      if (std::ranges::find(usedModules, module) != usedModules.end()) {
-        continue;
-      }
-      const RzModule& mod = m_layout->modules[module];
-      const RzModuleMeasurements group = measurements(module);
-      if (group.entries.empty()) {
-        continue;
-      }
-      // Project once per module; rotate these quantities for polar hits.
-      bool crossed = false;
-      double c0 = 0.;
-      double c1 = 0.;
-      double su0 = 0.;
-      double sv0 = 0.;
-      double cUU = 0.;
-      double cUV = 0.;
-      double cVV = 0.;
-      double spread = 0.;
-      double moduleStep = 0.;
-      {
-        const double alongNormal = mod.normal.dot(d0);
-        if (std::abs(alongNormal) > 1e-9) {
-          const double s0 = mod.normal.dot(mod.center - p0) / alongNormal;
-          moduleStep = s0;
-          // the crossing on the module's own axes, which is the frame the
-          // measurements are already in, so a residual is a subtraction
-          const Vector3 delta = p0 + s0 * d0 - mod.center;
-          c0 = mod.u.dot(delta);
-          c1 = mod.v.dot(delta);
-          spread = dirTrace * s0 * s0 + varPending;
-          cUU = mod.u.dot(cPos * mod.u);
-          cVV = mod.v.dot(cPos * mod.v);
-          su0 = cUU + spread;
-          sv0 = cVV + spread;
-          if (mod.polar) {
-            cUV = mod.u.dot(cPos * mod.v);
-          }
-          crossed = true;
-        }
-      }
-      const bool hoisted = crossed && !mod.polar && su0 > 0. && sv0 > 0.;
-      const bool polarGate = crossed && mod.polar && !group.frames.empty();
-      for (std::uint32_t i = 0; i < group.entries.size(); ++i) {
-        const RzMeasurement& m = group.entries[i];
-        ++candidate.candidatesTested;
-        if (crossed && m.timeVariance > 0.) {
-          const double predictedTime = state.time + moduleStep * timePerPath;
-          const double residual = m.time - predictedTime;
-          if (residual * residual >
-              gate2 * (state.timeVariance + m.timeVariance)) {
-            continue;
-          }
-        }
-        bool gated = hoisted;
-        if (polarGate) {
-          // the module's crossing and spread turned onto this measurement's
-          // axes: the same gate `evaluate` would take, before the placement
-          // and the exact transport it would then go on to
-          const RzMeasurementFrame& f = group.frames[i];
-          const double r0 = f.uU * c0 + f.uV * c1;
-          const double r1 = f.vU * c0 + f.vV * c1;
-          const double s0v = f.uU * f.uU * cUU + 2. * f.uU * f.uV * cUV +
-                             f.uV * f.uV * cVV + spread;
-          const double s1v = f.vU * f.vU * cUU + 2. * f.vU * f.vV * cUV +
-                             f.vV * f.vV * cVV + spread;
-          if (s0v > 0. && s1v > 0.) {
-            double chi2Gate = 0.;
-            if (m.projector != RzProjector::Loc1) {
-              const double d = m.loc0 - r0;
-              chi2Gate += d * d / (s0v + m.cov00);
-            }
-            if (m.projector != RzProjector::Loc0) {
-              const double d = m.loc1 - r1;
-              chi2Gate += d * d / (s1v + m.cov11);
-            }
-            if (chi2Gate > gate2) {
-              continue;
-            }
-            gated = true;
-            survivors.push_back({module, i, true});
-            continue;
-          }
-        }
-        if (hoisted) {
-          // The diagonal straight-line chi2 rejects distant measurements;
-          // it does not preserve the exact chi2 ordering or strip acceptance.
-          double chi2Gate = 0.;
-          if (m.projector != RzProjector::Loc1) {
-            const double r0 = m.loc0 - c0;
-            const double s0v = su0 + m.cov00;
-            if (r0 * r0 > gate2 * s0v) {
-              continue;
-            }
-            chi2Gate = r0 * r0 / s0v;
-          }
-          if (m.projector != RzProjector::Loc0) {
-            const double r1 = m.loc1 - c1;
-            const double s1v = sv0 + m.cov11;
-            if (r1 * r1 > gate2 * s1v) {
-              continue;
-            }
-            chi2Gate += r1 * r1 / s1v;
-            if (chi2Gate > gate2) {
-              continue;
-            }
-          }
-          survivors.push_back({module, i, true});
-          continue;
-        }
-        // no gate of its own here: `evaluate` gates it, and it is always
-        // looked at
-        survivors.push_back({module, i, gated});
-      }
-    }
-    std::optional<Prediction> prediction;
-    std::uint32_t predictionModule = kRzNone;
-    for (std::size_t i = 0; i < survivors.size(); ++i) {
-      const Survivor& c = survivors[i];
-      const RzModule& mod = m_layout->modules[c.module];
-      const RzModuleMeasurements group = measurements(c.module);
-      const RzMeasurementFrame* frame =
-          group.frames.empty() ? nullptr : &group.frames[c.index];
-      if (predictionModule != c.module) {
-        prediction.reset();
-        predictionModule = c.module;
-      }
-      const Placed placed = place(mod, group.entries[c.index], frame);
-      const bool sharedPlane =
-          (i + 1 < survivors.size() && survivors[i + 1].module == c.module) ||
-          prediction.has_value();
-      const std::optional<Evaluation> e =
-          sharedPlane
-              ? evaluate<true>(state, placed, !c.gated, true, &prediction)
-              : evaluate(state, placed, !c.gated);
-      if (!e.has_value()) {
-        continue;
-      }
-      ++candidate.exactEvaluated;
-      if (e->chi2 < best.chi2) {
-        bestIndex = c.index;
-        bestModule = c.module;
-        best = *e;
-      }
-    }
-    if (bestIndex == kRzNone || best.chi2 > m_cfg.chi2Cut) {
-      break;
-    }
-    update(state, best);
-    const std::uint32_t forwardState = saveForwardState(state, candidate);
-    candidate.hits.push_back(
-        {layerIndex, bestIndex, stop, forwardState, bestModule, best.chi2});
-    candidate.chi2 += best.chi2;
-    usedModules.push_back(bestModule);
-    ++accepted;
-  }
-  return accepted;
-}
-
-std::uint32_t RzTrackFinder::saveForwardState(
-    const State& state, RzTrackCandidate& candidate) const {
-  ++candidate.measurements;
-  if (!m_cfg.storeForwardStates &&
-      (!m_cfg.backwardPass || candidate.measurements != m_cfg.backwardLayers)) {
-    return kRzNone;
-  }
-  const auto index = static_cast<std::uint32_t>(candidate.forwardStates.size());
-  candidate.forwardStates.push_back(
-      {state.v, state.c, state.time, state.timeVariance, state.timeCorrection});
-  return index;
-}
-
-bool RzTrackFinder::takeKnownHit(const RzMeasurementAccessor& measurements,
-                                 const RzSeedMeasurement& seed,
-                                 std::uint32_t layerIndex, std::uint32_t stop,
-                                 State& state,
-                                 RzTrackCandidate& candidate) const {
-  const RzModuleMeasurements group = measurements(seed.module);
-  if (seed.index >= group.entries.size()) {
-    return false;
-  }
-  const RzModule& mod = m_layout->modules[seed.module];
-  const RzMeasurementFrame* frame =
-      group.frames.empty() ? nullptr : &group.frames[seed.index];
-  const std::optional<Evaluation> e =
-      evaluate(state, place(mod, group.entries[seed.index], frame), false);
-  // Known hits must still pass the gate. Otherwise search the layer normally.
-  if (!e.has_value() || !std::isfinite(e->chi2) ||
-      e->chi2 > m_cfg.gateFactor * m_cfg.chi2Cut) {
-    return false;
-  }
-  ++candidate.exactEvaluated;
-  update(state, *e);
-  const std::uint32_t forwardState = saveForwardState(state, candidate);
-  candidate.hits.push_back(
-      {layerIndex, seed.index, stop, forwardState, seed.module, e->chi2});
-  candidate.chi2 += e->chi2;
-  return true;
-}
-
-void RzTrackFinder::backwardPass(const RzMeasurementAccessor& measurements,
-                                 const State& forward,
-                                 RzTrackCandidate& candidate) const {
-  // where to start: the last measurement, or the outermost of the innermost
-  // `backwardLayers` of them
-  auto hit = candidate.hits.rbegin();
-  while (hit != candidate.hits.rend() && hit->isHole()) {
-    ++hit;
-  }
-  if (hit == candidate.hits.rend()) {
-    candidate.backwardFailure = 4;
-    return;
-  }
-  const bool partial =
-      m_cfg.backwardLayers > 0 && candidate.measurements > m_cfg.backwardLayers;
-  if (partial) {
-    std::uint32_t seen = 0;
-    for (auto it = candidate.hits.begin(); it != candidate.hits.end(); ++it) {
-      if (it->isHole()) {
-        continue;
-      }
-      if (++seen == m_cfg.backwardLayers) {
-        hit = std::make_reverse_iterator(it + 1);
-        break;
-      }
-    }
-  }
-  const RzVector& startV =
-      partial ? candidate.forwardStates[hit->forwardState].parameters
-              : forward.v;
-  const RzMatrix& startC =
-      partial ? candidate.forwardStates[hit->forwardState].covariance
-              : forward.c;
-
-  // Refit from an inflated, uncorrelated prior in the surface and direction
-  // tangent planes. Preserve their null directions.
-  State state;
-  state.v = startV;
-  state.anchor = startV;
-  state.time = forward.time;
-  state.timeVariance = forward.timeVariance;
-  state.massOverCharge = forward.massOverCharge;
-  if (partial) {
-    const auto& checkpoint = candidate.forwardStates[hit->forwardState];
-    state.time =
-        checkpoint.time + forward.timeCorrection - checkpoint.timeCorrection;
-  }
-  const RzSurface& startSurface =
-      m_layout->surfaces[m_layout->layers[hit->layer].surface];
-  const double startAlong = hit->stop == kRzNone
-                                ? alongCoordinate(startSurface, startV)
-                                : candidate.stopAlong[hit->stop];
-  state.bz = bzAt(startSurface, startAlong, m_bz);
-  state.br = startSurface.brAt(startAlong);
-  state.anchorBz = state.bz;
-  {
-    const Vector3 d = startV.segment<3>(eRzDir0);
-    const Vector3 n = placeHit(measurements, *hit).normal;
-    const double varPos =
-        startC.block<3, 3>(eRzPos0, eRzPos0).trace() * m_cfg.backwardInflation;
-    const double varDir =
-        startC.block<3, 3>(eRzDir0, eRzDir0).trace() * m_cfg.backwardInflation;
-    state.c.setZero();
-    state.c.block<3, 3>(eRzPos0, eRzPos0) =
-        varPos * (SquareMatrix3::Identity() - n * n.transpose());
-    state.c.block<3, 3>(eRzDir0, eRzDir0) =
-        varDir * (SquareMatrix3::Identity() - d * d.transpose());
-    if (partial) {
-      // the momentum is the whole track's: the forward filter's final word,
-      // brought in to this hit by regaining what the stops in between took
-      state.v[eRzQOverP] = forward.v[eRzQOverP];
-      state.c(eRzQOverP, eRzQOverP) =
-          forward.c(eRzQOverP, eRzQOverP) * m_cfg.backwardQOverPScale;
-      if (m_cfg.applyMaterial) {
-        auto last = candidate.hits.rbegin();
-        while (last->isHole()) {
-          ++last;
-        }
-        const std::uint32_t outerStop = last->stop;
-        const std::uint32_t innerStop = hit->stop;
-        for (std::uint32_t j = outerStop; j != innerStop && j != kRzNone; --j) {
-          const RzSurface& surface =
-              m_layout->surfaces[candidate.stopSurfaces[j]];
-          const std::int32_t band =
-              surface.materialBandAt(candidate.stopAlong[j]);
-          if (band < 0) {
-            continue;
-          }
-          regainEnergy(state, surface, band, surfaceNormal(surface, state.v));
-        }
-      }
-    } else {
-      state.c(eRzQOverP, eRzQOverP) =
-          startC(eRzQOverP, eRzQOverP) * m_cfg.backwardInflation;
-    }
-  }
-
-  // Replay hits, material and transport inward in reverse stop order.
-  // Keep forward timing information without applying the same hits twice.
-  auto updateHitsAt = [&](std::uint32_t stop) {
-    // hits are stored outward, so this stop's hits are the next ones inward
-    while (hit != candidate.hits.rend() && hit->stop == stop) {
-      if (!hit->isHole()) {
-        const std::optional<Evaluation> e =
-            evaluate(state, placeHit(measurements, *hit), false, false);
-        if (!e.has_value()) {
-          return false;
-        }
-        ++candidate.exactEvaluated;
-        update(state, *e);
-      }
-      ++hit;
-    }
-    return true;
-  };
-
-  std::uint32_t stop = hit->stop;
-  if (stop != kRzNone) {
-    for (std::int32_t j = static_cast<std::int32_t>(stop); j >= 0; --j) {
-      const RzSurface& surface = m_layout->surfaces[candidate.stopSurfaces[j]];
-      if (static_cast<std::uint32_t>(j) != stop) {
-        const RzHelix helix = helixAt(state.bz);
-        const std::optional<double> s =
-            pathBackward(helix, state.v, surface, -candidate.stopPaths[j + 1]);
-        if (!s.has_value()) {
-          candidate.backwardFailure = 1;
-          return;
-        }
-        const RzVector from = state.v;
-        helix.step(state.v, *s);
-        const double brLanded = surface.brAt(candidate.stopAlong[j]);
-        if (m_cfg.radialField) {
-          radialKick(state.v, from, *s, state.br, brLanded, surface,
-                     state.brQopPosition, state.brQopDirection);
-        }
-        const Vector3 normal = surfaceNormal(surface, state.v);
-        state.travel(*s);
-        state.bz = bzAt(surface, candidate.stopAlong[j], m_bz);
-        state.br = brLanded;
-        state.pending.advance(*s);
-        // Materialise pending noise at its stop to preserve scattering lever
-        // arms.
-        if (!state.pending.empty() ||
-            (hit != candidate.hits.rend() &&
-             hit->stop == static_cast<std::uint32_t>(j))) {
-          state.moveCovariance(helixAt(state.anchorBz), normal);
-          materialise(state, normal);
-        }
-      }
-      if (!updateHitsAt(static_cast<std::uint32_t>(j))) {
-        candidate.backwardFailure = 3;
-        return;
-      }
-      if (m_cfg.applyMaterial) {
-        const Vector3 normal = surfaceNormal(surface, state.v);
-        if (const std::int32_t band =
-                surface.materialBandAt(alongCoordinate(surface, state.v));
-            band >= 0 && !applyMaterial(state, surface, band, normal, -1.)) {
-          candidate.backwardFailure = 2;
-          return;
-        }
-      }
-    }
-  }
-  // what the track started with, found before any stop
-  while (hit != candidate.hits.rend()) {
-    if (!hit->isHole()) {
-      const Placed m = placeHit(measurements, *hit);
-      const RzHelix helix = helixAt(state.bz);
-      const std::optional<double> s =
-          helix.pathToPlane(state.v, m.position, m.normal);
-      if (!s.has_value()) {
-        candidate.backwardFailure = 1;
-        return;
-      }
-      helix.step(state.v, *s);
-      state.travel(*s);
-      state.moveCovariance(helixAt(state.anchorBz), m.normal);
-      state.pending.advance(*s);
-      materialise(state, m.normal);
-      const std::optional<Evaluation> e = evaluate(state, m, false, false);
-      if (!e.has_value()) {
-        candidate.backwardFailure = 3;
-        return;
-      }
-      ++candidate.exactEvaluated;
-      update(state, *e);
-    }
-    ++hit;
-  }
-  if (partial && m_cfg.backwardQOverPScale == 0.) {
-    state.c(eRzQOverP, eRzQOverP) = forward.c(eRzQOverP, eRzQOverP);
-  }
-
-  if (m_cfg.inwardSearch) {
-    // Reverse new inward hits and prepend them to preserve outward hit order.
-    const std::size_t before = candidate.hits.size();
-    const bool reached = inwardSearch(measurements, state, candidate);
-    if (candidate.hits.size() > before) {
-      const auto first =
-          candidate.hits.begin() + static_cast<std::int32_t>(before);
-      std::reverse(first, candidate.hits.end());
-      std::rotate(candidate.hits.begin(), first, candidate.hits.end());
-      // the counts the forward pass took no longer describe the track
-      candidate.measurements = 0;
-      candidate.holes = 0;
-      for (const RzTrackHit& found : candidate.hits) {
-        (found.isHole() ? candidate.holes : candidate.measurements) += 1;
-      }
-    }
-    if (!reached) {
-      candidate.backwardFailure = 5;
-    }
-  }
-
-  candidate.innerTime = state.time;
-  candidate.innerTimeVariance = state.timeVariance;
-  candidate.innerParameters = state.v;
-  candidate.innerCovariance = state.c;
-  candidate.hasInner = true;
-}
-
-bool RzTrackFinder::inwardSearch(const RzMeasurementAccessor& measurements,
-                                 State& state,
-                                 RzTrackCandidate& candidate) const {
-  const RzLayout& layout = *m_layout;
-
-  // Path lengths inward are negative, the convention the backward replay
-  // already uses. A disc is linear in the path; a cylinder comes from the
-  // reversed state, which runs the same helix the other way.
-  auto pathInwardToDisc = [](const RzVector& v, double z) {
-    const double dz = v[eRzDir2];
-    return dz != 0. ? std::optional((z - v[eRzPos2]) / dz) : std::nullopt;
-  };
-  auto pathInwardToCylinder = [](const RzHelix& helix, const RzVector& v,
-                                 double radius) -> std::optional<double> {
-    const RzVector reversed = RzHelix::reversed(v);
-    const std::optional<double> forward =
-        helix.pathToCylinder(reversed, radius);
-    return forward.has_value() ? std::optional(-*forward) : std::nullopt;
-  };
-
-  // cursors, mirrored: cylinders inward from the current radius, discs back
-  // toward z = 0 against the direction of travel
-  const double r0 = fastHypot(state.v[eRzPos0], state.v[eRzPos1]);
-  std::int32_t cyl = static_cast<std::int32_t>(layout.cylinders.size()) - 1;
-  while (cyl >= 0 && layout.surfaces[layout.cylinders[cyl]].refCoord >= r0) {
-    --cyl;
-  }
-  const bool travellingForward = state.v[eRzDir2] >= 0.;
-  const std::int32_t discStep = travellingForward ? -1 : 1;
-  // the first disc behind, by binary search on the sorted disc positions
-  std::int32_t disc =
-      travellingForward
-          ? std::ranges::lower_bound(layout.discCoord, state.v[eRzPos2]) -
-                layout.discCoord.begin() - 1
-          : std::ranges::upper_bound(layout.discCoord, state.v[eRzPos2]) -
-                layout.discCoord.begin();
-  auto discValid = [&]() {
-    return disc >= 0 && disc < static_cast<std::int32_t>(layout.discs.size());
-  };
-
-  ModuleList crossedModules;
-  // Cache navigation quantities until the state changes.
-  bool stateMoved = true;
-  RzHelix helix = helixAt(state.bz);
-  double sPerigee = 0.;
-  double pzIn = 0.;
-  double invDzIn = 0.;
-  double pxIn = 0.;
-  double pyIn = 0.;
-  double dxIn = 0.;
-  double dyIn = 0.;
-  double halfKappaTIn = 0.;
-  std::int32_t cylCached = -1;
-  std::optional<double> cylCachedPath;
-  while (true) {
-    if (stateMoved) {
-      helix = helixAt(state.bz);
-      // where the track is closest to the beam axis; nothing inside that is
-      // still on the way in
-      sPerigee = helix.pathToPerigee(state.v);
-      pzIn = state.v[eRzPos2];
-      pxIn = state.v[eRzPos0];
-      pyIn = state.v[eRzPos1];
-      dxIn = state.v[eRzDir0];
-      dyIn = state.v[eRzDir1];
-      const double dzIn = state.v[eRzDir2];
-      invDzIn = dzIn != 0. ? 1. / dzIn : 0.;
-      halfKappaTIn =
-          0.5 * std::abs(helix.kappa(state.v)) * fastHypot(dxIn, dyIn);
-      cylCached = -1;
-      stateMoved = false;
-    }
-    if (sPerigee >= 0.) {
-      break;
-    }
-
-    std::optional<double> sCyl;
-    std::optional<double> sDisc;
-    if (cyl >= 0) {
-      if (cylCached == cyl) {
-        sCyl = cylCachedPath;
-      } else {
-        sCyl = pathInwardToCylinder(helix, state.v, layout.cylCoord[cyl]);
-        cylCached = cyl;
-        cylCachedPath = sCyl;
-      }
-    }
-    if (discValid()) {
-      const std::size_t di = static_cast<std::size_t>(disc);
-      const double sTry = (layout.discCoord[di] - pzIn) * invDzIn;
-      if (sTry < 0. && sTry > sPerigee) {
-        const double xs = pxIn + dxIn * sTry;
-        const double ys = pyIn + dyIn * sTry;
-        const double r2 = xs * xs + ys * ys;
-        const double sagitta = halfKappaTIn * sTry * sTry;
-        const double lo = layout.discMin[di] - sagitta;
-        const double hi = layout.discMax[di] + sagitta;
-        if ((lo > 0. && r2 < lo * lo) || r2 > hi * hi) {
-          disc += discStep;
-          continue;
-        }
-      }
-      sDisc = pathInwardToDisc(state.v, layout.discCoord[di]);
-    }
-    // inward is negative, so the nearer stop is the larger of the two
-    const bool takeCyl =
-        sCyl.has_value() && (!sDisc.has_value() || *sCyl >= *sDisc);
-    if (!sCyl.has_value() && !sDisc.has_value()) {
-      break;
-    }
-    const double step = takeCyl ? *sCyl : *sDisc;
-    if (step > 0. || step <= sPerigee) {
-      // behind us, or beyond the closest approach
-      break;
-    }
-    const std::uint32_t surfaceIndex =
-        takeCyl ? layout.cylinders[cyl] : layout.discs[disc];
-    const RzSurface& surface = layout.surfaces[surfaceIndex];
-    if (takeCyl) {
-      --cyl;
-    } else {
-      disc += discStep;
-    }
-
-    RzVector landed = state.v;
-    helix.step(landed, step);
-    const double along = alongCoordinate(surface, landed);
-    if (!surface.contains(along)) {
-      continue;
-    }
-    const std::uint32_t stop =
-        static_cast<std::uint32_t>(candidate.stopSurfaces.size());
-    candidate.stopSurfaces.push_back(surfaceIndex);
-    candidate.stopPaths.push_back(step);
-    candidate.stopAlong.push_back(along);
-    ++candidate.stops;
-
-    const double brLanded = surface.brAt(along);
-    if (m_cfg.radialField) {
-      radialKick(landed, state.v, step, state.br, brLanded, surface,
-                 state.brQopPosition, state.brQopDirection);
-    }
-    state.v = landed;
-    stateMoved = true;
-    const Vector3 normal = surfaceNormal(surface, state.v);
-    state.travel(step);
-    state.pending.advance(step);
-    state.bz = bzAt(surface, along, m_bz);
-    state.br = brLanded;
-
-    // going inward the particle gains back what it lost on the way out
-    if (m_cfg.applyMaterial) {
-      if (const std::int32_t band = surface.materialBandAt(along);
-          band >= 0 && !applyMaterial(state, surface, band, normal, -1.)) {
-        return false;
-      }
-    }
-    if (surface.layer == kRzNone) {
-      continue;
-    }
-    // Skip previously searched layers. Refit rounding can place the state just
-    // past its starting surface and otherwise select the same hit twice.
-    if (std::ranges::any_of(candidate.hits, [&](const RzTrackHit& hit) {
-          return hit.layer == surface.layer;
-        })) {
-      continue;
-    }
-    state.moveCovariance(helixAt(state.anchorBz), normal);
-    materialise(state, normal);
-    // holes are the forward pass's business: this pass is here to pick up
-    // what the seed's own layers hold, not to judge what is missing
-    bool onModule = false;
-    modulesAt(surface.layer, state, crossedModules, onModule, candidate);
-    if (crossedModules.empty()) {
-      continue;
-    }
-    searchLayer(measurements, surface.layer, stop, crossedModules, state,
-                candidate);
-  }
-
-  // finish on the beam line: the parameters a caller wants are here, with the
-  // material of everything crossed already in the covariance
-  const RzHelix endHelix = helixAt(state.bz);
-  const double sEnd = endHelix.pathToPerigee(state.v);
-  RzVector end = state.v;
-  endHelix.step(end, sEnd);
-  const double dt = fastHypot(end[eRzDir0], end[eRzDir1]);
-  if (dt <= 0.) {
-    return false;
-  }
-  const Vector3 normal(end[eRzDir0] / dt, end[eRzDir1] / dt, 0.);
-  state.v = end;
-  state.travel(sEnd);
-  state.pending.advance(sEnd);
-  state.moveCovariance(helixAt(state.anchorBz), normal);
-  materialise(state, normal);
-  return true;
-}
-
-void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
-                              const RzTrackStart& start,
-                              RzTrackCandidate& candidate, Walk& walk) const {
+void Finder::beginWalk(const RzMeasurementAccessor& measurements,
+                       const RzTrackStart& start, RzTrackCandidate& candidate,
+                       Walk& walk) const {
   candidate.clear();
   walk = Walk{};
   walk.candidate = &candidate;
@@ -1391,8 +44,8 @@ void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
   }
   if (start.module != kRzNone) {
     const std::uint32_t layer = layout.modules[start.module].layer;
-    walk.startSurface = layout.layers[layer].surface;
-    const RzSurface& surface = layout.surfaces[walk.startSurface];
+    walk.propagation.startSurface = layout.layers[layer].surface;
+    const RzSurface& surface = layout.surfaces[walk.propagation.startSurface];
     state.bz = bzAt(surface, alongCoordinate(surface, state.v), m_bz);
     state.br = surface.brAt(alongCoordinate(surface, state.v));
     state.anchorBz = state.bz;
@@ -1413,22 +66,10 @@ void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
     }
   }
 
-  const double r0 = fastHypot(state.v[eRzPos0], state.v[eRzPos1]);
-  while (walk.cyl < layout.cylinders.size() &&
-         layout.surfaces[layout.cylinders[walk.cyl]].refCoord <= r0) {
-    ++walk.cyl;
-  }
-  const bool forward = state.v[eRzDir2] >= 0.;
-  walk.discStep = forward ? 1 : -1;
-  // The first disc ahead, using the sorted disc positions.
-  walk.disc =
-      forward ? std::ranges::upper_bound(layout.discCoord, state.v[eRzPos2]) -
-                    layout.discCoord.begin()
-              : std::ranges::lower_bound(layout.discCoord, state.v[eRzPos2]) -
-                    layout.discCoord.begin() - 1;
+  m_propagator.initialize(walk.propagation, state.v,
+                          walk.propagation.startSurface);
 
-  // the start layer has already run, and what it left is either measurements
-  // or one hole; counting its hits as holes would spend the budget on them
+  // Seed-layer measurements do not consume the hole budget.
   for (const RzTrackHit& hit : candidate.hits) {
     walk.holes += hit.isHole() ? 1 : 0;
   }
@@ -1438,217 +79,38 @@ void RzTrackFinder::beginWalk(const RzMeasurementAccessor& measurements,
   walk.lastHit = state;
 }
 
-bool RzTrackFinder::advanceWalk(Walk& walk) const {
-  if (walk.done) {
-    return false;
-  }
-  const RzLayout& layout = *m_layout;
+void Finder::searchStop(const RzMeasurementAccessor& measurements,
+                        const Crossing& crossing, Walk& walk) const {
+  ++walk.layersCrossed;
   State& state = walk.state;
   RzTrackCandidate& candidate = *walk.candidate;
-  const auto discValid = [&]() {
-    return walk.disc >= 0 &&
-           walk.disc < static_cast<std::int32_t>(layout.discs.size());
-  };
-  const auto end = [&]() {
-    walk.done = true;
-    return false;
-  };
-
-  while (true) {
-    // how far the track may still go before it has turned the whole budget;
-    // a stop beyond that is not reached, whatever the geometry says
-    const RzHelix helix = helixAt(state.bz);
-    const double kappa = std::abs(helix.kappa(state.v));
-    const double maxPath =
-        kappa > 0. ? (m_cfg.maxTurningAngle - state.turned) / kappa
-                   : 2. * (layout.escapeRadius + layout.escapeHalfZ);
-    if (maxPath <= 0.) {
-      return end();
-    }
-
-    // Cache state-dependent quantities across navigation probes at this stop.
-    const double dTransverse = fastHypot(state.v[eRzDir0], state.v[eRzDir1]);
-    const double pz = state.v[eRzPos2];
-    const double dz = state.v[eRzDir2];
-    const double invDz = dz != 0. ? 1. / dz : 0.;
-    const double px = state.v[eRzPos0];
-    const double py = state.v[eRzPos1];
-    const double dxDir = state.v[eRzDir0];
-    const double dyDir = state.v[eRzDir1];
-    const double halfKappaT = 0.5 * kappa * dTransverse;
-    std::optional<double> sDisc;
-    while (walk.discsLeft && discValid()) {
-      const std::size_t di = static_cast<std::size_t>(walk.disc);
-      const double sTry = (layout.discCoord[di] - pz) * invDz;
-      if (sTry <= 0.) {
-        // behind us
-        sDisc.reset();
-        walk.disc += walk.discStep;
-        continue;
-      }
-      if (sTry > maxPath) {
-        // z grows monotonically, so every disc beyond is out of reach too
-        sDisc.reset();
-        walk.discsLeft = false;
-        break;
-      }
-      // Reject discs outside the straight-line radius plus sagitta.
-      // Compare squared radii; check exact bounds after landing.
-      const double xs = px + dxDir * sTry;
-      const double ys = py + dyDir * sTry;
-      const double r2 = xs * xs + ys * ys;
-      const double sagitta = halfKappaT * sTry * sTry;
-      const double lo = layout.discMin[di] - sagitta;
-      const double hi = layout.discMax[di] + sagitta;
-      if ((lo > 0. && r2 < lo * lo) || r2 > hi * hi) {
-        sDisc.reset();
-        walk.disc += walk.discStep;
-        continue;
-      }
-      sDisc = sTry;
-      break;
-    }
-
-    std::optional<double> sCyl;
-    if (walk.cylindersLeft && walk.cyl < layout.cylinders.size()) {
-      const double rCyl = layout.cylCoord[walk.cyl];
-      bool tryCylinder = true;
-      if (walk.inEndcap && sDisc.has_value()) {
-        // the radius the track has reached at the disc, with the sagitta
-        // over that path as the margin: short of the cylinder means the
-        // disc comes first and the cylinder need not be solved
-        const double rAtDisc =
-            fastHypot(px + dxDir * *sDisc, py + dyDir * *sDisc);
-        const double sagitta = halfKappaT * *sDisc * *sDisc;
-        tryCylinder = rAtDisc + sagitta + 1. >= rCyl;
-      }
-      if (tryCylinder && walk.cylCached == walk.cyl) {
-        // an iteration that only rejected a disc left the state where it
-        // was, so the Newton solve for this cylinder still holds
-        sCyl = walk.cylCachedPath;
-      } else if (tryCylinder) {
-        sCyl = helix.pathToCylinder(state.v, rCyl);
-        if (!sCyl.has_value() || *sCyl > maxPath) {
-          // the helix never reaches this radius, so none beyond it either
-          sCyl.reset();
-          walk.cylindersLeft = false;
-        }
-        walk.cylCached = static_cast<std::uint32_t>(walk.cyl);
-        walk.cylCachedPath = sCyl;
-      }
-    }
-    const bool takeCyl =
-        sCyl.has_value() && (!sDisc.has_value() || *sCyl <= *sDisc);
-    if (!sCyl.has_value() && !sDisc.has_value()) {
-      return end();
-    }
-    const double s = takeCyl ? *sCyl : *sDisc;
-    const std::uint32_t surfaceIndex =
-        takeCyl ? layout.cylinders[walk.cyl] : layout.discs[walk.disc];
-    const RzSurface& surface = layout.surfaces[surfaceIndex];
-    if (takeCyl) {
-      ++walk.cyl;
-    } else {
-      walk.disc += walk.discStep;
-    }
-
-    // land there: a stop off the surface's extent costs no covariance work
-    RzVector landed = state.v;
-    helix.step(landed, s);
-    const double along = alongCoordinate(surface, landed);
-    if (!surface.contains(along)) {
-      // the state itself stays put; the next candidate is measured from here
-      continue;
-    }
-    walk.inEndcap = !takeCyl;
-    ++candidate.stops;
-    const std::uint32_t stop =
-        static_cast<std::uint32_t>(candidate.stopSurfaces.size());
-    candidate.stopSurfaces.push_back(surfaceIndex);
-    candidate.stopPaths.push_back(s);
-    candidate.stopAlong.push_back(along);
-
-    const double brLanded = surface.brAt(along);
-    if (m_cfg.radialField) {
-      radialKick(landed, state.v, s, state.br, brLanded, surface,
-                 state.brQopPosition, state.brQopDirection);
-    }
-    state.v = landed;
-    walk.cylCached = kRzNone;
-    const Vector3 normal = surfaceNormal(surface, state.v);
-    state.travel(s);
-    state.pending.advance(s);
-    state.turned += std::abs(helix.kappa(state.v)) * s;
-    state.bz = bzAt(surface, along, m_bz);
-    state.br = brLanded;
-
-    const double r = fastHypot(state.v[eRzPos0], state.v[eRzPos1]);
-    if (r > layout.escapeRadius ||
-        std::abs(state.v[eRzPos2]) > layout.escapeHalfZ ||
-        state.turned > m_cfg.maxTurningAngle) {
-      return end();
-    }
-
-    if (surfaceIndex == walk.startSurface) {
-      continue;
-    }
-
-    if (m_cfg.applyMaterial) {
-      if (const std::int32_t band = surface.materialBandAt(along);
-          band >= 0 && !applyMaterial(state, surface, band, normal)) {
-        return end();
-      }
-    }
-
-    if (surface.layer == kRzNone) {
-      continue;
-    }
-    state.moveCovariance(helixAt(state.anchorBz), normal);
-    materialise(state, normal);
-    ++walk.layersCrossed;
-    walk.layer = surface.layer;
-    walk.stop = stop;
-    walk.normal = normal;
-    return true;
-  }
-}
-
-void RzTrackFinder::searchStop(const RzMeasurementAccessor& measurements,
-                               Walk& walk) const {
-  State& state = walk.state;
-  RzTrackCandidate& candidate = *walk.candidate;
-  // a layer the seed names does not have to be searched for that hit
-  const RzSeedMeasurement known = walk.knownAt(walk.layer);
-  const bool took =
-      known.module != kRzNone && takeKnownHit(measurements, known, walk.layer,
-                                              walk.stop, state, candidate);
-  // one geometry pass: the modules the crossing landed on are what the
-  // search looks at, and whether there were any is the hole decision
+  // Try the known seed hit before searching for additional measurements.
+  const RzSeedMeasurement known = walk.knownAt(crossing.layer);
+  const bool took = known.module != kRzNone &&
+                    takeKnownHit(measurements, known, crossing.layer,
+                                 crossing.stop, state, candidate);
+  // Use the same module search for measurement lookup and hole detection.
   bool onModule = false;
-  modulesAt(walk.layer, state, walk.crossedModules, onModule, candidate);
+  modulesAt(crossing.layer, state, walk.crossedModules, onModule, candidate);
   if (walk.crossedModules.empty()) {
     if (took) {
-      // the caller's own measurement is on the track even where the window
-      // found no module to search for a second one
+      // Retain a known hit even if the search window contains no modules.
       ++walk.measurementsFound;
       walk.consecutiveHoles = 0;
       walk.lastHit = state;
     }
-    // otherwise nothing to look at here
     return;
   }
   const std::uint32_t accepted =
-      searchLayer(measurements, walk.layer, walk.stop, walk.crossedModules,
-                  state, candidate, took ? 1u : 0u,
+      searchLayer(measurements, crossing.layer, crossing.stop,
+                  walk.crossedModules, state, candidate, took ? 1u : 0u,
                   took ? known.module : kRzNone) +
       (took ? 1u : 0u);
   if (accepted > 0) {
     walk.measurementsFound += accepted;
     walk.consecutiveHoles = 0;
     walk.lastHit = state;
-    // Branch stopper. A candidate that has picked up a measurement and is
-    // now soft was following noise: the transverse momentum comes out of
-    // the filter, so it is only meaningful once a measurement has moved it.
+    // Apply the pT cut after a measurement updates the momentum estimate.
     if (m_cfg.ptMin > 0.) {
       const double qOverP = std::abs(state.v[eRzQOverP]);
       const double sinTheta = fastHypot(state.v[eRzDir0], state.v[eRzDir1]);
@@ -1661,7 +123,7 @@ void RzTrackFinder::searchStop(const RzMeasurementAccessor& measurements,
     // passed between the modules: nothing was expected here
     return;
   } else {
-    candidate.hits.push_back({walk.layer, kRzNone, walk.stop, kRzNone,
+    candidate.hits.push_back({crossing.layer, kRzNone, crossing.stop, kRzNone,
                               walk.crossedModules.front(), 0.});
     ++walk.holes;
     ++walk.consecutiveHoles;
@@ -1671,8 +133,7 @@ void RzTrackFinder::searchStop(const RzMeasurementAccessor& measurements,
       return;
     }
   }
-  // A candidate that has crossed this many layers and has too little to
-  // show for it will not reach `minMeasurements` either
+  // Stop candidates with too few measurements at the configured depth.
   if (m_cfg.layersForMinMeasurements > 0 &&
       walk.layersCrossed >= m_cfg.layersForMinMeasurements &&
       walk.measurementsFound < m_cfg.minMeasurementsAtLayer) {
@@ -1680,8 +141,8 @@ void RzTrackFinder::searchStop(const RzMeasurementAccessor& measurements,
   }
 }
 
-bool RzTrackFinder::finishWalk(const RzMeasurementAccessor& measurements,
-                               Walk& walk) const {
+bool Finder::finishWalk(const RzMeasurementAccessor& measurements,
+                        Walk& walk) const {
   RzTrackCandidate& candidate = *walk.candidate;
   while (!candidate.hits.empty() && candidate.hits.back().isHole()) {
     candidate.hits.pop_back();
@@ -1703,7 +164,18 @@ bool RzTrackFinder::finishWalk(const RzMeasurementAccessor& measurements,
   return true;
 }
 
-bool RzTrackFinder::findTrack(
+void Finder::searchForward(const RzMeasurementAccessor& measurements,
+                           Walk& walk) const {
+  for (const Crossing& crossing : m_propagator.sensitiveCrossings(
+           walk.state, walk.propagation, *walk.candidate)) {
+    searchStop(measurements, crossing, walk);
+    if (walk.done) {
+      break;
+    }
+  }
+}
+
+bool Finder::findTrack(
     const RzMeasurementAccessor& measurements, const RzVector& start,
     const RzMatrix& startCovariance, std::uint32_t startModule,
     RzTrackCandidate& candidate,
@@ -1712,13 +184,11 @@ bool RzTrackFinder::findTrack(
   beginWalk(measurements,
             RzTrackStart{start, startCovariance, startModule, seedMeasurements},
             candidate, walk);
-  while (advanceWalk(walk)) {
-    searchStop(measurements, walk);
-  }
+  searchForward(measurements, walk);
   return finishWalk(measurements, walk);
 }
 
-void RzTrackFinder::findTracks(
+void Finder::findTracks(
     const RzMeasurementAccessor& measurements,
     std::span<const RzTrackStart> starts, std::size_t batch,
     const std::function<void(std::size_t, bool, RzTrackCandidate&)>& onTrack)
@@ -1731,18 +201,26 @@ void RzTrackFinder::findTracks(
     for (std::size_t i = 0; i < n; ++i) {
       beginWalk(measurements, starts[first + i], candidates[i], walks[i]);
     }
-    // Advance the batch to its next stops, then search those stops.
-    bool any = true;
-    while (any) {
-      any = false;
-      for (std::size_t i = 0; i < n; ++i) {
-        Walk& walk = walks[i];
-        walk.atStop = advanceWalk(walk);
-        any = any || walk.atStop;
-      }
-      for (std::size_t i = 0; i < n; ++i) {
-        if (walks[i].atStop) {
-          searchStop(measurements, walks[i]);
+    if (n == 1) {
+      searchForward(measurements, walks.front());
+    } else {
+      // Advance the batch to its next stops, then search those stops.
+      bool any = true;
+      while (any) {
+        any = false;
+        for (std::size_t i = 0; i < n; ++i) {
+          Walk& walk = walks[i];
+          walk.crossing =
+              walk.done ? std::nullopt
+                        : m_propagator.advance(walk.state, walk.propagation,
+                                               *walk.candidate);
+          walk.done = !walk.crossing.has_value();
+          any = any || !walk.done;
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+          if (walks[i].crossing) {
+            searchStop(measurements, *walks[i].crossing, walks[i]);
+          }
         }
       }
     }
@@ -1750,6 +228,33 @@ void RzTrackFinder::findTracks(
       onTrack(first + i, finishWalk(measurements, walks[i]), candidates[i]);
     }
   }
+}
+
+}  // namespace Acts::Experimental::detail::rz
+
+namespace Acts::Experimental {
+
+RzTrackFinder::RzTrackFinder(const RzTrackFinderConfig& config,
+                             const RzLayout& layout, double bz)
+    : m_cfg(config), m_layout(&layout), m_bz(bz) {}
+
+bool RzTrackFinder::findTrack(
+    const RzMeasurementAccessor& measurements, const RzVector& start,
+    const RzMatrix& startCovariance, std::uint32_t startModule,
+    RzTrackCandidate& candidate,
+    std::span<const RzSeedMeasurement> seedMeasurements) const {
+  return detail::rz::Finder(m_cfg, *m_layout, m_bz)
+      .findTrack(measurements, start, startCovariance, startModule, candidate,
+                 seedMeasurements);
+}
+
+void RzTrackFinder::findTracks(
+    const RzMeasurementAccessor& measurements,
+    std::span<const RzTrackStart> starts, std::size_t batch,
+    const std::function<void(std::size_t, bool, RzTrackCandidate&)>& onTrack)
+    const {
+  detail::rz::Finder(m_cfg, *m_layout, m_bz)
+      .findTracks(measurements, starts, batch, onTrack);
 }
 
 }  // namespace Acts::Experimental

@@ -9,4 +9,7 @@ target_sources(
         Rz/RzLayout.cpp
         Rz/RzMeasurementGrid.cpp
         Rz/RzTrackFinder.cpp
+        Rz/RzPropagation.cpp
+        Rz/RzMeasurementSearch.cpp
+        Rz/RzRefit.cpp
 )

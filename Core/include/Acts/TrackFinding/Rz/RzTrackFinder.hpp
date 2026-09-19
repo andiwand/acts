@@ -22,11 +22,8 @@
 #include <cstdint>
 #include <functional>
 #include <numbers>
-#include <optional>
 #include <span>
 #include <vector>
-
-#include <boost/container/small_vector.hpp>
 
 namespace Acts::Experimental {
 
@@ -217,64 +214,6 @@ class RzTrackFinder {
                                            RzTrackCandidate&)>& onTrack) const;
 
  private:
-  struct Pending;
-  struct State;
-  struct Evaluation;
-  struct Prediction;
-  struct Placed;
-  struct Walk;
-  using ModuleList = boost::container::small_vector<std::uint32_t, 8>;
-
-  // Forward walk and navigation.
-  void beginWalk(const RzMeasurementAccessor& measurements,
-                 const RzTrackStart& start, RzTrackCandidate& candidate,
-                 Walk& walk) const;
-  bool advanceWalk(Walk& walk) const;
-  void searchStop(const RzMeasurementAccessor& measurements, Walk& walk) const;
-  bool finishWalk(const RzMeasurementAccessor& measurements, Walk& walk) const;
-  std::optional<double> pathBackward(const RzHelix& helix, const RzVector& v,
-                                     const RzSurface& surface,
-                                     double guess) const;
-
-  // Module and measurement search.
-  void modulesAt(std::uint32_t layer, const State& state, ModuleList& modules,
-                 bool& onModule, RzTrackCandidate& candidate) const;
-  std::uint32_t searchLayer(const RzMeasurementAccessor& measurements,
-                            std::uint32_t layer, std::uint32_t stop,
-                            const ModuleList& modules, State& state,
-                            RzTrackCandidate& candidate,
-                            std::uint32_t skipRounds = 0,
-                            std::uint32_t usedModule = kRzNone) const;
-  Placed place(const RzModule& module, const RzMeasurement& measurement,
-               const RzMeasurementFrame* frame) const;
-  Placed placeHit(const RzMeasurementAccessor& measurements,
-                  const RzTrackHit& hit) const;
-  template <bool Cache = false>
-  std::optional<Evaluation> evaluate(
-      const State& state, const Placed& measurement, bool gate = true,
-      bool useTime = true,
-      std::optional<Prediction>* prediction = nullptr) const;
-  bool takeKnownHit(const RzMeasurementAccessor& measurements,
-                    const RzSeedMeasurement& seed, std::uint32_t layerIndex,
-                    std::uint32_t stop, State& state,
-                    RzTrackCandidate& candidate) const;
-
-  // Filtering and material.
-  void update(State& state, const Evaluation& evaluation) const;
-  std::uint32_t saveForwardState(const State& state,
-                                 RzTrackCandidate& candidate) const;
-  void materialise(State& state, const Vector3& normal) const;
-  bool applyMaterial(State& state, const MaterialSlab& slab,
-                     const Vector3& normal, double direction = 1.) const;
-  bool applyMaterial(State& state, const RzSurface& surface, std::int32_t band,
-                     const Vector3& normal, double direction = 1.) const;
-  void regainEnergy(State& state, const RzSurface& surface, std::int32_t band,
-                    const Vector3& normal) const;
-  void backwardPass(const RzMeasurementAccessor& measurements,
-                    const State& forward, RzTrackCandidate& candidate) const;
-  bool inwardSearch(const RzMeasurementAccessor& measurements, State& state,
-                    RzTrackCandidate& candidate) const;
-
   RzTrackFinderConfig m_cfg;
   const RzLayout* m_layout{};
   double m_bz{};
