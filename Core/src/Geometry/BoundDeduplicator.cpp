@@ -17,6 +17,7 @@
 #include "Acts/Surfaces/DiscSurface.hpp"
 #include "Acts/Surfaces/PlanarBounds.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
+#include "Acts/Surfaces/PointSurface.hpp"
 #include "Acts/Surfaces/StrawSurface.hpp"
 
 #include <format>
@@ -49,6 +50,8 @@ void BoundDeduplicator::visitSurface(Surface& surface) {
     IMPL_SURF_DEDUPLICATION(Disc, DiscSurface)
     IMPL_SURF_DEDUPLICATION(Plane, PlaneSurface)
     IMPL_SURF_DEDUPLICATION(Straw, LineSurface)
+    IMPL_SURF_DEDUPLICATION(Perigee, LineSurface)
+    IMPL_SURF_DEDUPLICATION(Point, PointSurface)
     default:
       throw std::invalid_argument(std::format(
           "BoundDeduplicator::visitSurface() - The surface {:} is not yet "

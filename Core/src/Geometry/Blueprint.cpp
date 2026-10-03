@@ -171,14 +171,18 @@ std::unique_ptr<TrackingGeometry> Blueprint::construct(
   std::unique_ptr<PortalShellBase> worldShell =
       PortalShellBase::makeSingle(gctx, *world);
 
+  child.finalize(options, gctx, *world, logger);
+  worldShell->applyToVolume();
+
+  // Finalization attaches child volumes and portals. Traverse only after the
+  // complete hierarchy is reachable; replacing equivalent bounds does not
+  // change the surface geometry used by the children's navigation policies.
   if (m_cfg.boundDeduplication) {
     ACTS_DEBUG("Deduplicate equivalent bounds");
     detail::BoundDeduplicator deduplicator{};
     world->apply(deduplicator);
   }
 
-  child.finalize(options, gctx, *world, logger);
-  worldShell->applyToVolume();
   world->setNavigationPolicy(
       options.defaultNavigationPolicyFactory->build(gctx, *world, logger));
 

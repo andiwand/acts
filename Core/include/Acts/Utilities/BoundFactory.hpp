@@ -18,6 +18,7 @@
 #include <memory>
 #include <set>
 #include <type_traits>
+#include <typeinfo>
 #include <vector>
 
 namespace Acts {
@@ -37,8 +38,10 @@ concept ComparableBoundConcept = requires(const BoundsType_t& bounds) {
 ///   @brief Factory helper class to construct volume or surface bounds where the constructed bounds
 ///          are cached inside the factory and if the same bound parameters are
 ///          requested at a later stage the factory automatically returns the
-///          cached bounds. This provides a simple sharing mechanism of the same
-///          bounds across multiple surfaces / volumes
+///          cached bounds of the same concrete C++ type. Equal serialized
+///          parameters alone do not guarantee compatible typed return values
+///          (e.g. fixed-size and dynamic polygons). This provides sharing of
+///          the same bounds across multiple surfaces / volumes
 template <detail::ComparableBoundConcept BoundsType_t>
 class BoundFactory {
  public:
@@ -94,6 +97,14 @@ class BoundFactory {
     /// @param b: Second bound pointer in the comparison
     bool operator()(const std::shared_ptr<BoundsType_t>& a,
                     const std::shared_ptr<BoundsType_t>& b) const {
+      if (a == b) {
+        return false;
+      }
+      // Preserve the dynamic type promised by insert/makeBounds. In particular,
+      // fixed and dynamic polygons can have identical type tags and values.
+      if (typeid(*a) != typeid(*b)) {
+        return typeid(*a).before(typeid(*b));
+      }
       /// If we deal with two fundamental different bound sets, then just
       /// cast the type to int and return the comparison
       if (a->type() != b->type()) {

@@ -22,14 +22,19 @@
 #include "Acts/Geometry/LayerBlueprintNode.hpp"
 #include "Acts/Geometry/MaterialDesignatorBlueprintNode.hpp"
 #include "Acts/Geometry/PadBlueprintNode.hpp"
+#include "Acts/Geometry/Portal.hpp"
 #include "Acts/Geometry/StaticBlueprintNode.hpp"
 #include "Acts/Geometry/TrackingVolume.hpp"
 #include "Acts/Geometry/TrapezoidVolumeBounds.hpp"
 #include "Acts/Geometry/VolumeAttachmentStrategy.hpp"
+#include "Acts/Geometry/detail/BoundDeduplicator.hpp"
 #include "Acts/Material/HomogeneousSurfaceMaterial.hpp"
 #include "Acts/Material/Material.hpp"
 #include "Acts/Material/MaterialSlab.hpp"
 #include "Acts/Material/ProtoSurfaceMaterial.hpp"
+#include "Acts/Surfaces/PerigeeSurface.hpp"
+#include "Acts/Surfaces/PlaneSurface.hpp"
+#include "Acts/Surfaces/PointSurface.hpp"
 #include "Acts/Surfaces/RectangleBounds.hpp"
 #include "Acts/Utilities/AxisDefinitions.hpp"
 #include "Acts/Utilities/AxisSpec.hpp"
@@ -39,7 +44,9 @@
 #include "ActsTests/CommonHelpers/DetectorElementStub.hpp"
 
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 
 using namespace Acts;
@@ -175,6 +182,65 @@ BOOST_AUTO_TEST_CASE(Depth) {
   BOOST_CHECK_EQUAL(node1->depth(), 0);
   BOOST_CHECK_EQUAL(node2->depth(), 1);
   BOOST_CHECK_EQUAL(node3->depth(), 2);
+}
+
+BOOST_AUTO_TEST_CASE(BoundsDeduplicationAfterAssembly) {
+  for (bool deduplicate : {false, true}) {
+    Blueprint::Config cfg;
+    cfg.boundDeduplication = deduplicate;
+    for (auto axis :
+         {AxisDirection::AxisX, AxisDirection::AxisY, AxisDirection::AxisZ}) {
+      cfg.envelope[axis] = {1_mm, 1_mm};
+    }
+    Blueprint root{cfg};
+    auto child = std::make_unique<TrackingVolume>(
+        Transform3::Identity(),
+        std::make_shared<CuboidVolumeBounds>(50_mm, 50_mm, 50_mm), "modules");
+    std::vector<std::shared_ptr<PlaneSurface>> modules;
+    for (int i = 0; i < 24; ++i) {
+      auto surface = Surface::makeShared<PlaneSurface>(
+          Transform3(Translation3(0., 0., i - 12.)),
+          std::make_shared<const RectangleBounds>(2., 3.));
+      child->addSurface(surface);
+      modules.push_back(surface);
+    }
+    root.addStaticVolume(std::move(child));
+    const auto geometry = root.construct({}, gctx, *logger);
+    BOOST_REQUIRE(geometry);
+    std::set<const SurfaceBounds*> moduleBounds;
+    for (const auto& module : modules) {
+      moduleBounds.insert(&module->bounds());
+    }
+    BOOST_CHECK_EQUAL(moduleBounds.size(), deduplicate ? 1u : 24u);
+    // The world and child portals only become part of the traversable geometry
+    // during finalization. Both sets of cube faces should share their bounds.
+    const auto lookup = nameLookup(*geometry);
+    for (const auto& name : {"World", "modules"}) {
+      std::set<const SurfaceBounds*> portalBounds;
+      const auto& volume = lookup(name);
+      const std::size_t cubes = std::string_view(name) == "World" ? 2u : 1u;
+      BOOST_CHECK_EQUAL(volume.portals().size(), 6u * cubes);
+      for (const auto& portal : volume.portals()) {
+        portalBounds.insert(&portal.surface().bounds());
+      }
+      BOOST_CHECK_EQUAL(portalBounds.size(), (deduplicate ? 1u : 3u) * cubes);
+    }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(BoundsDeduplicationSupportsReferenceSurfaces) {
+  detail::BoundDeduplicator visitor;
+  auto first = Surface::makeShared<PointSurface>(Vector3::Zero(), 2.);
+  auto second = Surface::makeShared<PointSurface>(Vector3::Zero(), 2.);
+  visitor.visitSurface(*first);
+  visitor.visitSurface(*second);
+  BOOST_CHECK_EQUAL(first->boundsPtr(), second->boundsPtr());
+  auto point = Surface::makeShared<PointSurface>(Vector3::Zero());
+  auto perigee = Surface::makeShared<PerigeeSurface>(Vector3::Zero());
+  visitor.visitSurface(*point);
+  visitor.visitSurface(*perigee);
+  BOOST_CHECK(!point->boundsPtr());
+  BOOST_CHECK(!perigee->boundsPtr());
 }
 
 BOOST_AUTO_TEST_CASE(Static) {
