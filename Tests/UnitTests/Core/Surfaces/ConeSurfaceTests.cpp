@@ -43,6 +43,40 @@ GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
 
+BOOST_AUTO_TEST_CASE(ConeGeometryWithSharedBounds) {
+  const double alpha = std::numbers::pi / 4.;
+  auto sharedBounds =
+      std::make_shared<const ConeBounds>(alpha, -10., 20., 0.5, 0.2);
+  auto surface =
+      Surface::makeShared<ConeSurface>(Transform3::Identity(), sharedBounds);
+  auto other = Surface::makeShared<ConeSurface>(*surface);
+  BOOST_CHECK_EQUAL(surface->boundsPtr(), other->boundsPtr());
+  BOOST_CHECK_EQUAL(surface->openingAngle(), alpha);
+  BOOST_CHECK_EQUAL(surface->minZ(), -10.);
+  BOOST_CHECK_EQUAL(surface->maxZ(), 20.);
+  BOOST_CHECK_EQUAL(surface->halfPhiSector(), 0.5);
+  BOOST_CHECK_EQUAL(surface->averagePhi(), 0.2);
+  CHECK_CLOSE_ABS(surface->radiusAtZ(-5.), 5., 1e-12);
+  CHECK_CLOSE_ABS(surface->radiusAtZ(5.), 5., 1e-12);
+  BOOST_CHECK_EQUAL(surface->radiusAtZ(0.), 0.);
+  // Radius is an intrinsic geometry query, including outside the finite domain.
+  CHECK_CLOSE_ABS(surface->radiusAtZ(30.), 30., 1e-12);
+
+  const double newAlpha = std::numbers::pi / 8.;
+  surface->assignSurfaceBounds(
+      std::make_shared<const ConeBounds>(newAlpha, true));
+  BOOST_CHECK_EQUAL(surface->openingAngle(), newAlpha);
+  BOOST_CHECK(std::isinf(surface->minZ()) && surface->minZ() < 0.);
+  BOOST_CHECK(std::isinf(surface->maxZ()) && surface->maxZ() > 0.);
+  BOOST_CHECK_EQUAL(surface->halfPhiSector(), std::numbers::pi);
+  BOOST_CHECK_EQUAL(surface->averagePhi(), 0.);
+  CHECK_CLOSE_ABS(surface->radiusAtZ(5.), 5. * std::tan(newAlpha), 1e-12);
+  BOOST_CHECK_EQUAL(other->boundsPtr(), sharedBounds);
+  BOOST_CHECK_EQUAL(other->openingAngle(), alpha);
+  CHECK_CLOSE_ABS(surface->localToGlobal(tgContext, Vector2(0., 5.)),
+                  Vector3(5. * std::tan(newAlpha), 0., 5.), 1e-12);
+}
+
 /// Unit test for creating compliant/non-compliant ConeSurface object
 BOOST_AUTO_TEST_CASE(ConeSurfaceConstruction) {
   /// Test default construction

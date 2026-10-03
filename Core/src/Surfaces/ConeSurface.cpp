@@ -62,7 +62,7 @@ Vector3 ConeSurface::referencePosition(const GeometryContext& gctx,
 
   // special binning type for R-type methods
   if (aDir == AxisDirection::AxisR || aDir == AxisDirection::AxisRPhi) {
-    return Vector3(sfCenter.x() + bounds().r(sfCenter.z()), sfCenter.y(),
+    return Vector3(sfCenter.x() + radiusAtZ(sfCenter.z()), sfCenter.y(),
                    sfCenter.z());
   }
   // give the center as default for all of these binning types
@@ -137,8 +137,8 @@ double ConeSurface::pathCorrection(const GeometryContext& gctx,
   Vector3 posLocal = localToGlobalTransform(gctx).inverse() * position;
   double phi = VectorHelpers::phi(posLocal);
   double sgn = -std::copysign(1., posLocal.z());
-  double cosAlpha = std::cos(bounds().get(ConeBounds::eAlpha));
-  double sinAlpha = std::sin(bounds().get(ConeBounds::eAlpha));
+  double cosAlpha = std::cos(openingAngle());
+  double sinAlpha = std::sin(openingAngle());
   Vector3 normalC(std::cos(phi) * cosAlpha, std::sin(phi) * cosAlpha,
                   sgn * sinAlpha);
   normalC = localToGlobalTransform(gctx).linear() * normalC;
@@ -154,10 +154,10 @@ std::string ConeSurface::name() const {
 Vector3 ConeSurface::normal(const GeometryContext& gctx,
                             const Vector2& lposition) const {
   // (cos phi cos alpha, sin phi cos alpha, sgn z sin alpha)
-  double phi = lposition[0] / (bounds().r(lposition[1])),
+  double phi = lposition[0] / (radiusAtZ(lposition[1])),
          sgn = -std::copysign(1., lposition[1]);
-  double cosAlpha = std::cos(bounds().get(ConeBounds::eAlpha));
-  double sinAlpha = std::sin(bounds().get(ConeBounds::eAlpha));
+  double cosAlpha = std::cos(openingAngle());
+  double sinAlpha = std::sin(openingAngle());
   Vector3 localNormal(std::cos(phi) * cosAlpha, std::sin(phi) * cosAlpha,
                       sgn * sinAlpha);
   return Vector3(localToGlobalTransform(gctx).linear() * localNormal);
@@ -183,8 +183,8 @@ Polyhedron ConeSurface::polyhedronRepresentation(
   std::vector<Vector3> vertices;
   std::vector<Polyhedron::FaceType> faces;
   std::vector<Polyhedron::FaceType> triangularMesh;
-  double minZ = bounds().get(ConeBounds::eMinZ);
-  double maxZ = bounds().get(ConeBounds::eMaxZ);
+  double minZ = this->minZ();
+  double maxZ = this->maxZ();
 
   if (minZ == -std::numeric_limits<double>::infinity() ||
       maxZ == std::numeric_limits<double>::infinity()) {
@@ -202,8 +202,8 @@ Polyhedron ConeSurface::polyhedronRepresentation(
   }
 
   // Cone parameters
-  double hPhiSec = bounds().get(ConeBounds::eHalfPhiSector);
-  double avgPhi = bounds().get(ConeBounds::eAveragePhi);
+  double hPhiSec = halfPhiSector();
+  double avgPhi = averagePhi();
   std::vector<double> refPhi = {};
   if (bool fullCone =
           std::abs(hPhiSec - std::numbers::pi) < s_fullAzimuthTolerance;

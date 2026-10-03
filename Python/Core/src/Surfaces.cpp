@@ -393,7 +393,13 @@ void addSurfaces(py::module_& m) {
                     });
 
     py::class_<CylinderSurface, Surface, std::shared_ptr<CylinderSurface>>(
-        m, "CylinderSurface");
+        m, "CylinderSurface")
+        .def_property_readonly("radius", &CylinderSurface::radius)
+        .def_property_readonly("halfLengthZ", &CylinderSurface::halfLengthZ)
+        .def_property_readonly("halfPhiSector", &CylinderSurface::halfPhiSector)
+        .def_property_readonly("averagePhi", &CylinderSurface::averagePhi)
+        .def_property_readonly("coversFullAzimuth",
+                               &CylinderSurface::coversFullAzimuth);
 
     py::class_<DiscSurface, Surface, std::shared_ptr<DiscSurface>>(
         m, "DiscSurface");

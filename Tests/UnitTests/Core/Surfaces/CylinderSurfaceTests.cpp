@@ -52,6 +52,35 @@ auto logger = Acts::getDefaultLogger("UnitTests", Acts::Logging::VERBOSE);
 GeometryContext testContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
+
+BOOST_AUTO_TEST_CASE(CylinderGeometryWithSharedBounds) {
+  auto sharedBounds =
+      std::make_shared<const CylinderBounds>(10., 20., 0.5, 0.2);
+  auto surface = Surface::makeShared<CylinderSurface>(Transform3::Identity(),
+                                                      sharedBounds);
+  auto other = Surface::makeShared<CylinderSurface>(*surface);
+  BOOST_CHECK_EQUAL(surface->boundsPtr(), other->boundsPtr());
+  BOOST_CHECK_EQUAL(surface->radius(), 10.);
+  BOOST_CHECK_EQUAL(surface->halfLengthZ(), 20.);
+  BOOST_CHECK_EQUAL(surface->halfPhiSector(), 0.5);
+  BOOST_CHECK_EQUAL(surface->averagePhi(), 0.2);
+  BOOST_CHECK(!surface->coversFullAzimuth());
+
+  // Replacing one surface's bounds updates its geometry without changing the
+  // other surface or leaving stale intrinsic parameters on the surface.
+  surface->assignSurfaceBounds(
+      std::make_shared<const CylinderBounds>(30., 40.));
+  BOOST_CHECK_EQUAL(surface->radius(), 30.);
+  BOOST_CHECK_EQUAL(surface->halfLengthZ(), 40.);
+  BOOST_CHECK_EQUAL(surface->halfPhiSector(), std::numbers::pi);
+  BOOST_CHECK_EQUAL(surface->averagePhi(), 0.);
+  BOOST_CHECK(surface->coversFullAzimuth());
+  BOOST_CHECK_EQUAL(other->boundsPtr(), sharedBounds);
+  BOOST_CHECK_EQUAL(other->radius(), 10.);
+  CHECK_CLOSE_ABS(surface->localToGlobal(testContext, Vector2::Zero()),
+                  Vector3(30., 0., 0.), 1e-12);
+}
+
 /// Unit test for creating compliant/non-compliant CylinderSurface object
 BOOST_AUTO_TEST_CASE(CylinderSurfaceConstruction) {
   /// Test default construction

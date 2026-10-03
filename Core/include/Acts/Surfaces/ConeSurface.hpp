@@ -140,6 +140,36 @@ class ConeSurface : public RegularSurface {
   /// @return The local z axis vector
   virtual Vector3 rotSymmetryAxis(const GeometryContext& gctx) const;
 
+  /// Return the cone opening-angle parameter alpha.
+  /// @note Alpha is the angle between a generator and the local z axis,
+  ///       not the full apex angle.
+  /// @return Opening-angle parameter in radians
+  double openingAngle() const { return bounds().get(ConeBounds::eAlpha); }
+
+  /// Return the radius at a position along the local z axis.
+  /// @param z Local z coordinate, measured from the cone apex
+  /// @note This evaluates the underlying cone, without checking its bounds.
+  /// @return Non-negative radius at z
+  double radiusAtZ(double z) const { return bounds().r(z); }
+
+  /// Return the lower limit along the local z axis.
+  /// @return Minimum z, possibly negative infinity
+  double minZ() const { return bounds().get(ConeBounds::eMinZ); }
+
+  /// Return the upper limit along the local z axis.
+  /// @return Maximum z, possibly positive infinity
+  double maxZ() const { return bounds().get(ConeBounds::eMaxZ); }
+
+  /// Return the half opening angle of the azimuthal sector.
+  /// @return Half opening angle in radians
+  double halfPhiSector() const {
+    return bounds().get(ConeBounds::eHalfPhiSector);
+  }
+
+  /// Return the central azimuth of the sector in the local frame.
+  /// @return Average azimuth in radians
+  double averagePhi() const { return bounds().get(ConeBounds::eAveragePhi); }
+
   /// This method returns the ConeBounds by reference
   /// @return Reference to the cone bounds
   const ConeBounds& bounds() const final;

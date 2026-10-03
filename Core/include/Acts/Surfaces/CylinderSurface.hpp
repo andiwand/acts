@@ -157,6 +157,32 @@ class CylinderSurface : public RegularSurface {
   /// @return  the z-Axis of transform
   virtual Vector3 rotSymmetryAxis(const GeometryContext& gctx) const;
 
+  /// Return the radius of the cylinder.
+  /// @return Cylinder radius
+  double radius() const { return bounds().get(CylinderBounds::eR); }
+
+  /// Return the half length along the local z axis.
+  /// @return Half length in z
+  double halfLengthZ() const {
+    return bounds().get(CylinderBounds::eHalfLengthZ);
+  }
+
+  /// Return the half opening angle of the azimuthal sector.
+  /// @return Half opening angle in radians
+  double halfPhiSector() const {
+    return bounds().get(CylinderBounds::eHalfPhiSector);
+  }
+
+  /// Return the central azimuth of the sector in the local frame.
+  /// @return Average azimuth in radians
+  double averagePhi() const {
+    return bounds().get(CylinderBounds::eAveragePhi);
+  }
+
+  /// Return whether the cylinder covers the full azimuthal range.
+  /// @return True for full azimuthal coverage
+  bool coversFullAzimuth() const { return bounds().coversFullAzimuth(); }
+
   /// This method returns the CylinderBounds by reference
   /// @return Reference to the cylinder bounds
   const CylinderBounds& bounds() const final;

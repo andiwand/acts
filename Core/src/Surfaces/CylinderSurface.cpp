@@ -78,8 +78,8 @@ Vector3 CylinderSurface::referencePosition(const GeometryContext& gctx,
                                            AxisDirection aDir) const {
   // special binning type for R-type methods
   if (aDir == AxisDirection::AxisR || aDir == AxisDirection::AxisRPhi) {
-    double R = bounds().get(CylinderBounds::eR);
-    double phi = bounds().get(CylinderBounds::eAveragePhi);
+    double R = radius();
+    double phi = averagePhi();
     return localToGlobal(gctx, Vector2{phi * R, 0});
   }
   // give the center as default for all of these binning types
@@ -116,7 +116,7 @@ Surface::SurfaceType CylinderSurface::type() const {
 Vector3 CylinderSurface::localToGlobal(const GeometryContext& gctx,
                                        const Vector2& lposition) const {
   // create the position in the local 3d frame
-  double r = bounds().get(CylinderBounds::eR);
+  double r = radius();
   double phi = lposition[0] / r;
   Vector3 position(r * std::cos(phi), r * std::sin(phi), lposition[1]);
   return localToGlobalTransform(gctx) * position;
@@ -129,7 +129,7 @@ Result<Vector2> CylinderSurface::globalToLocal(const GeometryContext& gctx,
   if (tolerance == s_onSurfaceTolerance) {
     // transform default value!
     // @TODO: check if s_onSurfaceTolerance would do here
-    inttol = bounds().get(CylinderBounds::eR) * 0.0001;
+    inttol = radius() * 0.0001;
   }
   if (inttol < 0.01) {
     inttol = 0.01;
@@ -137,11 +137,10 @@ Result<Vector2> CylinderSurface::globalToLocal(const GeometryContext& gctx,
   const Transform3& sfTransform = localToGlobalTransform(gctx);
   Transform3 inverseTrans(sfTransform.inverse());
   Vector3 loc3Dframe(inverseTrans * position);
-  if (std::abs(perp(loc3Dframe) - bounds().get(CylinderBounds::eR)) > inttol) {
+  if (std::abs(perp(loc3Dframe) - radius()) > inttol) {
     return Result<Vector2>::failure(SurfaceError::GlobalPositionNotOnSurface);
   }
-  return Result<Vector2>::success(
-      {bounds().get(CylinderBounds::eR) * phi(loc3Dframe), loc3Dframe.z()});
+  return Result<Vector2>::success({radius() * phi(loc3Dframe), loc3Dframe.z()});
 }
 
 std::string CylinderSurface::name() const {
@@ -150,7 +149,7 @@ std::string CylinderSurface::name() const {
 
 Vector3 CylinderSurface::normal(const GeometryContext& gctx,
                                 const Vector2& lposition) const {
-  double phi = lposition[0] / m_bounds->get(CylinderBounds::eR);
+  double phi = lposition[0] / radius();
   Vector3 localNormal(std::cos(phi), std::sin(phi), 0.);
   return localToGlobalTransform(gctx).linear() * localNormal;
 }
@@ -199,7 +198,7 @@ detail::RealQuadraticEquation CylinderSurface::intersectionSolver(
     const Transform3& transform, const Vector3& position,
     const Vector3& direction) const {
   // Solve for radius R
-  double R = bounds().get(CylinderBounds::eR);
+  double R = radius();
 
   // Get the transformation matrtix
   const auto& tMatrix = transform.matrix();
@@ -245,14 +244,14 @@ MultiIntersection3D CylinderSurface::intersect(
     if (boundaryTolerance.isInfinite()) {
       return status;
     }
-    if (boundaryTolerance.isNone() && bounds().coversFullAzimuth()) {
+    if (boundaryTolerance.isNone() && coversFullAzimuth()) {
       // Project out the current Z value via local z axis
       // Built-in local to global for speed reasons
       const auto& tMatrix = gctxTransform.matrix();
       // Create the reference vector in local
       const Vector3 vecLocal(solution - tMatrix.block<3, 1>(0, 3));
       double cZ = vecLocal.dot(tMatrix.block<3, 1>(0, 2));
-      double hZ = bounds().get(CylinderBounds::eHalfLengthZ) + tolerance;
+      double hZ = halfLengthZ() + tolerance;
       return std::abs(cZ) < std::abs(hZ) ? status
                                          : IntersectionStatus::unreachable;
     }
@@ -342,7 +341,7 @@ Matrix<2, 3> CylinderSurface::localCartesianToBoundLocalDerivative(
   const double lcphi = localPos.x() / lr;
   const double lsphi = localPos.y() / lr;
   // Solve for radius R
-  double R = bounds().get(CylinderBounds::eR);
+  double R = radius();
   Matrix<2, 3> loc3DToLocBound = Matrix<2, 3>::Zero();
   loc3DToLocBound << -R * lsphi / lr, R * lcphi / lr, 0, 0, 0, 1;
 
@@ -380,15 +379,14 @@ std::pair<std::shared_ptr<CylinderSurface>, bool> CylinderSurface::mergedWith(
   }
 
   // radii need to be identical
-  if (std::abs(bounds().get(CylinderBounds::eR) -
-               other.bounds().get(CylinderBounds::eR)) > tolerance) {
+  if (std::abs(radius() - other.radius()) > tolerance) {
     ACTS_ERROR("CylinderSurface::merge: surfaces have different radii");
     throw SurfaceMergingException(
         getSharedPtr(), other.getSharedPtr(),
         "CylinderSurface::merge: surfaces have different radii");
   }
 
-  double r = bounds().get(CylinderBounds::eR);
+  double r = radius();
 
   // no translation in x/z is allowed
   Vector3 translation = otherLocal.translation();
@@ -402,27 +400,26 @@ std::pair<std::shared_ptr<CylinderSurface>, bool> CylinderSurface::mergedWith(
         "CylinderSurface::merge: surfaces have relative translation in x/y");
   }
 
-  double hlZ = bounds().get(CylinderBounds::eHalfLengthZ);
+  double hlZ = halfLengthZ();
   double minZ = -hlZ;
   double maxZ = hlZ;
 
   double zShift = translation[2];
-  double otherHlZ = other.bounds().get(CylinderBounds::eHalfLengthZ);
+  double otherHlZ = other.halfLengthZ();
   double otherMinZ = -otherHlZ + zShift;
   double otherMaxZ = otherHlZ + zShift;
 
-  double hlPhi = bounds().get(CylinderBounds::eHalfPhiSector);
-  double avgPhi = bounds().get(CylinderBounds::eAveragePhi);
+  double hlPhi = halfPhiSector();
+  double avgPhi = averagePhi();
 
-  double otherHlPhi = other.bounds().get(CylinderBounds::eHalfPhiSector);
-  double otherAvgPhi = other.bounds().get(CylinderBounds::eAveragePhi);
+  double otherHlPhi = other.halfPhiSector();
+  double otherAvgPhi = other.averagePhi();
 
   if (direction == AxisDirection::AxisZ) {
     // z shift must match the bounds
 
     if (std::abs(otherLocal.linear().col(eY)[eX]) >= tolerance &&
-        (!bounds().coversFullAzimuth() ||
-         !other.bounds().coversFullAzimuth())) {
+        (!coversFullAzimuth() || !other.coversFullAzimuth())) {
       throw SurfaceMergingException(getSharedPtr(), other.getSharedPtr(),
                                     "CylinderSurface::merge: surfaces have "
                                     "relative rotation in z and phi sector");
@@ -512,8 +509,8 @@ std::pair<std::shared_ptr<CylinderSurface>, bool> CylinderSurface::mergedWith(
         newAvgPhi = 0.;
       }
 
-      auto newBounds = std::make_shared<CylinderBounds>(
-          r, bounds().get(CylinderBounds::eHalfLengthZ), newHlPhi, newAvgPhi);
+      auto newBounds = std::make_shared<CylinderBounds>(r, halfLengthZ(),
+                                                        newHlPhi, newAvgPhi);
 
       return {Surface::makeShared<CylinderSurface>(newTransform, newBounds),
               reversed};
@@ -580,7 +577,7 @@ Vector2 CylinderSurface::transformSurfaceLocalToMaterialLocal(
     const Vector2& surfaceLocal) const {
   Vector2 materialLocal = surfaceLocal;
   if (m_scaleMaterialAxis) {
-    const double r = bounds().get(CylinderBounds::eR);
+    const double r = radius();
     materialLocal[0] = surfaceLocal[0] / r;
   }
   if (m_swapMaterialAxes) {

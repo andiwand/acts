@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 import acts
@@ -182,6 +184,18 @@ def test_surface_factory_and_surface_api():
     cylinder = acts.Surface.createCylinder(transform, acts.CylinderBounds(20.0, 50.0))
     assert isinstance(cylinder, acts.CylinderSurface)
     assert cylinder.type == acts.SurfaceType.Cylinder
+    assert cylinder.radius == 20.0
+    assert cylinder.halfLengthZ == 50.0
+    assert cylinder.halfPhiSector == pytest.approx(math.pi)
+    assert cylinder.averagePhi == 0.0
+    assert cylinder.coversFullAzimuth is True
+
+    sector = acts.Surface.createCylinder(
+        transform, acts.CylinderBounds([20.0, 50.0, 0.5, 0.2])
+    )
+    assert sector.halfPhiSector == 0.5
+    assert sector.averagePhi == 0.2
+    assert sector.coversFullAzimuth is False
 
     perigee = acts.Surface.createPerigee(acts.Vector3(0.0, 0.0, 0.0))
     assert isinstance(perigee, acts.PerigeeSurface)
