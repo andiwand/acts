@@ -12,48 +12,10 @@ namespace Acts {
 
 bool SurfaceBounds::inside(const Vector2& lposition,
                            const BoundaryTolerance& boundaryTolerance) const {
-  using enum BoundaryTolerance::ToleranceMode;
-
-  if (boundaryTolerance.isInfinite()) {
-    return true;
-  }
-
-  BoundaryTolerance::ToleranceMode toleranceMode =
-      boundaryTolerance.toleranceMode();
-  bool strictlyInside = inside(lposition);
-
-  if (toleranceMode == None) {
-    return strictlyInside;
-  }
-
-  if (toleranceMode == Extend && strictlyInside) {
-    return true;
-  }
-
-  SquareMatrix2 boundToCartesian = boundToCartesianJacobian(lposition);
-  SquareMatrix2 metric = SquareMatrix2::Identity();
-  if (boundaryTolerance.hasAbsoluteEuclidean()) {
-    metric = boundToCartesian.transpose() * boundToCartesian;
-  } else if (boundaryTolerance.hasChi2Bound()) {
-    metric = boundToCartesian.transpose() *
-             boundaryTolerance.asChi2Bound().weightMatrix() * boundToCartesian;
-  } else if (boundaryTolerance.hasChi2Cartesian()) {
-    metric = boundToCartesian.transpose() *
-             boundaryTolerance.asChi2Cartesian().weightMatrix() *
-             boundToCartesian;
-  } else {
-    throw std::runtime_error(
-        "SurfaceBounds::inside: Unsupported boundary tolerance type.");
-  }
-
-  Vector2 closest = closestPoint(lposition, metric);
-  Vector2 distance = closest - lposition;
-
-  if (toleranceMode == Shrink) {
-    return boundaryTolerance.isTolerated(distance, boundToCartesian) &&
-           strictlyInside;
-  }
-  return boundaryTolerance.isTolerated(distance, boundToCartesian);
+  return detail::insideWithTolerance(
+      *this, lposition, boundaryTolerance, [this](const Vector2& position) {
+        return boundToCartesianJacobian(position);
+      });
 }
 
 }  // namespace Acts

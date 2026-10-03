@@ -10,8 +10,8 @@
 
 #include "Acts/Definitions/Algebra.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
+#include "Acts/Surfaces/detail/BoundaryCheck.hpp"
 
-#include <cmath>
 #include <ostream>
 
 namespace Acts {
@@ -54,6 +54,8 @@ class SurfaceBounds {
   /// @return the bounds type
   virtual BoundsType type() const = 0;
 
+  /// Legacy coordinate-chart adapter for standalone bounds users.
+  /// Coordinate maps are independent of the accepted region.
   /// Check if the bound coordinates are cartesian
   /// @return true if the bound coordinates are cartesian
   virtual bool isCartesian() const = 0;
@@ -82,8 +84,8 @@ class SurfaceBounds {
 
   /// Calculates the closest point on the bounds to a given local position
   /// @param lposition is the local position
-  /// @param metric to be used for the distance calculation
-  /// @return the closest point on the bounds
+  /// @param metric in the same local coordinates as lposition
+  /// @return the closest point on the bounds in the same local coordinates
   virtual Vector2 closestPoint(const Vector2& lposition,
                                const SquareMatrix2& metric) const = 0;
 
@@ -91,11 +93,8 @@ class SurfaceBounds {
   /// @param lposition is the local position
   /// @return the distance to the bounds
   virtual double distance(const Vector2& lposition) const {
-    SquareMatrix2 metric = boundToCartesianMetric(lposition);
-
-    Vector2 closest = closestPoint(lposition, metric);
-    Vector2 diff = closest - lposition;
-    return std::sqrt((diff.transpose() * metric * diff)(0, 0));
+    return detail::boundaryDistance(*this, lposition,
+                                    boundToCartesianMetric(lposition));
   }
 
   /// Inside check for the bounds object given a boundary tolerance.

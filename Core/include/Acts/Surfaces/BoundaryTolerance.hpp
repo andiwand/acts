@@ -43,8 +43,9 @@ namespace Acts {
 ///
 /// The bound coordinates residual is defined as the difference between the
 /// point checked and the closest point on the boundary. The Jacobian is the
-/// derivative of the bound coordinates with respect to the Cartesian
-/// coordinates.
+/// derivative of the Cartesian coordinates with respect to the bound
+/// coordinates, evaluated at the query position. Cartesian tolerances use this
+/// local linear approximation for finite bound-coordinate residuals.
 ///
 class BoundaryTolerance {
  public:
