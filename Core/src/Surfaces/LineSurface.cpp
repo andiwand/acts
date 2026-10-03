@@ -177,7 +177,7 @@ MultiIntersection3D LineSurface::intersect(
     Vector3 vecLocal = result - mb;
     double cZ = vecLocal.dot(eb);
     double cR = (vecLocal - cZ * eb).norm();
-    if (!m_bounds->inside({cR, cZ}, boundaryTolerance)) {
+    if (!insideBounds({cR, cZ}, boundaryTolerance)) {
       status = IntersectionStatus::unreachable;
     }
   }

@@ -40,7 +40,7 @@ bool RegularSurface::isOnSurface(const GeometryContext& gctx,
   if (!lpResult.ok()) {
     return false;
   }
-  return bounds().inside(lpResult.value(), boundaryTolerance);
+  return insideBounds(lpResult.value(), boundaryTolerance);
 }
 
 }  // namespace Acts

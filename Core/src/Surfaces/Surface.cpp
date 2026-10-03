@@ -50,7 +50,7 @@ bool Surface::isOnSurface(const GeometryContext& gctx, const Vector3& position,
   if (!lpResult.ok()) {
     return false;
   }
-  return bounds().inside(lpResult.value(), boundaryTolerance);
+  return insideBounds(lpResult.value(), boundaryTolerance);
 }
 
 AlignmentToBoundMatrix Surface::alignmentToBoundDerivative(

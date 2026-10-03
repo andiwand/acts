@@ -129,7 +129,7 @@ MultiIntersection3D PointSurface::intersect(
     const Vector3 vecLocal = result - pc;
     const Vector2 local(vecLocal.dot(rframe.col(0)),
                         vecLocal.dot(rframe.col(1)));
-    if (!m_bounds->inside(local, boundaryTolerance)) {
+    if (!insideBounds(local, boundaryTolerance)) {
       status = IntersectionStatus::unreachable;
     }
   }

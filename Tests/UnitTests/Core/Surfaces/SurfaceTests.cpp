@@ -54,6 +54,82 @@ GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
 
+BOOST_AUTO_TEST_CASE(SurfaceBoundaryHookOwnsOnSurfaceChecks) {
+  struct BoundaryPlane : PlaneSurface {
+    explicit BoundaryPlane(std::shared_ptr<const PlanarBounds> bounds)
+        : GeometryObject(),
+          PlaneSurface(Transform3::Identity(), std::move(bounds)) {}
+
+    mutable unsigned int checks = 0;
+    mutable Vector2 lastPosition = Vector2::Zero();
+
+    bool insideBounds(const Vector2& position,
+                      const BoundaryTolerance& tolerance) const override {
+      ++checks;
+      lastPosition = position;
+      // Example surface-specific acceptance layered over existing bounds.
+      return position.x() >= 0. && Surface::insideBounds(position, tolerance);
+    }
+  };
+  const auto bounds = std::make_shared<const RectangleBounds>(5., 10.);
+  const BoundaryPlane plane(bounds);
+  const Surface& surface = plane;
+  const RegularSurface& regular = plane;
+  const Vector3 direction = Vector3::UnitZ();
+  for (const double x : {-1., 1.}) {
+    const Vector3 position{x, 2., 0.};
+    const bool expected = x > 0.;
+    BOOST_CHECK_EQUAL(surface.isOnSurface(tgContext, position, direction,
+                                          BoundaryTolerance::None()),
+                      expected);
+    CHECK_CLOSE_ABS(plane.lastPosition, Vector2(x, 2.), 1e-12);
+    BOOST_CHECK_EQUAL(
+        regular.isOnSurface(tgContext, position, BoundaryTolerance::None()),
+        expected);
+    CHECK_CLOSE_ABS(plane.lastPosition, Vector2(x, 2.), 1e-12);
+    BOOST_CHECK_EQUAL(surface
+                          .intersect(tgContext, position - direction, direction,
+                                     BoundaryTolerance::None())
+                          .closest()
+                          .isValid(),
+                      expected);
+  }
+  BOOST_CHECK_EQUAL(plane.checks, 6u);
+  // Points off the geometric surface must fail before region evaluation.
+  BOOST_CHECK(!surface.isOnSurface(tgContext, {1., 2., 1.}, direction));
+  BOOST_CHECK(!regular.isOnSurface(tgContext, {1., 2., 1.}));
+  BOOST_CHECK_EQUAL(plane.checks, 6u);
+  BOOST_CHECK_EQUAL(plane.boundsPtr().get(), bounds.get());
+}
+
+BOOST_AUTO_TEST_CASE(SurfaceBoundaryHookPreservesLegacyBoundsOverrides) {
+  struct CustomBounds : RectangleBounds {
+    CustomBounds() : RectangleBounds(5., 10.) {}
+    using RectangleBounds::inside;
+    mutable unsigned int checks = 0;
+    bool inside(const Vector2&, const BoundaryTolerance&) const override {
+      ++checks;
+      return false;
+    }
+  };
+  const auto bounds = std::make_shared<const CustomBounds>();
+  const auto plane =
+      Surface::makeShared<PlaneSurface>(Transform3::Identity(), bounds);
+  const Surface& surface = *plane;
+  const RegularSurface& regular = *plane;
+  const Vector3 position{1., 2., 0.};
+  BOOST_CHECK(bounds->inside(Vector2(1., 2.)));
+  BOOST_CHECK(!surface.insideBounds({1., 2.}));
+  BOOST_CHECK(!surface.isOnSurface(tgContext, position, Vector3::UnitZ()));
+  BOOST_CHECK(!regular.isOnSurface(tgContext, position));
+  BOOST_CHECK(!surface
+                   .intersect(tgContext, {1., 2., -1.}, Vector3::UnitZ(),
+                              BoundaryTolerance::None())
+                   .closest()
+                   .isValid());
+  BOOST_CHECK_EQUAL(bounds->checks, 4u);
+}
+
 /// todo: make test fixture; separate out different cases
 
 /// Unit test for creating compliant/non-compliant Surface object

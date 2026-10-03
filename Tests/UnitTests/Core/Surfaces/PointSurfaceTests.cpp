@@ -34,6 +34,74 @@ GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
 
+BOOST_AUTO_TEST_CASE(PointSurfaceBoundaryHook) {
+  struct BoundaryPoint : PointSurface {
+    explicit BoundaryPoint(std::shared_ptr<const PointBounds> bounds)
+        : GeometryObject(),
+          PointSurface(Transform3::Identity(), std::move(bounds)) {}
+    mutable unsigned int checks = 0;
+    mutable Vector2 lastPosition = Vector2::Zero();
+    bool insideBounds(const Vector2& position,
+                      const BoundaryTolerance& tolerance) const override {
+      ++checks;
+      lastPosition = position;
+      return position.x() >= 0. && Surface::insideBounds(position, tolerance);
+    }
+  };
+  const auto bounds = std::make_shared<const PointBounds>(2.);
+  const BoundaryPoint point(bounds);
+  const Surface& surface = point;
+  const Vector3 direction = Vector3(1., 2., 3.).normalized();
+  for (const double x : {-0.5, 0.5}) {
+    const Vector2 local{x, 0.25};
+    const Vector3 position = surface.localToGlobal(tgContext, local, direction);
+    const auto hit = surface
+                         .intersect(tgContext, position - direction, direction,
+                                    BoundaryTolerance::None())
+                         .closest();
+    BOOST_CHECK_EQUAL(hit.isValid(), x > 0.);
+    CHECK_CLOSE_ABS(point.lastPosition, local, 1e-12);
+    BOOST_CHECK_EQUAL(surface.isOnSurface(tgContext, position, direction),
+                      x > 0.);
+  }
+  BOOST_CHECK_EQUAL(point.checks, 4u);
+  BOOST_CHECK_EQUAL(point.boundsPtr().get(), bounds.get());
+  BOOST_CHECK(surface
+                  .intersect(tgContext, -direction, direction,
+                             BoundaryTolerance::Infinite())
+                  .closest()
+                  .isValid());
+  BOOST_CHECK_EQUAL(point.checks, 4u);
+  const BoundaryPoint unbounded(nullptr);
+  BOOST_CHECK(unbounded
+                  .intersect(tgContext, -direction, direction,
+                             BoundaryTolerance::None())
+                  .closest()
+                  .isValid());
+  BOOST_CHECK_EQUAL(unbounded.checks, 0u);
+}
+
+BOOST_AUTO_TEST_CASE(PointSurfaceBoundaryHookPreservesLegacyBoundsOverrides) {
+  struct CustomBounds : PointBounds {
+    CustomBounds() : PointBounds(2.) {}
+    using PointBounds::inside;
+    mutable unsigned int checks = 0;
+    bool inside(const Vector2&, const BoundaryTolerance&) const override {
+      ++checks;
+      return false;
+    }
+  };
+  const auto bounds = std::make_shared<const CustomBounds>();
+  const auto point =
+      Surface::makeShared<PointSurface>(Transform3::Identity(), bounds);
+  BOOST_CHECK(!point
+                   ->intersect(tgContext, {0.5, 0.25, -1.}, Vector3::UnitZ(),
+                               BoundaryTolerance::None())
+                   .closest()
+                   .isValid());
+  BOOST_CHECK_EQUAL(bounds->checks, 1u);
+}
+
 /// Construction, type, name, bounds
 BOOST_AUTO_TEST_CASE(PointSurfaceConstruction) {
   Vector3 center{1., 2., 3.};

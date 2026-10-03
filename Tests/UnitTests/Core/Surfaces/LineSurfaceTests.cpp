@@ -52,6 +52,70 @@ GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
 
+BOOST_AUTO_TEST_CASE(LineSurfaceBoundaryHook) {
+  struct BoundaryLine : LineSurfaceStub {
+    explicit BoundaryLine(std::shared_ptr<const LineBounds> bounds)
+        : GeometryObject(),
+          LineSurfaceStub(Transform3::Identity(), std::move(bounds)) {}
+    mutable unsigned int checks = 0;
+    mutable Vector2 lastPosition = Vector2::Zero();
+    bool insideBounds(const Vector2& position,
+                      const BoundaryTolerance& tolerance) const override {
+      ++checks;
+      lastPosition = position;
+      return position.y() >= 0. && Surface::insideBounds(position, tolerance);
+    }
+  };
+  const auto bounds = std::make_shared<const LineBounds>(2., 10.);
+  const BoundaryLine line(bounds);
+  const Surface& surface = line;
+  for (const double z : {-1., 1.}) {
+    const auto hit = surface
+                         .intersect(tgContext, {-3., 0.5, z}, Vector3::UnitX(),
+                                    BoundaryTolerance::None())
+                         .closest();
+    BOOST_CHECK_EQUAL(hit.isValid(), z > 0.);
+    CHECK_CLOSE_ABS(line.lastPosition, Vector2(0.5, z), 1e-12);
+    BOOST_CHECK_EQUAL(
+        surface.isOnSurface(tgContext, {0., 0.5, z}, Vector3::UnitX()), z > 0.);
+  }
+  BOOST_CHECK_EQUAL(line.checks, 4u);
+  BOOST_CHECK_EQUAL(line.boundsPtr().get(), bounds.get());
+  // Preserve the established no-check and unbounded shortcuts.
+  BOOST_CHECK(surface
+                  .intersect(tgContext, {-3., 0.5, -1.}, Vector3::UnitX(),
+                             BoundaryTolerance::Infinite())
+                  .closest()
+                  .isValid());
+  BOOST_CHECK_EQUAL(line.checks, 4u);
+  const BoundaryLine unbounded(nullptr);
+  BOOST_CHECK(unbounded
+                  .intersect(tgContext, {-3., 0.5, -1.}, Vector3::UnitX(),
+                             BoundaryTolerance::None())
+                  .closest()
+                  .isValid());
+  BOOST_CHECK_EQUAL(unbounded.checks, 0u);
+}
+
+BOOST_AUTO_TEST_CASE(LineSurfaceBoundaryHookPreservesLegacyBoundsOverrides) {
+  struct CustomBounds : LineBounds {
+    CustomBounds() : LineBounds(2., 10.) {}
+    using LineBounds::inside;
+    mutable unsigned int checks = 0;
+    bool inside(const Vector2&, const BoundaryTolerance&) const override {
+      ++checks;
+      return false;
+    }
+  };
+  const auto bounds = std::make_shared<const CustomBounds>();
+  const LineSurfaceStub line(Transform3::Identity(), bounds);
+  BOOST_CHECK(!line.intersect(tgContext, {-3., 0.5, 1.}, Vector3::UnitX(),
+                              BoundaryTolerance::None())
+                   .closest()
+                   .isValid());
+  BOOST_CHECK_EQUAL(bounds->checks, 1u);
+}
+
 /// Unit test for creating compliant/non-compliant LineSurface object
 BOOST_AUTO_TEST_CASE(LineSurface_Constructors_test) {
   /// Test default construction
