@@ -13,11 +13,13 @@
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/CylinderBounds.hpp"
 #include "Acts/Surfaces/SurfaceBounds.hpp"
+#include "Acts/Surfaces/detail/VerticesHelper.hpp"
 #include "ActsTests/CommonHelpers/FloatComparisons.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <stdexcept>
 #include <vector>
@@ -169,7 +171,7 @@ BOOST_AUTO_TEST_CASE(CylinderBoundsCenter) {
   const double averagePhi = std::numbers::pi / 4.;
   CylinderBounds offsetCylinder(radius, halfZ, std::numbers::pi, averagePhi);
   Vector2 centerOffset = offsetCylinder.center();
-  CHECK_CLOSE_ABS(centerOffset, Vector2(averagePhi, 0.), 1e-6);
+  CHECK_CLOSE_ABS(centerOffset, Vector2(radius * averagePhi, 0.), 1e-6);
 }
 
 BOOST_AUTO_TEST_CASE(CylinderBoundsCoversFullAzimuth) {
@@ -184,6 +186,88 @@ BOOST_AUTO_TEST_CASE(CylinderBoundsCoversFullAzimuth) {
           .coversFullAzimuth());
   BOOST_CHECK(!CylinderBounds(radius, halfZ, std::numbers::pi / 4.)
                    .coversFullAzimuth());
+}
+
+BOOST_AUTO_TEST_CASE(CylinderSectorBoundaryCoordinates) {
+  const CylinderBounds bounds(10., 100., 0.5, 0.2);
+  const Vector2 query(8., 0.);
+  CHECK_CLOSE_ABS(bounds.closestPoint(query, SquareMatrix2::Identity()),
+                  Vector2(7., 0.), 1e-12);
+  CHECK_CLOSE_ABS(bounds.distance(query), 1., 1e-12);
+  BOOST_CHECK(!bounds.inside(query, BoundaryTolerance::None()));
+  BOOST_CHECK(bounds.inside(query, BoundaryTolerance::AbsoluteEuclidean(1.5)));
+  BOOST_CHECK(!bounds.inside(query, BoundaryTolerance::AbsoluteEuclidean(0.5)));
+  BOOST_CHECK(bounds.inside(Vector2(6., 0.),
+                            BoundaryTolerance::AbsoluteEuclidean(-0.5)));
+  BOOST_CHECK(!bounds.inside(Vector2(6., 0.),
+                             BoundaryTolerance::AbsoluteEuclidean(-1.5)));
+  BOOST_CHECK(bounds.inside(query, BoundaryTolerance::Infinite()));
+
+  const double period = 20. * std::numbers::pi;
+  for (int turn : {-3, 0, 2}) {
+    const Vector2 shiftedQuery = query + Vector2(turn * period, 0.);
+    CHECK_CLOSE_ABS(
+        bounds.closestPoint(shiftedQuery, SquareMatrix2::Identity()) -
+            shiftedQuery,
+        Vector2(-1., 0.), 1e-12);
+  }
+
+  // A sector spanning the principal phi seam has a nearby boundary on either
+  // representation of the query.
+  const CylinderBounds seam(10., 100., 0.5, 3.);
+  const Vector2 seamQuery(10. * (3.6 - 2. * std::numbers::pi), 0.);
+  CHECK_CLOSE_ABS(seam.distance(seamQuery), 1., 1e-12);
+  BOOST_CHECK(
+      seam.inside(seamQuery, BoundaryTolerance::AbsoluteEuclidean(1.5)));
+}
+
+BOOST_AUTO_TEST_CASE(ClosedCylinderHasNoPhiBoundary) {
+  const CylinderBounds bounds(10., 20.);
+  const Vector2 query(10. * std::numbers::pi, 0.);
+  BOOST_CHECK(bounds.inside(query));
+  CHECK_CLOSE_ABS(bounds.distance(query), 20., 1e-12);
+  BOOST_CHECK(bounds.inside(query, BoundaryTolerance::AbsoluteEuclidean(-19.)));
+  BOOST_CHECK(
+      !bounds.inside(query, BoundaryTolerance::AbsoluteEuclidean(-21.)));
+
+  SquareMatrix2 metric;
+  metric << 4., 1., 1., 2.;
+  const Vector2 outside(query.x(), 22.);
+  CHECK_CLOSE_ABS(bounds.closestPoint(outside, metric) - outside,
+                  Vector2(0.5, -2.), 1e-12);
+  BOOST_CHECK(bounds.inside(outside, BoundaryTolerance::Chi2Bound(metric, 8.)));
+  BOOST_CHECK(
+      !bounds.inside(outside, BoundaryTolerance::Chi2Bound(metric, 6.)));
+}
+
+BOOST_AUTO_TEST_CASE(CylinderPeriodicMetricProjection) {
+  const double radius = 2.;
+  const double halfZ = 3.;
+  const double halfRPhi = radius * 0.7;
+  const double center = radius * 2.9;
+  const double period = 2. * std::numbers::pi * radius;
+  const CylinderBounds bounds(radius, halfZ, 0.7, 2.9);
+  for (double correlation : {-9., 0., 9.}) {
+    SquareMatrix2 metric;
+    metric << 1., correlation, correlation, 100.;
+    for (const Vector2& query : {Vector2(0., 0.), Vector2(5., 8.),
+                                 Vector2(-10., -12.), Vector2(30., 1.)}) {
+      // Independent reference: exhaustively project onto many unrolled copies
+      // of the rectangle, including copies beyond the adjacent phi periods.
+      double reference = std::numeric_limits<double>::infinity();
+      for (int turn = -30; turn <= 30; ++turn) {
+        const double x = center + turn * period;
+        const Vector2 candidate =
+            detail::VerticesHelper::computeClosestPointOnAlignedBox(
+                Vector2(x - halfRPhi, -halfZ), Vector2(x + halfRPhi, halfZ),
+                query, metric);
+        const Vector2 delta = candidate - query;
+        reference = std::min(reference, delta.dot(metric * delta));
+      }
+      const Vector2 delta = bounds.closestPoint(query, metric) - query;
+      CHECK_CLOSE_ABS(delta.dot(metric * delta), reference, 1e-9);
+    }
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

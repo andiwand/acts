@@ -13,9 +13,11 @@
 #include "Acts/Utilities/detail/OstreamStateGuard.hpp"
 #include "Acts/Utilities/detail/periodic.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <numbers>
 #include <utility>
 
@@ -35,6 +37,9 @@ Vector2 CylinderBounds::shifted(const Vector2& lposition) const {
 
 bool CylinderBounds::inside(const Vector2& lposition) const {
   double halfLengthZ = get(eHalfLengthZ);
+  if (coversFullAzimuth()) {
+    return -halfLengthZ <= lposition.y() && lposition.y() < halfLengthZ;
+  }
   double halfPhi = get(eHalfPhiSector);
   return detail::VerticesHelper::isInsideRectangle(
       shifted(lposition), Vector2(-halfPhi, -halfLengthZ),
@@ -43,22 +48,58 @@ bool CylinderBounds::inside(const Vector2& lposition) const {
 
 Vector2 CylinderBounds::closestPoint(const Vector2& lposition,
                                      const SquareMatrix2& metric) const {
-  double halfLengthZ = get(eHalfLengthZ);
-  double radius = get(eR);
+  const double halfZ = get(eHalfLengthZ);
+  const double radius = get(eR);
+  const double halfRPhi = radius * get(eHalfPhiSector);
+  const double period = 2. * std::numbers::pi * radius;
+  // Work in an unrolled chart centered on the sector. Return a representative
+  // near the query, so callers can subtract coordinates across the phi seam.
+  const Vector2 point(radius * shifted(lposition).x(), lposition.y());
+  Vector2 closest = point;
+  double bestDistance = std::numeric_limits<double>::infinity();
+  auto consider = [&](const Vector2& candidate) {
+    const Vector2 delta = candidate - point;
+    const double distance = delta.dot(metric * delta);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      closest = candidate;
+    }
+  };
 
-  Vector2 vertices[] = {{-radius, -halfLengthZ},
-                        {radius, -halfLengthZ},
-                        {radius, halfLengthZ},
-                        {-radius, halfLengthZ}};
+  // On each z boundary, first project onto the infinite line in the supplied
+  // metric. For a sector, restrict that projection to the nearest periodic
+  // copy of the horizontal segment.
+  for (double z : {-halfZ, halfZ}) {
+    double x = point.x() - metric(0, 1) / metric(0, 0) * (z - point.y());
+    if (!coversFullAzimuth()) {
+      const double center = period * std::round(x / period);
+      x = std::clamp(x, center - halfRPhi, center + halfRPhi);
+    }
+    consider(Vector2(x, z));
+  }
 
-  return detail::VerticesHelper::computeClosestPointOnPolygon(lposition,
-                                                              vertices, metric);
+  if (!coversFullAzimuth()) {
+    // For a vertical edge, the distance minimized over z is convex in its
+    // unrolled x coordinate. Its continuous minimum has z clamped to the
+    // allowed interval. Check the two periodic copies bracketing that minimum.
+    const double z = std::clamp(point.y(), -halfZ, halfZ);
+    const double x = point.x() - metric(0, 1) / metric(0, 0) * (z - point.y());
+    for (double edge : {-halfRPhi, halfRPhi}) {
+      const double firstCopy = std::floor((x - edge) / period);
+      for (double copy : {firstCopy, firstCopy + 1.}) {
+        const double edgeX = edge + copy * period;
+        const double edgeZ = std::clamp(
+            point.y() - metric(0, 1) / metric(1, 1) * (edgeX - point.x()),
+            -halfZ, halfZ);
+        consider(Vector2(edgeX, edgeZ));
+      }
+    }
+  }
+  return lposition + (closest - point);
 }
 
 Vector2 CylinderBounds::center() const {
-  // For cylinder bounds in local coordinates (rphi, z),
-  // centroid is at (averagePhi, 0) since z extends symmetrically
-  return Vector2(get(eAveragePhi), 0.0);
+  return Vector2(get(eR) * get(eAveragePhi), 0.0);
 }
 
 std::ostream& CylinderBounds::toStream(std::ostream& sl) const {

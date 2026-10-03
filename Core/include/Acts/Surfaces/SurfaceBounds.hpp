@@ -114,9 +114,12 @@ class SurfaceBounds {
   /// - Returns the geometric center or center of symmetry
   /// - For symmetric shapes: center of bounding box or origin (0,0)
   ///
-  /// **Polar/Cylindrical bounds** (Radial, Cylinder, Cone):
+  /// **Polar bounds** (Radial):
   /// - Returns (r, phi) where r is average radius, phi is average angle
   /// - Coordinates are in the bounds' natural coordinate system
+  ///
+  /// **Cylinder bounds**:
+  /// - Returns (radius * averagePhi, 0) in local (rphi, z) coordinates
   ///
   /// **Complex bounds** (Annulus, ConvexPolygon):
   /// - Annulus: Pre-calculated from corner vertices (accounts for coordinate

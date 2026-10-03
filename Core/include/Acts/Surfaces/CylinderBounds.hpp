@@ -96,6 +96,9 @@ class CylinderBounds : public SurfaceBounds {
   bool inside(const Vector2& lposition) const final;
 
   /// @copydoc SurfaceBounds::closestPoint
+  /// @note The metric must be symmetric positive definite. The returned rphi
+  ///       coordinate uses the periodic representative nearest in this metric;
+  ///       it need not lie in the principal azimuthal range.
   Vector2 closestPoint(const Vector2& lposition,
                        const SquareMatrix2& metric) const final;
 
@@ -124,7 +127,7 @@ class CylinderBounds : public SurfaceBounds {
                                       unsigned int quarterSegments) const;
 
   /// @copydoc SurfaceBounds::center
-  /// @note For CylinderBounds: returns (averagePhi, 0) in local (rphi, z) coordinates
+  /// @note For CylinderBounds: returns (radius * averagePhi, 0) in local (rphi, z) coordinates
   Vector2 center() const final;
 
   /// Output Method for std::ostream
