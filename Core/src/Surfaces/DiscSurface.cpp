@@ -22,6 +22,7 @@
 #include "Acts/Surfaces/detail/FacesHelper.hpp"
 #include "Acts/Surfaces/detail/MergeHelper.hpp"
 #include "Acts/Surfaces/detail/PlanarHelper.hpp"
+#include "Acts/Surfaces/detail/PolarChart.hpp"
 #include "Acts/Utilities/AlgebraHelpers.hpp"
 #include "Acts/Utilities/Intersection.hpp"
 #include "Acts/Utilities/JacobianHelpers.hpp"
@@ -83,8 +84,8 @@ Surface::SurfaceType DiscSurface::type() const {
 Vector3 DiscSurface::localToGlobal(const GeometryContext& gctx,
                                    const Vector2& lposition) const {
   // create the position in the local 3d frame
-  Vector3 loc3Dframe(lposition[0] * std::cos(lposition[1]),
-                     lposition[0] * std::sin(lposition[1]), 0.);
+  const Vector2 cartesian = detail::PolarChart::toCartesian(lposition);
+  Vector3 loc3Dframe(cartesian.x(), cartesian.y(), 0.);
   // transform to globalframe
   return localToGlobalTransform(gctx) * loc3Dframe;
 }
@@ -187,12 +188,11 @@ Polyhedron DiscSurface::polyhedronRepresentation(
 }
 
 Vector2 DiscSurface::localPolarToCartesian(const Vector2& lpolar) const {
-  return Vector2(lpolar[0] * std::cos(lpolar[1]),
-                 lpolar[0] * std::sin(lpolar[1]));
+  return detail::PolarChart::toCartesian(lpolar);
 }
 
 Vector2 DiscSurface::localCartesianToPolar(const Vector2& lcart) const {
-  return Vector2(lcart.norm(), std::atan2(lcart[1], lcart[0]));
+  return detail::PolarChart::fromCartesian(lcart);
 }
 
 BoundToFreeMatrix DiscSurface::boundToFreeJacobian(
@@ -206,19 +206,18 @@ BoundToFreeMatrix DiscSurface::boundToFreeJacobian(
 
   // calculate the transformation to local coordinates
   const Vector3 posLoc = localToGlobalTransform(gctx).inverse() * position;
-  const double lr = perp(posLoc);
-  const double lphi = phi(posLoc);
-  const double lcphi = std::cos(lphi);
-  const double lsphi = std::sin(lphi);
+  const SquareMatrix2 polarJacobian = detail::PolarChart::toCartesianJacobian(
+      detail::PolarChart::fromCartesian(posLoc.head<2>()));
   // rotate into the polar coorindates
   auto lx = rframeT.block<1, 3>(0, 0);
   auto ly = rframeT.block<1, 3>(1, 0);
   // Initialize the jacobian from local to global
   BoundToFreeMatrix jacToGlobal = BoundToFreeMatrix::Zero();
   // the local error components - rotated from reference frame
-  jacToGlobal.block<3, 1>(eFreePos0, eBoundLoc0) = lcphi * lx + lsphi * ly;
+  jacToGlobal.block<3, 1>(eFreePos0, eBoundLoc0) =
+      polarJacobian(0, 0) * lx + polarJacobian(1, 0) * ly;
   jacToGlobal.block<3, 1>(eFreePos0, eBoundLoc1) =
-      lr * (lcphi * ly - lsphi * lx);
+      polarJacobian(0, 1) * lx + polarJacobian(1, 1) * ly;
   // the time component
   jacToGlobal(eFreeTime, eBoundTime) = 1;
   // the momentum components
@@ -242,19 +241,18 @@ FreeToBoundMatrix DiscSurface::freeToBoundJacobian(
 
   // calculate the transformation to local coordinates
   const Vector3 posLoc = localToGlobalTransform(gctx).inverse() * position;
-  const double lr = perp(posLoc);
-  const double lphi = phi(posLoc);
-  const double lcphi = std::cos(lphi);
-  const double lsphi = std::sin(lphi);
+  const SquareMatrix2 polarJacobian =
+      detail::PolarChart::fromCartesianJacobian(posLoc.head<2>());
   // rotate into the polar coorindates
   auto lx = rframeT.block<1, 3>(0, 0);
   auto ly = rframeT.block<1, 3>(1, 0);
   // Initialize the jacobian from global to local
   FreeToBoundMatrix jacToLocal = FreeToBoundMatrix::Zero();
   // Local position component
-  jacToLocal.block<1, 3>(eBoundLoc0, eFreePos0) = lcphi * lx + lsphi * ly;
+  jacToLocal.block<1, 3>(eBoundLoc0, eFreePos0) =
+      polarJacobian(0, 0) * lx + polarJacobian(0, 1) * ly;
   jacToLocal.block<1, 3>(eBoundLoc1, eFreePos0) =
-      (lcphi * ly - lsphi * lx) / lr;
+      polarJacobian(1, 0) * lx + polarJacobian(1, 1) * ly;
   // Time element
   jacToLocal(eBoundTime, eFreeTime) = 1;
   // Directional and momentum elements for reference frame surface
@@ -312,12 +310,9 @@ Matrix<2, 3> DiscSurface::localCartesianToBoundLocalDerivative(
   const auto& sTransform = localToGlobalTransform(gctx);
   // calculate the transformation to local coordinates
   const Vector3 localPos = sTransform.inverse() * position;
-  const double lr = perp(localPos);
-  // the normalised coordinates are already cos and sin of the local azimuth
-  const double lcphi = localPos.x() / lr;
-  const double lsphi = localPos.y() / lr;
   Matrix<2, 3> loc3DToLocBound = Matrix<2, 3>::Zero();
-  loc3DToLocBound << lcphi, lsphi, 0, -lsphi / lr, lcphi / lr, 0;
+  loc3DToLocBound.leftCols<2>() =
+      detail::PolarChart::fromCartesianJacobian(localPos.head<2>());
 
   return loc3DToLocBound;
 }

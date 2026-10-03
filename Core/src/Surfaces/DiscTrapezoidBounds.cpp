@@ -9,6 +9,7 @@
 #include "Acts/Surfaces/DiscTrapezoidBounds.hpp"
 
 #include "Acts/Definitions/Algebra.hpp"
+#include "Acts/Surfaces/detail/PolarChart.hpp"
 #include "Acts/Surfaces/detail/VerticesHelper.hpp"
 #include "Acts/Utilities/MathHelpers.hpp"
 #include "Acts/Utilities/detail/OstreamStateGuard.hpp"
@@ -54,27 +55,12 @@ Vector2 DiscTrapezoidBounds::toLocalCartesian(const Vector2& lposition) const {
 
 SquareMatrix2 DiscTrapezoidBounds::boundToCartesianJacobian(
     const Vector2& lposition) const {
-  // the bound coordinates are polar in the surface's own cartesian frame, so
-  // the average phi of the sector does not enter: `DiscSurface::localToGlobal`
-  // places `(r, phi)` at `(r cos phi, r sin phi)` whatever the bounds are
-  const double cosPhi = std::cos(lposition[1]);
-  const double sinPhi = std::sin(lposition[1]);
-  SquareMatrix2 j;
-  j(0, 0) = cosPhi;
-  j(0, 1) = -lposition[0] * sinPhi;
-  j(1, 0) = sinPhi;
-  j(1, 1) = lposition[0] * cosPhi;
-  return j;
+  return detail::PolarChart::toCartesianJacobian(lposition);
 }
 
 SquareMatrix2 DiscTrapezoidBounds::boundToCartesianMetric(
     const Vector2& lposition) const {
-  SquareMatrix2 m;
-  m(0, 0) = 1;
-  m(0, 1) = 0;
-  m(1, 0) = 0;
-  m(1, 1) = lposition[0] * lposition[0];
-  return m;
+  return detail::PolarChart::metric(lposition);
 }
 
 bool DiscTrapezoidBounds::inside(const Vector2& lposition) const {

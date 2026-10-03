@@ -53,6 +53,62 @@ GeometryContext tgContext = GeometryContext::dangerouslyDefaultConstruct();
 auto logger = Acts::getDefaultLogger("UnitTests", Acts::Logging::VERBOSE);
 
 BOOST_AUTO_TEST_SUITE(SurfacesSuite)
+
+BOOST_AUTO_TEST_CASE(PolarChartAgreesWithSurfaceMapping) {
+  const std::vector<std::shared_ptr<const DiscBounds>> regions{
+      std::make_shared<RadialBounds>(1., 10., 0.4, 0.2),
+      std::make_shared<DiscTrapezoidBounds>(0.5, 1., 2., 8., 0.5),
+      std::make_shared<AnnulusBounds>(2., 8., -0.2, 0.2, Vector2(0.1, 0.1),
+                                      0.5)};
+  const Vector3 direction = Vector3(1., 2., 3.).normalized();
+  const Transform3 transform =
+      Transform3(Translation3(4., 5., 6.)) * AngleAxis3(0.3, Vector3::UnitY());
+  for (const auto& region : regions) {
+    const auto surface = Surface::makeShared<DiscSurface>(transform, region);
+    for (const Vector2& local :
+         {Vector2(0.5, -2.8), Vector2(3., 0.7), Vector2(20., 2.9)}) {
+      const Vector3 global = surface->localToGlobal(tgContext, local);
+      Matrix<3, 2> numerical;
+      for (int axis = 0; axis < 2; ++axis) {
+        Vector2 step = Vector2::Zero();
+        step[axis] = 1e-6;
+        numerical.col(axis) =
+            (surface->localToGlobal(tgContext, local + step) -
+             surface->localToGlobal(tgContext, local - step)) /
+            (2e-6);
+      }
+      const SquareMatrix2 jacobian = region->boundToCartesianJacobian(local);
+      CHECK_CLOSE_ABS(transform.linear().leftCols<2>() * jacobian, numerical,
+                      1e-8);
+      CHECK_CLOSE_ABS(region->boundToCartesianMetric(local),
+                      jacobian.transpose() * jacobian, 1e-10);
+      const auto toFree =
+          surface->boundToFreeJacobian(tgContext, global, direction);
+      CHECK_CLOSE_ABS((toFree.block<3, 2>(eFreePos0, eBoundLoc0)), numerical,
+                      1e-8);
+      const auto toBound =
+          surface->freeToBoundJacobian(tgContext, global, direction);
+      CHECK_CLOSE_ABS((toBound.block<2, 3>(eBoundLoc0, eFreePos0) * numerical),
+                      SquareMatrix2::Identity(), 1e-8);
+      const Vector3 cartesian = transform.inverse() * global;
+      CHECK_CLOSE_ABS(
+          surface->localCartesianToBoundLocalDerivative(tgContext, global)
+                  .leftCols<2>() *
+              jacobian,
+          SquareMatrix2::Identity(), 1e-12);
+      CHECK_CLOSE_ABS(surface->localCartesianToPolar(cartesian.head<2>()),
+                      local, 1e-12);
+    }
+    // Forward derivative and metric remain defined at r=0; the inverse chart
+    // is singular there and is deliberately not evaluated.
+    const Vector2 origin(0., 0.7);
+    const SquareMatrix2 jacobian = region->boundToCartesianJacobian(origin);
+    CHECK_CLOSE_ABS(jacobian.col(1), Vector2::Zero(), 1e-12);
+    CHECK_CLOSE_ABS(region->boundToCartesianMetric(origin),
+                    jacobian.transpose() * jacobian, 1e-12);
+  }
+}
+
 /// Unit tests for creating DiscSurface object
 BOOST_AUTO_TEST_CASE(DiscSurfaceConstruction) {
   /// Test default construction
