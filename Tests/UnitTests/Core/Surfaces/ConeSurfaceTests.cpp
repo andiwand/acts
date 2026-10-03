@@ -51,6 +51,9 @@ BOOST_AUTO_TEST_CASE(ConeGeometryWithSharedBounds) {
       Surface::makeShared<ConeSurface>(Transform3::Identity(), sharedBounds);
   auto other = Surface::makeShared<ConeSurface>(*surface);
   BOOST_CHECK_EQUAL(surface->boundsPtr(), other->boundsPtr());
+  BOOST_CHECK_THROW(surface->assignSurfaceBounds(nullptr),
+                    AssertionFailureException);
+  BOOST_CHECK_EQUAL(surface->boundsPtr(), sharedBounds);
   BOOST_CHECK_EQUAL(surface->openingAngle(), alpha);
   BOOST_CHECK_EQUAL(surface->minZ(), -10.);
   BOOST_CHECK_EQUAL(surface->maxZ(), 20.);

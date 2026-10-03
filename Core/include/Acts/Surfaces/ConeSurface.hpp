@@ -177,7 +177,8 @@ class ConeSurface : public RegularSurface {
   /// @return Shared pointer to the cone bounds
   const std::shared_ptr<const ConeBounds>& boundsPtr() const;
   /// Overwrite the existing surface bounds with new ones
-  /// @param newBounds: Pointer to the new bounds
+  /// @param newBounds Non-null pointer to the new bounds
+  /// @throws AssertionFailureException if newBounds is null
   void assignSurfaceBounds(std::shared_ptr<const ConeBounds> newBounds);
 
   /// Local to global transformation

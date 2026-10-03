@@ -401,6 +401,7 @@ const std::shared_ptr<const ConeBounds>& ConeSurface::boundsPtr() const {
 
 void ConeSurface::assignSurfaceBounds(
     std::shared_ptr<const ConeBounds> newBounds) {
+  throw_assert(newBounds, "ConeBounds must not be nullptr");
   m_bounds = std::move(newBounds);
 }
 

@@ -532,6 +532,7 @@ const std::shared_ptr<const CylinderBounds>& CylinderSurface::boundsPtr()
 
 void CylinderSurface::assignSurfaceBounds(
     std::shared_ptr<const CylinderBounds> newBounds) {
+  throw_assert(newBounds, "CylinderBounds must not be nullptr");
   m_bounds = std::move(newBounds);
 }
 

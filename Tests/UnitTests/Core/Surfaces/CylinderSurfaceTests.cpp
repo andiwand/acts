@@ -60,6 +60,9 @@ BOOST_AUTO_TEST_CASE(CylinderGeometryWithSharedBounds) {
                                                       sharedBounds);
   auto other = Surface::makeShared<CylinderSurface>(*surface);
   BOOST_CHECK_EQUAL(surface->boundsPtr(), other->boundsPtr());
+  BOOST_CHECK_THROW(surface->assignSurfaceBounds(nullptr),
+                    AssertionFailureException);
+  BOOST_CHECK_EQUAL(surface->boundsPtr(), sharedBounds);
   BOOST_CHECK_EQUAL(surface->radius(), 10.);
   BOOST_CHECK_EQUAL(surface->halfLengthZ(), 20.);
   BOOST_CHECK_EQUAL(surface->halfPhiSector(), 0.5);
