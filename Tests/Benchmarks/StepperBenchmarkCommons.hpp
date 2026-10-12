@@ -19,6 +19,8 @@
 #include "ActsTests/CommonHelpers/BenchmarkTools.hpp"
 
 #include <iostream>
+#include <limits>
+#include <utility>
 
 #include <boost/program_options.hpp>
 
@@ -35,8 +37,12 @@ struct BenchmarkStepper {
   double maxPathInM{};
   unsigned int lvl{};
   bool withCov{};
+  double maxStepInMM{};
+  double stepTolerance{};
 
-  std::optional<int> parseOptions(int argc, char* argv[]) {
+  std::optional<int> parseOptions(
+      int argc, char* argv[],
+      const po::options_description* extraOptions = nullptr) {
     try {
       po::options_description desc("Allowed options");
       // clang-format off
@@ -47,8 +53,13 @@ struct BenchmarkStepper {
         ("B",po::value<double>(&BzInT)->default_value(2),"z-component of B-field in T")
         ("path",po::value<double>(&maxPathInM)->default_value(5),"maximum path length in m")
         ("cov",po::value<bool>(&withCov)->default_value(true),"propagation with covariance matrix")
-        ("verbose",po::value<unsigned int>(&lvl)->default_value(Logging::INFO),"logging level");
+        ("verbose",po::value<unsigned int>(&lvl)->default_value(Logging::INFO),"logging level")
+        ("max-step",po::value<double>(&maxStepInMM)->default_value(std::numeric_limits<double>::max()),"maximum step length in mm")
+        ("tolerance",po::value<double>(&stepTolerance)->default_value(1e-4),"integration error tolerance");
       // clang-format on
+      if (extraOptions != nullptr) {
+        desc.add(*extraOptions);
+      }
       po::variables_map vm;
       po::store(po::parse_command_line(argc, argv, desc), vm);
       po::notify(vm);
@@ -72,6 +83,12 @@ struct BenchmarkStepper {
 
   template <typename Stepper>
   void run(Stepper stepper, const std::string& name) const {
+    run(std::move(stepper), name, [](auto&) {});
+  }
+
+  template <typename Stepper, typename Configure>
+  void run(Stepper stepper, const std::string& name,
+           Configure configure) const {
     using Propagator = Propagator<Stepper>;
     using PropagatorOptions = typename Propagator::template Options<>;
     using Covariance = BoundMatrix;
@@ -90,6 +107,9 @@ struct BenchmarkStepper {
 
     PropagatorOptions options(tgContext, mfContext);
     options.pathLimit = maxPathInM * UnitConstants::m;
+    options.stepping.maxStepSize = maxStepInMM * UnitConstants::mm;
+    options.stepping.stepTolerance = stepTolerance;
+    configure(options.stepping);
 
     Vector4 pos4(0, 0, 0, 0);
     Vector3 dir(1, 0, 0);
@@ -112,6 +132,7 @@ struct BenchmarkStepper {
 
     double totalPathLength = 0;
     std::size_t numSteps = 0;
+    std::size_t numAcceptedSteps = 0;
     std::size_t numStepTrials = 0;
     std::size_t numIters = 0;
     const auto propagationBenchResult = microBenchmark(
@@ -131,6 +152,7 @@ struct BenchmarkStepper {
           }
           totalPathLength += r.pathLength;
           numSteps += r.steps;
+          numAcceptedSteps += r.statistics.stepping.nSuccessfulSteps;
           numStepTrials += r.statistics.stepping.nAttemptedSteps;
           ++numIters;
         },
@@ -140,7 +162,9 @@ struct BenchmarkStepper {
     ACTS_INFO("average path length = " << totalPathLength / numIters / 1_mm
                                        << "mm");
     ACTS_INFO("average number of steps = " << 1.0 * numSteps / numIters);
-    ACTS_INFO("step efficiency = " << 1.0 * numSteps / numStepTrials);
+    ACTS_INFO("average accepted integration steps = "
+              << 1.0 * numAcceptedSteps / numIters);
+    ACTS_INFO("step efficiency = " << 1.0 * numAcceptedSteps / numStepTrials);
   }
 };
 

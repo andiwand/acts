@@ -819,22 +819,38 @@ class AtlasStepper {
                       const IVolumeMaterial* material) const {
     static_cast<void>(material);
 
-    // Keep the scalar notation of the original ATLAS kernel.
-    auto h = state.stepSize.value() * propDir;
-    const bool withJacobian = state.cov.has_value();
+    const double h = state.stepSize.value() * propDir;
     if (!std::isfinite(h)) {
       return EigenStepperError::StepInvalid;
     }
     if (h == 0.) {
       return 0.;
     }
-
     if (!state.options.useMagneticField || charge(state) == 0.) {
       return straightLineStep(state, h, propDir);
     }
-    const bool withGradient = withJacobian && state.options.useFieldGradient;
-    const bool helix = !withGradient && std::abs(h) < state.options.helixStep;
+    const bool helix = std::abs(h) < state.options.helixStep;
+    if (state.cov.has_value()) {
+      if (state.options.useFieldGradient) {
+        return stepImpl<true, true, false>(state, h, propDir);
+      }
+      if (helix) {
+        return stepImpl<true, false, true>(state, h, propDir);
+      }
+      return stepImpl<true, false, false>(state, h, propDir);
+    }
+    if (helix) {
+      return stepImpl<false, false, true>(state, h, propDir);
+    }
+    return stepImpl<false, false, false>(state, h, propDir);
+  }
 
+ private:
+  /// Select numerical modes once per step, keeping unused paths out of the
+  /// kernel.
+  template <bool withJacobian, bool withGradient, bool helix>
+  Result<double> stepImpl(State& state, double h, Direction propDir) const {
+    // Keep the scalar notation of the original ATLAS kernel.
     double* R = &(state.pVector[0]);  // Coordinates
     double* A = &(state.pVector[4]);  // Directions
     double* sA = &(state.pVector[56]);
@@ -903,7 +919,7 @@ class AtlasStepper {
       //
       const Vector3 middlePosition(R[0] + A1 * S4, R[1] + B1 * S4,
                                    R[2] + C1 * S4);
-      if (!helix) {
+      if constexpr (!helix) {
         // This is pos1 in EigenStepper
         // This is sd.B_middle in EigenStepper
         auto middleFieldResult = getField(state, middlePosition);
@@ -934,7 +950,7 @@ class AtlasStepper {
       // Last point
       //
       const Vector3 endPosition(R[0] + h * A4, R[1] + h * B4, R[2] + h * C4);
-      if (!helix) {
+      if constexpr (!helix) {
         // This is pos2 in EigenStepper
         // This is sd.B_last in Eigen stepper
         auto endFieldResult = getField(state, endPosition);
@@ -980,7 +996,7 @@ class AtlasStepper {
         continue;
       }
 
-      if (withGradient) {
+      if constexpr (withGradient) {
         const std::array<Vector3, 3> positions = {Vector3(R[0], R[1], R[2]),
                                                   middlePosition, endPosition};
         std::array<SquareMatrix3, 3> gradients;
@@ -1035,7 +1051,7 @@ class AtlasStepper {
       state.newfield = helix;
       state.derivativeReady = true;
 
-      if (withJacobian) {
+      if constexpr (withJacobian) {
         // d(t)/d(q/p) = h m^2 (q/p) / (q^2 dt/ds), with the q^2 folded into p
         // via p = |q| / |q/p|.
         double dtdl = particleHypothesis(state).hasMomentumHypothesis()
@@ -1048,7 +1064,7 @@ class AtlasStepper {
         const double dir3[3] = {A3, B3, C3};
         const double dir4[3] = {A4, B4, C4};
         const double kick6[3] = {A6, B6, C6};
-        if (!withGradient) {
+        if constexpr (!withGradient) {
           detail::atlasTransportJacobian(state.pVector.data(), H0, H1, H2,
                                          startDirection, kick0, dir3, dir4,
                                          kick6, S3);
@@ -1071,7 +1087,6 @@ class AtlasStepper {
     return h;
   }
 
- private:
   /// Read an analytic gradient or use central differences of the field
   /// provider.
   Result<SquareMatrix3> getFieldGradient(State& state,
