@@ -22,6 +22,7 @@
 #include "Acts/Propagator/NavigationTarget.hpp"
 #include "Acts/Propagator/StepperOptions.hpp"
 #include "Acts/Propagator/StepperStatistics.hpp"
+#include "Acts/Propagator/detail/AtlasStepperJacobian.hpp"
 #include "Acts/Propagator/detail/SteppingHelper.hpp"
 #include "Acts/Surfaces/BoundaryTolerance.hpp"
 #include "Acts/Surfaces/CurvilinearSurface.hpp"
@@ -34,6 +35,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -54,8 +56,11 @@ class IVolumeMaterial;
 /// a flat array for parameters and derivatives. It samples the magnetic field
 /// at the start, midpoint and end of a trial step, reuses the last sample for
 /// the next step, and uses a polynomial approximation to normalize the
-/// direction. Covariance transport neglects magnetic-field gradients. Volume
-/// material and the non-linear free-to-bound correction are not supported.
+/// direction. Field-gradient transport and a short-step constant-field (helix)
+/// shortcut are opt-in; neutral particles or a disabled magnetic field use an
+/// exact straight-line step. Volume material and the non-linear free-to-bound
+/// correction are not supported. Neutral particles require a momentum
+/// hypothesis to define their time of flight.
 ///
 /// The ATLAS RungeKuttaPropagator was imported on 2016-09-21 in
 /// ACTS commit 947ff25463c926c6d6506486ece236450822d16a. The source is Athena's
@@ -66,15 +71,13 @@ class IVolumeMaterial;
 /// The import did not record an Athena revision. This is an independently
 /// adapted historical port, not a synchronized copy of current Athena.
 /// ACTS added time propagation and its own error control. In particular, this
-/// implementation omits Athena's:
-/// - rungeKuttaStepWithGradient, including field-gradient Jacobian terms;
-/// - short-step helix shortcut, which holds the field constant within a step;
-/// - dedicated straightLineStep fast path (neutral tracks use the RK kernel);
-/// - vectorized Trk::propJacobian helper, retaining the scalar expressions;
-/// - propagation-to-surface drivers, multi-surface search and ATLAS field
-///   services, whose roles belong to Propagator, navigation and field providers
-///   in ACTS.
-/// See also the [current Jacobian
+/// implementation omits Athena's propagation-to-surface drivers, multi-surface
+/// search and ATLAS field services, whose roles belong to Propagator,
+/// navigation and field providers in ACTS. The numerical gradient, helix and
+/// straight-line paths have been adapted to ACTS options, field access and time
+/// propagation. The angular Jacobian uses the two-lane SIMD arrangement of
+/// Athena's Trk::propJacobian, adapted to ACTS storage with Eigen. See the
+/// [Jacobian
 /// helper](https://gitlab.cern.ch/atlas/athena/-/blob/c5982a1efd76fe5528cc550f4dc0a87371ec1c67/Tracking/TrkExtrapolation/TrkExUtils/TrkExUtils/JacobianHelper.h).
 class AtlasStepper {
  public:
@@ -89,6 +92,12 @@ class AtlasStepper {
   struct Config {
     /// Magnetic field provider
     std::shared_ptr<const MagneticFieldProvider> bField;
+    /// Optional analytic field gradient, G(i,j) = d B_i / d x_j.
+    /// Receives the sample position and the field-provider cache. If absent,
+    /// gradient transport uses central finite differences of the field.
+    std::function<Result<SquareMatrix3>(const Vector3&,
+                                        MagneticFieldProvider::Cache&)>
+        fieldGradient;
   };
 
   /// Stepper options extending plain stepper settings.
@@ -98,6 +107,23 @@ class AtlasStepper {
     /// @param mctx Magnetic field context
     Options(const GeometryContext& gctx, const MagneticFieldContext& mctx)
         : StepperPlainOptions(gctx, mctx) {}
+
+    /// Integrate the Lorentz force. If false, use exact straight-line motion.
+    bool useMagneticField = true;
+
+    /// Include spatial field derivatives in covariance transport. This disables
+    /// the helix shortcut and samples the start field anew on each step.
+    bool useFieldGradient = false;
+
+    /// Displacement for central finite differences if no analytic gradient is
+    /// configured. Must be positive; each gradient needs six extra field calls.
+    double fieldGradientStep = 1. * UnitConstants::mm;
+
+    /// Below this absolute step length, hold the field constant within the
+    /// step. Zero disables the approximation. The RK error estimate does not
+    /// account for neglected field variation; choose this only for suitably
+    /// smooth fields.
+    double helixStep = 0.;
 
     /// Set plain options
     /// @param options Plain stepper options to set
@@ -177,7 +203,8 @@ class AtlasStepper {
 
   /// Construct AtlasStepper with configuration
   /// @param config Configuration containing magnetic field provider and other settings
-  explicit AtlasStepper(const Config& config) : m_bField(config.bField) {}
+  explicit AtlasStepper(const Config& config)
+      : m_bField(config.bField), m_fieldGradient(config.fieldGradient) {}
 
   /// Create stepper state with given options
   /// @param options Stepper options including magnetic field context
@@ -802,15 +829,20 @@ class AtlasStepper {
       return 0.;
     }
 
+    if (!state.options.useMagneticField || charge(state) == 0.) {
+      return straightLineStep(state, h, propDir);
+    }
+    const bool withGradient = withJacobian && state.options.useFieldGradient;
+    const bool helix = !withGradient && std::abs(h) < state.options.helixStep;
+
     double* R = &(state.pVector[0]);  // Coordinates
     double* A = &(state.pVector[4]);  // Directions
     double* sA = &(state.pVector[56]);
-    // A neutral particle must not bend in a magnetic field.
-    const double Pi = charge(state) == 0. ? 0. : 0.5 * qOverP(state);
+    const double Pi = 0.5 * qOverP(state);
     Vector3 f0, f;
 
     // if new field is required get it
-    if (state.newfield) {
+    if (state.newfield || withGradient) {
       const Vector3 pos(R[0], R[1], R[2]);
       // This is sd.B_first in EigenStepper
       auto fRes = getField(state, pos);
@@ -868,14 +900,21 @@ class AtlasStepper {
       double C1 = C2 + A[2];
 
       // Second point
+      //
       const Vector3 middlePosition(R[0] + A1 * S4, R[1] + B1 * S4,
                                    R[2] + C1 * S4);
-      // This is sd.B_middle in EigenStepper
-      auto middleFieldResult = getField(state, middlePosition);
-      if (!middleFieldResult.ok()) {
-        return middleFieldResult.error();
+      if (!helix) {
+        // This is pos1 in EigenStepper
+        // This is sd.B_middle in EigenStepper
+        auto middleFieldResult = getField(state, middlePosition);
+        if (!middleFieldResult.ok()) {
+          return middleFieldResult.error();
+        }
+        f = *middleFieldResult;
+      } else {
+        f = f0;
       }
-      f = *middleFieldResult;
+      const Vector3 middleField = f;
 
       // H1 is (h/(2*momentum) * sd.B_middle) in EigenStepper
       double H1[3] = {f[0] * PS2, f[1] * PS2, f[2] * PS2};
@@ -893,13 +932,19 @@ class AtlasStepper {
       double C5 = 2. * C4 - A[2];
 
       // Last point
+      //
       const Vector3 endPosition(R[0] + h * A4, R[1] + h * B4, R[2] + h * C4);
-      // This is sd.B_last in Eigen stepper
-      auto endFieldResult = getField(state, endPosition);
-      if (!endFieldResult.ok()) {
-        return endFieldResult.error();
+      if (!helix) {
+        // This is pos2 in EigenStepper
+        // This is sd.B_last in Eigen stepper
+        auto endFieldResult = getField(state, endPosition);
+        if (!endFieldResult.ok()) {
+          return endFieldResult.error();
+        }
+        f = *endFieldResult;
+      } else {
+        f = f0;
       }
-      f = *endFieldResult;
 
       // H2 is (h/(2*momentum) * sd.B_last) in EigenStepper
       double H2[3] = {f[0] * PS2, f[1] * PS2, f[2] * PS2};
@@ -935,6 +980,25 @@ class AtlasStepper {
         continue;
       }
 
+      if (withGradient) {
+        const std::array<Vector3, 3> positions = {Vector3(R[0], R[1], R[2]),
+                                                  middlePosition, endPosition};
+        std::array<SquareMatrix3, 3> gradients;
+        for (std::size_t i = 0; i < gradients.size(); ++i) {
+          auto gradient = getFieldGradient(state, positions[i]);
+          if (!gradient.ok()) {
+            return gradient.error();
+          }
+          if (!gradient->allFinite()) {
+            return EigenStepperError::StepInvalid;
+          }
+          gradients[i] = *gradient;
+        }
+        detail::atlasTransportJacobianWithGradient(state.pVector.data(),
+                                                   {f0, middleField, f},
+                                                   gradients, h, qOverP(state));
+      }
+
       // Parameters calculation
       //
       double A00 = A[0], A11 = A[1], A22 = A[2];
@@ -966,7 +1030,9 @@ class AtlasStepper {
       state.pVector[3] += h * dtds;
       state.pVector[59] = dtds;
       state.field = f;
-      state.newfield = false;
+      // Refresh between helix steps; otherwise repeated short steps could keep
+      // using the same frozen field indefinitely.
+      state.newfield = helix;
       state.derivativeReady = true;
 
       if (withJacobian) {
@@ -977,106 +1043,22 @@ class AtlasStepper {
                           : h * mOverP * mOverP / (qOverP(state) * dtds);
         state.pVector[43] += dtdl;
 
-        // Jacobian calculation
-        //
-        double* d2A = &state.pVector[28];
-        double* d3A = &state.pVector[36];
-        double* d4A = &state.pVector[44];
-        double d2A0 = H0[2] * d2A[1] - H0[1] * d2A[2];
-        double d2B0 = H0[0] * d2A[2] - H0[2] * d2A[0];
-        double d2C0 = H0[1] * d2A[0] - H0[0] * d2A[1];
-        double d3A0 = H0[2] * d3A[1] - H0[1] * d3A[2];
-        double d3B0 = H0[0] * d3A[2] - H0[2] * d3A[0];
-        double d3C0 = H0[1] * d3A[0] - H0[0] * d3A[1];
-        double d4A0 = (A0 + H0[2] * d4A[1]) - H0[1] * d4A[2];
-        double d4B0 = (B0 + H0[0] * d4A[2]) - H0[2] * d4A[0];
-        double d4C0 = (C0 + H0[1] * d4A[0]) - H0[0] * d4A[1];
-        double d2A2 = d2A0 + d2A[0];
-        double d2B2 = d2B0 + d2A[1];
-        double d2C2 = d2C0 + d2A[2];
-        double d3A2 = d3A0 + d3A[0];
-        double d3B2 = d3B0 + d3A[1];
-        double d3C2 = d3C0 + d3A[2];
-        double d4A2 = d4A0 + d4A[0];
-        double d4B2 = d4B0 + d4A[1];
-        double d4C2 = d4C0 + d4A[2];
-        double d0 = d4A[0] - A00;
-        double d1 = d4A[1] - A11;
-        double d2 = d4A[2] - A22;
-        double d2A3 = (d2A[0] + d2B2 * H1[2]) - d2C2 * H1[1];
-        double d2B3 = (d2A[1] + d2C2 * H1[0]) - d2A2 * H1[2];
-        double d2C3 = (d2A[2] + d2A2 * H1[1]) - d2B2 * H1[0];
-        double d3A3 = (d3A[0] + d3B2 * H1[2]) - d3C2 * H1[1];
-        double d3B3 = (d3A[1] + d3C2 * H1[0]) - d3A2 * H1[2];
-        double d3C3 = (d3A[2] + d3A2 * H1[1]) - d3B2 * H1[0];
-        double d4A3 = ((A3 + d0) + d4B2 * H1[2]) - d4C2 * H1[1];
-        double d4B3 = ((B3 + d1) + d4C2 * H1[0]) - d4A2 * H1[2];
-        double d4C3 = ((C3 + d2) + d4A2 * H1[1]) - d4B2 * H1[0];
-        double d2A4 = (d2A[0] + d2B3 * H1[2]) - d2C3 * H1[1];
-        double d2B4 = (d2A[1] + d2C3 * H1[0]) - d2A3 * H1[2];
-        double d2C4 = (d2A[2] + d2A3 * H1[1]) - d2B3 * H1[0];
-        double d3A4 = (d3A[0] + d3B3 * H1[2]) - d3C3 * H1[1];
-        double d3B4 = (d3A[1] + d3C3 * H1[0]) - d3A3 * H1[2];
-        double d3C4 = (d3A[2] + d3A3 * H1[1]) - d3B3 * H1[0];
-        double d4A4 = ((A4 + d0) + d4B3 * H1[2]) - d4C3 * H1[1];
-        double d4B4 = ((B4 + d1) + d4C3 * H1[0]) - d4A3 * H1[2];
-        double d4C4 = ((C4 + d2) + d4A3 * H1[1]) - d4B3 * H1[0];
-        double d2A5 = 2. * d2A4 - d2A[0];
-        double d2B5 = 2. * d2B4 - d2A[1];
-        double d2C5 = 2. * d2C4 - d2A[2];
-        double d3A5 = 2. * d3A4 - d3A[0];
-        double d3B5 = 2. * d3B4 - d3A[1];
-        double d3C5 = 2. * d3C4 - d3A[2];
-        double d4A5 = 2. * d4A4 - d4A[0];
-        double d4B5 = 2. * d4B4 - d4A[1];
-        double d4C5 = 2. * d4C4 - d4A[2];
-        double d2A6 = d2B5 * H2[2] - d2C5 * H2[1];
-        double d2B6 = d2C5 * H2[0] - d2A5 * H2[2];
-        double d2C6 = d2A5 * H2[1] - d2B5 * H2[0];
-        double d3A6 = d3B5 * H2[2] - d3C5 * H2[1];
-        double d3B6 = d3C5 * H2[0] - d3A5 * H2[2];
-        double d3C6 = d3A5 * H2[1] - d3B5 * H2[0];
-        double d4A6 = d4B5 * H2[2] - d4C5 * H2[1];
-        double d4B6 = d4C5 * H2[0] - d4A5 * H2[2];
-        double d4C6 = d4A5 * H2[1] - d4B5 * H2[0];
-
-        double* dR = &state.pVector[24];
-        dR[0] += (d2A2 + d2A3 + d2A4) * S3;
-        dR[1] += (d2B2 + d2B3 + d2B4) * S3;
-        dR[2] += (d2C2 + d2C3 + d2C4) * S3;
-        d2A[0] = ((d2A0 + 2. * d2A3) + (d2A5 + d2A6)) * (1. / 3.);
-        d2A[1] = ((d2B0 + 2. * d2B3) + (d2B5 + d2B6)) * (1. / 3.);
-        d2A[2] = ((d2C0 + 2. * d2C3) + (d2C5 + d2C6)) * (1. / 3.);
-
-        dR = &state.pVector[32];
-        dR[0] += (d3A2 + d3A3 + d3A4) * S3;
-        dR[1] += (d3B2 + d3B3 + d3B4) * S3;
-        dR[2] += (d3C2 + d3C3 + d3C4) * S3;
-        d3A[0] = ((d3A0 + 2. * d3A3) + (d3A5 + d3A6)) * (1. / 3.);
-        d3A[1] = ((d3B0 + 2. * d3B3) + (d3B5 + d3B6)) * (1. / 3.);
-        d3A[2] = ((d3C0 + 2. * d3C3) + (d3C5 + d3C6)) * (1. / 3.);
-
-        dR = &state.pVector[40];
-        dR[0] += (d4A2 + d4A3 + d4A4) * S3;
-        dR[1] += (d4B2 + d4B3 + d4B4) * S3;
-        dR[2] += (d4C2 + d4C3 + d4C4) * S3;
-        d4A[0] = ((d4A0 + 2. * d4A3) + (d4A5 + d4A6 + A6)) * (1. / 3.);
-        d4A[1] = ((d4B0 + 2. * d4B3) + (d4B5 + d4B6 + B6)) * (1. / 3.);
-        d4A[2] = ((d4C0 + 2. * d4C3) + (d4C5 + d4C6 + C6)) * (1. / 3.);
+        const double startDirection[3] = {A00, A11, A22};
+        const double kick0[3] = {A0, B0, C0};
+        const double dir3[3] = {A3, B3, C3};
+        const double dir4[3] = {A4, B4, C4};
+        const double kick6[3] = {A6, B6, C6};
+        if (!withGradient) {
+          detail::atlasTransportJacobian(state.pVector.data(), H0, H1, H2,
+                                         startDirection, kick0, dir3, dir4,
+                                         kick6, S3);
+        }
       }
 
       break;
     }
 
-    state.pathAccumulated += h;
-    ++state.nSteps;
-
-    ++state.statistics.nSuccessfulSteps;
-    if (propDir != Direction::fromScalarZeroAsPositive(initialStepSize)) {
-      ++state.statistics.nReverseSteps;
-    }
-    state.statistics.pathLength += h;
-    state.statistics.absolutePathLength += std::abs(h);
+    recordStep(state, h, propDir);
 
     const double stepSizeScaling = calcStepSizeScaling(errorEstimate);
     const double nextAccuracy = std::abs(h * stepSizeScaling);
@@ -1090,6 +1072,77 @@ class AtlasStepper {
   }
 
  private:
+  /// Read an analytic gradient or use central differences of the field
+  /// provider.
+  Result<SquareMatrix3> getFieldGradient(State& state,
+                                         const Vector3& pos) const {
+    if (m_fieldGradient) {
+      return m_fieldGradient(pos, state.fieldCache);
+    }
+    const double delta = state.options.fieldGradientStep;
+    if (!(delta > 0.) || !std::isfinite(delta)) {
+      return Result<SquareMatrix3>::failure(EigenStepperError::StepInvalid);
+    }
+    SquareMatrix3 gradient;
+    for (int axis = 0; axis < 3; ++axis) {
+      Vector3 sample = pos;
+      sample[axis] += delta;
+      auto plus = getField(state, sample);
+      if (!plus.ok()) {
+        return Result<SquareMatrix3>::failure(plus.error());
+      }
+      sample[axis] = pos[axis] - delta;
+      auto minus = getField(state, sample);
+      if (!minus.ok()) {
+        return Result<SquareMatrix3>::failure(minus.error());
+      }
+      gradient.col(axis) = (*plus - *minus) / (2. * delta);
+    }
+    return Result<SquareMatrix3>::success(gradient);
+  }
+
+  /// Exact straight-line motion, also transporting time and all Jacobian
+  /// columns.
+  Result<double> straightLineStep(State& state, double h,
+                                  Direction propDir) const {
+    const double mOverP =
+        particleHypothesis(state).mass() / absoluteMomentum(state);
+    const double dtds = std::hypot(1., mOverP);
+    if (!std::isfinite(dtds)) {
+      return EigenStepperError::StepInvalid;
+    }
+    ++state.statistics.nAttemptedSteps;
+    Eigen::Map<Vector3>(state.pVector.data()) += h * direction(state);
+    state.pVector[3] += h * dtds;
+    std::fill(state.pVector.begin() + 56, state.pVector.begin() + 59, 0.);
+    state.pVector[59] = dtds;
+    if (state.cov.has_value()) {
+      for (std::uint32_t column = 0; column < eBoundSize; ++column) {
+        double* J = state.pVector.data() + eFreeSize * (column + 1);
+        Eigen::Map<Vector3>(J) += h * Eigen::Map<const Vector3>(J + eFreeDir0);
+      }
+      if (!particleHypothesis(state).hasMomentumHypothesis()) {
+        state.pVector[43] += h * mOverP * mOverP / (qOverP(state) * dtds);
+      }
+    }
+    state.newfield = true;
+    state.derivativeReady = true;
+    recordStep(state, h, propDir);
+    return h;
+  }
+
+  /// Account for a successful step in either integration mode.
+  static void recordStep(State& state, double h, Direction propDir) {
+    state.pathAccumulated += h;
+    ++state.nSteps;
+    ++state.statistics.nSuccessfulSteps;
+    if (propDir != Direction::fromScalarZeroAsPositive(h)) {
+      ++state.statistics.nReverseSteps;
+    }
+    state.statistics.pathLength += h;
+    state.statistics.absolutePathLength += std::abs(h);
+  }
+
   /// Initialize the bound-to-free Jacobian at a new covariance anchor.
   void resetJacobian(State& state, const Surface& surface) const {
     std::fill(state.pVector.begin() + eFreeSize, state.pVector.end(), 0.);
@@ -1106,13 +1159,15 @@ class AtlasStepper {
     if (state.derivativeReady) {
       return Result<void>::success();
     }
-    auto field = getField(state, position(state));
-    if (!field.ok()) {
-      return field.error();
+    Vector3 curvature = Vector3::Zero();
+    if (state.options.useMagneticField && charge(state) != 0.) {
+      auto field = getField(state, position(state));
+      if (!field.ok()) {
+        return field.error();
+      }
+      curvature = qOverP(state) * direction(state).cross(*field);
     }
-    const double curvature = charge(state) == 0. ? 0. : qOverP(state);
-    Eigen::Map<Vector3>(state.pVector.data() + 56) =
-        curvature * direction(state).cross(*field);
+    Eigen::Map<Vector3>(state.pVector.data() + 56) = curvature;
     const double mOverP =
         particleHypothesis(state).mass() / absoluteMomentum(state);
     state.pVector[59] = std::hypot(1., mOverP);
@@ -1121,6 +1176,7 @@ class AtlasStepper {
   }
 
   std::shared_ptr<const MagneticFieldProvider> m_bField;
+  decltype(Config::fieldGradient) m_fieldGradient;
 
   /// Overstep limit: could/should be dynamic
   double m_overstepLimit = 100 * UnitConstants::um;

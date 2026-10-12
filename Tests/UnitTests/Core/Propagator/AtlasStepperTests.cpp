@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -578,6 +579,12 @@ BOOST_AUTO_TEST_CASE(StepSizeSurface) {
 // Record lookups in a non-uniform field so stale cached values are observable.
 class RecordingField final : public MagneticFieldProvider {
  public:
+  // A non-symmetric, divergence-free linear field exercises every derivative.
+  SquareMatrix3 gradient = [] {
+    SquareMatrix3 g;
+    g << 0.003, 0.001, 0.002, 0.01, -0.002, 0.004, 0.005, 0.006, -0.001;
+    return SquareMatrix3(g * (1_T / 1_mm));
+  }();
   mutable std::vector<Vector3> lookups;
   mutable std::size_t failAt = std::numeric_limits<std::size_t>::max();
 
@@ -591,8 +598,7 @@ class RecordingField final : public MagneticFieldProvider {
     if (lookups.size() == failAt) {
       return Result<Vector3>::failure(MagneticFieldError::OutOfBounds);
     }
-    return Result<Vector3>::success(
-        Vector3(0., 0., 1_T + position.x() * (0.01_T / 1_mm)));
+    return Result<Vector3>::success(Vector3(0., 0., 1_T) + gradient * position);
   }
 };
 
@@ -765,6 +771,183 @@ BOOST_AUTO_TEST_CASE(StepAdjustmentLimitsAndZeroStep) {
   BOOST_CHECK_EQUAL(state.statistics.nSuccessfulSteps, 0u);
   BOOST_CHECK_EQUAL_COLLECTIONS(state.pVector.begin(), state.pVector.end(),
                                 parameters.begin(), parameters.end());
+}
+
+BOOST_AUTO_TEST_CASE(StraightLineModeSkipsFieldQueries) {
+  auto field = std::make_shared<RecordingField>();
+  field->failAt = 1;
+  Stepper stepper(field);
+  Stepper::Options options(geoCtx, magCtx);
+  options.maxStepSize = stepSize;
+  options.useMagneticField = false;
+  auto state = stepper.makeState(options);
+  const auto initial = BoundTrackParameters::createCurvilinear(
+      pos4, unitDir, charge / absMom, cov, particleHypothesis);
+  stepper.initialize(state, initial);
+  BOOST_REQUIRE(stepper.prepareCurvilinearState(state));
+  const auto result = stepper.step(state, Direction::Backward(), nullptr);
+  BOOST_REQUIRE(result.ok());
+  CHECK_CLOSE_ABS(stepper.position(state), Vector3(pos - stepSize * unitDir),
+                  eps);
+  CHECK_CLOSE_ABS(stepper.direction(state), unitDir, eps);
+  BOOST_CHECK(field->lookups.empty());
+  BOOST_CHECK_EQUAL(state.statistics.nAttemptedSteps, 1u);
+  BOOST_CHECK_EQUAL(state.statistics.nSuccessfulSteps, 1u);
+  BOOST_CHECK_EQUAL(state.statistics.nReverseSteps, 0u);
+  BOOST_CHECK_EQUAL(state.statistics.pathLength, -stepSize);
+  const auto jac = stepper.transportToCurvilinear(state);
+  CHECK_CLOSE_ABS(jac(eBoundPhi, eBoundQOverP), 0., eps);
+  CHECK_CLOSE_ABS(jac(eBoundTheta, eBoundQOverP), 0., eps);
+  CHECK_CLOSE_ABS(jac(eBoundLoc0, eBoundPhi),
+                  -stepSize * unitDir.head<2>().norm(), eps);
+}
+
+BOOST_AUTO_TEST_CASE(HelixShortcutMatchesConstantFieldAndRefreshes) {
+  Stepper stepper(magneticField);
+  Stepper::Options options(geoCtx, magCtx);
+  options.maxStepSize = stepSize;
+  auto normal = stepper.makeState(options);
+  options.helixStep = 1_m;
+  auto helix = stepper.makeState(options);
+  const auto initial = BoundTrackParameters::createCurvilinear(
+      pos4, unitDir, charge / absMom, cov, particleHypothesis);
+  stepper.initialize(normal, initial);
+  stepper.initialize(helix, initial);
+  for (int i = 0; i < 5; ++i) {
+    BOOST_REQUIRE(stepper.step(normal, Direction::Forward(), nullptr).ok());
+    BOOST_REQUIRE(stepper.step(helix, Direction::Forward(), nullptr).ok());
+  }
+  for (std::size_t i = 0; i < normal.pVector.size(); ++i) {
+    CHECK_CLOSE_ABS(normal.pVector[i], helix.pVector[i], eps);
+  }
+
+  // Even consecutive short steps must sample at their own starting position.
+  auto field = std::make_shared<RecordingField>();
+  Stepper varying(field);
+  auto state = varying.makeState(options);
+  varying.initialize(state, initial);
+  BOOST_REQUIRE(varying.step(state, Direction::Forward(), nullptr).ok());
+  BOOST_REQUIRE_EQUAL(field->lookups.size(), 1u);
+  const Vector3 nextStart = varying.position(state);
+  BOOST_REQUIRE(varying.step(state, Direction::Forward(), nullptr).ok());
+  BOOST_REQUIRE_EQUAL(field->lookups.size(), 2u);
+  CHECK_CLOSE_ABS(field->lookups.back(), nextStart, eps);
+}
+
+BOOST_AUTO_TEST_CASE(ZeroFieldGradientMatchesFastJacobian) {
+  Stepper::Config config{magneticField, {}};
+  config.fieldGradient = [](const Vector3&, MagneticFieldProvider::Cache&) {
+    return Result<SquareMatrix3>::success(SquareMatrix3::Zero());
+  };
+  Stepper stepper(config);
+  Stepper::Options options(geoCtx, magCtx);
+  options.maxStepSize = stepSize;
+  auto fast = stepper.makeState(options);
+  options.useFieldGradient = true;
+  auto gradient = stepper.makeState(options);
+  const auto initial = BoundTrackParameters::createCurvilinear(
+      pos4, unitDir, charge / absMom, cov, particleHypothesis);
+  stepper.initialize(fast, initial);
+  stepper.initialize(gradient, initial);
+  for (int i = 0; i < 5; ++i) {
+    BOOST_REQUIRE(stepper.step(fast, Direction::Forward(), nullptr).ok());
+    BOOST_REQUIRE(stepper.step(gradient, Direction::Forward(), nullptr).ok());
+  }
+  for (std::size_t i = 0; i < fast.pVector.size(); ++i) {
+    CHECK_CLOSE_ABS(fast.pVector[i], gradient.pVector[i], 1e-11);
+  }
+}
+
+BOOST_AUTO_TEST_CASE(FieldGradientJacobianMatchesFiniteDifferences) {
+  auto field = std::make_shared<RecordingField>();
+  Stepper::Config config{field, {}};
+  std::size_t gradientCalls = 0;
+  config.fieldGradient = [&](const Vector3&, MagneticFieldProvider::Cache&) {
+    ++gradientCalls;
+    return Result<SquareMatrix3>::success(field->gradient);
+  };
+  Stepper analytic(config);
+  Stepper finiteDifference(field);
+  Stepper::Options options(geoCtx, magCtx);
+  options.maxStepSize = 5_mm;
+  options.useFieldGradient = true;
+  // Gradient transport takes precedence over the constant-field shortcut.
+  options.helixStep = 1_m;
+  const auto initial = BoundTrackParameters::createCurvilinear(
+      pos4, unitDir, charge / absMom, cov, particleHypothesis);
+  const auto& surface = initial.referenceSurface();
+  auto propagate = [&](const Stepper& stepper, const BoundVector& parameters) {
+    auto state = stepper.makeState(options);
+    stepper.initialize(state, parameters, cov, particleHypothesis, surface);
+    for (int i = 0; i < 5; ++i) {
+      const auto result = stepper.step(state, Direction::Forward(), nullptr);
+      BOOST_REQUIRE(result.ok());
+      BOOST_REQUIRE_EQUAL(*result, options.maxStepSize);
+    }
+    return state;
+  };
+  auto state = propagate(analytic, initial.parameters());
+  BOOST_CHECK_EQUAL(gradientCalls, 15u);
+  auto numericalGradient = propagate(finiteDifference, initial.parameters());
+  for (std::size_t i = 0; i < state.pVector.size(); ++i) {
+    CHECK_CLOSE_ABS(state.pVector[i], numericalGradient.pVector[i], 1e-10);
+  }
+  BoundToFreeMatrix jac =
+      Eigen::Map<BoundToFreeMatrix>(state.pVector.data() + eFreeSize);
+  jac.block<3, 1>(eFreePos0, eBoundQOverP) /= analytic.qOverP(state);
+  jac.block<3, 1>(eFreeDir0, eBoundQOverP) /= analytic.qOverP(state);
+  BoundToFreeMatrix numericalJac;
+  for (std::uint32_t column = 0; column < eBoundSize; ++column) {
+    const double delta = column < 2 ? 1e-3 : 1e-5;
+    BoundVector plus = initial.parameters();
+    BoundVector minus = initial.parameters();
+    plus[column] += delta;
+    minus[column] -= delta;
+    auto plusState = propagate(analytic, plus);
+    auto minusState = propagate(analytic, minus);
+    numericalJac.col(column) =
+        (Eigen::Map<const FreeVector>(plusState.pVector.data()) -
+         Eigen::Map<const FreeVector>(minusState.pVector.data())) /
+        (2. * delta);
+  }
+  CHECK_CLOSE_ABS(jac, numericalJac, 1e-7);
+  // Check that the test resolves the terms omitted by the fast path.
+  options.useFieldGradient = false;
+  options.helixStep = 0.;
+  auto withoutGradient = propagate(analytic, initial.parameters());
+  const BoundToFreeMatrix fastJac =
+      Eigen::Map<BoundToFreeMatrix>(withoutGradient.pVector.data() + eFreeSize);
+  BOOST_CHECK_GT((fastJac.leftCols<2>() - numericalJac.leftCols<2>()).norm(),
+                 1e-5);
+}
+
+BOOST_AUTO_TEST_CASE(GradientFailureLeavesParametersUnchanged) {
+  auto field = std::make_shared<RecordingField>();
+  Stepper::Config config{field, {}};
+  config.fieldGradient = [](const Vector3&, MagneticFieldProvider::Cache&) {
+    return Result<SquareMatrix3>::failure(MagneticFieldError::OutOfBounds);
+  };
+  Stepper stepper(config);
+  Stepper::Options options(geoCtx, magCtx);
+  options.maxStepSize = stepSize;
+  options.useFieldGradient = true;
+  auto state = stepper.makeState(options);
+  const auto initial = BoundTrackParameters::createCurvilinear(
+      pos4, unitDir, charge / absMom, cov, particleHypothesis);
+  stepper.initialize(state, initial);
+  const auto parameters = state.pVector;
+  const auto result = stepper.step(state, Direction::Forward(), nullptr);
+  BOOST_REQUIRE(!result.ok());
+  BOOST_CHECK(result.error() == MagneticFieldError::OutOfBounds);
+  BOOST_CHECK_EQUAL_COLLECTIONS(state.pVector.begin(), state.pVector.end(),
+                                parameters.begin(), parameters.end());
+  BOOST_CHECK_EQUAL(state.statistics.nSuccessfulSteps, 0u);
+
+  Stepper fallback(field);
+  state.options.fieldGradientStep = 0.;
+  const auto invalid = fallback.step(state, Direction::Forward(), nullptr);
+  BOOST_REQUIRE(!invalid.ok());
+  BOOST_CHECK(invalid.error() == EigenStepperError::StepInvalid);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
