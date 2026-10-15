@@ -164,6 +164,15 @@ void to_json(nlohmann::json& j, const MaterialEntry& entry);
 /// @param entry Destination MaterialEntry to populate
 void from_json(const nlohmann::json& j, MaterialEntry& entry);
 
+/// Convert StripSensor to JSON
+/// @param j Destination JSON object
+/// @param sensor Source StripSensor to convert
+void to_json(nlohmann::json& j, const StripSensor& sensor);
+/// Convert JSON to StripSensor
+/// @param j Source JSON object
+/// @param sensor Destination StripSensor to populate
+void from_json(const nlohmann::json& j, StripSensor& sensor);
+
 /// Read a detector description from file.
 /// @param path the file to read
 /// @return the description

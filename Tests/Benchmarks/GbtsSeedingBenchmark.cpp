@@ -142,6 +142,27 @@ void checkEncodingFits(const DetectorLayout& layout) {
   }
 }
 
+/// The subsystems of a layout that hold no strip layer, comma separated as
+/// `--subsystems` takes them.
+/// @param layout the layout to look through
+/// @return the names of its pixel subsystems
+std::string pixelSubsystems(const DetectorLayout& layout) {
+  std::vector<bool> hasStrips(layout.subsystems.size(), false);
+  for (const DetectorLayer& layer : layout.layers) {
+    if (layer.sensor.has_value()) {
+      hasStrips.at(layer.subsystem) = true;
+    }
+  }
+  std::string names;
+  for (std::size_t i = 0; i < layout.subsystems.size(); ++i) {
+    if (hasStrips[i]) {
+      continue;
+    }
+    names += (names.empty() ? "" : ",") + layout.subsystems[i];
+  }
+  return names;
+}
+
 std::vector<Exp::GbtsLayerDescription> makeLayerDescriptions(
     const DetectorLayout& layout) {
   std::vector<Exp::GbtsLayerDescription> descriptions;
@@ -298,6 +319,13 @@ int main(int argc, char* argv[]) {
   EventConfig eventConfig;
   try {
     layout = SyntheticEventOptions::makeLayout(shared);
+    // The layer encoding below numbers the layers of one subsystem only, so a
+    // detector with strips is cut down to its pixel subsystems unless the
+    // caller picked the subsystems explicitly.
+    if (shared.subsystems.empty()) {
+      shared.subsystems = pixelSubsystems(layout);
+      layout = SyntheticEventOptions::makeLayout(shared);
+    }
     eventConfig = SyntheticEventOptions::makeConfig(shared);
     checkEncodingFits(layout);
   } catch (const std::exception& e) {
@@ -353,7 +381,8 @@ int main(int argc, char* argv[]) {
   const Exp::GraphBasedTrackSeeder::Options options{.bFieldInZ =
                                                         eventConfig.bFieldZ};
 
-  const EventSummary summary = summarize(event, truthPt * 1_MeV / 1_GeV);
+  const EventSummary summary =
+      summarize(event, truthPt * 1_MeV / 1_GeV, SpacePointSelection::Pixel);
   std::cout << "layers=" << layout.layers.size()
             << " etaBins=" << geometry->numBins()
             << " binGroups=" << geometry->binGroups().size() << "\n"

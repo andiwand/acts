@@ -267,11 +267,16 @@ void from_json(const nlohmann::json& j, LayerKind& kind) {
 void to_json(nlohmann::json& j, const RingBounds& ring) {
   j = nlohmann::json{{"rMin", encodeNumber(ring.rMin)},
                      {"rMax", encodeNumber(ring.rMax)}};
+  // stated only where a ring is a different module from the rest of its disc
+  if (!ring.sensor.empty()) {
+    j["sensor"] = ring.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, RingBounds& ring) {
   ring.rMin = decodeNumber(j.at("rMin"));
   ring.rMax = decodeNumber(j.at("rMax"));
+  readOptional(j, "sensor", ring.sensor);
 }
 
 void to_json(nlohmann::json& j, const SurfaceMaterial& material) {
@@ -376,6 +381,10 @@ void to_json(nlohmann::json& j, const CylinderDescription& cylinder) {
   if (!cylinder.material.bands.empty()) {
     j["material"] = cylinder.material;
   }
+  // a layer that says nothing is a pixel layer
+  if (!cylinder.sensor.empty()) {
+    j["sensor"] = cylinder.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, CylinderDescription& cylinder) {
@@ -386,6 +395,7 @@ void from_json(const nlohmann::json& j, CylinderDescription& cylinder) {
   readOptionalNumber(j, "overlapOffset", cylinder.overlapOffset);
   readOptional(j, "layer", cylinder.layer);
   readOptional(j, "material", cylinder.material);
+  readOptional(j, "sensor", cylinder.sensor);
 }
 
 void to_json(nlohmann::json& j, const DiscDescription& disc) {
@@ -400,6 +410,9 @@ void to_json(nlohmann::json& j, const DiscDescription& disc) {
   if (!disc.material.bands.empty()) {
     j["material"] = disc.material;
   }
+  if (!disc.sensor.empty()) {
+    j["sensor"] = disc.sensor;
+  }
 }
 
 void from_json(const nlohmann::json& j, DiscDescription& disc) {
@@ -409,6 +422,7 @@ void from_json(const nlohmann::json& j, DiscDescription& disc) {
   readOptionalNumber(j, "overlapOffset", disc.overlapOffset);
   readOptional(j, "layer", disc.layer);
   readOptional(j, "material", disc.material);
+  readOptional(j, "sensor", disc.sensor);
 }
 
 void to_json(nlohmann::json& j, const PassiveSurfaceDescription& passive) {
@@ -482,12 +496,17 @@ void to_json(nlohmann::json& j, const DetectorDescription& description) {
   if (!description.passives.empty()) {
     j["passives"] = description.passives;
   }
+  // a detector of nothing but pixels says nothing about sensors
+  if (!description.sensors.empty()) {
+    j["sensors"] = description.sensors;
+  }
 }
 
 void from_json(const nlohmann::json& j, DetectorDescription& description) {
   readOptionalNumber(j, "escapeRadius", description.escapeRadius);
   readOptionalNumber(j, "escapeHalfZ", description.escapeHalfZ);
   readOptional(j, "passives", description.passives);
+  readOptional(j, "sensors", description.sensors);
   description.subsystems =
       j.at("subsystems").get<std::vector<SubsystemDescription>>();
 }
@@ -521,6 +540,20 @@ void to_json(nlohmann::json& j, const MaterialEntry& entry) {
 void from_json(const nlohmann::json& j, MaterialEntry& entry) {
   entry.layer = j.get<LayerId>();
   entry.material = j.get<SurfaceMaterial>();
+}
+
+void to_json(nlohmann::json& j, const StripSensor& sensor) {
+  j = nlohmann::json{{"stereoAngle", encodeNumber(sensor.stereoAngle)},
+                     {"pitch", encodeNumber(sensor.pitch)},
+                     {"moduleGap", encodeNumber(sensor.moduleGap)},
+                     {"halfLength", encodeNumber(sensor.halfLength)}};
+}
+
+void from_json(const nlohmann::json& j, StripSensor& sensor) {
+  sensor.stereoAngle = decodeNumber(j.at("stereoAngle"));
+  sensor.pitch = decodeNumber(j.at("pitch"));
+  sensor.moduleGap = decodeNumber(j.at("moduleGap"));
+  sensor.halfLength = decodeNumber(j.at("halfLength"));
 }
 
 }  // namespace ActsFatras::Synthetic

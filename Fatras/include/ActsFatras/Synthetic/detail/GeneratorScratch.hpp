@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "Acts/EventData/StripSpacePointCalibrationDetails.hpp"
 #include "ActsFatras/Synthetic/SyntheticEvent.hpp"
 #include "ActsFatras/Synthetic/detail/Helix.hpp"
 #include "ActsFatras/Synthetic/detail/Propagation.hpp"
@@ -28,6 +29,20 @@ struct SmearedHit {
   std::uint32_t layer{};
   /// Index into the particles the tracks are propagated alongside
   std::uint32_t particle{};
+};
+
+/// One space point of a strip layer: where the stereo pair of the module
+/// appears to cross, and the pair itself.
+///
+/// The two are kept apart because the position is what a seeder reads and the
+/// pair is what a *calibration* reads to move it: with the true direction the
+/// pair gives the crossing back, and the difference between the two is the
+/// projection error the strip is worth. See `StripSensor`.
+struct StripHit {
+  /// Where the pair appears to cross, resolved from the beam spot
+  SmearedHit hit;
+  /// The two strips it was resolved from
+  Acts::OuterStripSpacePointCalibrationDetails strips;
 };
 
 /// A secondary too soft to leave the surface it was made on: not propagated,
@@ -72,8 +87,11 @@ struct GeneratorScratch {
   /// the particles it is propagated alongside, and whatever appends to one
   /// appends to the other.
   std::vector<Helix> tracks;
-  /// Hits collected so far this event
+  /// Pixel hits collected so far this event
   std::vector<SmearedHit> hits;
+  /// Strip hits collected so far this event, kept apart because only they carry
+  /// a stereo pair and so only they go into a container with the column for it
+  std::vector<StripHit> stripHits;
   /// Crossings of the track currently being propagated
   std::vector<SurfaceCrossing> crossings;
   /// Secondaries too soft to be propagated, resolved into space points once the

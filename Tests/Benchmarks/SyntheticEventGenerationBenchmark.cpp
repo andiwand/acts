@@ -160,6 +160,7 @@ int main(int argc, char* argv[]) {
     generator.generate(event);
     const EventSummary summary = summarize(event, truthPt * 1_MeV / 1_GeV);
     total.spacePoints += summary.spacePoints;
+    total.stripSpacePoints += summary.stripSpacePoints;
     total.primaries += summary.primaries;
     total.secondaries += summary.secondaries;
     total.seedablePrimaries += summary.seedablePrimaries;
@@ -169,6 +170,7 @@ int main(int argc, char* argv[]) {
 
   const auto perEvent = [&](std::size_t value) { return value / numRuns; };
   std::cout << "mean/event: spacePoints=" << perEvent(total.spacePoints)
+            << " strip=" << perEvent(total.stripSpacePoints)
             << " primaries=" << perEvent(total.primaries)
             << " secondaries=" << perEvent(total.secondaries)
             << " primaryHits=" << perEvent(total.primaryHits)
