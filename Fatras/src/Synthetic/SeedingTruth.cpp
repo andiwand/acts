@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace ActsFatras {
@@ -49,7 +50,14 @@ Synthetic::EventSummary Synthetic::summarize(
       ++summary.secondaries;
       summary.secondaryHits += hits[index];
     }
+    if (particle.displaced) {
+      ++summary.displaced;
+      if (particle.pt >= ptThreshold && hits[index] >= 3) {
+        ++summary.seedableDisplaced;
+      }
+    }
   }
+  summary.particleHits = std::move(hits);
   return summary;
 }
 
@@ -87,15 +95,28 @@ Synthetic::SeedingSummary Synthetic::evaluateSeeds(
     if (best < minTrueSpacePoints) {
       continue;
     }
-    if (const GeneratedParticle& info = event.particles[particle];
-        !info.primary() || info.pt < ptThreshold) {
+    const GeneratedParticle& info = event.particles[particle];
+    if (info.pt < ptThreshold || !(info.primary() || info.displaced)) {
       continue;
     }
-    ++summary.trueSeeds;
+    if (info.primary()) {
+      ++summary.trueSeeds;
+    } else {
+      ++summary.trueDisplacedSeeds;
+    }
     matched[particle] = true;
   }
-  summary.matchedPrimaries =
-      static_cast<std::size_t>(std::ranges::count(matched, true));
+  for (std::size_t index = 0; index < matched.size(); ++index) {
+    if (!matched[index]) {
+      continue;
+    }
+    if (event.particles[index].primary()) {
+      ++summary.matchedPrimaries;
+    } else {
+      ++summary.matchedDisplaced;
+    }
+  }
+  summary.matched = std::move(matched);
   return summary;
 }
 

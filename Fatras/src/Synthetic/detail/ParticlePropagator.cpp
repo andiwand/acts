@@ -304,6 +304,11 @@ void produceDecays(std::mt19937& rng, const SecondaryConfig& cfg,
   // the primaries are the leading entries of both vectors
   const std::size_t base = particles.size() - numPrimaries;
   for (std::size_t t = 0; t < numPrimaries; ++t) {
+    // only a primary comes with these; a daughter of a displaced vertex is
+    // queued alongside the primaries but made no parent of its own
+    if (!particles[base + t].primary()) {
+      continue;
+    }
     // the vectors grow while daughters are queued, so work on copies
     const Helix primary = tracks[t];
     const TrackDirection direction = trackDirection(primary.cotTheta);

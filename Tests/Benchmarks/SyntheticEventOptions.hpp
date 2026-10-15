@@ -50,6 +50,12 @@ struct Values {
   std::uint32_t discRingSplit = 1;
   /// Random seed
   std::uint32_t seed = ActsFatras::Synthetic::EventConfig{}.seed;
+  /// Displaced vertices per event; zero keeps whatever the configuration file
+  /// says, which for the shipped ones is none
+  std::size_t displacedVertices = 0;
+  /// Range of their transverse decay radius, applied with the count
+  float displacedMinRadius = ActsFatras::Synthetic::DisplacedConfig{}.minRadius;
+  float displacedMaxRadius = ActsFatras::Synthetic::DisplacedConfig{}.maxRadius;
 };
 
 /// Add the shared options to a description.
@@ -82,7 +88,20 @@ inline void add(boost::program_options::options_description& description,
       "sub-rings each ring the layout declares is split into")(
       "seed",
       po::value<std::uint32_t>(&values.seed)->default_value(values.seed),
-      "random seed of the generated event");
+      "random seed of the generated event")(
+      "displaced-vertices",
+      po::value<std::size_t>(&values.displacedVertices)
+          ->default_value(values.displacedVertices),
+      "displaced vertices per event on top of the minimum-bias event, the "
+      "signal of large radius tracking; zero keeps the configuration's")(
+      "displaced-min-radius",
+      po::value<float>(&values.displacedMinRadius)
+          ->default_value(values.displacedMinRadius),
+      "smallest transverse decay radius of a displaced vertex in mm")(
+      "displaced-max-radius",
+      po::value<float>(&values.displacedMaxRadius)
+          ->default_value(values.displacedMaxRadius),
+      "largest transverse decay radius of a displaced vertex in mm");
 }
 
 /// One of a detector's files. A detector is three of them that share a prefix,
@@ -156,6 +175,11 @@ inline ActsFatras::Synthetic::EventConfig makeConfig(const Values& values) {
   SecondaryConfig& secondaries = config.simulation.secondaries;
   secondaries.electronRate *= values.secondaryScale;
   secondaries.nuclearRate *= values.secondaryScale;
+  if (values.displacedVertices > 0) {
+    config.displaced.vertices = values.displacedVertices;
+    config.displaced.minRadius = values.displacedMinRadius;
+    config.displaced.maxRadius = values.displacedMaxRadius;
+  }
   return config;
 }
 

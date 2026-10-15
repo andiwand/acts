@@ -23,6 +23,12 @@
 /// detectors in separate passes, so there is no combined one to copy: what a
 /// combined number means here is the two runs added up.
 ///
+/// `--lrt` runs the large radius tracking pass instead, which ATLAS seeds on
+/// the strips with `ActsLargeRadiusStripSeedingToolCfg`. Its signal is the
+/// daughters of displaced vertices, which `--displaced-vertices` adds to the
+/// event; their efficiency is reported binned in |d0| and in the radius they
+/// were produced at.
+///
 /// The same loop runs on either space point grid, so that they can be compared
 /// on equal terms:
 ///
@@ -71,6 +77,8 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <memory>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -331,6 +339,69 @@ std::pair<float, float> radiusRangeForMiddle(
   return axis.rRanges.at(std::min(bin, axis.rRanges.size() - 1));
 }
 
+/// The azimuth cut ATLAS puts on a doublet in its large radius pass, through
+/// the experiment cuts of the doublet finders (`doubletDPhiCut` of
+/// `ActsTrk::GridTripletSeedingTool`). Between two radii, the azimuth of the
+/// space points of a track with impact parameter d0 differs by up to
+/// |asin(d0 / r_inner) - asin(d0 / r_outer)| on top of the turn its curvature
+/// gives it, so a pair further apart than that cannot be one track. The grid
+/// widens its phi bins for the whole radial span only; this bounds each pair.
+///
+/// The per space point terms only depend on the space point, so they are
+/// computed once per event, inside the timed region as ATLAS does, and looked
+/// up through `copiedFromIndex`.
+class DoubletDPhiCut {
+ public:
+  /// @param cfg the seeding configuration
+  explicit DoubletDPhiCut(const ItkSeedingConfig& cfg)
+      : m_const(cfg.doubletDPhiConst),
+        m_slope(cfg.doubletDPhiSlope),
+        m_cap(cfg.doubletDPhiCap),
+        m_d0(cfg.doubletDPhiD0Max < 0.f ? cfg.impactMax
+                                        : cfg.doubletDPhiD0Max) {}
+
+  /// Compute the per space point terms of an event.
+  /// @param spacePoints the space points the grid is filled from
+  void prepare(const Acts::SpacePointContainer& spacePoints) {
+    m_phi.resize(spacePoints.size());
+    m_asinD0OverR.resize(spacePoints.size());
+    for (const auto sp : spacePoints) {
+      m_phi[sp.index()] = sp.phi();
+      m_asinD0OverR[sp.index()] =
+          std::asin(std::min(1.f, m_d0 / std::max(sp.r(), 1.f)));
+    }
+  }
+
+  /// The doublet finder's experiment cut.
+  /// @param middle the middle space point
+  /// @param other the candidate bottom or top space point
+  /// @return whether the pair is kept
+  bool operator()(const Acts::ConstSpacePointProxy& middle,
+                  const Acts::ConstSpacePointProxy& other, float /*cotTheta*/,
+                  bool /*isBottomCandidate*/) const {
+    // the packed container the seeder runs on carries the packed columns only
+    const float rMiddle = middle.zr()[1];
+    const float rOther = other.zr()[1];
+    const Acts::SpacePointIndex iMiddle = middle.copiedFromIndex();
+    const Acts::SpacePointIndex iOther = other.copiedFromIndex();
+    const float dPhi = std::remainder(m_phi[iOther] - m_phi[iMiddle],
+                                      2.f * std::numbers::pi_v<float>);
+    const float swing =
+        std::abs(m_asinD0OverR[iOther] - m_asinD0OverR[iMiddle]);
+    const float bound =
+        m_const + m_slope * std::abs(rOther - rMiddle) + std::min(m_cap, swing);
+    return std::abs(dPhi) <= bound;
+  }
+
+ private:
+  float m_const{};
+  float m_slope{};
+  float m_cap{};
+  float m_d0{};
+  std::vector<float> m_phi;
+  std::vector<float> m_asinD0OverR;
+};
+
 /// Everything that is reused between benchmark iterations, so that the timed
 /// region allocates as little as the experiment's own does.
 struct SeedingCache {
@@ -341,6 +412,9 @@ struct SeedingCache {
   Acts::TripletSeeder seeder;
   Acts::TripletSeeder::Cache seederCache;
   std::unique_ptr<const Acts::Logger> logger;
+  /// The doublet azimuth cut, when the configuration asks for it. Held here
+  /// because the doublet finders refer to it.
+  std::unique_ptr<DoubletDPhiCut> doubletDPhiCut;
 };
 
 /// Run one full seeding pass over an event, the way the ATLAS tool does.
@@ -359,6 +433,10 @@ void createSeeds(const ItkSeedingConfig& cfg,
                  Acts::SeedContainer& seeds) {
   constexpr bool spherical =
       std::is_same_v<GridType, Exp::SphericalSpacePointGrid>;
+
+  if (cache.doubletDPhiCut != nullptr) {
+    cache.doubletDPhiCut->prepare(spacePoints);
+  }
 
   GridType grid(gridConfig, cache.logger->clone());
 
@@ -589,6 +667,8 @@ int main(int argc, char* argv[]) {
   bool forceDeltaZMax = false;
   bool forceRBins = false;
   bool stripInfo = true;
+  bool lrt = false;
+  bool minPtGiven = false;
   bool verbose = false;
 
   SphericalGridConfig sph;
@@ -604,6 +684,9 @@ int main(int argc, char* argv[]) {
         po::value<std::string>(&selectionName)->default_value(selectionName),
         "which of the event's space points to seed on, and with them which "
         "configuration to run: pixel or strip")(
+        "lrt", po::bool_switch(&lrt),
+        "run the ATLAS large radius tracking pass, which seeds on the strips "
+        "with its own configuration; implies --space-points strip")(
         "strip-info", po::value<bool>(&stripInfo)->default_value(stripInfo),
         "strips: fit the triplet against the strips of its three space points, "
         "each of them free to move along its own, rather than through their "
@@ -660,6 +743,8 @@ int main(int argc, char* argv[]) {
     // the radial extent of the spherical grid otherwise follows the detector
     // the selected configuration is written for
     forceRBins = vm.count("r-bins") > 0;
+    // the LRT configuration brings its own threshold
+    minPtGiven = !vm["min-pt"].defaulted();
   } catch (const std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
@@ -674,6 +759,9 @@ int main(int argc, char* argv[]) {
   if (selectionName != "pixel" && selectionName != "strip") {
     std::cerr << "error: --space-points takes pixel or strip" << std::endl;
     return 1;
+  }
+  if (lrt) {
+    selectionName = "strip";
   }
   const bool strips = selectionName == "strip";
   const SpacePointSelection selection =
@@ -728,12 +816,16 @@ int main(int argc, char* argv[]) {
     spacePoints.push_back(selectSpacePoints(event, selection));
   }
 
-  ItkSeedingConfig cfg = strips ? makeItkStripConfig() : ItkSeedingConfig{};
+  ItkSeedingConfig cfg = lrt      ? makeItkLrtStripConfig()
+                         : strips ? makeItkStripConfig()
+                                  : ItkSeedingConfig{};
   cfg.useStripInfo = cfg.useStripInfo && stripInfo;
   cfg.bFieldInZ = eventConfig.bFieldZ;
   // reaches the phi binning of the grid, both doublet finders and the triplet
   // finder, so it has to be set before any of them is built
-  cfg.minPt = minPt * 1_MeV;
+  if (!lrt || minPtGiven) {
+    cfg.minPt = minPt * 1_MeV;
+  }
   if (spherical || forceDeltaZMax) {
     cfg.deltaZMax = sph.deltaZMax;
   }
@@ -743,8 +835,11 @@ int main(int argc, char* argv[]) {
       "GridTriplet",
       verbose ? Acts::Logging::Level::DEBUG : Acts::Logging::Level::FATAL);
   cache.filterConfig = makeFilterConfig(cfg);
-  const Acts::DoubletSeedFinder::Config bottomConfig =
-      makeBottomDoubletConfig(cfg);
+  Acts::DoubletSeedFinder::Config bottomConfig = makeBottomDoubletConfig(cfg);
+  if (cfg.doubletDPhiCut) {
+    cache.doubletDPhiCut = std::make_unique<DoubletDPhiCut>(cfg);
+    bottomConfig.experimentCuts.connect(*cache.doubletDPhiCut);
+  }
   Acts::DoubletSeedFinder::Config topConfig = bottomConfig;
   topConfig.candidateDirection = Acts::Direction::Forward();
   topConfig.deltaRMin = cfg.deltaRMinTopSP;
@@ -807,6 +902,22 @@ int main(int argc, char* argv[]) {
   // timed region so that the truth lookup does not show up in the measurement.
   EventSummary summary;
   SeedingSummary seedSummary;
+  // the displaced daughters, binned in |d0| and in production radius
+  const std::vector<float> d0Edges{0.f, 2.f, 10.f, 30.f, 100.f, 300.f, 1000.f};
+  const std::vector<float> radiusEdges{0.f,   50.f,  100.f, 200.f,
+                                       300.f, 400.f, 600.f};
+  std::vector<std::size_t> d0Seedable(d0Edges.size() - 1, 0);
+  std::vector<std::size_t> d0Matched(d0Edges.size() - 1, 0);
+  std::vector<std::size_t> radiusSeedable(radiusEdges.size() - 1, 0);
+  std::vector<std::size_t> radiusMatched(radiusEdges.size() - 1, 0);
+  const auto fill = [](const std::vector<float>& edges,
+                       std::vector<std::size_t>& counts, float value) {
+    const auto edge = std::ranges::upper_bound(edges, value);
+    if (edge == edges.begin() || edge == edges.end()) {
+      return;
+    }
+    ++counts[std::distance(edges.begin(), edge) - 1];
+  };
   for (std::size_t index = 0; index < events.size(); ++index) {
     const Event& event = events[index];
     // Scored on the selected collection alone: the other one is generated but
@@ -828,6 +939,24 @@ int main(int argc, char* argv[]) {
     seedSummary.seeds += oneSeeding.seeds;
     seedSummary.trueSeeds += oneSeeding.trueSeeds;
     seedSummary.matchedPrimaries += oneSeeding.matchedPrimaries;
+    summary.displaced += one.displaced;
+    summary.seedableDisplaced += one.seedableDisplaced;
+    seedSummary.trueDisplacedSeeds += oneSeeding.trueDisplacedSeeds;
+    seedSummary.matchedDisplaced += oneSeeding.matchedDisplaced;
+
+    for (std::size_t p = 0; p < event.particles.size(); ++p) {
+      const GeneratedParticle& particle = event.particles[p];
+      if (!particle.displaced || particle.pt < truthPt * 1_MeV / 1_GeV ||
+          one.particleHits[p] < 3) {
+        continue;
+      }
+      fill(d0Edges, d0Seedable, std::abs(particle.d0));
+      fill(radiusEdges, radiusSeedable, particle.productionRadius);
+      if (oneSeeding.matched[p]) {
+        fill(d0Edges, d0Matched, std::abs(particle.d0));
+        fill(radiusEdges, radiusMatched, particle.productionRadius);
+      }
+    }
   }
 
   const auto perEvent = [&](std::size_t value) { return value / numEvents; };
@@ -860,6 +989,34 @@ int main(int argc, char* argv[]) {
                        std::max<std::size_t>(1, summary.seedablePrimaries))
             << "\n"
             << result << std::endl;
+
+  if (summary.displaced > 0) {
+    std::cout << "displaced: daughters=" << summary.displaced
+              << " seedable=" << summary.seedableDisplaced
+              << " matched=" << seedSummary.matchedDisplaced
+              << " trueSeeds=" << seedSummary.trueDisplacedSeeds
+              << " efficiency="
+              << static_cast<float>(seedSummary.matchedDisplaced) /
+                     static_cast<float>(
+                         std::max<std::size_t>(1, summary.seedableDisplaced))
+              << std::endl;
+    const auto print = [](const std::string& name,
+                          const std::vector<float>& edges,
+                          const std::vector<std::size_t>& seedable,
+                          const std::vector<std::size_t>& matched) {
+      for (std::size_t bin = 0; bin < seedable.size(); ++bin) {
+        std::cout << "  " << name << " [" << edges[bin] << ", "
+                  << edges[bin + 1] << ") mm: " << matched[bin] << "/"
+                  << seedable[bin] << " = "
+                  << static_cast<float>(matched[bin]) /
+                         static_cast<float>(
+                             std::max<std::size_t>(1, seedable[bin]))
+                  << std::endl;
+      }
+    };
+    print("|d0|", d0Edges, d0Seedable, d0Matched);
+    print("production radius", radiusEdges, radiusSeedable, radiusMatched);
+  }
 
   return 0;
 }

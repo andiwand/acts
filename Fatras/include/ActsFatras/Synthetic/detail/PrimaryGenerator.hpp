@@ -30,11 +30,20 @@ class PrimaryGenerator {
   explicit PrimaryGenerator(const EventConfig& config);
 
   /// Append the primaries of one event to `tracks`, and what each of them is
-  /// recorded as to `particles` at the same index.
+  /// recorded as to `particles` at the same index. The daughters of the
+  /// displaced vertices of `EventConfig::displaced` follow them.
   void generate(std::mt19937& rng, std::vector<Helix>& tracks,
                 std::vector<GeneratedParticle>& particles) const;
 
  private:
+  /// Append the daughters of the displaced vertices of
+  /// `EventConfig::displaced`.
+  /// @param rng the random number generator
+  /// @param tracks receives the daughters
+  /// @param particles receives what each daughter is recorded as
+  void generateDisplaced(std::mt19937& rng, std::vector<Helix>& tracks,
+                         std::vector<GeneratedParticle>& particles) const;
+
   EventConfig m_cfg;
   /// Mass of `EventConfig::particlePdg`, the whole of the difference between a
   /// rapidity and a pseudorapidity

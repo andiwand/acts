@@ -17,6 +17,7 @@
 #include "Acts/Definitions/Units.hpp"
 #include "Acts/Seeding/BroadTripletSeedFilter.hpp"
 #include "Acts/Seeding/DoubletSeedFinder.hpp"
+#include "Acts/Seeding/SeedConfirmationRangeConfig.hpp"
 #include "Acts/Seeding/TripletSeedFinder.hpp"
 
 #include <cstddef>
@@ -120,6 +121,40 @@ struct ItkSeedingConfig {
   float absDeltaEtaMinImpact = 2_mm;
   /// Drop seeds that are the best one for none of their three space points
   bool seedQualitySelection = true;
+  /// Seed confirmation in the central region
+  Acts::SeedConfirmationRangeConfig centralSeedConfirmationRange{
+      .zMinSeedConf = -250_mm,
+      .zMaxSeedConf = 250_mm,
+      .rMaxSeedConf = 140_mm,
+      .nTopForLargeR = 1,
+      .nTopForSmallR = 2,
+      .seedConfMinBottomRadius = 60_mm,
+      .seedConfMaxZOrigin = 150_mm,
+      .minImpactSeedConf = 1_mm};
+  /// Seed confirmation in the forward region, identical but without the z
+  /// restriction
+  Acts::SeedConfirmationRangeConfig forwardSeedConfirmationRange{
+      .zMinSeedConf = -3000_mm,
+      .zMaxSeedConf = 3000_mm,
+      .rMaxSeedConf = 140_mm,
+      .nTopForLargeR = 1,
+      .nTopForSmallR = 2,
+      .seedConfMinBottomRadius = 60_mm,
+      .seedConfMaxZOrigin = 150_mm,
+      .minImpactSeedConf = 1_mm};
+
+  // -- doublet azimuth cut, which ATLAS adds through the experiment cuts of
+  //    the doublet finders; see `DoubletDPhiCut` in the grid benchmark
+  bool doubletDPhiCut = false;
+  /// Azimuth difference allowed whatever the radii
+  float doubletDPhiConst = 0.015f;
+  /// Azimuth difference allowed per unit of radial separation, for curvature
+  float doubletDPhiSlope = 2e-4f / 1_mm;
+  /// Cap on the impact parameter term
+  float doubletDPhiCap = 0.10f;
+  /// Impact parameter the swing term is computed for; negative takes
+  /// `impactMax`
+  float doubletDPhiD0Max = -1.f;
 };
 
 /// The ATLAS ITk strip seeding configuration, i.e. the same tool after
@@ -177,6 +212,84 @@ inline ItkSeedingConfig makeItkStripConfig() {
   return cfg;
 }
 
+/// The ATLAS ITk large radius tracking (LRT) configuration: the same tool after
+/// `ActsLargeRadiusStripSeedingToolCfg`, which applies its LRT cuts on top of
+/// `ActsStripSeedingToolCfg`, at the values of the LRT pass flags it reads
+/// (1000 MeV, 300 mm, 500 mm). LRT seeds on the strips alone, so this is a
+/// strip configuration opened up for tracks that do not come from the beam
+/// spot.
+///
+/// The ATLAS pass runs second and on the space points the primary pass left
+/// unused; nothing here removes any, so it sees every one of them.
+/// @return the configuration
+inline ItkSeedingConfig makeItkLrtStripConfig() {
+  ItkSeedingConfig cfg = makeItkStripConfig();
+
+  cfg.minPt = 1000_MeV;
+  cfg.impactMax = 300_mm;
+  cfg.collisionRegionMin = -500_mm;
+  cfg.collisionRegionMax = 500_mm;
+  // cut on the impact parameter of a doublet, at the opened-up `impactMax`
+  cfg.interactionPointCut = true;
+  // what is left of the strip acceptance once a track no longer has to
+  // point back at the beam spot
+  cfg.cotThetaMax = 5.f;
+
+  // only sizes the phi bins of the grid, which the impact parameter widens
+  cfg.deltaRMax = 400_mm;
+  cfg.zBinEdges = {-3000., -2500., -1400., -910., -500., -250.,
+                   250.,   500.,   910.,   1400., 2500., 3000.};
+  cfg.zBinsCustomLooping = {2, 10, 3, 9, 6, 4, 8, 5, 7};
+  cfg.zBinNeighborsTop = {{0, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {-1, 1},
+                          {0, 1}, {0, 1},  {0, 1},  {0, 1},  {0, 0}};
+  cfg.zBinNeighborsBottom = {{0, 0},  {0, 1},  {0, 1},  {0, 1},  {0, 1}, {0, 0},
+                             {-1, 0}, {-1, 0}, {-1, 0}, {-1, 0}, {0, 0}};
+
+  cfg.deltaRMinTopSP = 50_mm;
+  cfg.deltaRMaxTopSP = 250_mm;
+  cfg.deltaRMinBottomSP = 50_mm;
+  cfg.deltaRMaxBottomSP = 250_mm;
+  cfg.deltaZMax = 850_mm;
+
+  cfg.cotThetaDiffMax = 0.3f;
+
+  // a table again, rather than the extent of the event
+  cfg.useVariableMiddleSPRange = false;
+  cfg.deltaRMiddleMaxSPRange = 75_mm;
+  cfg.rRangeMiddleSP = {{0, 0},     {400, 850}, {500, 800}, {500, 800},
+                        {500, 800}, {500, 800}, {500, 800}, {500, 800},
+                        {500, 800}, {400, 850}, {0, 0}};
+
+  cfg.doubletDPhiCut = true;
+  cfg.doubletDPhiCap = 0.10f;
+
+  cfg.maxSeedsPerSpM = 1;
+  cfg.absDeltaEtaWeightFactor = 10.f;
+  cfg.absDeltaEtaMinImpact = 2_mm;
+  cfg.zOriginWeightFactor = 1.f;
+  cfg.seedConfirmation = true;
+  cfg.maxSeedsPerSpMConf = 1;
+  cfg.maxQualitySeedsPerSpMConf = 1;
+  cfg.centralSeedConfirmationRange = {.zMinSeedConf = -1400_mm,
+                                      .zMaxSeedConf = 1400_mm,
+                                      .rMaxSeedConf = 140_mm,
+                                      .nTopForLargeR = 1,
+                                      .nTopForSmallR = 0,
+                                      .seedConfMinBottomRadius = 0_mm,
+                                      .seedConfMaxZOrigin = 1500_mm,
+                                      .minImpactSeedConf = 200_mm};
+  cfg.forwardSeedConfirmationRange = {.zMinSeedConf = -3000_mm,
+                                      .zMaxSeedConf = 3000_mm,
+                                      .rMaxSeedConf = 140_mm,
+                                      .nTopForLargeR = 1,
+                                      .nTopForSmallR = 0,
+                                      .seedConfMinBottomRadius = 350_mm,
+                                      .seedConfMaxZOrigin = 1500_mm,
+                                      .minImpactSeedConf = 200_mm};
+
+  return cfg;
+}
+
 inline Acts::DoubletSeedFinder::Config makeBottomDoubletConfig(
     const ItkSeedingConfig& cfg) {
   Acts::DoubletSeedFinder::Config doubletCfg;
@@ -230,20 +343,8 @@ inline Acts::BroadTripletSeedFilter::Config makeFilterConfig(
   filterCfg.absDeltaEtaWeightFactor = cfg.absDeltaEtaWeightFactor;
   filterCfg.absDeltaEtaMinImpact = cfg.absDeltaEtaMinImpact;
 
-  // central seed confirmation
-  filterCfg.centralSeedConfirmationRange.zMinSeedConf = -250_mm;
-  filterCfg.centralSeedConfirmationRange.zMaxSeedConf = 250_mm;
-  filterCfg.centralSeedConfirmationRange.rMaxSeedConf = 140_mm;
-  filterCfg.centralSeedConfirmationRange.nTopForLargeR = 1;
-  filterCfg.centralSeedConfirmationRange.nTopForSmallR = 2;
-  filterCfg.centralSeedConfirmationRange.seedConfMinBottomRadius = 60_mm;
-  filterCfg.centralSeedConfirmationRange.seedConfMaxZOrigin = 150_mm;
-  filterCfg.centralSeedConfirmationRange.minImpactSeedConf = 1_mm;
-  // forward seed confirmation, identical but without the z restriction
-  filterCfg.forwardSeedConfirmationRange =
-      filterCfg.centralSeedConfirmationRange;
-  filterCfg.forwardSeedConfirmationRange.zMinSeedConf = -3000_mm;
-  filterCfg.forwardSeedConfirmationRange.zMaxSeedConf = 3000_mm;
+  filterCfg.centralSeedConfirmationRange = cfg.centralSeedConfirmationRange;
+  filterCfg.forwardSeedConfirmationRange = cfg.forwardSeedConfirmationRange;
 
   return filterCfg;
 }

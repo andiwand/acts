@@ -44,6 +44,9 @@ BOOST_AUTO_TEST_CASE(EventConfigRoundTrip) {
   original.particlePdg = Acts::PdgParticle::eMuon;
   original.bFieldZ = 1.997f;
   original.seed = 4242;
+  original.displaced.vertices = 12;
+  original.displaced.maxRadius = 350.f;
+  original.displaced.maxOpeningAngle = 0.8f;
 
   const nlohmann::json written = original;
   const EventConfig read = written.get<EventConfig>();
@@ -60,6 +63,16 @@ BOOST_AUTO_TEST_CASE(EventConfigRoundTrip) {
   BOOST_CHECK_EQUAL(read.simulation.secondaries.sampling.kt, 0.271f);
   BOOST_CHECK(read.particlePdg == Acts::PdgParticle::eMuon);
   BOOST_CHECK_EQUAL(read.seed, 4242u);
+  BOOST_CHECK_EQUAL(read.displaced.vertices, 12u);
+  BOOST_CHECK_EQUAL(read.displaced.maxRadius, 350.f);
+  BOOST_CHECK_EQUAL(read.displaced.maxOpeningAngle, 0.8f);
+
+  // a configuration without displaced vertices does not write the block, and
+  // reads back without them
+  EventConfig nominal;
+  const nlohmann::json nominalJson = nominal;
+  BOOST_CHECK(!nominalJson.contains("displaced"));
+  BOOST_CHECK_EQUAL(nominalJson.get<EventConfig>().displaced.vertices, 0u);
 }
 
 /// Through a file, header and all.
