@@ -211,6 +211,28 @@ void from_json(const nlohmann::json& j, SimulationConfig& config) {
   config.secondaries = j.at("secondaries").get<SecondaryConfig>();
 }
 
+void to_json(nlohmann::json& j, const DisplacedConfig& config) {
+  j = nlohmann::json{{"vertices", config.vertices},
+                     {"tracksPerVertex", config.tracksPerVertex},
+                     {"minRadius", number(config.minRadius)},
+                     {"maxRadius", number(config.maxRadius)},
+                     {"maxAbsEta", number(config.maxAbsEta)},
+                     {"minPt", number(config.minPt)},
+                     {"maxPt", number(config.maxPt)},
+                     {"maxOpeningAngle", number(config.maxOpeningAngle)}};
+}
+
+void from_json(const nlohmann::json& j, DisplacedConfig& config) {
+  config.vertices = j.at("vertices").get<std::size_t>();
+  config.tracksPerVertex = j.at("tracksPerVertex").get<std::size_t>();
+  config.minRadius = j.at("minRadius").get<float>();
+  config.maxRadius = j.at("maxRadius").get<float>();
+  config.maxAbsEta = j.at("maxAbsEta").get<float>();
+  config.minPt = j.at("minPt").get<float>();
+  config.maxPt = j.at("maxPt").get<float>();
+  config.maxOpeningAngle = j.at("maxOpeningAngle").get<float>();
+}
+
 void to_json(nlohmann::json& j, const EventConfig& config) {
   j = nlohmann::json{
       {"generation", config.generation},
@@ -218,6 +240,11 @@ void to_json(nlohmann::json& j, const EventConfig& config) {
       {"particlePdg", static_cast<std::int32_t>(config.particlePdg)},
       {"bFieldZ", number(config.bFieldZ)},
       {"seed", config.seed}};
+  // Written only when there is something to write, so that a minimum-bias
+  // configuration reads the same as before the block existed
+  if (config.displaced.vertices > 0) {
+    j["displaced"] = config.displaced;
+  }
 }
 
 void from_json(const nlohmann::json& j, EventConfig& config) {
@@ -227,6 +254,11 @@ void from_json(const nlohmann::json& j, EventConfig& config) {
       static_cast<Acts::PdgParticle>(j.at("particlePdg").get<std::int32_t>());
   config.bFieldZ = j.at("bFieldZ").get<float>();
   config.seed = j.at("seed").get<std::uint32_t>();
+  // the one optional block: a configuration without it has no displaced
+  // vertices, but one that has it needs every field of it
+  config.displaced = j.contains("displaced")
+                         ? j.at("displaced").get<DisplacedConfig>()
+                         : DisplacedConfig{};
 }
 
 }  // namespace ActsFatras::Synthetic

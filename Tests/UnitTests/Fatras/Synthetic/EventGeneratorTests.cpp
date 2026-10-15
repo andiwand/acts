@@ -276,6 +276,66 @@ BOOST_AUTO_TEST_CASE(SameSeedSameEvent) {
   }
 }
 
+/// A daughter of a displaced vertex is recorded as such, starts where its
+/// vertex is, and leaves no space point inside it.
+BOOST_AUTO_TEST_CASE(DisplacedDaughtersStartAtTheirVertex) {
+  const DetectorLayout layout = makeTestLayout();
+  EventConfig config = makeTestConfig();
+  config.displaced.vertices = 50;
+  config.displaced.tracksPerVertex = 2;
+  config.displaced.minRadius = 50_mm;
+  config.displaced.maxRadius = 150_mm;
+  config.displaced.maxAbsEta = 1.f;
+
+  const Event event = generateEvent(layout, config);
+  std::size_t numDisplaced = 0;
+  float chargeSum = 0.f;
+  for (const GeneratedParticle& particle : event.particles) {
+    if (!particle.displaced) {
+      continue;
+    }
+    ++numDisplaced;
+    chargeSum += particle.charge;
+    BOOST_CHECK(!particle.primary());
+    BOOST_CHECK_GE(particle.productionRadius, 50_mm);
+    BOOST_CHECK_LE(particle.productionRadius, 150_mm);
+  }
+  BOOST_CHECK_EQUAL(numDisplaced, 100u);
+  // a vertex is neutral
+  BOOST_CHECK_EQUAL(chargeSum, 0.f);
+
+  std::size_t numDisplacedHits = 0;
+  auto particles = event.spacePoints.column<std::uint32_t>("particleId");
+  for (const auto sp : event.spacePoints) {
+    const GeneratedParticle& particle = event.particles[sp.extra(particles)];
+    if (!particle.displaced) {
+      continue;
+    }
+    ++numDisplacedHits;
+    BOOST_CHECK_GE(sp.r(), particle.productionRadius - 1e-3f);
+  }
+  BOOST_CHECK_GT(numDisplacedHits, 0u);
+}
+
+/// The displaced vertices are drawn after the primaries, so adding them leaves
+/// the primaries of the same seed where they were.
+BOOST_AUTO_TEST_CASE(DisplacedVerticesLeaveThePrimariesAlone) {
+  const DetectorLayout layout = makeTestLayout();
+  const EventConfig nominal = makeTestConfig();
+  EventConfig withDisplaced = nominal;
+  withDisplaced.displaced.vertices = 20;
+
+  const std::vector<Hit> first = generateHits(layout, nominal);
+  const std::vector<Hit> second = generateHits(layout, withDisplaced);
+  BOOST_REQUIRE(!first.empty());
+  BOOST_REQUIRE_GT(second.size(), first.size());
+  for (std::size_t h = 0; h < first.size(); ++h) {
+    BOOST_CHECK_EQUAL(first[h].x, second[h].x);
+    BOOST_CHECK_EQUAL(first[h].y, second[h].y);
+    BOOST_CHECK_EQUAL(first[h].z, second[h].z);
+  }
+}
+
 /// A particle the core library has no mass for cannot be generated, and one
 /// told to lose everything it has cannot be propagated.
 BOOST_AUTO_TEST_CASE(RejectsAConfigItCannotHonour) {

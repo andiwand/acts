@@ -252,6 +252,38 @@ struct SimulationConfig {
   SecondaryConfig secondaries;
 };
 
+/// Displaced vertices added on top of the minimum-bias event, which is what
+/// large radius tracking is there to find. Each one is a neutral long-lived
+/// particle that flies straight out of the beam spot and decays to charged
+/// tracks at a transverse radius drawn flat between `minRadius` and
+/// `maxRadius`.
+///
+/// This is a coverage model, not a physics one: the decay radius is flat, the
+/// momenta are flat in log(pT), and the daughters spread around the parent
+/// direction by a flat angle. What it is built for is to populate the d0 and
+/// production radius range a large radius pass is configured for, evenly
+/// enough to bin an efficiency in either of them.
+struct DisplacedConfig {
+  /// Displaced vertices per event; zero leaves the event as it was
+  std::size_t vertices = 0;
+  /// Charged daughters per vertex, half of them of either charge
+  std::size_t tracksPerVertex = 2;
+  /// Range of the transverse decay radius
+  float minRadius = 5 * Acts::UnitConstants::mm;
+  float maxRadius = 400 * Acts::UnitConstants::mm;
+  /// Range of the pseudorapidity of the parent
+  float maxAbsEta = 2.5f;
+  /// Range of the transverse momentum of a daughter, drawn flat in its log
+  float minPt = 1 * Acts::UnitConstants::GeV;
+  float maxPt = 20 * Acts::UnitConstants::GeV;
+  /// Largest angle a daughter is turned away from its parent, both in azimuth
+  /// and in pseudorapidity. A daughter turned by `dPhi` at a decay radius `r`
+  /// has |d0| of about `r * sin(dPhi)`, so this sets how far out in d0 the
+  /// vertices reach. Daughters that would point back towards the beam line are
+  /// drawn again.
+  float maxOpeningAngle = 1.f;
+};
+
 /// Steering for the synthetic event: what is made, what the detector does to
 /// it, and the few settings both halves share. The defaults belong to no
 /// detector in particular; a configuration should be fitted against the one it
@@ -261,6 +293,8 @@ struct EventConfig {
   GenerationConfig generation;
   /// What that detector then does to them
   SimulationConfig simulation;
+  /// Displaced vertices on top of the particles of `generation`
+  DisplacedConfig displaced;
 
   /// The species every track is taken to be. Both halves need it: a rapidity is
   /// an angle only given a mass, and so is an energy loss.

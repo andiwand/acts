@@ -46,6 +46,9 @@ struct GeneratedParticle {
   /// out of it, one for what such a particle made, and so on. See
   /// `SecondaryConfig::maxGenerations`.
   std::uint8_t generation{};
+  /// Whether it is a daughter of one of the displaced vertices of
+  /// `DisplacedConfig`, i.e. the signal of large radius tracking
+  bool displaced{};
 
   /// Whether the particle comes from the luminous region rather than from a
   /// material interaction or a decay.

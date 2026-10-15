@@ -101,6 +101,14 @@ void to_json(nlohmann::json& j, const SimulationConfig& config);
 /// @param config Destination SimulationConfig to populate
 void from_json(const nlohmann::json& j, SimulationConfig& config);
 
+/// Convert DisplacedConfig to JSON
+/// @param j Destination JSON object
+/// @param config Source DisplacedConfig to convert
+void to_json(nlohmann::json& j, const DisplacedConfig& config);
+/// Convert JSON to DisplacedConfig
+/// @param j Source JSON object
+/// @param config Destination DisplacedConfig to populate
+void from_json(const nlohmann::json& j, DisplacedConfig& config);
 /// Convert EventConfig to JSON
 /// @param j Destination JSON object
 /// @param config Source EventConfig to convert

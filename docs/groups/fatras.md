@@ -135,6 +135,14 @@ the layers it has already crossed, bounded by
 of the enclosing tracker. Neutral long-lived particles decaying near the beam
 line are the only secondaries produced away from a surface.
 
+On top of that, @ref ActsFatras::Synthetic::DisplacedConfig adds displaced
+vertices, the signal of large radius tracking: neutral parents out of the beam
+spot that decay to charged daughters at a transverse radius drawn flat in a
+range. It is a coverage model rather than a physics one, made to fill the `d0`
+and production radius range a large radius pass is configured for. The
+daughters are flagged as `displaced`, and the seeding truth counts them on their
+own.
+
 ### Configuration
 
 The detector enters the beam spot, the resolution and both yields, so a
