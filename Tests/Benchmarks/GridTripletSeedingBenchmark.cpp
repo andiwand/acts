@@ -62,6 +62,7 @@
 #include "Acts/Seeding/SphericalSpacePointGrid.hpp"
 #include "Acts/Seeding/TripletSeedFinder.hpp"
 #include "Acts/Seeding/TripletSeeder.hpp"
+#include "Acts/SpacePointFormation/detail/StripSpacePointCalibrationImpl.hpp"
 #include "Acts/Utilities/GridBinFinder.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/RangeXD.hpp"
@@ -350,11 +351,21 @@ std::pair<float, float> radiusRangeForMiddle(
 /// The per space point terms only depend on the space point, so they are
 /// computed once per event, inside the timed region as ATLAS does, and looked
 /// up through `copiedFromIndex`.
+///
+/// Exploratory: it can also calibrate both strip space points of a pair against
+/// the chord between them and reject the pair if either crossing lands outside
+/// its strips by more than `calibrationTolerance` half lengths. That is the
+/// strip check of the triplet stage, moved forward to the doublets with the
+/// chord standing in for the helix tangent.
 class DoubletDPhiCut {
  public:
   /// @param cfg the seeding configuration
-  explicit DoubletDPhiCut(const ItkSeedingConfig& cfg)
-      : m_const(cfg.doubletDPhiConst),
+  /// @param calibrationTolerance the chord calibration cut, zero for none
+  explicit DoubletDPhiCut(const ItkSeedingConfig& cfg,
+                          float calibrationTolerance = 0.f)
+      : m_dPhi(cfg.doubletDPhiCut),
+        m_calibrationTolerance(calibrationTolerance),
+        m_const(cfg.doubletDPhiConst),
         m_slope(cfg.doubletDPhiSlope),
         m_cap(cfg.doubletDPhiCap),
         m_d0(cfg.doubletDPhiD0Max < 0.f ? cfg.impactMax
@@ -377,8 +388,45 @@ class DoubletDPhiCut {
   /// @param other the candidate bottom or top space point
   /// @return whether the pair is kept
   bool operator()(const Acts::ConstSpacePointProxy& middle,
-                  const Acts::ConstSpacePointProxy& other, float /*cotTheta*/,
-                  bool /*isBottomCandidate*/) const {
+                  const Acts::ConstSpacePointProxy& other, float cotTheta,
+                  bool isBottomCandidate) const {
+    if (m_dPhi && !passesDPhi(middle, other)) {
+      return false;
+    }
+    if (m_calibrationTolerance > 0.f &&
+        !passesCalibration(middle, other, cotTheta, isBottomCandidate)) {
+      return false;
+    }
+    return true;
+  }
+
+ private:
+  bool passesCalibration(const Acts::ConstSpacePointProxy& middle,
+                         const Acts::ConstSpacePointProxy& other,
+                         float /*cotTheta*/, bool /*isBottomCandidate*/) const {
+    const auto& xyM = middle.xy();
+    const auto& zrM = middle.zr();
+    const auto& xyO = other.xy();
+    const auto& zrO = other.zr();
+    // the calibration is linear in the direction, so neither its length nor
+    // its sign matters
+    const std::array<float, 3> chord{xyO[0] - xyM[0], xyO[1] - xyM[1],
+                                     zrO[0] - zrM[0]};
+    std::array<float, 3> calibrated{};
+    for (const Acts::ConstSpacePointProxy* sp : {&middle, &other}) {
+      const Acts::OuterStripSpacePointCalibrationDetailsDerived derived =
+          Acts::detail::deriveOuterStripSpacePointCalibrationDetails(
+              sp->outerStripCalibrationDetails());
+      if (!Acts::detail::calibrateOuterStripSpacePoint(
+              chord, derived, calibrated, m_calibrationTolerance)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool passesDPhi(const Acts::ConstSpacePointProxy& middle,
+                  const Acts::ConstSpacePointProxy& other) const {
     // the packed container the seeder runs on carries the packed columns only
     const float rMiddle = middle.zr()[1];
     const float rOther = other.zr()[1];
@@ -393,7 +441,8 @@ class DoubletDPhiCut {
     return std::abs(dPhi) <= bound;
   }
 
- private:
+  bool m_dPhi{};
+  float m_calibrationTolerance{};
   float m_const{};
   float m_slope{};
   float m_cap{};
@@ -415,6 +464,21 @@ struct SeedingCache {
   /// The doublet azimuth cut, when the configuration asks for it. Held here
   /// because the doublet finders refer to it.
   std::unique_ptr<DoubletDPhiCut> doubletDPhiCut;
+  /// Exploratory: move every strip space point to where it crossed its outer
+  /// strip for a track out of the origin, before the grid is filled and so
+  /// before any doublet cut. "off", "origin", or "origin-drop", which drops a
+  /// space point the origin direction does not cross within the tolerance
+  /// instead of leaving it where it was.
+  std::string precalibrate = "off";
+  /// How far outside its strips the origin direction may cross, in half
+  /// lengths
+  float precalibrationTolerance = 3.f;
+  /// The positions the grid and the doublet finders see, per space point
+  std::vector<std::array<float, 3>> positions;
+  std::vector<bool> keep;
+  /// Statistics of the last pass
+  std::size_t precalibrated = 0;
+  std::size_t precalibrationFailed = 0;
 };
 
 /// Run one full seeding pass over an event, the way the ATLAS tool does.
@@ -438,14 +502,51 @@ void createSeeds(const ItkSeedingConfig& cfg,
     cache.doubletDPhiCut->prepare(spacePoints);
   }
 
+  // where each space point is taken to be from here on
+  cache.positions.resize(spacePoints.size());
+  cache.keep.assign(spacePoints.size(), true);
+  cache.precalibrated = 0;
+  cache.precalibrationFailed = 0;
+  const bool precalibrate =
+      cache.precalibrate != "off" && cfg.useStripInfo &&
+      spacePoints.hasColumns(Acts::SpacePointColumns::StripCalibrationDetails);
+  for (const auto sp : spacePoints) {
+    std::array<float, 3>& position = cache.positions[sp.index()];
+    position = {sp.x(), sp.y(), sp.z()};
+    if (!precalibrate) {
+      continue;
+    }
+    const Acts::OuterStripSpacePointCalibrationDetailsDerived derived =
+        Acts::detail::deriveOuterStripSpacePointCalibrationDetails(
+            sp.outerStripCalibrationDetails());
+    std::array<float, 3> calibrated{};
+    // the beam spot sits at the origin of the synthetic event
+    if (Acts::detail::calibrateOuterStripSpacePoint(
+            position, derived, calibrated, cache.precalibrationTolerance)) {
+      position = calibrated;
+      ++cache.precalibrated;
+    } else {
+      ++cache.precalibrationFailed;
+      cache.keep[sp.index()] = cache.precalibrate != "origin-drop";
+    }
+  }
+  const auto radius = [&](std::size_t i) {
+    return std::hypot(cache.positions[i][0], cache.positions[i][1]);
+  };
+
   GridType grid(gridConfig, cache.logger->clone());
 
   for (std::size_t i = 0; i < spacePoints.size(); ++i) {
-    const auto& sp = spacePoints[i];
+    if (!cache.keep[i]) {
+      continue;
+    }
+    const std::array<float, 3>& p = cache.positions[i];
+    const float r = radius(i);
+    const float phi = std::atan2(p[1], p[0]);
     if constexpr (spherical) {
-      grid.insert(i, sp.phi(), sp.z() / sp.r(), sp.r());
+      grid.insert(i, phi, p[2] / r, r);
     } else {
-      grid.insert(i, sp.phi(), sp.z(), sp.r());
+      grid.insert(i, phi, p[2], r);
     }
   }
   // Not `grid.sortBinsByR`: that reads the packed ZR column, and the generated
@@ -454,7 +555,7 @@ void createSeeds(const ItkSeedingConfig& cfg,
   for (std::size_t i = 0; i < grid.numberOfBins(); ++i) {
     std::ranges::sort(grid.at(i),
                       [&](Acts::SpacePointIndex a, Acts::SpacePointIndex b) {
-                        return spacePoints[a].r() < spacePoints[b].r();
+                        return radius(a) < radius(b);
                       });
   }
 
@@ -474,8 +575,9 @@ void createSeeds(const ItkSeedingConfig& cfg,
       const auto& sp = spacePoints[spIndex];
       auto newSp = gridSpacePoints.createSpacePoint();
       newSp.copiedFromIndex() = sp.index();
-      newSp.xy() = std::array<float, 2>{sp.x(), sp.y()};
-      newSp.zr() = std::array<float, 2>{sp.z(), sp.r()};
+      const std::array<float, 3>& p = cache.positions[spIndex];
+      newSp.xy() = std::array<float, 2>{p[0], p[1]};
+      newSp.zr() = std::array<float, 2>{p[2], radius(spIndex)};
       newSp.varianceZ() = sp.varianceZ();
       newSp.varianceR() = sp.varianceR();
       if (cfg.useStripInfo) {
@@ -669,6 +771,10 @@ int main(int argc, char* argv[]) {
   bool stripInfo = true;
   bool lrt = false;
   bool minPtGiven = false;
+  std::string precalibrate = "off";
+  float precalibrationTolerance = 3.f;
+  float doubletCalibrationTolerance = 0.f;
+  float cotThetaDiffMax = -1.f;
   bool verbose = false;
 
   SphericalGridConfig sph;
@@ -687,6 +793,25 @@ int main(int argc, char* argv[]) {
         "lrt", po::bool_switch(&lrt),
         "run the ATLAS large radius tracking pass, which seeds on the strips "
         "with its own configuration; implies --space-points strip")(
+        "precalibrate",
+        po::value<std::string>(&precalibrate)->default_value(precalibrate),
+        "exploratory, strips: move each space point onto its outer strip for "
+        "a track out of the origin before the doublets are formed: off, "
+        "origin, or origin-drop to drop the ones it does not cross")(
+        "precalibration-tolerance",
+        po::value<float>(&precalibrationTolerance)
+            ->default_value(precalibrationTolerance),
+        "exploratory: how far outside its strips the origin direction may "
+        "cross, in half lengths")(
+        "doublet-calibration-cut",
+        po::value<float>(&doubletCalibrationTolerance)
+            ->default_value(doubletCalibrationTolerance),
+        "exploratory, strips: reject a doublet whose chord crosses either "
+        "strip pair further outside than this many half lengths; 0 is off")(
+        "cot-theta-diff-max",
+        po::value<float>(&cotThetaDiffMax)->default_value(cotThetaDiffMax),
+        "strips: override the doublet cot(theta) pre-filter of the triplet "
+        "stage; negative keeps the configuration's")(
         "strip-info", po::value<bool>(&stripInfo)->default_value(stripInfo),
         "strips: fit the triplet against the strips of its three space points, "
         "each of them free to move along its own, rather than through their "
@@ -820,6 +945,9 @@ int main(int argc, char* argv[]) {
                          : strips ? makeItkStripConfig()
                                   : ItkSeedingConfig{};
   cfg.useStripInfo = cfg.useStripInfo && stripInfo;
+  if (cotThetaDiffMax >= 0.f) {
+    cfg.cotThetaDiffMax = cotThetaDiffMax;
+  }
   cfg.bFieldInZ = eventConfig.bFieldZ;
   // reaches the phi binning of the grid, both doublet finders and the triplet
   // finder, so it has to be set before any of them is built
@@ -836,8 +964,12 @@ int main(int argc, char* argv[]) {
       verbose ? Acts::Logging::Level::DEBUG : Acts::Logging::Level::FATAL);
   cache.filterConfig = makeFilterConfig(cfg);
   Acts::DoubletSeedFinder::Config bottomConfig = makeBottomDoubletConfig(cfg);
-  if (cfg.doubletDPhiCut) {
-    cache.doubletDPhiCut = std::make_unique<DoubletDPhiCut>(cfg);
+  cache.precalibrate = precalibrate;
+  cache.precalibrationTolerance = precalibrationTolerance;
+  if (cfg.doubletDPhiCut ||
+      (cfg.useStripInfo && doubletCalibrationTolerance > 0.f)) {
+    cache.doubletDPhiCut = std::make_unique<DoubletDPhiCut>(
+        cfg, cfg.useStripInfo ? doubletCalibrationTolerance : 0.f);
     bottomConfig.experimentCuts.connect(*cache.doubletDPhiCut);
   }
   Acts::DoubletSeedFinder::Config topConfig = bottomConfig;
@@ -989,6 +1121,11 @@ int main(int argc, char* argv[]) {
                        std::max<std::size_t>(1, summary.seedablePrimaries))
             << "\n"
             << result << std::endl;
+
+  if (cache.precalibrate != "off") {
+    std::cout << "precalibration (last event): moved=" << cache.precalibrated
+              << " failed=" << cache.precalibrationFailed << std::endl;
+  }
 
   if (summary.displaced > 0) {
     std::cout << "displaced: daughters=" << summary.displaced
