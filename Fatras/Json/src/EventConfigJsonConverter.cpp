@@ -132,12 +132,14 @@ void from_json(const nlohmann::json& j, MaterialConfig& config) {
 
 void to_json(nlohmann::json& j, const MeasurementConfig& config) {
   j = nlohmann::json{{"positionSmearing", number(config.positionSmearing)},
-                     {"overlapScale", number(config.overlapScale)}};
+                     {"overlapScale", number(config.overlapScale)},
+                     {"stripGapParameter", number(config.stripGapParameter)}};
 }
 
 void from_json(const nlohmann::json& j, MeasurementConfig& config) {
   config.positionSmearing = j.at("positionSmearing").get<float>();
   config.overlapScale = j.at("overlapScale").get<float>();
+  config.stripGapParameter = j.at("stripGapParameter").get<float>();
 }
 
 void to_json(nlohmann::json& j, const SecondarySamplingConfig& config) {

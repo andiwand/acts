@@ -17,6 +17,7 @@
 #include "ActsFatras/Synthetic/EventConfig.hpp"
 #include "ActsFatras/Synthetic/SyntheticEvent.hpp"
 #include "ActsFatras/Synthetic/detail/GeneratorScratch.hpp"
+#include "ActsFatras/Synthetic/detail/StripReadout.hpp"
 
 #include <random>
 #include <vector>
@@ -54,6 +55,9 @@ class ParticlePropagator {
   Acts::PdgParticle m_absPdg{};
   /// Mass of that species, which every track in the event is
   float m_mass{};
+  /// What every layer is read out as, empty if none of them is a strip layer.
+  /// Resolved here so that the hot loop never derives it again.
+  std::vector<StripLayer> m_strips;
 };
 
 }  // namespace ActsFatras::Synthetic::detail

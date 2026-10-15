@@ -30,7 +30,8 @@
         },
         "measurement": {
             "overlapScale": 1.0,
-            "positionSmearing": 0.015
+            "positionSmearing": 0.015,
+            "stripGapParameter": 0.0015
         },
         "propagation": {
             "hitsPerPrimary": 12.0,

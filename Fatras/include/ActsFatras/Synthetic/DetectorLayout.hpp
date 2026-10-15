@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -88,6 +89,33 @@ struct BandComposition {
   float molarDensityX0{};
   /// Thickness every band is quoted at
   float thickness{};
+};
+
+/// What the two sensors of one strip module look like.
+///
+/// A layer built of one of these is read out as a stereo pair: two strips at
+/// plus and minus half the angle on the two sensors, whose apparent crossing is
+/// the space point. A layer built of none is a pixel, which measures the point
+/// it was crossed at.
+///
+/// Named in `DetectorDescription::sensors` and referenced by name, because a
+/// detector is built of a handful of module types and dozens of layers: the
+/// ITk's whole strip barrel is two of these, its endcap one more, and saying so
+/// once is what keeps the two short-strip layers provably the same module.
+struct StripSensor {
+  /// Angle between the two sensors of a module
+  float stereoAngle{};
+  /// Strip pitch; a strip measures across itself to this over the square root
+  /// of twelve
+  float pitch{};
+  /// Distance between the two sensors, along the module normal
+  float moduleGap{};
+  /// Half the length of a strip
+  float halfLength{};
+
+  /// @param other the sensor to compare against
+  /// @return whether they are the same sensor
+  bool operator==(const StripSensor& other) const = default;
 };
 
 /// What a surface is made of, band by band along the coordinate it extends in:
@@ -190,6 +218,8 @@ struct DetectorLayer {
   /// that a space point still says where it came from once several of them have
   /// been built together
   std::uint16_t subsystem{};
+  /// How a crossing of it is read out; absent makes it a pixel layer
+  std::optional<StripSensor> sensor;
 };
 
 /// The radial bounds of one ring of an endcap disc.
@@ -198,6 +228,9 @@ struct RingBounds {
   float rMin{};
   /// Outer radius
   float rMax{};
+  /// The `DetectorDescription::sensors` entry this ring is built of, overriding
+  /// whatever its disc says. Empty takes the disc's, which is the usual case.
+  std::string sensor;
 };
 
 /// One described layer of a barrel: a cylinder and the eta modules along it.
@@ -222,6 +255,9 @@ struct CylinderDescription {
   std::optional<std::uint32_t> layer;
   /// What a crossing meets, resolved in |z|
   SurfaceMaterial material;
+  /// The `DetectorDescription::sensors` entry it is built of; empty makes it a
+  /// pixel layer, which is what a layer that says nothing is
+  std::string sensor;
 };
 
 /// One described layer of an endcap: a disc and the rings across it.
@@ -240,6 +276,9 @@ struct DiscDescription {
   std::optional<std::uint32_t> layer;
   /// What a crossing meets, resolved in r
   SurfaceMaterial material;
+  /// The `DetectorDescription::sensors` entry its rings are built of, unless a
+  /// ring names one of its own; see `RingBounds::sensor`
+  std::string sensor;
 };
 
 /// A passive surface the detector carries away from any sensitive layer: a
@@ -300,6 +339,11 @@ struct SubsystemDescription {
 /// are selected out of. `makeLayout` expands it into the `DetectorLayout` the
 /// generator runs on.
 struct DetectorDescription {
+  /// The module types this detector is built of, by the name its layers
+  /// reference. A layer naming none is a pixel layer, so a detector of nothing
+  /// but pixels leaves this empty.
+  std::map<std::string, StripSensor> sensors;
+
   /// Passives belonging to no subsystem, the beam pipe being the one that
   /// matters: the only material in front of the innermost layer, and hence the
   /// only source of secondaries there. Kept whichever subsystems are selected.

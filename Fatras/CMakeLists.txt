@@ -16,10 +16,12 @@ acts_add_library(
     src/Synthetic/EventCsvWriter.cpp
     src/Synthetic/EventGenerator.cpp
     src/Synthetic/SeedingTruth.cpp
+    src/Synthetic/SyntheticEvent.cpp
     src/Synthetic/detail/ParticlePropagator.cpp
     src/Synthetic/detail/PrimaryGenerator.cpp
     src/Synthetic/detail/Propagation.cpp
     src/Synthetic/detail/Sampling.cpp
+    src/Synthetic/detail/StripReadout.cpp
     src/Utilities/LandauDistribution.cpp
     ACTS_INCLUDE_FOLDER include/ActsFatras
 )

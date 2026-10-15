@@ -29,11 +29,15 @@ namespace ActsTests::TripletSeedingConfig {
 
 using namespace Acts::UnitLiterals;
 
-/// The ATLAS ITk pixel seeding configuration: the values of
-/// `ActsTrk::GridTripletSeedingTool` in Athena after `ActsPixelSeedingToolCfg`
-/// has applied its pixel overrides. Only the properties that reach ACTS are
-/// kept.
-struct ItkPixelConfig {
+/// The ATLAS ITk seeding configuration: the values of
+/// `ActsTrk::GridTripletSeedingTool` in Athena, at the ITk main pass values of
+/// the tracking flags it reads (900 MeV, 5 mm, 1100 mm). Only the properties
+/// that reach ACTS are kept.
+///
+/// The defaults below are what `ActsPixelSeedingToolCfg` leaves, i.e. the pixel
+/// pass; `makeItkStripConfig` applies `ActsStripSeedingToolCfg` instead. Both
+/// configure one and the same tool, which is why they are one struct.
+struct ItkSeedingConfig {
   // -- shared between the grid, the doublet finders and the filter
   float minPt = 900_MeV;
   float cotThetaMax = 27.2899f;  // eta = 4
@@ -82,6 +86,11 @@ struct ItkPixelConfig {
   float sigmaScattering = 2.f;
   float radLengthPerSeed = 0.098045f;
   float toleranceParam = 1.1_mm;
+  /// Whether a space point is a pair of strips, in which case the triplet is
+  /// fitted with each of its three points free to move along its own strip
+  bool useStripInfo = false;
+  /// Cheap cut on the doublets of a strip triplet, ahead of that fit
+  float cotThetaDiffMax = std::numeric_limits<float>::infinity();
 
   // -- middle space point range
   bool useVariableMiddleSPRange = false;
@@ -113,8 +122,63 @@ struct ItkPixelConfig {
   bool seedQualitySelection = true;
 };
 
+/// The ATLAS ITk strip seeding configuration, i.e. the same tool after
+/// `ActsStripSeedingToolCfg`. The strips reach three times as far out as the
+/// pixels, sit four layers deep rather than nine, and each of their space
+/// points is a crossing of two strips rather than a point, so what changes is
+/// the extent, how far a doublet may reach, and that the triplet is fitted
+/// against the strips instead of through the crossings.
+/// @return the configuration
+inline ItkSeedingConfig makeItkStripConfig() {
+  ItkSeedingConfig cfg;
+
+  cfg.impactMax = 20_mm;
+
+  cfg.gridRMax = 1000_mm;
+  cfg.deltaRMax = 600_mm;
+  cfg.rBinEdges = {0.f, 1100.f};
+  // The strips are seeded from the middle of the detector outwards, which the
+  // pixel pass does the other way round. Both orders leave the two outermost z
+  // bins out of the middle bins entirely.
+  cfg.zBinsCustomLooping = {7, 8, 6, 9, 5, 10, 4, 11, 3, 12, 2};
+  cfg.zBinNeighborsBottom = {{0, 0},  {0, 1},  {0, 1},  {0, 1},  {0, 2},
+                             {0, 1},  {0, 0},  {-1, 0}, {-2, 0}, {-1, 0},
+                             {-1, 0}, {-1, 0}, {0, 0}};
+
+  cfg.deltaRMinTopSP = 20_mm;
+  cfg.deltaRMaxTopSP = 300_mm;
+  cfg.deltaRMinBottomSP = 20_mm;
+  cfg.deltaRMaxBottomSP = 300_mm;
+  cfg.deltaZMax = 900_mm;
+  // A strip space point of a primary can sit far off the line to the beam spot,
+  // the crossing moving along the strips, so the cut is left to the triplet
+  cfg.interactionPointCut = false;
+
+  cfg.useStripInfo = true;
+
+  // Middle candidates are taken from a range derived from the extent of the
+  // event rather than from a table, four layers being too few to write one for
+  cfg.useVariableMiddleSPRange = true;
+  cfg.deltaRMiddleMinSPRange = 30_mm;
+  cfg.deltaRMiddleMaxSPRange = 150_mm;
+
+  cfg.impactWeightFactor = 1.f;
+  cfg.compatSeedLimit = 4;
+  cfg.seedWeightIncrement = 10100.f;
+  cfg.numSeedIncrement = 1.f;
+  cfg.useDeltaRinsteadOfTopRadius = false;
+  // Seed confirmation is a pixel notion: its ranges are radii inside the pixel
+  // detector, and the strips have too few layers to ask for a fourth point.
+  cfg.seedConfirmation = false;
+  cfg.maxSeedsPerSpMConf = 100;
+  cfg.maxQualitySeedsPerSpMConf = 100;
+  cfg.seedQualitySelection = false;
+
+  return cfg;
+}
+
 inline Acts::DoubletSeedFinder::Config makeBottomDoubletConfig(
-    const ItkPixelConfig& cfg) {
+    const ItkSeedingConfig& cfg) {
   Acts::DoubletSeedFinder::Config doubletCfg;
   doubletCfg.spacePointsSortedByRadius = true;
   doubletCfg.candidateDirection = Acts::Direction::Backward();
@@ -133,9 +197,10 @@ inline Acts::DoubletSeedFinder::Config makeBottomDoubletConfig(
 }
 
 inline Acts::TripletSeedFinder::Config makeTripletConfig(
-    const ItkPixelConfig& cfg) {
+    const ItkSeedingConfig& cfg) {
   Acts::TripletSeedFinder::Config tripletCfg;
-  tripletCfg.useStripInfo = false;
+  tripletCfg.useStripInfo = cfg.useStripInfo;
+  tripletCfg.cotThetaDiffMax = cfg.cotThetaDiffMax;
   tripletCfg.sortedByCotTheta = true;
   tripletCfg.minPt = cfg.minPt;
   tripletCfg.sigmaScattering = cfg.sigmaScattering;
@@ -147,7 +212,7 @@ inline Acts::TripletSeedFinder::Config makeTripletConfig(
 }
 
 inline Acts::BroadTripletSeedFilter::Config makeFilterConfig(
-    const ItkPixelConfig& cfg) {
+    const ItkSeedingConfig& cfg) {
   Acts::BroadTripletSeedFilter::Config filterCfg;
   filterCfg.deltaInvHelixDiameter = cfg.deltaInvHelixDiameter;
   filterCfg.deltaRMin = cfg.deltaRMin;

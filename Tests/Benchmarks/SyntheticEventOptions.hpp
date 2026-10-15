@@ -102,8 +102,8 @@ inline std::filesystem::path layoutPath(const Values& values,
   return ActsFatras::dataPath(values.layout + suffix);
 }
 
-/// Build the detector the options select, out of the description and material
-/// it ships as.
+/// Build the detector the options select, out of the description and the
+/// material it ships as.
 ///
 /// @param values the parsed options
 /// @return the layout
