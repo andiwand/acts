@@ -669,6 +669,9 @@ int main(int argc, char* argv[]) {
   bool stripInfo = true;
   bool lrt = false;
   bool minPtGiven = false;
+  float stripCalibrationTolerance = 0.f;
+  int interactionPointCut = -1;
+  float cotThetaDiffMax = -1.f;
   bool verbose = false;
 
   SphericalGridConfig sph;
@@ -687,6 +690,20 @@ int main(int argc, char* argv[]) {
         "lrt", po::bool_switch(&lrt),
         "run the ATLAS large radius tracking pass, which seeds on the strips "
         "with its own configuration; implies --space-points strip")(
+        "strip-calibration-tolerance",
+        po::value<float>(&stripCalibrationTolerance)
+            ->default_value(stripCalibrationTolerance),
+        "strips: calibrate both space points of a doublet against their "
+        "chord, with this tolerance in strip half lengths; 0 is off")(
+        "interaction-point-cut",
+        po::value<int>(&interactionPointCut)
+            ->default_value(interactionPointCut),
+        "override the doublet interaction point cut: 0 off, 1 on, negative "
+        "keeps the configuration's")(
+        "cot-theta-diff-max",
+        po::value<float>(&cotThetaDiffMax)->default_value(cotThetaDiffMax),
+        "strips: override the doublet cot(theta) pre-filter of the triplet "
+        "stage; negative keeps the configuration's")(
         "strip-info", po::value<bool>(&stripInfo)->default_value(stripInfo),
         "strips: fit the triplet against the strips of its three space points, "
         "each of them free to move along its own, rather than through their "
@@ -820,6 +837,12 @@ int main(int argc, char* argv[]) {
                          : strips ? makeItkStripConfig()
                                   : ItkSeedingConfig{};
   cfg.useStripInfo = cfg.useStripInfo && stripInfo;
+  if (interactionPointCut >= 0) {
+    cfg.interactionPointCut = interactionPointCut != 0;
+  }
+  if (cotThetaDiffMax >= 0.f) {
+    cfg.cotThetaDiffMax = cotThetaDiffMax;
+  }
   cfg.bFieldInZ = eventConfig.bFieldZ;
   // reaches the phi binning of the grid, both doublet finders and the triplet
   // finder, so it has to be set before any of them is built
@@ -839,6 +862,9 @@ int main(int argc, char* argv[]) {
   if (cfg.doubletDPhiCut) {
     cache.doubletDPhiCut = std::make_unique<DoubletDPhiCut>(cfg);
     bottomConfig.experimentCuts.connect(*cache.doubletDPhiCut);
+  }
+  if (cfg.useStripInfo && stripCalibrationTolerance > 0.f) {
+    bottomConfig.stripCalibrationTolerance = stripCalibrationTolerance;
   }
   Acts::DoubletSeedFinder::Config topConfig = bottomConfig;
   topConfig.candidateDirection = Acts::Direction::Forward();
