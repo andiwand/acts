@@ -25,6 +25,7 @@
 #include "Acts/Propagator/detail/PointwiseMaterialInteraction.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterError.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFinding/detail/ScatteringTail.hpp"
 #include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
 #include "Acts/TrackFitting/GsfOptions.hpp"
 #include "Acts/TrackFitting/detail/GsfComponentMerging.hpp"
@@ -115,6 +116,13 @@ struct CombinatorialKalmanFilterOptions {
   /// @note Keep enabled if the surfaces themselves are needed, e.g. for a refit
   ///       with the `DirectNavigator`.
   bool recordMaterialStates = true;
+
+  /// Prototype: how to use the non-Gaussian tail of multiple scattering.
+  ScatteringTailMode scatteringTailMode = ScatteringTailMode::None;
+
+  /// Prototype: skip the tail if it adds less than this fraction to the
+  /// predicted local position variance.
+  double scatteringTailGate = 0.05;
 };
 
 /// Options for the combinatorial Kalman filter with bremsstrahlung recovery.
@@ -176,6 +184,12 @@ struct CombinatorialKalmanFilterResult {
   /// Transport jacobians of skipped material surfaces, folded into the next
   /// recorded track state to keep the jacobian chain intact
   BoundMatrix accumulatedJacobian = BoundMatrix::Identity();
+
+  /// Prototype: the scattering tail hypothesis since the last measurement
+  detail::ScatteringTailState scatteringTail;
+
+  /// Prototype: number of track states accepted through the tail
+  std::size_t nScatteringTailStates = 0;
 
   /// Indicator if track finding has been done
   bool finished = false;
@@ -268,6 +282,12 @@ class CombinatorialKalmanFilter {
 
     /// @see CombinatorialKalmanFilterOptions::recordMaterialStates
     bool recordMaterialStates = true;
+
+    /// @see CombinatorialKalmanFilterOptions::scatteringTailMode
+    ScatteringTailMode scatteringTailMode = ScatteringTailMode::None;
+
+    /// @see CombinatorialKalmanFilterOptions::scatteringTailGate
+    double scatteringTailGate = 0.05;
 
     /// Calibration context for the finding run
     const CalibrationContext* calibrationContextPtr{nullptr};
@@ -524,12 +544,16 @@ class CombinatorialKalmanFilter {
         return navInitRes.error();
       }
 
+      // the branch restarts from an updated state
+      result.scatteringTail.reset();
+
       // No Kalman filtering for the starting surface, but still need
       // to consider the material effects here
       const Result<void> materialRes = performMaterialInteraction(
           state, stepper, currentState.referenceSurface(),
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate));
+                                              MaterialUpdateMode::PostUpdate),
+          &result.scatteringTail);
       if (!materialRes.ok()) {
         ACTS_DEBUG("Material interaction failed during reset: "
                    << materialRes.error().message());
@@ -595,12 +619,14 @@ class CombinatorialKalmanFilter {
         }
         jacobian = *transportRes;
       }
+      result.scatteringTail.transport(jacobian);
 
       // Update state and stepper with pre material effects
       const Result<void> materialPreRes = performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PreUpdate));
+                                              MaterialUpdateMode::PreUpdate),
+          &result.scatteringTail);
       if (!materialPreRes.ok()) {
         ACTS_DEBUG("Material interaction failed during reset: "
                    << materialPreRes.error().message());
@@ -627,8 +653,9 @@ class CombinatorialKalmanFilter {
         // track state creation below
         const Result<void> materialPostRes = performMaterialInteraction(
             state, stepper, surface,
-            detail::determineMaterialUpdateMode(
-                state, navigator, MaterialUpdateMode::PostUpdate));
+            detail::determineMaterialUpdateMode(state, navigator,
+                                                MaterialUpdateMode::PostUpdate),
+            &result.scatteringTail);
         if (!materialPostRes.ok()) {
           ACTS_DEBUG("Material interaction failed during post-update: "
                      << materialPostRes.error().message());
@@ -687,10 +714,15 @@ class CombinatorialKalmanFilter {
         // extend trajectory with measurements associated to the current surface
         // which may create extra trajectory branches if more than one
         // measurement is selected.
-        tsRes = extensions.createTrackStates(
-            state.geoContext, *calibrationContextPtr, surface, boundState,
-            prevTip, result.trackStateCandidates, *result.trackStates,
-            logger());
+        if constexpr (!IsMultiStepper) {
+          tsRes = createTrackStatesWithScatteringTail(
+              state.geoContext, surface, boundState, prevTip, result);
+        } else {
+          tsRes = extensions.createTrackStates(
+              state.geoContext, *calibrationContextPtr, surface, boundState,
+              prevTip, result.trackStateCandidates, *result.trackStates,
+              logger());
+        }
       }
 
       if (tsRes.ok() && !(*tsRes).empty()) {
@@ -789,6 +821,7 @@ class CombinatorialKalmanFilter {
         // Update stepping state using filtered parameters of last track
         // state on this surface
         updateStepper(state, stepper, currentState);
+        result.scatteringTail.reset();
         ACTS_VERBOSE("Stepping state is updated with filtered parameter:");
         ACTS_VERBOSE("-> " << currentState.filtered().transpose()
                            << " of track state with tip = "
@@ -799,7 +832,8 @@ class CombinatorialKalmanFilter {
       const Result<void> materialPostRes = performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate));
+                                              MaterialUpdateMode::PostUpdate),
+          &result.scatteringTail);
       if (!materialPostRes.ok()) {
         ACTS_DEBUG("Material interaction failed during post-update: "
                    << materialPostRes.error().message());
@@ -867,6 +901,8 @@ class CombinatorialKalmanFilter {
           // Increment number of outliers
           newBranch.nOutliers()++;
         } else if (typeFlags.isMeasurement()) {
+          // Prototype: the predicted chi2 the selection used
+          const float selectionChi2 = trackState.chi2();
           // Allocate the filtered parameters right before they are written
           trackState.addComponents(PM::Filtered);
           // Kalman update
@@ -881,6 +917,12 @@ class CombinatorialKalmanFilter {
           newBranch.nMeasurements()++;
           newBranch.nDoF() += trackState.calibratedSize();
           newBranch.chi2() += trackState.chi2();
+          // Prototype: the track keeps the Kalman chi2, the state keeps the
+          // selection chi2
+          trackState.chi2() = selectionChi2;
+        } else if (typeFlags.isHole()) {
+          // the miss branch of `ScatteringTailMode::RetryBranch`
+          newBranch.nHoles()++;
         } else {
           ACTS_WARNING("Cannot handle this track state flags");
           continue;
@@ -983,12 +1025,25 @@ class CombinatorialKalmanFilter {
     template <typename propagator_state_t, typename stepper_t>
     Result<void> performMaterialInteraction(
         propagator_state_t& state, const stepper_t& stepper,
-        const Surface& surface, MaterialUpdateMode updateMode) const {
+        const Surface& surface, MaterialUpdateMode updateMode,
+        detail::ScatteringTailState* scatteringTail = nullptr) const {
       if (!surface.hasMaterial()) {
         return Result<void>::success();
       }
 
       if constexpr (!IsMultiStepper) {
+        // the slab before the energy loss changes the momentum
+        double thicknessInX0 = 0;
+        if (scatteringTail != nullptr &&
+            scatteringTailMode != ScatteringTailMode::None &&
+            multipleScattering) {
+          const Result<MaterialSlab> slabRes =
+              detail::evaluateMaterialSlab(state, stepper, surface, updateMode);
+          if (slabRes.ok()) {
+            thicknessInX0 = slabRes->thicknessInX0();
+          }
+        }
+
         const Result<detail::PointwiseMaterialEffects> materialInteractionRes =
             detail::performMaterialInteraction(
                 state, stepper, surface, updateMode, NoiseUpdateMode::addNoise,
@@ -997,6 +1052,12 @@ class CombinatorialKalmanFilter {
           ACTS_DEBUG("Material interaction failed during reset: "
                      << materialInteractionRes.error().message());
           return materialInteractionRes.error();
+        }
+
+        if (thicknessInX0 > 0) {
+          scatteringTail->add(thicknessInX0,
+                              materialInteractionRes->variancePhi,
+                              materialInteractionRes->varianceTheta);
         }
 
         return Result<void>::success();
@@ -1055,6 +1116,97 @@ class CombinatorialKalmanFilter {
         return detail::Gsf::applyMultipleScattering(state, stepper, surface,
                                                     updateMode, logger());
       }
+    }
+
+    /// Prototype: create the track states on a sensitive surface and use the
+    /// scattering tail according to `scatteringTailMode`.
+    Result<CkfTypes::BranchVector<TrackIndexType>>
+    createTrackStatesWithScatteringTail(const GeometryContext& gctx,
+                                        const Surface& surface,
+                                        const BoundState& boundState,
+                                        TrackIndexType prevTip,
+                                        result_type& result) const {
+      using PM = TrackStatePropMask;
+      using TrackStatesResult = Result<CkfTypes::BranchVector<TrackIndexType>>;
+
+      const auto createCore = [&]() {
+        return extensions.createTrackStates(
+            gctx, *calibrationContextPtr, surface, boundState, prevTip,
+            result.trackStateCandidates, *result.trackStates, logger());
+      };
+
+      const detail::ScatteringTailState& tail = result.scatteringTail;
+      const BoundTrackParameters& coreParams = std::get<0>(boundState);
+      if (scatteringTailMode == ScatteringTailMode::None || tail.empty() ||
+          !coreParams.covariance().has_value()) {
+        return createCore();
+      }
+
+      // skip a tail that cannot change the decision
+      const BoundMatrix& coreCov = *coreParams.covariance();
+      const BoundMatrix tailCov = tail.covariance();
+      if (tailCov(eBoundLoc0, eBoundLoc0) <
+              scatteringTailGate * coreCov(eBoundLoc0, eBoundLoc0) &&
+          tailCov(eBoundLoc1, eBoundLoc1) <
+              scatteringTailGate * coreCov(eBoundLoc1, eBoundLoc1)) {
+        return createCore();
+      }
+
+      if (scatteringTailMode == ScatteringTailMode::Mixture) {
+        if (!extensions.createTrackStatesWithTail.connected()) {
+          return createCore();
+        }
+        return extensions.createTrackStatesWithTail(
+            gctx, *calibrationContextPtr, surface, boundState, tailCov,
+            tail.weight(), prevTip, result.trackStateCandidates,
+            *result.trackStates, logger());
+      }
+
+      TrackStatesResult coreRes = createCore();
+      if (!coreRes.ok()) {
+        return coreRes;
+      }
+      const auto isMiss =
+          [&](const CkfTypes::BranchVector<TrackIndexType>& states) {
+            return states.empty() ||
+                   result.trackStates->getTrackState(states.front())
+                       .typeFlags()
+                       .isOutlier();
+          };
+      if (!isMiss(*coreRes)) {
+        return coreRes;
+      }
+
+      // retry with the tail covariance
+      BoundState tailState(
+          BoundTrackParameters(coreParams.referenceSurface().getSharedPtr(),
+                               coreParams.parameters(), coreCov + tailCov,
+                               coreParams.particleHypothesis()),
+          std::get<1>(boundState), std::get<2>(boundState));
+      TrackStatesResult tailRes = extensions.createTrackStates(
+          gctx, *calibrationContextPtr, surface, tailState, prevTip,
+          result.trackStateCandidates, *result.trackStates, logger());
+      if (!tailRes.ok() || isMiss(*tailRes)) {
+        return coreRes;
+      }
+      ++result.nScatteringTailStates;
+
+      if (scatteringTailMode == ScatteringTailMode::SelectOnly) {
+        for (TrackIndexType index : *tailRes) {
+          result.trackStates->getTrackState(index).predictedCovariance() =
+              coreCov;
+        }
+      } else if (scatteringTailMode == ScatteringTailMode::RetryBranch) {
+        // the best candidate comes first, the miss last
+        if (coreRes->empty()) {
+          tailRes->push_back(addNonSourcelinkState(PM::Predicted | PM::Jacobian,
+                                                   boundState, result, true,
+                                                   true, prevTip));
+        } else {
+          tailRes->push_back(coreRes->front());
+        }
+      }
+      return tailRes;
     }
 
     template <typename propagator_state_t, typename stepper_t>
@@ -1238,6 +1390,8 @@ class CombinatorialKalmanFilter {
     combKalmanActor.skipPrePropagationUpdate =
         tfOptions.skipPrePropagationUpdate;
     combKalmanActor.recordMaterialStates = tfOptions.recordMaterialStates;
+    combKalmanActor.scatteringTailMode = tfOptions.scatteringTailMode;
+    combKalmanActor.scatteringTailGate = tfOptions.scatteringTailGate;
     combKalmanActor.actorLogger = m_actorLogger.get();
     combKalmanActor.updaterLogger = m_updaterLogger.get();
     combKalmanActor.calibrationContextPtr = &tfOptions.calibrationContext.get();
@@ -1324,6 +1478,7 @@ class CombinatorialKalmanFilter {
     auto combKalmanResult =
         std::move(propRes.template get<
                   CombinatorialKalmanFilterResult<track_container_t>>());
+    detail::scatteringTailCounter() += combKalmanResult.nScatteringTailStates;
 
     // Check if track finding finished properly
     if (!combKalmanResult.finished) {

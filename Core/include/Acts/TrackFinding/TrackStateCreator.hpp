@@ -10,6 +10,7 @@
 
 // for definitions of Calibrator, MeasurementSelector
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFinding/detail/ScatteringTail.hpp"
 #include "Acts/TrackFitting/KalmanFitter.hpp"
 
 namespace Acts {
@@ -84,6 +85,18 @@ struct TrackStateCreator {
   MeasurementSelector measurementSelector{
       DelegateFuncTag<voidMeasurementSelector>{}};
 
+  /// Prototype: delegate to select measurements with a tail component, see
+  /// `Acts::MeasurementSelector::selectWithTail`
+  using MeasurementSelectorWithTail =
+      Delegate<Result<std::pair<typename candidate_container_t::iterator,
+                                typename candidate_container_t::iterator>>(
+          candidate_container_t& trackStates, const BoundMatrix& tailCov,
+          double tailWeight, std::vector<double>& tailPosterior, bool&,
+          const Logger&)>;
+
+  /// Prototype: used by `createTrackStatesWithTail`
+  MeasurementSelectorWithTail measurementSelectorWithTail;
+
  public:
   /// @brief extend the trajectory onto the given surface.
   ///
@@ -144,12 +157,105 @@ struct TrackStateCreator {
       const source_link_iterator_t& slEnd, TrackIndexType prevTip,
       std::vector<TrackStateProxy>& trackStateCandidates,
       TrackStateContainerBackend& trajectory, const Logger& logger) const {
-    using PM = TrackStatePropMask;
-
     using ResultTrackStateList =
         Acts::Result<CkfTypes::BranchVector<TrackIndexType>>;
     ResultTrackStateList resultTrackStateList{
         CkfTypes::BranchVector<TrackIndexType>()};
+
+    calibrateCandidates(gctx, calibrationContext, boundState, slBegin, slEnd,
+                        prevTip, trackStateCandidates, trajectory, logger);
+
+    bool isOutlier = false;
+    Result<std::pair<typename std::vector<TrackStateProxy>::iterator,
+                     typename std::vector<TrackStateProxy>::iterator>>
+        selectorResult =
+            measurementSelector(trackStateCandidates, isOutlier, logger);
+    if (!selectorResult.ok()) {
+      ACTS_DEBUG("Selection of calibrated measurements failed: "
+                 << selectorResult.error().message());
+      resultTrackStateList =
+          ResultTrackStateList::failure(selectorResult.error());
+    } else {
+      auto selectedTrackStateRange = *selectorResult;
+      resultTrackStateList = processSelectedTrackStates(
+          selectedTrackStateRange.first, selectedTrackStateRange.second,
+          trajectory, isOutlier, logger);
+    }
+
+    return resultTrackStateList;
+  }
+
+  /// Prototype: as `createTrackStates` with a Gaussian tail component of the
+  /// prediction. The selection uses the mixture chi2, and each selected
+  /// measurement gets the posterior predicted covariance
+  /// `C + w_tail * tailCov`.
+  Result<CkfTypes::BranchVector<TrackIndexType>> createTrackStatesWithTail(
+      const GeometryContext& gctx, const CalibrationContext& calibrationContext,
+      const Surface& surface, const BoundState& boundState,
+      const BoundMatrix& tailCov, double tailWeight, TrackIndexType prevTip,
+      std::vector<TrackStateProxy>& trackStateCandidates,
+      TrackStateContainerBackend& trajectory, const Logger& logger) const {
+    using PM = TrackStatePropMask;
+    using ResultTrackStateList =
+        Acts::Result<CkfTypes::BranchVector<TrackIndexType>>;
+
+    auto [slBegin, slEnd] = sourceLinkAccessor(surface);
+    if (slBegin == slEnd) {
+      return ResultTrackStateList::success({});
+    }
+
+    calibrateCandidates(gctx, calibrationContext, boundState, slBegin, slEnd,
+                        prevTip, trackStateCandidates, trajectory, logger);
+
+    bool isOutlier = false;
+    std::vector<double> tailPosterior;
+    auto selectorResult =
+        measurementSelectorWithTail(trackStateCandidates, tailCov, tailWeight,
+                                    tailPosterior, isOutlier, logger);
+    if (!selectorResult.ok()) {
+      return ResultTrackStateList::failure(selectorResult.error());
+    }
+
+    const BoundMatrix& coreCov = *std::get<0>(boundState).covariance();
+    ResultTrackStateList resultTrackStateList{
+        CkfTypes::BranchVector<TrackIndexType>()};
+    std::size_t i = 0;
+    for (auto it = selectorResult->first; it != selectorResult->second;
+         ++it, ++i) {
+      // every state gets its own prediction, because the posterior differs
+      const PM mask = PM::Predicted | PM::Jacobian | PM::Calibrated;
+      auto trackState = trajectory.makeTrackState(mask, it->previous());
+      trackState.copyFrom(*it, mask, false);
+      if (!isOutlier) {
+        trackState.predictedCovariance() = coreCov + tailPosterior[i] * tailCov;
+        if (tailPosterior[i] > 0.5) {
+          ++detail::scatteringTailCounter();
+        }
+      }
+
+      auto typeFlags = trackState.typeFlags();
+      typeFlags.setHasParameters();
+      typeFlags.setHasMeasurement();
+      if (trackState.referenceSurface().hasMaterial()) {
+        typeFlags.setHasMaterial();
+      }
+      if (isOutlier) {
+        typeFlags.setIsOutlier();
+      }
+      resultTrackStateList->push_back(trackState.index());
+    }
+    return resultTrackStateList;
+  }
+
+  /// Create temporary track states with the calibrated measurements of the
+  /// given source links, sharing the predicted parameters of the first.
+  void calibrateCandidates(
+      const GeometryContext& gctx, const CalibrationContext& calibrationContext,
+      const BoundState& boundState, const source_link_iterator_t& slBegin,
+      const source_link_iterator_t& slEnd, TrackIndexType prevTip,
+      std::vector<TrackStateProxy>& trackStateCandidates,
+      TrackStateContainerBackend& trajectory, const Logger& logger) const {
+    using PM = TrackStatePropMask;
     const auto& [boundParams, jacobian, pathLength] = boundState;
 
     trackStateCandidates.clear();
@@ -201,25 +307,6 @@ struct TrackStateCreator {
 
       trackStateCandidates.push_back(ts);
     }
-
-    bool isOutlier = false;
-    Result<std::pair<typename std::vector<TrackStateProxy>::iterator,
-                     typename std::vector<TrackStateProxy>::iterator>>
-        selectorResult =
-            measurementSelector(trackStateCandidates, isOutlier, logger);
-    if (!selectorResult.ok()) {
-      ACTS_DEBUG("Selection of calibrated measurements failed: "
-                 << selectorResult.error().message());
-      resultTrackStateList =
-          ResultTrackStateList::failure(selectorResult.error());
-    } else {
-      auto selectedTrackStateRange = *selectorResult;
-      resultTrackStateList = processSelectedTrackStates(
-          selectedTrackStateRange.first, selectedTrackStateRange.second,
-          trajectory, isOutlier, logger);
-    }
-
-    return resultTrackStateList;
   }
 
   /// Create track states for the given trajectory from candidate track states

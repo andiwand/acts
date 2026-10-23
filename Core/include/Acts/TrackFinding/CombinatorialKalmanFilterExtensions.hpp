@@ -97,6 +97,20 @@ struct CombinatorialKalmanFilterExtensions {
   ///   which makes uses of @ref MeasurementSelector and SourceLinkAccessor
   TrackStateCreator createTrackStates;
 
+  /// Prototype: as `TrackStateCreator`, with a Gaussian tail component of the
+  /// prediction given by its covariance excess and its prior weight.
+  using TrackStateCreatorWithTail =
+      Delegate<Result<CkfTypes::BranchVector<TrackIndexType>>(
+          const GeometryContext& geoContext,
+          const CalibrationContext& calibrationContext, const Surface& surface,
+          const CkfTypes::BoundState& boundState, const BoundMatrix& tailCov,
+          double tailWeight, TrackIndexType prevTip,
+          std::vector<TrackStateProxy>& trackStateCandidates,
+          traj_t& trajectory, const Logger& logger)>;
+
+  /// Prototype: used by `ScatteringTailMode::Mixture`
+  TrackStateCreatorWithTail createTrackStatesWithTail;
+
   // The following options are only relevant if a multi stepper is used
 
   /// Type alias for component reducer delegate function
