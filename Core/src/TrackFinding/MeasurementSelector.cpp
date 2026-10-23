@@ -118,6 +118,38 @@ double MeasurementSelector::calculateChi2(
       });
 }
 
+std::pair<double, double> MeasurementSelector::calculateChi2AndLogDet(
+    const double* fullCalibrated, const double* fullCalibratedCovariance,
+    TrackStateTraits<kMeasurementSizeMax, false>::Parameters predicted,
+    TrackStateTraits<kMeasurementSizeMax, false>::Covariance
+        predictedCovariance,
+    BoundSubspaceIndices projector, unsigned int calibratedSize) const {
+  return visit_measurement(
+      calibratedSize,
+      [&fullCalibrated, &fullCalibratedCovariance, &predicted,
+       &predictedCovariance, &projector](auto N) -> std::pair<double, double> {
+        constexpr std::size_t kMeasurementSize = decltype(N)::value;
+
+        typename TrackStateTraits<kMeasurementSize, true>::Calibrated
+            calibrated{fullCalibrated};
+        typename TrackStateTraits<kMeasurementSize, true>::CalibratedCovariance
+            calibratedCovariance{fullCalibratedCovariance};
+
+        std::span<const std::uint8_t, kMeasurementSize> validSubspaceIndices(
+            projector.begin(), projector.begin() + kMeasurementSize);
+        FixedBoundSubspaceHelper<kMeasurementSize> subspaceHelper(
+            validSubspaceIndices);
+
+        const Vector<kMeasurementSize> res =
+            calibrated - subspaceHelper.projectVector(predicted);
+        const SquareMatrix<kMeasurementSize> cov =
+            calibratedCovariance +
+            subspaceHelper.projectMatrix(predictedCovariance);
+        return {(res.transpose() * cov.inverse() * res).eval()(0, 0),
+                std::log(cov.determinant())};
+      });
+}
+
 MeasurementSelector::Cuts MeasurementSelector::getCutsByTheta(
     const InternalCutBins& config, double theta) {
   // since theta is in [0, pi] and we have a symmetric cut in eta, we can just

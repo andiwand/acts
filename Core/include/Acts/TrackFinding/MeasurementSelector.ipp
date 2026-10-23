@@ -21,6 +21,70 @@ Result<
 MeasurementSelector::select(
     std::vector<typename traj_t::TrackStateProxy>& candidates, bool& isOutlier,
     const Logger& logger) const {
+  return selectImpl<traj_t>(
+      candidates, isOutlier, logger, [this](auto& trackState) {
+        return calculateChi2(
+            trackState.effectiveCalibrated().data(),
+            trackState.effectiveCalibratedCovariance().data(),
+            trackState.predicted(), trackState.predictedCovariance(),
+            trackState.projectorSubspaceIndices(), trackState.calibratedSize());
+      });
+}
+
+template <typename track_state_t>
+std::pair<double, double> MeasurementSelector::mixtureChi2(
+    track_state_t& trackState, const BoundMatrix& tailCov,
+    double tailWeight) const {
+  const auto [chi2Core, logDetCore] = calculateChi2AndLogDet(
+      trackState.effectiveCalibrated().data(),
+      trackState.effectiveCalibratedCovariance().data(), trackState.predicted(),
+      trackState.predictedCovariance(), trackState.projectorSubspaceIndices(),
+      trackState.calibratedSize());
+  BoundMatrix tailPredictedCov = trackState.predictedCovariance() + tailCov;
+  const auto [chi2Tail, logDetTail] = calculateChi2AndLogDet(
+      trackState.effectiveCalibrated().data(),
+      trackState.effectiveCalibratedCovariance().data(), trackState.predicted(),
+      TrackStateTraits<kMeasurementSizeMax, false>::Covariance(
+          tailPredictedCov.data()),
+      trackState.projectorSubspaceIndices(), trackState.calibratedSize());
+  // log of the tail over the core likelihood
+  const double a = std::log(tailWeight / (1 - tailWeight)) +
+                   0.5 * (logDetCore - logDetTail) +
+                   0.5 * (chi2Core - chi2Tail);
+  const double softplus =
+      a > 0 ? a + std::log1p(std::exp(-a)) : std::log1p(std::exp(a));
+  return {chi2Core - 2 * softplus, 1 / (1 + std::exp(-a))};
+}
+
+template <typename traj_t>
+Result<
+    std::pair<typename std::vector<typename traj_t::TrackStateProxy>::iterator,
+              typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
+MeasurementSelector::selectWithTail(
+    std::vector<typename traj_t::TrackStateProxy>& candidates,
+    const BoundMatrix& tailCov, double tailWeight,
+    std::vector<double>& tailPosterior, bool& isOutlier,
+    const Logger& logger) const {
+  auto res =
+      selectImpl<traj_t>(candidates, isOutlier, logger, [&](auto& trackState) {
+        return mixtureChi2(trackState, tailCov, tailWeight).first;
+      });
+  tailPosterior.clear();
+  if (res.ok()) {
+    for (auto it = res->first; it != res->second; ++it) {
+      tailPosterior.push_back(mixtureChi2(*it, tailCov, tailWeight).second);
+    }
+  }
+  return res;
+}
+
+template <typename traj_t, typename chi2_fn_t>
+Result<
+    std::pair<typename std::vector<typename traj_t::TrackStateProxy>::iterator,
+              typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
+MeasurementSelector::selectImpl(
+    std::vector<typename traj_t::TrackStateProxy>& candidates, bool& isOutlier,
+    const Logger& logger, const chi2_fn_t& chi2Fn) const {
   using Result = Result<std::pair<
       typename std::vector<typename traj_t::TrackStateProxy>::iterator,
       typename std::vector<typename traj_t::TrackStateProxy>::iterator>>;
@@ -65,11 +129,7 @@ MeasurementSelector::select(
     // with compile time size. That way the Eigen math operations are
     // still done with compile time size and no dynamic memory allocation
     // is needed.
-    double chi2 = calculateChi2(
-        trackState.effectiveCalibrated().data(),
-        trackState.effectiveCalibratedCovariance().data(),
-        trackState.predicted(), trackState.predictedCovariance(),
-        trackState.projectorSubspaceIndices(), trackState.calibratedSize());
+    double chi2 = chi2Fn(trackState);
     trackState.chi2() = chi2;
 
     // A diverging fit can inflate the predicted covariance until inverting it

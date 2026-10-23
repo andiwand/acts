@@ -92,7 +92,47 @@ class MeasurementSelector {
   select(std::vector<typename traj_t::TrackStateProxy>& candidates,
          bool& isOutlier, const Logger& logger) const;
 
+  /// Prototype: select with the chi2 of a two-component prediction.
+  ///
+  /// The tail component has the predicted covariance plus @a tailCov and the
+  /// prior weight @a tailWeight. The chi2 is -2 ln of the mixture likelihood,
+  /// shifted to be the core chi2 for a small residual, so the cuts keep their
+  /// meaning in the core.
+  ///
+  /// @param tailPosterior is filled with the posterior tail weight of each
+  ///        selected candidate, in the order of the returned range
+  template <typename traj_t>
+  Result<std::pair<
+      typename std::vector<typename traj_t::TrackStateProxy>::iterator,
+      typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
+  selectWithTail(std::vector<typename traj_t::TrackStateProxy>& candidates,
+                 const BoundMatrix& tailCov, double tailWeight,
+                 std::vector<double>& tailPosterior, bool& isOutlier,
+                 const Logger& logger) const;
+
+  /// Prototype: the mixture chi2 and the posterior tail weight of a candidate.
+  template <typename track_state_t>
+  std::pair<double, double> mixtureChi2(track_state_t& trackState,
+                                        const BoundMatrix& tailCov,
+                                        double tailWeight) const;
+
  private:
+  template <typename traj_t, typename chi2_fn_t>
+  Result<std::pair<
+      typename std::vector<typename traj_t::TrackStateProxy>::iterator,
+      typename std::vector<typename traj_t::TrackStateProxy>::iterator>>
+  selectImpl(std::vector<typename traj_t::TrackStateProxy>& candidates,
+             bool& isOutlier, const Logger& logger,
+             const chi2_fn_t& chi2Fn) const;
+
+  /// chi2 and ln det of the residual covariance
+  std::pair<double, double> calculateChi2AndLogDet(
+      const double* fullCalibrated, const double* fullCalibratedCovariance,
+      TrackStateTraits<kMeasurementSizeMax, false>::Parameters predicted,
+      TrackStateTraits<kMeasurementSizeMax, false>::Covariance
+          predictedCovariance,
+      BoundSubspaceIndices projector, unsigned int calibratedSize) const;
+
   struct InternalCutBin {
     double maxTheta{};
     std::size_t maxNumMeasurements{};
