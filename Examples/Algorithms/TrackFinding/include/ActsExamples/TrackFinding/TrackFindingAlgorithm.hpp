@@ -149,6 +149,12 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     /// is typically more stable but also more computationally expensive.
     bool useJosephFormulation = false;
 
+    /// Prototype: `Acts::ScatteringTailMode` as an integer
+    /// (0 none, 1 retry, 2 retry with branch, 3 select only, 4 mixture)
+    int scatteringTailMode = 0;
+    /// Prototype: see `CombinatorialKalmanFilterOptions::scatteringTailGate`
+    double scatteringTailGate = 0.05;
+
     // Pixel and strip volume ids to be used for maxPixel/StripHoles cuts
     std::vector<std::uint32_t> pixelVolumeIds;
     std::vector<std::uint32_t> stripVolumeIds;

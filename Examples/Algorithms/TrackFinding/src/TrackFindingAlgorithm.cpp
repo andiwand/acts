@@ -93,6 +93,25 @@ class MeasurementSelector {
                                                           logger);
   }
 
+  Acts::Result<std::pair<std::vector<Traj::TrackStateProxy>::iterator,
+                         std::vector<Traj::TrackStateProxy>::iterator>>
+  selectWithTail(std::vector<Traj::TrackStateProxy>& candidates,
+                 const Acts::BoundMatrix& tailCov, double tailWeight,
+                 std::vector<double>& tailPosterior, bool& isOutlier,
+                 const Acts::Logger& logger) const {
+    if (!m_seedIndices.empty()) {
+      auto rest = std::partition(
+          candidates.begin(), candidates.end(),
+          [this](const auto& candidate) { return isSeedCandidate(candidate); });
+      if (rest != candidates.begin()) {
+        candidates.erase(rest, candidates.end());
+      }
+    }
+
+    return m_selector.selectWithTail<Acts::VectorMultiTrajectory>(
+        candidates, tailCov, tailWeight, tailPosterior, isOutlier, logger);
+  }
+
  private:
   Acts::MeasurementSelector m_selector;
   /// measurement indices of the current seed, at most a handful
@@ -318,6 +337,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
       .template connect<&MeasurementCalibratorAdapter::calibrate>(&calibrator);
   trackStateCreator.measurementSelector
       .template connect<&MeasurementSelector::select>(&measSel);
+  trackStateCreator.measurementSelectorWithTail
+      .template connect<&MeasurementSelector::selectWithTail>(&measSel);
 
   Extensions extensions;
   extensions.updater.connect<&Acts::GainMatrixUpdater::operator()<
@@ -325,6 +346,9 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   extensions.branchStopper.connect<&BranchStopper::operator()>(&branchStopper);
   extensions.createTrackStates
       .template connect<&TrackStateCreatorType::createTrackStates>(
+          &trackStateCreator);
+  extensions.createTrackStatesWithTail
+      .template connect<&TrackStateCreatorType::createTrackStatesWithTail>(
           &trackStateCreator);
   extensions.mixtureReducer.connect<&Acts::reduceMixtureWithKLDistance>();
 
@@ -349,6 +373,9 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
 
   firstOptions.targetSurface = nullptr;
   firstOptions.recordMaterialStates = m_cfg.recordMaterialStates;
+  firstOptions.scatteringTailMode =
+      static_cast<Acts::ScatteringTailMode>(m_cfg.scatteringTailMode);
+  firstOptions.scatteringTailGate = m_cfg.scatteringTailGate;
   firstOptions.betheHeitlerApprox =
       std::make_shared<Acts::PolynomialBetheHeitlerApprox>(
           Acts::makeDefaultBetheHeitlerApprox());
@@ -359,6 +386,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   secondOptions.targetSurface = pSurface.get();
   secondOptions.skipPrePropagationUpdate = true;
   secondOptions.recordMaterialStates = m_cfg.recordMaterialStates;
+  secondOptions.scatteringTailMode = firstOptions.scatteringTailMode;
+  secondOptions.scatteringTailGate = firstOptions.scatteringTailGate;
   secondOptions.betheHeitlerApprox = firstOptions.betheHeitlerApprox;
 
   using Extrapolator = Acts::Propagator<Acts::SympyStepper, Acts::Navigator>;
@@ -672,6 +701,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
 }
 
 ProcessCode TrackFindingAlgorithm::finalize() {
+  ACTS_INFO("Prototype: track states accepted through the scattering tail: "
+            << Acts::detail::scatteringTailCounter().load());
   ACTS_INFO("TrackFindingAlgorithm statistics:");
   ACTS_INFO("- total seeds: " << m_nTotalSeeds);
   ACTS_INFO("- deduplicated seeds: " << m_nDeduplicatedSeeds);
