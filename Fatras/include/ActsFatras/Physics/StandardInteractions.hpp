@@ -34,9 +34,9 @@ using SelectPhotonLike = AbsPdgSelector<Acts::PdgParticle::eGamma>;
 /// Select particles above a minimum absolute momentum.
 using SelectPMin = Min<Casts::P>;
 
-/// Highland multiple scattering that applies to all charged particles.
+/// Prototype: general mixture multiple scattering for all charged particles.
 using StandardScattering =
-    ContinuousProcess<HighlandScattering, ChargedSelector, EveryParticle,
+    ContinuousProcess<GeneralMixtureScattering, ChargedSelector, EveryParticle,
                       EveryParticle>;
 /// Ionisation/excitation energy loss with a lower p cut on output particles.
 ///

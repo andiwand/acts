@@ -33,6 +33,8 @@
 #include "ActsFatras/Selectors/SelectorHelpers.hpp"
 #include "ActsFatras/Selectors/SurfaceSelectors.hpp"
 
+#include <cstdlib>
+#include <fstream>
 #include <ostream>
 #include <stdexcept>
 #include <system_error>
@@ -225,9 +227,26 @@ ProcessCode FatrasSimulation::execute(const AlgorithmContext &ctx) const {
 
   // run the simulation w/ a local random generator
   auto rng = m_cfg.randomNumbers->spawnGenerator(ctx);
+  // prototype: record the large scatters of this event
+  std::vector<ActsFatras::ScatteringRecord> scatteringRecords;
+  ActsFatras::scatteringRecorder = &scatteringRecords;
   auto ret = m_sim->simulate(ctx.simGeoContext, ctx.magFieldContext, rng,
                              particlesInput, particlesInitialUnordered,
                              particlesFinalUnordered, simHitsUnordered);
+  ActsFatras::scatteringRecorder = nullptr;
+  if (const char *dir = std::getenv("PROTO_SCATTER_DIR"); dir != nullptr) {
+    std::ofstream os(std::string(dir) + "/event" +
+                     std::to_string(ctx.eventNumber) + "-scatters.csv");
+    os << "vp,vs,p,g,sp,x,y,z,ratio,tx0,pabs\n";
+    for (const auto &r : scatteringRecords) {
+      os << +r.particleId.vertexPrimary() << ","
+         << +r.particleId.vertexSecondary() << "," << +r.particleId.particle()
+         << "," << +r.particleId.generation() << ","
+         << +r.particleId.subParticle() << "," << r.position.x() << ","
+         << r.position.y() << "," << r.position.z() << "," << r.ratio << ","
+         << r.thicknessInX0 << "," << r.absMomentum << "\n";
+    }
+  }
   // fatal error leads to panic
   if (!ret.ok()) {
     ACTS_FATAL("event " << ctx.eventNumber << " simulation failed with error "

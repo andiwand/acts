@@ -17,10 +17,28 @@
 #include "ActsFatras/Physics/ElectroMagnetic/detail/Highland.hpp"
 
 #include <array>
+#include <cmath>
 #include <numbers>
 #include <random>
+#include <vector>
 
 namespace ActsFatras {
+
+/// Prototype hook: one large scatter of one particle.
+struct ScatteringRecord {
+  Barcode particleId;
+  Acts::Vector3 position;
+  /// largest projected angle in units of the Highland theta0
+  double ratio = 0;
+  double thicknessInX0 = 0;
+  double absMomentum = 0;
+};
+
+/// Prototype hook: the simulation sets this per event to collect the scatters
+/// above `recordThreshold`.
+inline thread_local std::vector<ScatteringRecord> *scatteringRecorder = nullptr;
+/// Prototype hook: record threshold in units of the Highland theta0.
+inline constexpr double recordThreshold = 3.;
 
 /// Simulate (multiple) scattering using a configurable scattering model.
 ///
@@ -65,6 +83,20 @@ struct GenericScattering {
         // rotation by the scattering angle around the deflector axis
         Acts::AngleAxis3(theta,
                          Acts::createCurvilinearUnitU(particle.direction())));
+    if (scatteringRecorder != nullptr) {
+      const double theta0 = Acts::computeMultipleScatteringTheta0(
+          slab, particle.absolutePdg(), particle.mass(), particle.qOverP(),
+          particle.absoluteCharge());
+      const double ratio =
+          std::abs(theta) *
+          std::max(std::abs(std::cos(psi)), std::abs(std::sin(psi))) / theta0;
+      if (ratio > recordThreshold) {
+        scatteringRecorder->push_back(
+            {particle.particleId(), particle.position(), ratio,
+             slab.thicknessInX0(), particle.absoluteMomentum()});
+      }
+    }
+
     particle.setDirection(rotation * particle.direction());
 
     // scattering is non-destructive and produces no secondaries
