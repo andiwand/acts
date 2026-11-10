@@ -92,6 +92,8 @@ struct GeneratorScratch {
   /// Strip hits collected so far this event, kept apart because only they carry
   /// a stereo pair and so only they go into a container with the column for it
   std::vector<StripHit> stripHits;
+  /// Strip clusters collected so far this event, two per crossing
+  std::vector<StripCluster> stripClusters;
   /// Crossings of the track currently being propagated
   std::vector<SurfaceCrossing> crossings;
   /// Secondaries too soft to be propagated, resolved into space points once the

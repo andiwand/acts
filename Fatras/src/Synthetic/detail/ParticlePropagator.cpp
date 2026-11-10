@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <numbers>
 #include <optional>
 #include <random>
@@ -121,7 +122,8 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
                          const SurfaceCrossing& crossing, const float displaceU,
                          const float displaceV, const std::uint32_t particle,
                          std::vector<SmearedHit>& hits,
-                         std::vector<StripHit>& stripHits) {
+                         std::vector<StripHit>& stripHits,
+                         std::vector<StripCluster>& stripClusters) {
   const DetectorSurface& surface = layout.surfaces[crossing.surface];
   const bool cylinder =
       layout.layers[crossing.layer].shape == SurfaceShape::Cylinder;
@@ -169,15 +171,25 @@ std::uint32_t recordHits(std::mt19937& rng, const DetectorLayout& layout,
     if (strip != nullptr) {
       const std::array<float, 3> position{atR * std::cos(atPhi),
                                           atR * std::sin(atPhi), atZ};
-      std::optional<StripHit> read = readStrip(
-          rng, *strip, cfg.stripGapParameter, cylinder, position, momentum);
-      if (!read.has_value()) {
-        return false;
-      }
+      StripPair fired;
+      fired.row[0] = std::numeric_limits<std::int32_t>::min();
+      std::optional<StripHit> read =
+          readStrip(rng, *strip, cfg.stripGapParameter, cylinder, position,
+                    momentum, &fired);
       // Resolved, not measured: it may land off the module that made it.
       const std::optional<std::uint32_t> layer =
-          findLayer(layout, surface, read->hit.r, read->hit.z);
-      if (!layer.has_value()) {
+          read.has_value()
+              ? findLayer(layout, surface, read->hit.r, read->hit.z)
+              : std::nullopt;
+      if (fired.row[0] != std::numeric_limits<std::int32_t>::min()) {
+        for (std::uint8_t side = 0; side < 2; ++side) {
+          stripClusters.push_back(
+              StripCluster{fired.center[side], fired.halfVector[side],
+                           crossing.surface, crossing.layer, fired.row[side],
+                           particle, side, layer.has_value()});
+        }
+      }
+      if (!read.has_value() || !layer.has_value()) {
         return false;
       }
       read->hit.layer = *layer;
@@ -380,6 +392,7 @@ void ParticlePropagator::propagate(
   std::vector<Helix>& tracks = scratch.tracks;
   std::vector<SmearedHit>& hits = scratch.hits;
   std::vector<StripHit>& stripHits = scratch.stripHits;
+  std::vector<StripCluster>& stripClusters = scratch.stripClusters;
   std::vector<SurfaceCrossing>& crossings = scratch.crossings;
   std::vector<PendingStub>& stubs = scratch.stubs;
   const std::size_t numPrimaries = tracks.size();
@@ -399,6 +412,7 @@ void ParticlePropagator::propagate(
   hits.clear();
   hits.reserve(totalForEvent(propagation.hitsPerPrimary, numPrimaries));
   stripHits.clear();
+  stripClusters.clear();
   stubs.clear();
 
   // The neutral parents first, so that a decay is a straight line drawn before
@@ -481,7 +495,7 @@ void ParticlePropagator::propagate(
       if (crossing.sensitive()) {
         particles[particle].numHits += recordHits(
             rng, layout, cfg.measurement, m_strips, track, direction, crossing,
-            displaceU, displaceV, particle, hits, stripHits);
+            displaceU, displaceV, particle, hits, stripHits, stripClusters);
       }
 
       if (scattering && material.xOverX0 > 0.f) {
@@ -597,10 +611,19 @@ void ParticlePropagator::propagate(
                                             hitR * std::sin(hitPhi), hitZ};
         const std::array<float, 3> outward{std::cos(hitPhi), std::sin(hitPhi),
                                            0.f};
+        StripPair fired;
+        fired.row[0] = std::numeric_limits<std::int32_t>::min();
         std::optional<StripHit> read =
             readStrip(rng, m_strips[*layer],
                       m_cfg.simulation.measurement.stripGapParameter, cylinder,
-                      position, outward);
+                      position, outward, &fired);
+        if (fired.row[0] != std::numeric_limits<std::int32_t>::min()) {
+          for (std::uint8_t side = 0; side < 2; ++side) {
+            stripClusters.push_back(StripCluster{
+                fired.center[side], fired.halfVector[side], stub.surface,
+                *layer, fired.row[side], particle, side, read.has_value()});
+          }
+        }
         if (!read.has_value()) {
           continue;
         }

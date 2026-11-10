@@ -92,7 +92,8 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout) {
 std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
                                   const float gapParameter, const bool cylinder,
                                   const std::array<float, 3>& position,
-                                  const std::array<float, 3>& direction) {
+                                  const std::array<float, 3>& direction,
+                                  StripPair* fired) {
   const float r = std::hypot(position[0], position[1]);
   if (r <= 0.f) {
     return std::nullopt;
@@ -153,7 +154,8 @@ std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
     // coordinate straight back and leave the pair with nothing to resolve.
     const float length = 2.f * layer.halfLength;
     const float here = dot(met, along) / dot(axis[side], along);
-    const float middle = (std::floor(here / length) + 0.5f) * length;
+    const float row = std::floor(here / length);
+    const float middle = (row + 0.5f) * length;
     centre[side] = addScaled(met, axis[side], middle - here);
     centre[side] =
         addScaled(centre[side], measured, layer.sigma * sampleNormal(rng));
@@ -161,6 +163,13 @@ std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
         vector3(addScaled(centre[side], axis[side], layer.halfLength));
     ends[side].bottom =
         vector3(addScaled(centre[side], axis[side], -layer.halfLength));
+    if (fired != nullptr) {
+      fired->center[side] = centre[side];
+      fired->halfVector[side] = {axis[side][0] * layer.halfLength,
+                                 axis[side][1] * layer.halfLength,
+                                 axis[side][2] * layer.halfLength};
+      fired->row[side] = static_cast<std::int32_t>(row);
+    }
   }
 
   // Resolved from the beam spot, which is all reconstruction knows: the error

@@ -16,6 +16,7 @@
 #include "ActsFatras/Synthetic/detail/GeneratorScratch.hpp"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <random>
 #include <vector>
@@ -86,9 +87,17 @@ std::vector<StripLayer> stripLayers(const DetectorLayout& layout);
 /// @param direction the direction it crosses in, of unit length
 /// @return the space point and the pair it came from, or nothing where the pair
 ///         does not resolve, which is a strip module measuring nothing
+/// The two strips a crossing fired, inner sensor first, with the row of each.
+struct StripPair {
+  std::array<std::array<float, 3>, 2> center{};
+  std::array<std::array<float, 3>, 2> halfVector{};
+  std::array<std::int32_t, 2> row{};
+};
+
 std::optional<StripHit> readStrip(std::mt19937& rng, const StripLayer& layer,
                                   float gapParameter, bool cylinder,
                                   const std::array<float, 3>& position,
-                                  const std::array<float, 3>& direction);
+                                  const std::array<float, 3>& direction,
+                                  StripPair* fired = nullptr);
 
 }  // namespace ActsFatras::Synthetic::detail

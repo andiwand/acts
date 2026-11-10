@@ -11,6 +11,7 @@
 #include "Acts/EventData/SpacePointContainer.hpp"
 #include "ActsFatras/Synthetic/DetectorLayout.hpp"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -77,6 +78,31 @@ constexpr Acts::SpacePointColumns kSpacePointColumns =
 /// every point for whether its entry means anything. Both index the same
 /// `particles`, and their `layerId`s are the same index space. A seeder takes
 /// one container, so see `selectSpacePoints`.
+/// One sensor of a strip module that a track crossed: the strip it fired and
+/// nothing else. A crossing leaves two of them, one per sensor, whether or not
+/// the pair resolves into a space point.
+struct StripCluster {
+  /// Centre of the fired strip
+  std::array<float, 3> center{};
+  /// From the centre to the top end of the strip
+  std::array<float, 3> halfVector{};
+  /// Index into `DetectorLayout::surfaces` of the surface crossed
+  std::uint32_t surface{};
+  /// Index into `DetectorLayout::layers` of the layer crossed
+  std::uint32_t layer{};
+  /// Index of the strip row along the strip direction, i.e. which module of
+  /// the surface it sits in along z on a barrel and along r on an endcap; the
+  /// two sensors of one module share it
+  std::int32_t row{};
+  /// Index into `Event::particles`
+  std::uint32_t particle{};
+  /// 0 for the inner sensor, 1 for the outer one
+  std::uint8_t side{};
+  /// Whether the pair resolved into a space point under the beam spot
+  /// constraint, i.e. whether `Event::stripSpacePoints` holds it
+  bool formed{};
+};
+
 struct Event {
   /// Space points of the pixel layers, i.e. of every layer the description
   /// gives no `StripSensor`
@@ -86,6 +112,9 @@ struct Event {
   Acts::SpacePointContainer stripSpacePoints;
   /// The generating particles, indexed by the `particleId` column of either
   std::vector<GeneratedParticle> particles;
+  /// Every strip cluster, in pairs: entry `2k` is the inner sensor and `2k+1`
+  /// the outer sensor of the same crossing
+  std::vector<StripCluster> stripClusters;
 };
 
 /// Which of an event's space points a seeder is to run on.

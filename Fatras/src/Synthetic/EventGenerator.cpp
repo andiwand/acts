@@ -119,6 +119,8 @@ void EventGenerator::generate(Event& event) {
     sp.varianceR() = cylinder ? 0.f : measuredVariance;
   }
 
+  event.stripClusters = m_scratch.stripClusters;
+
   Acts::SpacePointContainer& stripSpacePoints = event.stripSpacePoints;
   stripSpacePoints.clear();
   stripSpacePoints.createColumns(
