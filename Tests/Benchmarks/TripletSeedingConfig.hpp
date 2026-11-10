@@ -92,6 +92,12 @@ struct ItkSeedingConfig {
   bool useStripInfo = false;
   /// Cheap cut on the doublets of a strip triplet, ahead of that fit
   float cotThetaDiffMax = std::numeric_limits<float>::infinity();
+  // Strip space point variances as Athena sets them (`SCT_SpacePoint`
+  // constant: 0.1 mm^2 across, 5.12 mm^2 along the strip), times
+  // `spacePointVarianceScale` of `GridTripletSeedingTool`. Off keeps the
+  // variances of the input.
+  bool athenaStripVariance = false;
+  float spacePointVarianceScale = 1.f;
 
   // -- middle space point range
   bool useVariableMiddleSPRange = false;
@@ -251,7 +257,11 @@ inline ItkSeedingConfig makeItkLrtStripConfig() {
   cfg.deltaRMaxBottomSP = 250_mm;
   cfg.deltaZMax = 850_mm;
 
-  cfg.cotThetaDiffMax = 0.3f;
+  // Athena `maxStripDeltaCotTheta`, 0.3 until the strip calibration of the
+  // doublets (`stripCalibrationTolerance` 1.75) went in, upstream 2026-11
+  cfg.cotThetaDiffMax = 0.1f;
+  cfg.athenaStripVariance = true;
+  cfg.spacePointVarianceScale = 0.5f;
 
   // a table again, rather than the extent of the event
   cfg.useVariableMiddleSPRange = false;

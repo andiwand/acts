@@ -75,6 +75,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -86,6 +87,8 @@
 
 #include <boost/program_options.hpp>
 
+#include "StripClusterSeeder.hpp"
+#include "StripClusterSeeding.hpp"
 #include "SyntheticEventOptions.hpp"
 #include "TripletSeedingConfig.hpp"
 
@@ -402,6 +405,29 @@ class DoubletDPhiCut {
   std::vector<float> m_asinD0OverR;
 };
 
+/// The doublet cut of the cluster seeding: the transverse azimuth cut first,
+/// then the partner calibration, which only the doublets that pass pay for.
+struct ClusterDoubletCut {
+  const DoubletDPhiCut* dPhi{};
+  const StripClusterSeeding::PartnerCalibrationCut* calibration{};
+  mutable std::size_t calls{};
+
+  bool operator()(const Acts::ConstSpacePointProxy& middle,
+                  const Acts::ConstSpacePointProxy& other, float cotTheta,
+                  bool isBottomCandidate) const {
+    ++calls;
+    if (dPhi != nullptr &&
+        !(*dPhi)(middle, other, cotTheta, isBottomCandidate)) {
+      return false;
+    }
+    const std::array<float, 3> m{middle.xy()[0], middle.xy()[1],
+                                 middle.zr()[0]};
+    const std::array<float, 3> o{other.xy()[0], other.xy()[1], other.zr()[0]};
+    return (*calibration)(middle.copiedFromIndex(), other.copiedFromIndex(), m,
+                          o, isBottomCandidate);
+  }
+};
+
 /// Everything that is reused between benchmark iterations, so that the timed
 /// region allocates as little as the experiment's own does.
 struct SeedingCache {
@@ -415,6 +441,9 @@ struct SeedingCache {
   /// The doublet azimuth cut, when the configuration asks for it. Held here
   /// because the doublet finders refer to it.
   std::unique_ptr<DoubletDPhiCut> doubletDPhiCut;
+  /// The cluster doublet cut, when cluster seeding calibrates its doublets
+  std::unique_ptr<StripClusterSeeding::PartnerCalibrationCut> partnerCut;
+  std::unique_ptr<ClusterDoubletCut> clusterDoubletCut;
 };
 
 /// Run one full seeding pass over an event, the way the ATLAS tool does.
@@ -478,6 +507,15 @@ void createSeeds(const ItkSeedingConfig& cfg,
       newSp.zr() = std::array<float, 2>{sp.z(), sp.r()};
       newSp.varianceZ() = sp.varianceZ();
       newSp.varianceR() = sp.varianceR();
+      if (cfg.athenaStripVariance) {
+        // the generator puts the variance along the strip only: z on a
+        // barrel, r on an endcap
+        const bool barrel = sp.varianceZ() >= sp.varianceR();
+        newSp.varianceZ() =
+            cfg.spacePointVarianceScale * (barrel ? 5.12f : 0.1f);
+        newSp.varianceR() =
+            cfg.spacePointVarianceScale * (barrel ? 0.1f : 5.12f);
+      }
       if (cfg.useStripInfo) {
         newSp.outerStripCalibrationDetails() =
             sp.outerStripCalibrationDetails();
@@ -673,6 +711,23 @@ int main(int argc, char* argv[]) {
   int interactionPointCut = -1;
   float cotThetaDiffMax = -1.f;
   bool verbose = false;
+  std::string stripInput = "space-points";
+  float formationGapScale = 1.f;
+  bool dropGhosts = false;
+  bool bestPartner = false;
+  int clusterSide = 0;
+  int maxSeedsPerMiddle = -1;
+  int athenaVariance = -1;
+  bool refine = true;
+  int truthPosition = 0;
+  int seedConfirmation = -1;
+  float clusterDoubletCalibration = 0.f;
+  float partnerReach = 3.f;
+  float prefilterGapScale = 0.f;
+  StripClusterSeeding::SeederConfig seederCfg;
+  float deltaInvHelixDiameter = -1.f;
+  float collisionRegion = -1.f;
+  StripClusterSeeding::RefineConfig refineCfg;
 
   SphericalGridConfig sph;
 
@@ -704,6 +759,85 @@ int main(int argc, char* argv[]) {
         po::value<float>(&cotThetaDiffMax)->default_value(cotThetaDiffMax),
         "strips: override the doublet cot(theta) pre-filter of the triplet "
         "stage; negative keeps the configuration's")(
+        "strip-input",
+        po::value<std::string>(&stripInput)->default_value(stripInput),
+        "strips: space-points (the generator's), formed (paired from the "
+        "clusters with ghosts) or clusters (one sensor side, refined per "
+        "seed)")(
+        "formation-gap-scale",
+        po::value<float>(&formationGapScale)->default_value(formationGapScale),
+        "strips, formed: scale of the gap tolerance of the formation")(
+        "best-partner", po::bool_switch(&bestPartner),
+        "strips, formed: one space point per inner cluster, with the partner "
+        "resolving closest to the middle of its strip")(
+        "drop-ghosts", po::bool_switch(&dropGhosts),
+        "strips, formed: drop ghost space points by truth (diagnostic)")(
+        "cluster-side",
+        po::value<int>(&clusterSide)->default_value(clusterSide),
+        "strips, clusters: sensor side to seed on, 0 inner or 1 outer")(
+        "refine-cot-diff",
+        po::value<float>(&refineCfg.cotThetaDiffMax)
+            ->default_value(refineCfg.cotThetaDiffMax),
+        "strips, clusters: cot(theta) agreement of the resolved doublets")(
+        "refine-tolerance",
+        po::value<float>(&refineCfg.tolerance)
+            ->default_value(refineCfg.tolerance),
+        "strips, clusters: resolution tolerance in strip half lengths")(
+        "cluster-doublet-calibration",
+        po::value<float>(&clusterDoubletCalibration)
+            ->default_value(clusterDoubletCalibration),
+        "strips, clusters: resolve both clusters of a doublet against its "
+        "chord with their candidate partners, at this tolerance in strip half "
+        "lengths, after the transverse cuts; 0 is off")(
+        "seeder-cot-diff",
+        po::value<float>(&seederCfg.cotThetaDiffMax)
+            ->default_value(seederCfg.cotThetaDiffMax),
+        "cluster seeder: calibrated doublet cot(theta) pre-filter")(
+        "seeder-triplet-cot",
+        po::value<float>(&seederCfg.tripletCotThetaDiffMax)
+            ->default_value(seederCfg.tripletCotThetaDiffMax),
+        "cluster seeder: cot(theta) difference with the circle tangent")(
+        "seeder-max-seeds",
+        po::value<std::size_t>(&seederCfg.maxSeedsPerMiddle)
+            ->default_value(seederCfg.maxSeedsPerMiddle),
+        "cluster seeder: seeds kept per middle point")(
+        "seeder-doublet-tolerance",
+        po::value<float>(&seederCfg.doubletTolerance)
+            ->default_value(seederCfg.doubletTolerance),
+        "cluster seeder: doublet resolution tolerance in half lengths")(
+        "prefilter-gap-scale",
+        po::value<float>(&prefilterGapScale)->default_value(prefilterGapScale),
+        "strips, clusters: seed only on inner clusters that resolve with an "
+        "outer one under the beam spot constraint at this scale of the gap "
+        "tolerance, and take only those as partners; 0 is off")(
+        "partner-reach",
+        po::value<float>(&partnerReach)->default_value(partnerReach),
+        "strips, clusters: how far along the strip a partner may resolve, in "
+        "half lengths, for the partner table")(
+        "seed-confirmation",
+        po::value<int>(&seedConfirmation)->default_value(seedConfirmation),
+        "override the seed confirmation of the filter: 0 off, 1 on")(
+        "delta-inv-helix-diameter",
+        po::value<float>(&deltaInvHelixDiameter)
+            ->default_value(deltaInvHelixDiameter),
+        "override the curvature match of compatible tops in the filter, 1/mm")(
+        "truth-position",
+        po::value<int>(&truthPosition)->default_value(truthPosition),
+        "strips, clusters, diagnostic: 1 true pair point, 2 its coordinate "
+        "along the strip only, 3 its azimuth only")(
+        "refine", po::value<bool>(&refine)->default_value(refine),
+        "strips, clusters: refine the seeds; off returns the single cluster "
+        "seeds as they are (diagnostic)")(
+        "athena-variance",
+        po::value<int>(&athenaVariance)->default_value(athenaVariance),
+        "strips: 1 uses Athena's strip space point variances, 0 the "
+        "generator's; negative keeps the configuration's")(
+        "max-seeds-per-middle",
+        po::value<int>(&maxSeedsPerMiddle)->default_value(maxSeedsPerMiddle),
+        "override maxSeedsPerSpM and its confirmation variants")(
+        "collision-region",
+        po::value<float>(&collisionRegion)->default_value(collisionRegion),
+        "override the half width of the doublet z origin window in mm")(
         "strip-info", po::value<bool>(&stripInfo)->default_value(stripInfo),
         "strips: fit the triplet against the strips of its three space points, "
         "each of them free to move along its own, rather than through their "
@@ -837,6 +971,43 @@ int main(int argc, char* argv[]) {
                          : strips ? makeItkStripConfig()
                                   : ItkSeedingConfig{};
   cfg.useStripInfo = cfg.useStripInfo && stripInfo;
+  if (stripInput != "space-points" && stripInput != "formed" &&
+      stripInput != "clusters" && stripInput != "cluster-seeder") {
+    std::cerr << "error: unknown --strip-input" << std::endl;
+    return 1;
+  }
+  const bool fromSeeder = strips && stripInput == "cluster-seeder";
+  const bool fromClusters = strips && (stripInput == "clusters" || fromSeeder);
+  const bool fromFormed = strips && stripInput == "formed";
+  // a single cluster has no partner to calibrate against
+  if (fromClusters) {
+    cfg.useStripInfo = false;
+    // a single cluster carries its own variance, the strip length
+    cfg.athenaStripVariance = false;
+  }
+  if (seedConfirmation >= 0) {
+    cfg.seedConfirmation = seedConfirmation != 0;
+  }
+  if (deltaInvHelixDiameter >= 0.f) {
+    cfg.deltaInvHelixDiameter = deltaInvHelixDiameter;
+  }
+  if (athenaVariance >= 0) {
+    cfg.athenaStripVariance = athenaVariance != 0;
+  }
+  if (maxSeedsPerMiddle > 0) {
+    cfg.maxSeedsPerSpM = maxSeedsPerMiddle;
+    cfg.maxSeedsPerSpMConf = maxSeedsPerMiddle;
+    cfg.maxQualitySeedsPerSpMConf = maxSeedsPerMiddle;
+  }
+  const float nominalCollisionMin = cfg.collisionRegionMin;
+  const float nominalCollisionMax = cfg.collisionRegionMax;
+  if (collisionRegion > 0.f) {
+    cfg.collisionRegionMin = -collisionRegion;
+    cfg.collisionRegionMax = collisionRegion;
+  }
+  // the coarse window may be widened; the resolved points get the nominal one
+  refineCfg.collisionRegionMin = nominalCollisionMin;
+  refineCfg.collisionRegionMax = nominalCollisionMax;
   if (interactionPointCut >= 0) {
     cfg.interactionPointCut = interactionPointCut != 0;
   }
@@ -862,6 +1033,18 @@ int main(int argc, char* argv[]) {
   if (cfg.doubletDPhiCut) {
     cache.doubletDPhiCut = std::make_unique<DoubletDPhiCut>(cfg);
     bottomConfig.experimentCuts.connect(*cache.doubletDPhiCut);
+  }
+  if (fromClusters && clusterDoubletCalibration > 0.f) {
+    cache.partnerCut =
+        std::make_unique<StripClusterSeeding::PartnerCalibrationCut>();
+    cache.partnerCut->tolerance = clusterDoubletCalibration;
+    cache.partnerCut->collisionRegionMin = nominalCollisionMin;
+    cache.partnerCut->collisionRegionMax = nominalCollisionMax;
+    cache.partnerCut->cotThetaMax = cfg.cotThetaMax;
+    cache.clusterDoubletCut = std::make_unique<ClusterDoubletCut>();
+    cache.clusterDoubletCut->dPhi = cache.doubletDPhiCut.get();
+    cache.clusterDoubletCut->calibration = cache.partnerCut.get();
+    bottomConfig.experimentCuts.connect(*cache.clusterDoubletCut);
   }
   if (cfg.useStripInfo && stripCalibrationTolerance > 0.f) {
     bottomConfig.stripCalibrationTolerance = stripCalibrationTolerance;
@@ -905,8 +1088,8 @@ int main(int argc, char* argv[]) {
 
   // dispatch once, so that the grid type is a compile time property of the
   // seeding pass and not a branch inside it
-  const auto seed = [&](const Acts::SpacePointContainer& eventSpacePoints,
-                        Acts::SeedContainer& seeds) {
+  const auto seedOn = [&](const Acts::SpacePointContainer& eventSpacePoints,
+                          Acts::SeedContainer& seeds) {
     if (spherical) {
       createSeeds<Exp::SphericalSpacePointGrid>(cfg, sphericalConfig, axis,
                                                 cache, eventSpacePoints, seeds);
@@ -916,12 +1099,244 @@ int main(int argc, char* argv[]) {
     }
   };
 
+  // The strip inputs built from clusters, rebuilt inside the timed region
+  // because building them is part of what the chain costs.
+  const std::vector<StripClusterSeeding::StripLayer> stripLayerInfo =
+      ActsFatras::Synthetic::detail::stripLayers(layout);
+  const float gapParameter =
+      eventConfig.simulation.measurement.stripGapParameter * formationGapScale;
+  std::vector<Acts::SpacePointContainer> built(numEvents);
+  std::vector<std::vector<std::uint32_t>> clusterOf(numEvents);
+  StripClusterSeeding::ClusterIndex partnerIndex;
+  std::vector<StripClusterSeeding::PartnerTable> partnerTables(numEvents);
+  std::vector<std::uint32_t> prefilterBegin;
+  std::vector<std::uint32_t> prefilterList;
+  StripClusterSeeding::FormationStats formationStats;
+  StripClusterSeeding::RefineStats refineStats;
+  bool collectStats = false;
+  const auto prepare = [&](std::size_t index) {
+    const Event& event = events[index];
+    const auto ghost = static_cast<std::uint32_t>(event.particles.size());
+    if (fromFormed) {
+      partnerIndex.build(event.stripClusters, 1);
+      const auto stats = StripClusterSeeding::formSpacePoints(
+          layout, stripLayerInfo, event.stripClusters, partnerIndex,
+          gapParameter, ghost, dropGhosts, built[index], bestPartner);
+      if (collectStats) {
+        formationStats.pairsTried += stats.pairsTried;
+        formationStats.formed += stats.formed;
+        formationStats.ghosts += stats.ghosts;
+        formationStats.trueCrossings += stats.trueCrossings;
+      }
+    } else if (fromClusters) {
+      const auto side = static_cast<std::uint8_t>(clusterSide);
+      if (prefilterGapScale > 0.f) {
+        // inner side only
+        partnerIndex.build(event.stripClusters, 1);
+        prefilterBegin = StripClusterSeeding::formationPartners(
+            layout, stripLayerInfo, event.stripClusters, partnerIndex,
+            eventConfig.simulation.measurement.stripGapParameter *
+                prefilterGapScale,
+            prefilterList);
+        StripClusterSeeding::makeClusterSpacePoints(
+            layout, stripLayerInfo, event.stripClusters, 0, built[index],
+            clusterOf[index], truthPosition, &prefilterBegin);
+        if (cache.partnerCut != nullptr || fromSeeder) {
+          partnerTables[index].build(event.stripClusters, clusterOf[index],
+                                     prefilterBegin, prefilterList);
+        }
+        if (cache.partnerCut != nullptr) {
+          cache.partnerCut->partners = &partnerTables[index];
+        }
+        return;
+      }
+      StripClusterSeeding::makeClusterSpacePoints(
+          layout, stripLayerInfo, event.stripClusters, side, built[index],
+          clusterOf[index], truthPosition);
+      partnerIndex.build(event.stripClusters, 1 - side);
+      if (cache.partnerCut != nullptr || fromSeeder) {
+        partnerTables[index].build(stripLayerInfo, event.stripClusters,
+                                   clusterOf[index], partnerIndex, side,
+                                   partnerReach);
+      }
+      if (cache.partnerCut != nullptr) {
+        cache.partnerCut->partners = &partnerTables[index];
+      }
+    }
+  };
+  // in native units a momentum over a field is a radius
+  seederCfg.minHelixRadius = cfg.minPt / cfg.bFieldInZ / 1_mm;
+  std::unique_ptr<StripClusterSeeding::StripClusterSeeder> clusterSeeder;
+  StripClusterSeeding::SeederStats seederStats;
+  if (fromSeeder) {
+    clusterSeeder =
+        std::make_unique<StripClusterSeeding::StripClusterSeeder>(seederCfg);
+    for (const Event& event : events) {
+      clusterSeeder->addModules(layout, stripLayerInfo, event.stripClusters);
+    }
+    clusterSeeder->connect();
+    std::cout << "seeder: minHelixRadius=" << seederCfg.minHelixRadius
+              << " modules=" << clusterSeeder->numModules()
+              << " connections=" << clusterSeeder->numConnections()
+              << std::endl;
+  }
+  const auto seed = [&](std::size_t index, Acts::SeedContainer& seeds) {
+    if (!fromFormed && !fromClusters) {
+      seedOn(spacePoints[index], seeds);
+      return;
+    }
+    prepare(index);
+    if (fromFormed) {
+      seedOn(built[index], seeds);
+      return;
+    }
+    if (fromSeeder) {
+      clusterSeeder->seed(built[index], events[index].stripClusters,
+                          clusterOf[index], partnerTables[index], seeds,
+                          seederStats);
+      return;
+    }
+    if (!refine) {
+      seedOn(built[index], seeds);
+      return;
+    }
+    Acts::SeedContainer candidates;
+    seedOn(built[index], candidates);
+    StripClusterSeeding::RefineStats stats;
+    StripClusterSeeding::refineSeeds(
+        layout, stripLayerInfo, events[index].stripClusters, clusterOf[index],
+        partnerIndex, static_cast<std::uint8_t>(clusterSide), refineCfg,
+        candidates, seeds, stats);
+    if (collectStats) {
+      refineStats.seedsIn += stats.seedsIn;
+      refineStats.seedsOut += stats.seedsOut;
+      refineStats.partnerCandidates += stats.partnerCandidates;
+      refineStats.clustersWithoutPartner += stats.clustersWithoutPartner;
+      refineStats.combinations += stats.combinations;
+      refineStats.truePartners += stats.truePartners;
+      refineStats.chosenPartners += stats.chosenPartners;
+      refineStats.trueSeeds += stats.trueSeeds;
+      refineStats.trueClusters += stats.trueClusters;
+      refineStats.trueClusterPartnerInWindow +=
+          stats.trueClusterPartnerInWindow;
+      refineStats.trueClusterPartnerResolved +=
+          stats.trueClusterPartnerResolved;
+      refineStats.trueSeedsOut += stats.trueSeedsOut;
+    }
+  };
+
+  // the population of the strips: clusters, crossings and what formation
+  // makes of them
+  if (strips) {
+    std::size_t clusters = 0;
+    std::size_t crossings = 0;
+    std::size_t formedCrossings = 0;
+    std::array<std::size_t, 3> byKind{};
+    std::array<std::size_t, 3> formedByKind{};
+    for (const Event& event : events) {
+      clusters += event.stripClusters.size();
+      for (const auto& c : event.stripClusters) {
+        if (c.side != 0) {
+          continue;
+        }
+        ++crossings;
+        formedCrossings += c.formed ? 1 : 0;
+        const auto& particle = event.particles[c.particle];
+        const int kind = particle.displaced ? 2 : particle.primary() ? 0 : 1;
+        ++byKind[kind];
+        formedByKind[kind] += c.formed ? 1 : 0;
+      }
+    }
+    std::cout << "strips/event: clusters=" << clusters / numEvents
+              << " crossings=" << crossings / numEvents
+              << " formed=" << formedCrossings / numEvents
+              << " generatorSpacePoints="
+              << events.front().stripSpacePoints.size()
+              << "\n  formed/crossings: primary " << formedByKind[0] << "/"
+              << byKind[0] << " secondary " << formedByKind[1] << "/"
+              << byKind[1] << " displaced " << formedByKind[2] << "/"
+              << byKind[2] << std::endl;
+  }
+  if (fromFormed || fromClusters) {
+    collectStats = true;
+    prepare(0);
+    collectStats = false;
+    if (std::getenv("DEBUG_COMPARE") != nullptr) {
+      const auto& gen = events[0].stripSpacePoints;
+      auto genP =
+          const_cast<Acts::SpacePointContainer&>(gen).column<std::uint32_t>(
+              "particleId");
+      auto bP = built[0].column<std::uint32_t>("particleId");
+      for (std::uint32_t k = 0; k < 6; ++k) {
+        std::cout << "gen " << gen[k].x() << " " << gen[k].y() << " "
+                  << gen[k].z() << " " << gen[k].varianceZ() << " p"
+                  << gen[k].extra(genP) << " | built " << built[0][k].x() << " "
+                  << built[0][k].y() << " " << built[0][k].z() << " "
+                  << built[0][k].varianceZ() << " p" << built[0][k].extra(bP)
+                  << std::endl;
+      }
+    }
+    if (std::getenv("DEBUG_MISSING") != nullptr) {
+      // crossings formed by the generator but not here
+      const auto& cl = events[0].stripClusters;
+      auto bP = built[0].column<std::uint32_t>("particleId");
+      std::vector<std::uint32_t> perParticle(events[0].particles.size() + 1, 0);
+      for (const auto sp : built[0]) {
+        ++perParticle[sp.extra(bP)];
+      }
+      std::vector<std::uint32_t> genFormed(events[0].particles.size(), 0);
+      for (const auto& c : cl) {
+        genFormed[c.particle] += (c.side == 0 && c.formed) ? 1 : 0;
+      }
+      std::size_t hardShort = 0;
+      std::size_t hardShortSps = 0;
+      for (std::size_t p = 0; p < genFormed.size(); ++p) {
+        if (events[0].particles[p].pt >= 1.f && genFormed[p] > perParticle[p]) {
+          ++hardShort;
+          hardShortSps += genFormed[p] - perParticle[p];
+          if (hardShort < 6) {
+            std::cout << "short p" << p << " pt " << events[0].particles[p].pt
+                      << " eta " << events[0].particles[p].eta << " gen "
+                      << genFormed[p] << " here " << perParticle[p]
+                      << std::endl;
+          }
+        }
+      }
+      std::cout << "hard particles short: " << hardShort << " by "
+                << hardShortSps << std::endl;
+    }
+    std::cout << "input/event0: points=" << built[0].size();
+    if (cache.partnerCut != nullptr) {
+      std::cout << " partners=" << partnerTables[0].size()
+                << " truePartners=" << partnerTables[0].numTrue();
+    }
+    if (fromFormed) {
+      std::cout << " pairsTried=" << formationStats.pairsTried
+                << " formed=" << formationStats.formed
+                << " ghosts=" << formationStats.ghosts
+                << " trueCrossings=" << formationStats.trueCrossings;
+      formationStats = {};
+    }
+    std::cout << std::endl;
+    std::size_t next = 0;
+    const auto prepResult = microBenchmark(
+        [&] {
+          prepare(next);
+          next = (next + 1) % numEvents;
+          assumeRead(built);
+        },
+        1, numRuns);
+    std::cout << "prepare: " << prepResult << std::endl;
+  }
+
+  const Acts::SpacePointContainer& statisticsInput =
+      (fromFormed || fromClusters) ? built.front() : spacePoints.front();
   if (spherical) {
     printGridStatistics<Exp::SphericalSpacePointGrid>(
-        cfg, sphericalConfig, axis, spacePoints.front(), *cache.logger);
+        cfg, sphericalConfig, axis, statisticsInput, *cache.logger);
   } else {
     printGridStatistics<Acts::CylindricalSpacePointGrid>(
-        cfg, cylindricalConfig, axis, spacePoints.front(), *cache.logger);
+        cfg, cylindricalConfig, axis, statisticsInput, *cache.logger);
   }
 
   // Truth and efficiency are accumulated over every event, and outside the
@@ -936,6 +1351,11 @@ int main(int argc, char* argv[]) {
   std::vector<std::size_t> d0Matched(d0Edges.size() - 1, 0);
   std::vector<std::size_t> radiusSeedable(radiusEdges.size() - 1, 0);
   std::vector<std::size_t> radiusMatched(radiusEdges.size() - 1, 0);
+  // the same against crossings, which formation losses do not hide
+  std::vector<std::size_t> d0CrossSeedable(d0Edges.size() - 1, 0);
+  std::vector<std::size_t> d0CrossMatched(d0Edges.size() - 1, 0);
+  std::size_t promptCrossSeedable = 0;
+  std::size_t promptCrossMatched = 0;
   const auto fill = [](const std::vector<float>& edges,
                        std::vector<std::size_t>& counts, float value) {
     const auto edge = std::ranges::upper_bound(edges, value);
@@ -944,6 +1364,15 @@ int main(int argc, char* argv[]) {
     }
     ++counts[std::distance(edges.begin(), edge) - 1];
   };
+  seederStats = {};
+  if (clusterSeeder != nullptr) {
+    clusterSeeder->resetMiddleResolved();
+  }
+  if (cache.clusterDoubletCut != nullptr) {
+    cache.clusterDoubletCut->calls = 0;
+    cache.partnerCut->calls = 0;
+    cache.partnerCut->passed = 0;
+  }
   for (std::size_t index = 0; index < events.size(); ++index) {
     const Event& event = events[index];
     // Scored on the selected collection alone: the other one is generated but
@@ -959,9 +1388,16 @@ int main(int argc, char* argv[]) {
     summary.secondaryHits += one.secondaryHits;
 
     Acts::SeedContainer reference;
-    seed(spacePoints[index], reference);
+    collectStats = true;
+    seed(index, reference);
+    collectStats = false;
+    // a ghost space point carries one particle id past the generated ones
+    Event truthEvent;
+    truthEvent.particles = event.particles;
+    truthEvent.particles.emplace_back();
+    truthEvent.particles.back().generation = 255;
     const SeedingSummary oneSeeding =
-        evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
+        evaluateSeeds(truthEvent, reference, truthPt * 1_MeV / 1_GeV);
     seedSummary.seeds += oneSeeding.seeds;
     seedSummary.trueSeeds += oneSeeding.trueSeeds;
     seedSummary.matchedPrimaries += oneSeeding.matchedPrimaries;
@@ -970,6 +1406,26 @@ int main(int argc, char* argv[]) {
     seedSummary.trueDisplacedSeeds += oneSeeding.trueDisplacedSeeds;
     seedSummary.matchedDisplaced += oneSeeding.matchedDisplaced;
 
+    std::vector<std::uint32_t> crossingsOf(event.particles.size(), 0);
+    for (const auto& c : event.stripClusters) {
+      crossingsOf[c.particle] += c.side == 0 ? 1 : 0;
+    }
+    for (std::size_t p = 0; p < event.particles.size(); ++p) {
+      const GeneratedParticle& particle = event.particles[p];
+      if (!strips || particle.pt < truthPt * 1_MeV / 1_GeV ||
+          crossingsOf[p] < 3) {
+        continue;
+      }
+      if (particle.primary()) {
+        ++promptCrossSeedable;
+        promptCrossMatched += oneSeeding.matched[p] ? 1 : 0;
+      } else if (particle.displaced) {
+        fill(d0Edges, d0CrossSeedable, std::abs(particle.d0));
+        if (oneSeeding.matched[p]) {
+          fill(d0Edges, d0CrossMatched, std::abs(particle.d0));
+        }
+      }
+    }
     for (std::size_t p = 0; p < event.particles.size(); ++p) {
       const GeneratedParticle& particle = event.particles[p];
       if (!particle.displaced || particle.pt < truthPt * 1_MeV / 1_GeV ||
@@ -986,6 +1442,15 @@ int main(int argc, char* argv[]) {
   }
 
   const auto perEvent = [&](std::size_t value) { return value / numEvents; };
+  const StripClusterSeeding::SeederStats seederCounts = seederStats;
+  const std::size_t middleResolvedCount =
+      clusterSeeder != nullptr ? clusterSeeder->middleResolved() : 0;
+  const std::array<std::size_t, 3> doubletCutCounts =
+      cache.clusterDoubletCut == nullptr
+          ? std::array<std::size_t, 3>{}
+          : std::array<std::size_t, 3>{cache.clusterDoubletCut->calls,
+                                       cache.partnerCut->calls,
+                                       cache.partnerCut->passed};
   std::cout << "grid=" << gridName << " selection=" << selectionName
             << " events=" << numEvents
             << "\nmean/event: spacePoints=" << perEvent(summary.spacePoints)
@@ -1001,7 +1466,7 @@ int main(int argc, char* argv[]) {
   const auto result = microBenchmark(
       [&] {
         Acts::SeedContainer seeds;
-        seed(spacePoints[next], seeds);
+        seed(next, seeds);
         next = (next + 1) % numEvents;
         assumeRead(seeds);
       },
@@ -1042,6 +1507,60 @@ int main(int argc, char* argv[]) {
     };
     print("|d0|", d0Edges, d0Seedable, d0Matched);
     print("production radius", radiusEdges, radiusSeedable, radiusMatched);
+    std::size_t crossSeedable = 0;
+    std::size_t crossMatched = 0;
+    for (std::size_t bin = 0; bin < d0CrossSeedable.size(); ++bin) {
+      crossSeedable += d0CrossSeedable[bin];
+      crossMatched += d0CrossMatched[bin];
+    }
+    std::cout << "vs crossings: prompt " << promptCrossMatched << "/"
+              << promptCrossSeedable << " = "
+              << static_cast<float>(promptCrossMatched) /
+                     static_cast<float>(
+                         std::max<std::size_t>(1, promptCrossSeedable))
+              << " displaced " << crossMatched << "/" << crossSeedable << " = "
+              << static_cast<float>(crossMatched) /
+                     static_cast<float>(std::max<std::size_t>(1, crossSeedable))
+              << std::endl;
+    print("crossings |d0|", d0Edges, d0CrossSeedable, d0CrossMatched);
+  }
+  if (fromSeeder) {
+    const auto& c = seederCounts;
+    std::cout << "seeder/event: middles=" << perEvent(c.middles)
+              << " candidates=" << perEvent(c.candidates)
+              << " dPhi=" << perEvent(c.afterDPhi)
+              << " impact=" << perEvent(c.afterImpact)
+              << " doublets=" << perEvent(c.doublets)
+              << " tripletCandidates=" << perEvent(c.tripletCandidates)
+              << " samePartner=" << perEvent(c.afterPartner)
+              << " circle=" << perEvent(c.afterCircle)
+              << " seeds=" << perEvent(c.seeds)
+              << " middleResolved=" << perEvent(middleResolvedCount)
+              << std::endl;
+  }
+  if (cache.clusterDoubletCut != nullptr) {
+    std::cout << "doubletCut/event (eval pass): calls="
+              << perEvent(doubletCutCounts[0])
+              << " calibrations=" << perEvent(doubletCutCounts[1])
+              << " passed=" << perEvent(doubletCutCounts[2]) << std::endl;
+  }
+  if (fromClusters) {
+    std::cout << "refine/event: seedsIn=" << perEvent(refineStats.seedsIn)
+              << " seedsOut=" << perEvent(refineStats.seedsOut)
+              << " partnerCandidates="
+              << perEvent(refineStats.partnerCandidates) << " withoutPartner="
+              << perEvent(refineStats.clustersWithoutPartner)
+              << " combinations=" << perEvent(refineStats.combinations)
+              << " trueSeeds=" << perEvent(refineStats.trueSeeds)
+              << " trueSeedsOut=" << perEvent(refineStats.trueSeedsOut)
+              << " trueClusters=" << refineStats.trueClusters
+              << " partnerInWindow=" << refineStats.trueClusterPartnerInWindow
+              << " partnerResolved=" << refineStats.trueClusterPartnerResolved
+              << " truePartnerFraction="
+              << static_cast<float>(refineStats.truePartners) /
+                     static_cast<float>(
+                         std::max<std::size_t>(1, refineStats.chosenPartners))
+              << std::endl;
   }
 
   return 0;
