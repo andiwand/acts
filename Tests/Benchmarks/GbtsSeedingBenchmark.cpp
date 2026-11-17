@@ -51,7 +51,12 @@
 #include "ActsFatras/Synthetic/SeedingTruth.hpp"
 #include "ActsTests/CommonHelpers/BenchmarkTools.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <fstream>
+#include <unordered_set>
+#include <stdexcept>
 #include <iostream>
 #include <memory>
 #include <numbers>
@@ -234,6 +239,96 @@ std::vector<Exp::GbtsLayerConnection> makeConnections(
   return connections;
 }
 
+
+/// Athena's ITk pixel layer ids: barrel `(80 + layer) * 1000`, endcap
+/// `(70|90 + ringLayer) * 1000 + ring`. A ring layer is one radius band of
+/// rings, ordered by radius and then by the |z| it starts at (the inclined-like
+/// low-z set before the endcap set); a ring is its rank in |z| within the band.
+std::vector<Exp::GbtsExperimentLayerId> athenaLayerIds(
+    const DetectorLayout& layout) {
+  struct Band {
+    long rMin;
+    long rMax;
+    std::vector<float> absZ;
+  };
+  std::vector<Band> bands;
+  const auto key = [](float v) { return std::lround(v * 10.f); };
+  for (const DetectorLayer& layer : layout.layers) {
+    if (layer.shape == SurfaceShape::Cylinder ||
+        layer.side != SurfaceSide::Positive) {
+      continue;
+    }
+    auto it = std::ranges::find_if(bands, [&](const Band& b) {
+      return b.rMin == key(layer.minBound) && b.rMax == key(layer.maxBound);
+    });
+    if (it == bands.end()) {
+      bands.push_back({key(layer.minBound), key(layer.maxBound), {}});
+      it = bands.end() - 1;
+    }
+    it->absZ.push_back(std::abs(layer.refCoord));
+  }
+  for (Band& b : bands) {
+    std::ranges::sort(b.absZ);
+  }
+  std::ranges::sort(bands, [](const Band& a, const Band& b) {
+    const long ga = std::lround(a.rMin / 300.);
+    const long gb = std::lround(b.rMin / 300.);
+    return ga != gb ? ga < gb : a.absZ.front() < b.absZ.front();
+  });
+  std::vector<Exp::GbtsExperimentLayerId> ids;
+  for (const DetectorLayer& layer : layout.layers) {
+    if (layer.shape == SurfaceShape::Cylinder) {
+      ids.push_back((80 + layer.layer) * 1000);
+      continue;
+    }
+    const auto band = std::ranges::find_if(bands, [&](const Band& b) {
+      return b.rMin == key(layer.minBound) && b.rMax == key(layer.maxBound);
+    });
+    if (band == bands.end()) {
+      throw std::invalid_argument("endcap ring without a positive-side twin");
+    }
+    const auto ring = std::ranges::find_if(band->absZ, [&](float z) {
+      return std::abs(z - std::abs(layer.refCoord)) < 0.05f;
+    });
+    const auto ringLayer = static_cast<Exp::GbtsExperimentLayerId>(
+        std::distance(bands.begin(), band));
+    const auto base = layer.side == SurfaceSide::Positive ? 90 : 70;
+    ids.push_back((base + ringLayer) * 1000 +
+                  static_cast<Exp::GbtsExperimentLayerId>(
+                      std::distance(band->absZ.begin(), ring)));
+  }
+  return ids;
+}
+
+/// Read the (src, dst) pairs and the eta bin width of an Athena GBTS
+/// connection table, skipping the bin tables as Athena does.
+std::vector<Exp::GbtsLayerConnection> readConnectionTable(
+    const std::string& path, float& etaBinWidth) {
+  std::ifstream in(path);
+  std::uint32_t n = 0;
+  if (!(in >> n >> etaBinWidth)) {
+    throw std::runtime_error("cannot read " + path);
+  }
+  std::vector<std::pair<std::uint32_t, Exp::GbtsLayerConnection>> staged;
+  for (std::uint32_t i = 0; i < n; ++i) {
+    std::uint32_t index{}, stage{}, src{}, dst{}, height{}, width{}, entries{};
+    if (!(in >> index >> stage >> src >> dst >> height >> width >> entries)) {
+      throw std::runtime_error("bad connection header in " + path);
+    }
+    for (std::uint64_t b = 0; b < std::uint64_t{height} * width; ++b) {
+      std::uint32_t unused{};
+      in >> unused;
+    }
+    staged.push_back({stage, {src, dst}});
+  }
+  std::ranges::stable_sort(staged, {}, [](const auto& e) { return e.first; });
+  std::vector<Exp::GbtsLayerConnection> out;
+  for (const auto& e : staged) {
+    out.push_back(e.second);
+  }
+  return out;
+}
+
 /// GBTS reads the layer of a space point from a 16 bit column of its own name,
 /// while the generator writes a 32 bit one. Copy it over once per event,
 /// outside the timed region; `checkEncodingFits` makes sure that nothing is cut
@@ -264,6 +359,8 @@ int main(int argc, char* argv[]) {
   bool addTriplets = false;
   float maxEtaAddTriplets = 1.5f;
   bool validateTriplets = true;
+  std::string connectionTable;
+  bool adaptiveCuts = true;
   // The graph is capped at this many edges per space point. The synthetic event
   // is noise free, so more geometric doublet candidates survive the cuts than
   // in a real event; the default still leaves room for all of them on the ITk
@@ -303,6 +400,11 @@ int main(int argc, char* argv[]) {
         "validate-triplets",
         po::value<bool>(&validateTriplets)->default_value(validateTriplets),
         "barrel triplet pT/d0 validation")(
+        "adaptive-cuts", po::value<bool>(&adaptiveCuts)->default_value(adaptiveCuts),
+        "widen tau ratio cuts for skipped layers as Athena does")(
+        "connection-table",
+        po::value<std::string>(&connectionTable),
+        "Athena GBTS connection table; switches to Athena layer ids")(
         "verbose", po::bool_switch(&verbose),
         "log the seeder's own statistics");
 
@@ -333,11 +435,31 @@ int main(int argc, char* argv[]) {
   addGbtsLayerIndex(event.spacePoints);
   const Acts::SpacePointContainer& spacePoints = event.spacePoints;
 
-  constexpr float etaBinWidth = 0.2f;
-  const std::vector<Exp::GbtsLayerDescription> layers =
-      makeLayerDescriptions(layout);
-  const std::vector<Exp::GbtsLayerConnection> connections =
-      makeConnections(layout);
+  float etaBinWidth = 0.2f;
+  std::vector<Exp::GbtsLayerDescription> layers = makeLayerDescriptions(layout);
+  std::vector<Exp::GbtsLayerConnection> connections;
+  if (connectionTable.empty()) {
+    connections = makeConnections(layout);
+  } else {
+    const auto ids = athenaLayerIds(layout);
+    for (std::size_t i = 0; i < layers.size(); ++i) {
+      layers[i].id = ids[i];
+    }
+    const auto all = readConnectionTable(connectionTable, etaBinWidth);
+    std::unordered_set<Exp::GbtsExperimentLayerId> known(ids.begin(),
+                                                         ids.end());
+    for (const auto& c : all) {
+      if (known.contains(c.src) && known.contains(c.dst)) {
+        connections.push_back(c);
+      }
+    }
+    std::cout << "connection table: " << connections.size() << " of "
+              << all.size() << " links, eta bin width " << etaBinWidth
+              << std::endl;
+  }
+  if (adaptiveCuts) {
+    Exp::assignAdaptiveTauRatioCuts(connections, layers);
+  }
   const auto geometry =
       std::make_shared<Exp::GbtsGeometry>(layers, connections, etaBinWidth);
 
