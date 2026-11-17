@@ -20,10 +20,13 @@
 /// into the storage and only partly resets it.
 ///
 /// The cuts are the ACTS defaults, which are what ATLAS runs on the ITk pixel
-/// detector. The layer connection table below is not: it is written for these
-/// layouts rather than trained on them, so the efficiency here is not a
-/// statement about GBTS as ATLAS runs it. What it loses sits at the
-/// barrel-endcap transition, where a hand-written table is weakest.
+/// detector. The connection table is `<layout>-gbts-connections.txt` from the
+/// Fatras data when it exists, read with the Athena layer ids (see
+/// `athenaLayerIds`). The ITk one is learned from the generator truth with
+/// `--train-connection-table` at its defaults, as Athena learned its own; an
+/// Athena table can be passed with `--connection-table`. Without a file, or
+/// with `--connection-table none`, a hand-written table is used, which misses
+/// endcap links and loses a few points of efficiency forward.
 ///
 /// @note A connection table belongs to the layout it was written for. A layout
 ///       describing the rings of an endcap has many more discs per side than
@@ -54,7 +57,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
+#include <map>
 #include <unordered_set>
 #include <stdexcept>
 #include <iostream>
@@ -329,6 +334,65 @@ std::vector<Exp::GbtsLayerConnection> readConnectionTable(
   return out;
 }
 
+
+/// Learn a connection table from the generator truth, the way Athena trained
+/// its own: the layer sequence of every primary above `minPt`, ordered away
+/// from the origin with overlap hits merged, gives one link per adjacent pair
+/// and one per pair skipping a layer. Links seen fewer than `minCount` times
+/// are dropped.
+std::map<std::pair<Exp::GbtsExperimentLayerId, Exp::GbtsExperimentLayerId>,
+         std::size_t>
+countTruthLinks(const Event& event,
+                const std::vector<Exp::GbtsExperimentLayerId>& ids,
+                float minPt, bool skipOne) {
+  const auto particleColumn =
+      event.spacePoints.column<std::uint32_t>("particleId");
+  const auto layerColumn = event.spacePoints.column<std::uint32_t>("layerId");
+  std::vector<std::vector<std::pair<float, std::uint32_t>>> hits(
+      event.particles.size());
+  for (const auto sp : event.spacePoints) {
+    const std::uint32_t p = sp.extra(particleColumn);
+    const auto& info = event.particles[p];
+    if (!info.primary() || info.pt < minPt) {
+      continue;
+    }
+    hits[p].emplace_back(std::hypot(sp.r(), sp.z()), sp.extra(layerColumn));
+  }
+  std::map<std::pair<Exp::GbtsExperimentLayerId, Exp::GbtsExperimentLayerId>,
+           std::size_t>
+      counts;
+  for (auto& h : hits) {
+    std::ranges::sort(h);
+    std::vector<Exp::GbtsExperimentLayerId> seq;
+    for (const auto& [d, layer] : h) {
+      if (seq.empty() || seq.back() != ids[layer]) {
+        seq.push_back(ids[layer]);
+      }
+    }
+    for (std::size_t i = 0; i + 1 < seq.size(); ++i) {
+      ++counts[{seq[i + 1], seq[i]}];
+      if (skipOne && i + 2 < seq.size()) {
+        ++counts[{seq[i + 2], seq[i]}];
+      }
+    }
+  }
+  return counts;
+}
+
+/// Write links in the Athena connection table format, one 1x1 bin table each.
+void writeConnectionTable(
+    const std::string& path,
+    const std::vector<std::pair<Exp::GbtsExperimentLayerId,
+                                Exp::GbtsExperimentLayerId>>& links,
+    float etaBinWidth) {
+  std::ofstream out(path);
+  out << links.size() << " " << etaBinWidth << "\n";
+  std::size_t index = 0;
+  for (const auto& [src, dst] : links) {
+    out << index++ << " 1 " << src << " " << dst << " 1 1 100\n100\n";
+  }
+}
+
 /// GBTS reads the layer of a space point from a 16 bit column of its own name,
 /// while the generator writes a 32 bit one. Copy it over once per event,
 /// outside the timed region; `checkEncodingFits` makes sure that nothing is cut
@@ -361,6 +425,11 @@ int main(int argc, char* argv[]) {
   bool validateTriplets = true;
   std::string connectionTable;
   bool adaptiveCuts = true;
+  std::string trainTable;
+  std::size_t trainEvents = 100;
+  std::size_t trainMinCount = 1000;
+  float trainMinPt = 900.f;
+  bool trainSkipOne = true;
   // The graph is capped at this many edges per space point. The synthetic event
   // is noise free, so more geometric doublet candidates survive the cuts than
   // in a real event; the default still leaves room for all of them on the ITk
@@ -402,9 +471,24 @@ int main(int argc, char* argv[]) {
         "barrel triplet pT/d0 validation")(
         "adaptive-cuts", po::value<bool>(&adaptiveCuts)->default_value(adaptiveCuts),
         "widen tau ratio cuts for skipped layers as Athena does")(
+        "train-connection-table", po::value<std::string>(&trainTable),
+        "learn a connection table from the truth of --train-events events "
+        "(random seeds 1001...), write it here and exit")(
+        "train-events", po::value<std::size_t>(&trainEvents)->default_value(trainEvents),
+        "events to learn the connection table on")(
+        "train-min-count",
+        po::value<std::size_t>(&trainMinCount)->default_value(trainMinCount),
+        "times a link has to be seen to be kept")(
+        "train-min-pt", po::value<float>(&trainMinPt)->default_value(trainMinPt),
+        "primaries to learn from, in MeV")(
+        "train-skip-one",
+        po::value<bool>(&trainSkipOne)->default_value(trainSkipOne),
+        "also learn links that skip one layer")(
         "connection-table",
         po::value<std::string>(&connectionTable),
-        "Athena GBTS connection table; switches to Athena layer ids")(
+        "connection table in the Athena format, read with Athena layer ids; "
+        "defaults to <layout>-gbts-connections.txt when it exists, none for "
+        "the hand-written one")(
         "verbose", po::bool_switch(&verbose),
         "log the seeder's own statistics");
 
@@ -429,6 +513,42 @@ int main(int argc, char* argv[]) {
   } catch (const std::exception& e) {
     std::cerr << "error: " << e.what() << std::endl;
     return 1;
+  }
+  if (!trainTable.empty()) {
+    const auto ids = athenaLayerIds(layout);
+    std::map<std::pair<Exp::GbtsExperimentLayerId, Exp::GbtsExperimentLayerId>,
+             std::size_t>
+        total;
+    for (std::size_t k = 0; k < trainEvents; ++k) {
+      EventConfig config = eventConfig;
+      config.seed = static_cast<std::uint32_t>(1001 + k);
+      for (const auto& [link, n] :
+           countTruthLinks(generateEvent(layout, config), ids,
+                           trainMinPt * 1_MeV / 1_GeV, trainSkipOne)) {
+        total[link] += n;
+      }
+    }
+    std::vector<std::pair<Exp::GbtsExperimentLayerId,
+                          Exp::GbtsExperimentLayerId>>
+        links;
+    for (const auto& [link, n] : total) {
+      if (n >= trainMinCount) {
+        links.push_back(link);
+      }
+    }
+    writeConnectionTable(trainTable, links, 0.2f);
+    std::cout << "wrote " << links.size() << " of " << total.size()
+              << " links to " << trainTable << std::endl;
+    return 0;
+  }
+  if (connectionTable.empty()) {
+    if (const auto shipped = layoutPath(shared, "-gbts-connections.txt");
+        std::filesystem::exists(shipped)) {
+      connectionTable = shipped.string();
+    }
+  }
+  if (connectionTable == "none") {
+    connectionTable.clear();
   }
   Event event = generateEvent(layout, eventConfig);
   applyHitInefficiency(event, shared.seed);

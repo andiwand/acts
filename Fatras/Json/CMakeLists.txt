@@ -38,6 +38,7 @@ install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/Acts/Fatras
     FILES_MATCHING
     PATTERN "*.json"
+    PATTERN "*.txt"
 )
 
 acts_compile_headers(FatrasJson GLOB include/**/*.hpp)
