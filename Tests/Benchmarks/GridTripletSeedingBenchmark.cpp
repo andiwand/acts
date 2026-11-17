@@ -73,6 +73,7 @@
 
 #include <boost/program_options.hpp>
 
+#include "SeedEtaReport.hpp"
 #include "SyntheticEventOptions.hpp"
 #include "TripletSeedingConfig.hpp"
 
@@ -659,6 +660,7 @@ int main(int argc, char* argv[]) {
     EventGenerator generator(layout, eventConfig);
     for (std::size_t i = 0; i < numEvents; ++i) {
       events.push_back(generator.generate());
+      applyHitInefficiency(events.back(), shared.seed);
     }
   }
   if (!dumpPrefix.empty()) {
@@ -749,6 +751,7 @@ int main(int argc, char* argv[]) {
     seed(event, reference);
     const SeedingSummary oneSeeding =
         evaluateSeeds(event, reference, truthPt * 1_MeV / 1_GeV);
+    printSeedEtaReport(event, reference, truthPt * 1_MeV / 1_GeV, "grid");
     seedSummary.seeds += oneSeeding.seeds;
     seedSummary.trueSeeds += oneSeeding.trueSeeds;
     seedSummary.matchedPrimaries += oneSeeding.matchedPrimaries;

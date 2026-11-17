@@ -60,6 +60,7 @@
 
 #include <boost/program_options.hpp>
 
+#include "SeedEtaReport.hpp"
 #include "SyntheticEventOptions.hpp"
 
 namespace po = boost::program_options;
@@ -257,6 +258,12 @@ int main(int argc, char* argv[]) {
   // that the turn-on stays out of it.
   float truthPt = 1000.f;
   bool verbose = false;
+  float maxSeedSplitEta = Exp::GraphBasedTrackSeeder::Config{}.maxSeedSplitEta;
+  float maxInvRadDiffPerM = 0.7e-2f;
+  int minSeedLevel = 3;
+  bool addTriplets = false;
+  float maxEtaAddTriplets = 1.5f;
+  bool validateTriplets = true;
   // The graph is capped at this many edges per space point. The synthetic event
   // is noise free, so more geometric doublet candidates survive the cuts than
   // in a real event; the default still leaves room for all of them on the ITk
@@ -279,6 +286,23 @@ int main(int argc, char* argv[]) {
         "max-edges-per-sp",
         po::value<float>(&maxEdgesPerSP)->default_value(maxEdgesPerSP),
         "ceiling on the number of graph edges per space point")(
+        "max-seed-split-eta",
+        po::value<float>(&maxSeedSplitEta)->default_value(maxSeedSplitEta),
+        "seed split |eta| reach, 0 disables")(
+        "max-inv-rad-diff",
+        po::value<float>(&maxInvRadDiffPerM)->default_value(maxInvRadDiffPerM),
+        "seed split curvature tolerance in 1/m")(
+        "min-seed-level",
+        po::value<int>(&minSeedLevel)->default_value(minSeedLevel),
+        "minimum chain length in edges")(
+        "add-triplets", po::value<bool>(&addTriplets)->default_value(addTriplets),
+        "accept 3 SP seeds")(
+        "max-eta-add-triplets",
+        po::value<float>(&maxEtaAddTriplets)->default_value(maxEtaAddTriplets),
+        "|eta| reach of add-triplets")(
+        "validate-triplets",
+        po::value<bool>(&validateTriplets)->default_value(validateTriplets),
+        "barrel triplet pT/d0 validation")(
         "verbose", po::bool_switch(&verbose),
         "log the seeder's own statistics");
 
@@ -305,6 +329,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   Event event = generateEvent(layout, eventConfig);
+  applyHitInefficiency(event, shared.seed);
   addGbtsLayerIndex(event.spacePoints);
   const Acts::SpacePointContainer& spacePoints = event.spacePoints;
 
@@ -333,12 +358,18 @@ int main(int argc, char* argv[]) {
   // synthetic event has no cluster shapes to offer. It only adjusts the barrel
   // cot(theta) cuts, which is not where this event loses anything.
   cfg.useClusterWidthCuts = false;
+  cfg.maxSeedSplitEta = maxSeedSplitEta;
+  cfg.maxInvRadDiff = maxInvRadDiffPerM / 1_m;
+  cfg.minSeedLevel = static_cast<std::uint8_t>(minSeedLevel);
+  cfg.addTriplets = addTriplets;
+  cfg.maxAbsEtaAddTriplets = maxEtaAddTriplets;
 
   Exp::GbtsGraphBuilder::Config graphCfg;
   graphCfg.minPt = minPt * 1_MeV;
   graphCfg.maxOuterRadius = 550.f;
   graphCfg.matchBeforeCreate = true;
   graphCfg.maxEdgesPerSP = maxEdgesPerSP;
+  graphCfg.validateTriplets = validateTriplets;
 
   const Exp::GraphBasedTrackSeeder seeder(
       Exp::GraphBasedTrackSeeder::DerivedConfig(cfg), geometry,
@@ -377,6 +408,11 @@ int main(int argc, char* argv[]) {
                    static_cast<float>(
                        std::max<std::size_t>(1, summary.seedablePrimaries))
             << std::endl;
+
+  printSeedEtaReport(event, reference, truthPt * 1_MeV / 1_GeV, "gbts");
+  if (numRuns == 0) {
+    return 0;
+  }
 
   // What an experiment calls: node building, graph and seed extraction in one.
   const auto full = microBenchmark(
