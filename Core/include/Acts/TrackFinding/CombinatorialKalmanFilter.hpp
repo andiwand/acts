@@ -123,6 +123,9 @@ struct CombinatorialKalmanFilterOptions {
   /// Prototype: skip the tail if it adds less than this fraction to the
   /// predicted local position variance.
   double scatteringTailGate = 0.05;
+
+  /// Prototype: CPU switches, see `ScatteringTailOpt`
+  unsigned scatteringTailOpt = 0;
 };
 
 /// Options for the combinatorial Kalman filter with bremsstrahlung recovery.
@@ -288,6 +291,9 @@ class CombinatorialKalmanFilter {
 
     /// @see CombinatorialKalmanFilterOptions::scatteringTailGate
     double scatteringTailGate = 0.05;
+
+    /// @see CombinatorialKalmanFilterOptions::scatteringTailOpt
+    unsigned scatteringTailOpt = 0;
 
     /// Calibration context for the finding run
     const CalibrationContext* calibrationContextPtr{nullptr};
@@ -1033,10 +1039,13 @@ class CombinatorialKalmanFilter {
 
       if constexpr (!IsMultiStepper) {
         // the slab before the energy loss changes the momentum
+        const bool useTail = scatteringTail != nullptr &&
+                             scatteringTailMode != ScatteringTailMode::None &&
+                             multipleScattering;
+        const bool slabFromEffects =
+            (scatteringTailOpt & ScatteringTailOpt::SlabFromEffects) != 0;
         double thicknessInX0 = 0;
-        if (scatteringTail != nullptr &&
-            scatteringTailMode != ScatteringTailMode::None &&
-            multipleScattering) {
+        if (useTail && !slabFromEffects) {
           const Result<MaterialSlab> slabRes =
               detail::evaluateMaterialSlab(state, stepper, surface, updateMode);
           if (slabRes.ok()) {
@@ -1054,10 +1063,14 @@ class CombinatorialKalmanFilter {
           return materialInteractionRes.error();
         }
 
+        if (useTail && slabFromEffects) {
+          thicknessInX0 = materialInteractionRes->thicknessInX0;
+        }
         if (thicknessInX0 > 0) {
-          scatteringTail->add(thicknessInX0,
-                              materialInteractionRes->variancePhi,
-                              materialInteractionRes->varianceTheta);
+          scatteringTail->add(
+              thicknessInX0, materialInteractionRes->variancePhi,
+              materialInteractionRes->varianceTheta,
+              (scatteringTailOpt & ScatteringTailOpt::Factored) != 0);
         }
 
         return Result<void>::success();
@@ -1144,13 +1157,13 @@ class CombinatorialKalmanFilter {
 
       // skip a tail that cannot change the decision
       const BoundMatrix& coreCov = *coreParams.covariance();
-      const BoundMatrix tailCov = tail.covariance();
-      if (tailCov(eBoundLoc0, eBoundLoc0) <
+      if (tail.variance(eBoundLoc0) <
               scatteringTailGate * coreCov(eBoundLoc0, eBoundLoc0) &&
-          tailCov(eBoundLoc1, eBoundLoc1) <
+          tail.variance(eBoundLoc1) <
               scatteringTailGate * coreCov(eBoundLoc1, eBoundLoc1)) {
         return createCore();
       }
+      const BoundMatrix tailCov = tail.covariance();
 
       if (scatteringTailMode == ScatteringTailMode::Mixture) {
         if (!extensions.createTrackStatesWithTail.connected()) {
@@ -1392,6 +1405,7 @@ class CombinatorialKalmanFilter {
     combKalmanActor.recordMaterialStates = tfOptions.recordMaterialStates;
     combKalmanActor.scatteringTailMode = tfOptions.scatteringTailMode;
     combKalmanActor.scatteringTailGate = tfOptions.scatteringTailGate;
+    combKalmanActor.scatteringTailOpt = tfOptions.scatteringTailOpt;
     combKalmanActor.actorLogger = m_actorLogger.get();
     combKalmanActor.updaterLogger = m_updaterLogger.get();
     combKalmanActor.calibrationContextPtr = &tfOptions.calibrationContext.get();

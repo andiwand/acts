@@ -55,6 +55,7 @@ detail::PointwiseMaterialEffects detail::computeMaterialEffects(
     const Vector3& direction, float qOverP, bool multipleScattering,
     bool energyLoss, bool covTransport) {
   PointwiseMaterialEffects result;
+  result.thicknessInX0 = slab.thicknessInX0();
 
   const double mass = particleHypothesis.mass();
   const PdgParticle absPdg = particleHypothesis.absolutePdg();

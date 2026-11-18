@@ -192,6 +192,8 @@ CkfConfig = namedtuple(
         "endOfWorldVolumes",
         "seedDeduplicatorConfig",
         "scatteringTailMode",
+        "scatteringTailOpt",
+        "scatteringTailResidualGate",
     ],
     defaults=[
         15.0,
@@ -207,6 +209,8 @@ CkfConfig = namedtuple(
         None,
         None,
         False,
+        None,
+        None,
         None,
         None,
         None,
@@ -2000,6 +2004,12 @@ def addCKFTracks(
             recordMaterialStates=ckfConfig.recordMaterialStates,
             useJosephFormulation=ckfConfig.useJosephFormulation,
             scatteringTailMode=ckfConfig.scatteringTailMode or 0,
+            scatteringTailOpt=ckfConfig.scatteringTailOpt or 0,
+            scatteringTailResidualGate=(
+                ckfConfig.scatteringTailResidualGate
+                if ckfConfig.scatteringTailResidualGate is not None
+                else 0.05
+            ),
             constrainToVolumeIds=ckfConfig.constrainToVolumes,
             endOfWorldVolumeIds=ckfConfig.endOfWorldVolumes,
         ),

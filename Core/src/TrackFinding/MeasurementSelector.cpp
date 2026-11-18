@@ -118,6 +118,69 @@ double MeasurementSelector::calculateChi2(
       });
 }
 
+std::pair<double, double> MeasurementSelector::calculateMixtureChi2(
+    const double* fullCalibrated, const double* fullCalibratedCovariance,
+    TrackStateTraits<kMeasurementSizeMax, false>::Parameters predicted,
+    TrackStateTraits<kMeasurementSizeMax, false>::Covariance
+        predictedCovariance,
+    const BoundMatrix& tailCov, double logPriorRatio, double residualGate,
+    double rejectAbove, BoundSubspaceIndices projector,
+    unsigned int calibratedSize) const {
+  return visit_measurement(
+      calibratedSize, [&](auto N) -> std::pair<double, double> {
+        constexpr std::size_t kMeasurementSize = decltype(N)::value;
+
+        typename TrackStateTraits<kMeasurementSize, true>::Calibrated
+            calibrated{fullCalibrated};
+        typename TrackStateTraits<kMeasurementSize, true>::CalibratedCovariance
+            calibratedCovariance{fullCalibratedCovariance};
+
+        std::span<const std::uint8_t, kMeasurementSize> validSubspaceIndices(
+            projector.begin(), projector.begin() + kMeasurementSize);
+        FixedBoundSubspaceHelper<kMeasurementSize> subspaceHelper(
+            validSubspaceIndices);
+
+        const Vector<kMeasurementSize> res =
+            calibrated - subspaceHelper.projectVector(predicted);
+        const SquareMatrix<kMeasurementSize> predictedProj =
+            subspaceHelper.projectMatrix(predictedCovariance);
+        const SquareMatrix<kMeasurementSize> tailProj =
+            subspaceHelper.projectMatrix(tailCov);
+
+        const SquareMatrix<kMeasurementSize> covCore =
+            calibratedCovariance + predictedProj;
+        const SquareMatrix<kMeasurementSize> invCore = covCore.inverse();
+        const double chi2Core = (res.transpose() * invCore * res).eval()(0, 0);
+        if (residualGate > 0 && (invCore * tailProj).trace() < residualGate) {
+          return {chi2Core, -std::numeric_limits<double>::infinity()};
+        }
+
+        // same sums as `predictedCovariance + tailCov` projected
+        const SquareMatrix<kMeasurementSize> covTail =
+            calibratedCovariance +
+            SquareMatrix<kMeasurementSize>(predictedProj + tailProj);
+        const double chi2Tail =
+            (res.transpose() * covTail.inverse() * res).eval()(0, 0);
+
+        // ln det S_core - ln det S_tail <= 0, and softplus(a) <= max(a, 0) +
+        // ln 2, so this bounds the mixture chi2 from below
+        const double aMax = logPriorRatio + 0.5 * (chi2Core - chi2Tail);
+        const double chi2Min =
+            chi2Core - 2 * (std::max(aMax, 0.) + std::numbers::ln2) - 1e-6;
+        if (chi2Min >= rejectAbove) {
+          return {chi2Min, -std::numeric_limits<double>::infinity()};
+        }
+        const double logDetCore = std::log(covCore.determinant());
+        const double logDetTail = std::log(covTail.determinant());
+
+        const double a = logPriorRatio + 0.5 * (logDetCore - logDetTail) +
+                         0.5 * (chi2Core - chi2Tail);
+        const double softplus =
+            a > 0 ? a + std::log1p(std::exp(-a)) : std::log1p(std::exp(a));
+        return {chi2Core - 2 * softplus, a};
+      });
+}
+
 std::pair<double, double> MeasurementSelector::calculateChi2AndLogDet(
     const double* fullCalibrated, const double* fullCalibratedCovariance,
     TrackStateTraits<kMeasurementSizeMax, false>::Parameters predicted,

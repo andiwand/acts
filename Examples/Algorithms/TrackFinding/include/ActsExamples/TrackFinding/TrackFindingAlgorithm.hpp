@@ -154,6 +154,10 @@ class TrackFindingAlgorithm final : public IAlgorithm {
     int scatteringTailMode = 0;
     /// Prototype: see `CombinatorialKalmanFilterOptions::scatteringTailGate`
     double scatteringTailGate = 0.05;
+    /// Prototype: `Acts::ScatteringTailOpt` bit mask
+    int scatteringTailOpt = 0;
+    /// Prototype: threshold of `Acts::ScatteringTailOpt::ResidualGate`
+    double scatteringTailResidualGate = 0.05;
 
     // Pixel and strip volume ids to be used for maxPixel/StripHoles cuts
     std::vector<std::uint32_t> pixelVolumeIds;

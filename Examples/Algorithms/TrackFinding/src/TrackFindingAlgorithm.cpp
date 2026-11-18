@@ -98,7 +98,8 @@ class MeasurementSelector {
   selectWithTail(std::vector<Traj::TrackStateProxy>& candidates,
                  const Acts::BoundMatrix& tailCov, double tailWeight,
                  std::vector<double>& tailPosterior, bool& isOutlier,
-                 const Acts::Logger& logger) const {
+                 const Acts::Logger& logger, unsigned opt,
+                 double residualGate) const {
     if (!m_seedIndices.empty()) {
       auto rest = std::partition(
           candidates.begin(), candidates.end(),
@@ -109,7 +110,8 @@ class MeasurementSelector {
     }
 
     return m_selector.selectWithTail<Acts::VectorMultiTrajectory>(
-        candidates, tailCov, tailWeight, tailPosterior, isOutlier, logger);
+        candidates, tailCov, tailWeight, tailPosterior, isOutlier, logger, opt,
+        residualGate);
   }
 
  private:
@@ -339,6 +341,10 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
       .template connect<&MeasurementSelector::select>(&measSel);
   trackStateCreator.measurementSelectorWithTail
       .template connect<&MeasurementSelector::selectWithTail>(&measSel);
+  trackStateCreator.scatteringTailOpt =
+      static_cast<unsigned>(m_cfg.scatteringTailOpt);
+  trackStateCreator.scatteringTailResidualGate =
+      m_cfg.scatteringTailResidualGate;
 
   Extensions extensions;
   extensions.updater.connect<&Acts::GainMatrixUpdater::operator()<
@@ -376,6 +382,8 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   firstOptions.scatteringTailMode =
       static_cast<Acts::ScatteringTailMode>(m_cfg.scatteringTailMode);
   firstOptions.scatteringTailGate = m_cfg.scatteringTailGate;
+  firstOptions.scatteringTailOpt =
+      static_cast<unsigned>(m_cfg.scatteringTailOpt);
   firstOptions.betheHeitlerApprox =
       std::make_shared<Acts::PolynomialBetheHeitlerApprox>(
           Acts::makeDefaultBetheHeitlerApprox());
@@ -388,6 +396,7 @@ ProcessCode TrackFindingAlgorithm::execute(const AlgorithmContext& ctx) const {
   secondOptions.recordMaterialStates = m_cfg.recordMaterialStates;
   secondOptions.scatteringTailMode = firstOptions.scatteringTailMode;
   secondOptions.scatteringTailGate = firstOptions.scatteringTailGate;
+  secondOptions.scatteringTailOpt = firstOptions.scatteringTailOpt;
   secondOptions.betheHeitlerApprox = firstOptions.betheHeitlerApprox;
 
   using Extrapolator = Acts::Propagator<Acts::SympyStepper, Acts::Navigator>;

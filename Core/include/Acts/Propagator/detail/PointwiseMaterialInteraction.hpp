@@ -107,6 +107,8 @@ struct PointwiseMaterialEffects {
   double variancePhi = 0;
   double varianceTheta = 0;
   double varianceQoverP = 0;
+  /// Prototype: the path-corrected slab thickness in X0
+  double thicknessInX0 = 0;
 };
 
 /// Compute the material effects given a material slab and particle properties

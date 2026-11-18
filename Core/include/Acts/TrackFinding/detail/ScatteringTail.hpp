@@ -32,6 +32,26 @@ enum class ScatteringTailMode {
   Mixture,
 };
 
+/// Prototype: CPU switches of the scattering tail, as a bit mask.
+namespace ScatteringTailOpt {
+/// take the slab thickness from the material effects, no second slab lookup
+constexpr unsigned SlabFromEffects = 1u << 0;
+/// keep the tail excess factored, two columns per scatterer
+constexpr unsigned Factored = 1u << 1;
+/// one mixture evaluation per candidate, no 6x6 sum per candidate
+constexpr unsigned FastMixture = 1u << 2;
+/// share the jacobian, and the prediction where the posterior tail weight is 0
+constexpr unsigned SharePrediction = 1u << 3;
+/// no tail term where H D H^T is small against the residual covariance
+constexpr unsigned ResidualGate = 1u << 4;
+/// reject a candidate from a transcendental-free lower bound of the mixture
+/// chi2 when the bound is above both cuts (same decisions)
+constexpr unsigned LazyReject = 1u << 5;
+/// select with the core chi2 first; the mixture selects only on a hole or an
+/// outlier, otherwise it only gives the posterior of the core selection
+constexpr unsigned CoreFirst = 1u << 6;
+}  // namespace ScatteringTailOpt
+
 namespace detail {
 
 /// Two-Gaussian approximation of the Fatras general mixture (semi-Gaussian
@@ -67,16 +87,31 @@ inline std::atomic<std::size_t>& scatteringTailCounter() {
 /// Each scatterer adds the excess `(k^2 - 1) Q` of its tail over the core.
 /// Only one scatterer is assumed to be in the tail, so the tail covariance is
 /// the tail-weighted mean of the excesses.
+///
+/// The excess is kept either dense, transported with a 6x6 sandwich, or
+/// factored as `G G^T` with two columns per scatterer, transported as `J G`.
+/// When the columns run out, they are folded into the dense part.
 struct ScatteringTailState {
-  /// sum of eps_i * D_i, in the frame of the last transport
+  static constexpr std::size_t kMaxColumns = 8;
+
+  /// sum of eps_i * D_i, in the frame of the last transport (dense part)
   BoundMatrix weightedExcess = BoundMatrix::Zero();
+  /// true if `weightedExcess` is non-zero
+  bool hasDense = false;
+  /// factored part of sum of eps_i * D_i
+  Eigen::Matrix<double, eBoundSize, kMaxColumns> columns;
+  std::size_t nColumns = 0;
   /// sum of eps_i
   double weightSum = 0;
   /// sum of ln(1 - eps_i)
   double logNoTail = 0;
 
   void reset() {
-    weightedExcess.setZero();
+    if (hasDense) {
+      weightedExcess.setZero();
+      hasDense = false;
+    }
+    nColumns = 0;
     weightSum = 0;
     logNoTail = 0;
   }
@@ -85,29 +120,71 @@ struct ScatteringTailState {
 
   /// Transport with a bound-to-bound jacobian of one segment.
   void transport(const BoundMatrix& jacobian) {
-    if (!empty()) {
+    if (hasDense) {
       weightedExcess = jacobian * weightedExcess * jacobian.transpose();
+    }
+    if (nColumns > 0) {
+      columns.leftCols(nColumns) =
+          (jacobian * columns.leftCols(nColumns)).eval();
     }
   }
 
   /// Add one scatterer with its core variances in phi and theta.
-  void add(double thicknessInX0, double variancePhi, double varianceTheta) {
+  void add(double thicknessInX0, double variancePhi, double varianceTheta,
+           bool factored = false) {
     if (thicknessInX0 <= 0 || (variancePhi <= 0 && varianceTheta <= 0)) {
       return;
     }
     const auto [eps, width] = scatteringTailModel(thicknessInX0);
     const double excess = width * width - 1;
-    weightedExcess(eBoundPhi, eBoundPhi) += eps * excess * variancePhi;
-    weightedExcess(eBoundTheta, eBoundTheta) += eps * excess * varianceTheta;
+    if (factored) {
+      if (nColumns + 2 > kMaxColumns) {
+        foldColumns();
+      }
+      columns.col(nColumns).setZero();
+      columns(eBoundPhi, nColumns) = std::sqrt(eps * excess * variancePhi);
+      columns.col(nColumns + 1).setZero();
+      columns(eBoundTheta, nColumns + 1) =
+          std::sqrt(eps * excess * varianceTheta);
+      nColumns += 2;
+    } else {
+      weightedExcess(eBoundPhi, eBoundPhi) += eps * excess * variancePhi;
+      weightedExcess(eBoundTheta, eBoundTheta) += eps * excess * varianceTheta;
+      hasDense = true;
+    }
     weightSum += eps;
     logNoTail += std::log1p(-eps);
   }
 
   /// The covariance excess of the tail component.
-  BoundMatrix covariance() const { return weightedExcess / weightSum; }
+  BoundMatrix covariance() const {
+    BoundMatrix result = hasDense ? weightedExcess : BoundMatrix::Zero();
+    if (nColumns > 0) {
+      result.noalias() +=
+          columns.leftCols(nColumns) * columns.leftCols(nColumns).transpose();
+    }
+    return result / weightSum;
+  }
+
+  /// The diagonal element `i` of the covariance excess.
+  double variance(std::size_t i) const {
+    double result = hasDense ? weightedExcess(i, i) : 0;
+    if (nColumns > 0) {
+      result += columns.row(i).head(nColumns).squaredNorm();
+    }
+    return result / weightSum;
+  }
 
   /// The prior weight of the tail component.
   double weight() const { return -std::expm1(logNoTail); }
+
+ private:
+  void foldColumns() {
+    weightedExcess.noalias() +=
+        columns.leftCols(nColumns) * columns.leftCols(nColumns).transpose();
+    hasDense = true;
+    nColumns = 0;
+  }
 };
 
 }  // namespace detail

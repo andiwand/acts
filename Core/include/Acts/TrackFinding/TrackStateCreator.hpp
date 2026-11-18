@@ -92,10 +92,16 @@ struct TrackStateCreator {
                                 typename candidate_container_t::iterator>>(
           candidate_container_t& trackStates, const BoundMatrix& tailCov,
           double tailWeight, std::vector<double>& tailPosterior, bool&,
-          const Logger&)>;
+          const Logger&, unsigned opt, double residualGate)>;
 
   /// Prototype: used by `createTrackStatesWithTail`
   MeasurementSelectorWithTail measurementSelectorWithTail;
+
+  /// Prototype: CPU switches, see `ScatteringTailOpt`
+  unsigned scatteringTailOpt = 0;
+
+  /// Prototype: threshold of `ScatteringTailOpt::ResidualGate`
+  double scatteringTailResidualGate = 0.05;
 
  public:
   /// @brief extend the trajectory onto the given surface.
@@ -209,9 +215,26 @@ struct TrackStateCreator {
 
     bool isOutlier = false;
     std::vector<double> tailPosterior;
-    auto selectorResult =
-        measurementSelectorWithTail(trackStateCandidates, tailCov, tailWeight,
-                                    tailPosterior, isOutlier, logger);
+    // the core selection, if `CoreFirst` and it found measurements
+    std::vector<TrackStateProxy> coreSelected;
+    if ((scatteringTailOpt & ScatteringTailOpt::CoreFirst) != 0) {
+      auto coreResult =
+          measurementSelector(trackStateCandidates, isOutlier, logger);
+      if (!coreResult.ok()) {
+        return ResultTrackStateList::failure(coreResult.error());
+      }
+      if (!isOutlier && coreResult->first != coreResult->second) {
+        coreSelected.assign(coreResult->first, coreResult->second);
+      }
+      isOutlier = false;
+    }
+    // without a core selection, the mixture selects among all candidates;
+    // with one, it only orders the selected ones and gives their posterior
+    std::vector<TrackStateProxy>& toSelect =
+        coreSelected.empty() ? trackStateCandidates : coreSelected;
+    auto selectorResult = measurementSelectorWithTail(
+        toSelect, tailCov, tailWeight, tailPosterior, isOutlier, logger,
+        scatteringTailOpt, scatteringTailResidualGate);
     if (!selectorResult.ok()) {
       return ResultTrackStateList::failure(selectorResult.error());
     }
@@ -219,14 +242,43 @@ struct TrackStateCreator {
     const BoundMatrix& coreCov = *std::get<0>(boundState).covariance();
     ResultTrackStateList resultTrackStateList{
         CkfTypes::BranchVector<TrackIndexType>()};
+    const bool share =
+        (scatteringTailOpt & ScatteringTailOpt::SharePrediction) != 0;
+    // the state that holds the jacobian, and the one that holds the core
+    // prediction
+    std::optional<TrackStateProxy> jacobianOwner;
+    std::optional<TrackStateProxy> coreOwner;
     std::size_t i = 0;
     for (auto it = selectorResult->first; it != selectorResult->second;
          ++it, ++i) {
-      // every state gets its own prediction, because the posterior differs
-      const PM mask = PM::Predicted | PM::Jacobian | PM::Calibrated;
+      // a state with a tail posterior gets its own prediction
+      const bool ownPrediction = !isOutlier && tailPosterior[i] > 0;
+      PM mask = PM::Predicted | PM::Jacobian | PM::Calibrated;
+      if (share) {
+        if (jacobianOwner.has_value()) {
+          mask &= ~PM::Jacobian;
+        }
+        if (!ownPrediction && coreOwner.has_value()) {
+          mask &= ~PM::Predicted;
+        }
+      }
       auto trackState = trajectory.makeTrackState(mask, it->previous());
+      if (share) {
+        if (jacobianOwner.has_value()) {
+          trackState.shareFrom(*jacobianOwner, PM::Jacobian);
+        } else {
+          jacobianOwner = trackState;
+        }
+        if (!ownPrediction) {
+          if (coreOwner.has_value()) {
+            trackState.shareFrom(*coreOwner, PM::Predicted);
+          } else {
+            coreOwner = trackState;
+          }
+        }
+      }
       trackState.copyFrom(*it, mask, false);
-      if (!isOutlier) {
+      if (ownPrediction) {
         trackState.predictedCovariance() = coreCov + tailPosterior[i] * tailCov;
         if (tailPosterior[i] > 0.5) {
           ++detail::scatteringTailCounter();

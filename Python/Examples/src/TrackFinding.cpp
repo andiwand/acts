@@ -187,8 +187,8 @@ void addTrackFinding(py::module& mex) {
         twoWay, seedDeduplication, seedDeduplicatorCfg, stayOnSeed,
         pixelVolumeIds, stripVolumeIds, maxPixelHoles, maxStripHoles,
         trimTracks, recordMaterialStates, useJosephFormulation,
-        scatteringTailMode, scatteringTailGate, constrainToVolumeIds,
-        endOfWorldVolumeIds);
+        scatteringTailMode, scatteringTailGate, scatteringTailOpt,
+        scatteringTailResidualGate, constrainToVolumeIds, endOfWorldVolumeIds);
   }
 }
 

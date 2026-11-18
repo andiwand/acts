@@ -10,7 +10,11 @@
 
 #include "Acts/TrackFinding/MeasurementSelector.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
+
+#include <boost/container/small_vector.hpp>
 
 namespace Acts {
 
@@ -63,8 +67,50 @@ Result<
 MeasurementSelector::selectWithTail(
     std::vector<typename traj_t::TrackStateProxy>& candidates,
     const BoundMatrix& tailCov, double tailWeight,
-    std::vector<double>& tailPosterior, bool& isOutlier,
-    const Logger& logger) const {
+    std::vector<double>& tailPosterior, bool& isOutlier, const Logger& logger,
+    unsigned opt, double residualGate) const {
+  if ((opt & (ScatteringTailOpt::FastMixture |
+              ScatteringTailOpt::ResidualGate)) != 0) {
+    const double logPriorRatio = std::log(tailWeight / (1 - tailWeight));
+    const double gate =
+        (opt & ScatteringTailOpt::ResidualGate) != 0 ? residualGate : 0;
+    double rejectAbove = std::numeric_limits<double>::infinity();
+    if ((opt & ScatteringTailOpt::LazyReject) != 0 && !candidates.empty()) {
+      const auto cuts =
+          getCuts(candidates.front().referenceSurface().geometryId(),
+                  candidates.front().predicted()[eBoundTheta]);
+      if (cuts.ok()) {
+        rejectAbove = std::max(cuts->chi2Measurement, cuts->chi2Outlier);
+      }
+    }
+    // the log likelihood ratio per candidate, by track state index
+    boost::container::small_vector<std::pair<TrackIndexType, double>, 16>
+        logRatios;
+    auto res = selectImpl<traj_t>(
+        candidates, isOutlier, logger, [&](auto& trackState) {
+          const auto [chi2, a] = calculateMixtureChi2(
+              trackState.effectiveCalibrated().data(),
+              trackState.effectiveCalibratedCovariance().data(),
+              trackState.predicted(), trackState.predictedCovariance(), tailCov,
+              logPriorRatio, gate, rejectAbove,
+              trackState.projectorSubspaceIndices(),
+              trackState.calibratedSize());
+          logRatios.emplace_back(trackState.index(), a);
+          return chi2;
+        });
+    tailPosterior.clear();
+    if (res.ok()) {
+      for (auto it = res->first; it != res->second; ++it) {
+        const TrackIndexType index = it->index();
+        const auto found = std::ranges::find(
+            logRatios, index, &std::pair<TrackIndexType, double>::first);
+        assert(found != logRatios.end());
+        tailPosterior.push_back(1 / (1 + std::exp(-found->second)));
+      }
+    }
+    return res;
+  }
+
   auto res =
       selectImpl<traj_t>(candidates, isOutlier, logger, [&](auto& trackState) {
         return mixtureChi2(trackState, tailCov, tailWeight).first;

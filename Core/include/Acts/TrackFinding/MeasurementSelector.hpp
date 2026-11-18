@@ -15,6 +15,7 @@
 #include "Acts/Geometry/GeometryHierarchyMap.hpp"
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterError.hpp"
+#include "Acts/TrackFinding/detail/ScatteringTail.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include "Acts/Utilities/Result.hpp"
 
@@ -108,7 +109,8 @@ class MeasurementSelector {
   selectWithTail(std::vector<typename traj_t::TrackStateProxy>& candidates,
                  const BoundMatrix& tailCov, double tailWeight,
                  std::vector<double>& tailPosterior, bool& isOutlier,
-                 const Logger& logger) const;
+                 const Logger& logger, unsigned opt = 0,
+                 double residualGate = 0) const;
 
   /// Prototype: the mixture chi2 and the posterior tail weight of a candidate.
   template <typename track_state_t>
@@ -124,6 +126,18 @@ class MeasurementSelector {
   selectImpl(std::vector<typename traj_t::TrackStateProxy>& candidates,
              bool& isOutlier, const Logger& logger,
              const chi2_fn_t& chi2Fn) const;
+
+  /// Mixture chi2 and the log ratio of the tail over the core likelihood,
+  /// from one projection of the core and the tail covariance. The ratio is
+  /// -inf if the trace of S_core^-1 H D H^T is below @a residualGate.
+  std::pair<double, double> calculateMixtureChi2(
+      const double* fullCalibrated, const double* fullCalibratedCovariance,
+      TrackStateTraits<kMeasurementSizeMax, false>::Parameters predicted,
+      TrackStateTraits<kMeasurementSizeMax, false>::Covariance
+          predictedCovariance,
+      const BoundMatrix& tailCov, double logPriorRatio, double residualGate,
+      double rejectAbove, BoundSubspaceIndices projector,
+      unsigned int calibratedSize) const;
 
   /// chi2 and ln det of the residual covariance
   std::pair<double, double> calculateChi2AndLogDet(
