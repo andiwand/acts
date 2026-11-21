@@ -10,6 +10,7 @@
 
 // for definitions of Calibrator, MeasurementSelector
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFinding/ScatteringTail.hpp"
 #include "Acts/TrackFitting/KalmanFitter.hpp"
 
 namespace Acts {
@@ -70,6 +71,13 @@ struct TrackStateCreator {
                                 typename candidate_container_t::iterator>>(
           candidate_container_t& trackStates, bool&, const Logger&)>;
 
+  /// Type alias for delegate to select measurements with the scattering tail
+  using MeasurementSelectorWithTail =
+      Delegate<Result<std::pair<typename candidate_container_t::iterator,
+                                typename candidate_container_t::iterator>>(
+          candidate_container_t& trackStates, const ScatteringTailPrior&, bool&,
+          const Logger&)>;
+
   /// The source link accessor will return an source link range for a surface
   /// which link to the associated measurements.
   SourceLinkAccessor sourceLinkAccessor;
@@ -84,6 +92,11 @@ struct TrackStateCreator {
   MeasurementSelector measurementSelector{
       DelegateFuncTag<voidMeasurementSelector>{}};
 
+  /// Delegate for measurement selection with the scattering tail, used if
+  /// `measurementSelector` finds no measurement. Nothing is selected with the
+  /// tail if it is not connected.
+  MeasurementSelectorWithTail measurementSelectorWithTail;
+
  public:
   /// @brief extend the trajectory onto the given surface.
   ///
@@ -96,6 +109,7 @@ struct TrackStateCreator {
   ///        to keep track of newly created temporary track states.
   /// @param trajectory the trajectory to be extended.
   /// @param logger a logger for messages.
+  /// @param scatteringTail the scattering tail of the prediction, or nullptr
   ///
   /// @return a list of indices of newly created track states which extend the
   ///    trajectory onto the given surface and match the bound state, or an
@@ -110,7 +124,8 @@ struct TrackStateCreator {
       [[maybe_unused]] const Surface& surface, const BoundState& boundState,
       TrackIndexType prevTip,
       std::vector<TrackStateProxy>& trackStateCandidates,
-      TrackStateContainerBackend& trajectory, const Logger& logger) const {
+      TrackStateContainerBackend& trajectory, const Logger& logger,
+      const ScatteringTailPrior* scatteringTail = nullptr) const {
     TrackStatesResult tsRes = TrackStatesResult::success({});
     using SourceLinkRange = decltype(sourceLinkAccessor(surface));
     SourceLinkRange slRange = sourceLinkAccessor(surface);
@@ -118,7 +133,7 @@ struct TrackStateCreator {
       auto [slBegin, slEnd] = slRange;
       tsRes = createSourceLinkTrackStates(
           gctx, calibrationContext, surface, boundState, slBegin, slEnd,
-          prevTip, trackStateCandidates, trajectory, logger);
+          prevTip, trackStateCandidates, trajectory, logger, scatteringTail);
     }
     return tsRes;
   }
@@ -136,6 +151,10 @@ struct TrackStateCreator {
   ///        to keep track of newly created temporary track states.
   /// @param trajectory the trajectory to which new track states for selected measurements will be added
   /// @param logger the logger for messages.
+  /// @param scatteringTail the scattering tail of the prediction, or nullptr.
+  ///        If set, a measurement gets the posterior predicted covariance
+  ///        of the tail, and `measurementSelectorWithTail` selects if
+  ///        `measurementSelector` finds no measurement.
   /// @return Result containing vector of track state indices or error
   Result<CkfTypes::BranchVector<TrackIndexType>> createSourceLinkTrackStates(
       const GeometryContext& gctx, const CalibrationContext& calibrationContext,
@@ -143,7 +162,8 @@ struct TrackStateCreator {
       const source_link_iterator_t& slBegin,
       const source_link_iterator_t& slEnd, TrackIndexType prevTip,
       std::vector<TrackStateProxy>& trackStateCandidates,
-      TrackStateContainerBackend& trajectory, const Logger& logger) const {
+      TrackStateContainerBackend& trajectory, const Logger& logger,
+      const ScatteringTailPrior* scatteringTail = nullptr) const {
     using PM = TrackStatePropMask;
 
     using ResultTrackStateList =
@@ -207,6 +227,13 @@ struct TrackStateCreator {
                      typename std::vector<TrackStateProxy>::iterator>>
         selectorResult =
             measurementSelector(trackStateCandidates, isOutlier, logger);
+    if (scatteringTail != nullptr && measurementSelectorWithTail.connected() &&
+        selectorResult.ok() &&
+        (isOutlier || selectorResult->first == selectorResult->second)) {
+      isOutlier = false;
+      selectorResult = measurementSelectorWithTail(
+          trackStateCandidates, *scatteringTail, isOutlier, logger);
+    }
     if (!selectorResult.ok()) {
       ACTS_DEBUG("Selection of calibrated measurements failed: "
                  << selectorResult.error().message());
@@ -217,6 +244,10 @@ struct TrackStateCreator {
       resultTrackStateList = processSelectedTrackStates(
           selectedTrackStateRange.first, selectedTrackStateRange.second,
           trajectory, isOutlier, logger);
+      if (scatteringTail != nullptr && !isOutlier &&
+          resultTrackStateList.ok()) {
+        applyScatteringTail(*resultTrackStateList, trajectory, *scatteringTail);
+      }
     }
 
     return resultTrackStateList;
@@ -305,6 +336,31 @@ struct TrackStateCreator {
                           bool& /*isOutlier*/, const Logger& /*logger*/) {
     return std::pair{candidates.begin(), candidates.end()};
   };
+
+ private:
+  /// Give each new measurement its own predicted covariance `C + w D`, with
+  /// w the posterior tail weight of the measurement.
+  static void applyScatteringTail(
+      const CkfTypes::BranchVector<TrackIndexType>& trackStateList,
+      TrackStateContainerBackend& trackStates,
+      const ScatteringTailPrior& scatteringTail) {
+    using PM = TrackStatePropMask;
+    for (TrackIndexType index : trackStateList) {
+      auto trackState = trackStates.getTrackState(index);
+      const double a = scatteringTailChi2(trackState, scatteringTail).second;
+      const double weight = 1 / (1 + std::exp(-a));
+      if (!(weight > 0)) {
+        continue;
+      }
+      const BoundVector predicted = trackState.predicted();
+      const BoundMatrix covariance =
+          trackState.predictedCovariance() + weight * scatteringTail.covariance;
+      trackState.unset(PM::Predicted);
+      trackState.addComponents(PM::Predicted);
+      trackState.predicted() = predicted;
+      trackState.predictedCovariance() = covariance;
+    }
+  }
 };
 
 }  // namespace Acts

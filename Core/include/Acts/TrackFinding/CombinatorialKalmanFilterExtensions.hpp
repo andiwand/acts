@@ -16,6 +16,8 @@
 
 namespace Acts {
 
+struct ScatteringTailPrior;
+
 /// @addtogroup track_finding
 /// @{
 namespace CkfTypes {
@@ -82,6 +84,7 @@ struct CombinatorialKalmanFilterExtensions {
   /// @param trackStateCandidates a temporary buffer that can be used to collect track states
   /// @param trajectory the trajectory to which the new states are to be added
   /// @param logger a logger for messages
+  /// @param scatteringTail the scattering tail of the prediction, nullptr if there is none
   /// @return indices of new track states which extend the trajectory given by prevTip
 
   using TrackStateCreator =
@@ -90,7 +93,8 @@ struct CombinatorialKalmanFilterExtensions {
           const CalibrationContext& calibrationContext, const Surface& surface,
           const CkfTypes::BoundState& boundState, TrackIndexType prevTip,
           std::vector<TrackStateProxy>& trackStateCandidates,
-          traj_t& trajectory, const Logger& logger)>;
+          traj_t& trajectory, const Logger& logger,
+          const ScatteringTailPrior* scatteringTail)>;
 
   /// The delegate to create new track states.
   /// @note a reference implementation can be found in @ref TrackStateCreator

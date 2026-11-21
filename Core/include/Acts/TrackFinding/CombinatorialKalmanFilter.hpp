@@ -25,6 +25,8 @@
 #include "Acts/Propagator/detail/PointwiseMaterialInteraction.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterError.hpp"
 #include "Acts/TrackFinding/CombinatorialKalmanFilterExtensions.hpp"
+#include "Acts/TrackFinding/ScatteringTail.hpp"
+#include "Acts/TrackFinding/detail/ScatteringTailState.hpp"
 #include "Acts/TrackFitting/BetheHeitlerApprox.hpp"
 #include "Acts/TrackFitting/GsfOptions.hpp"
 #include "Acts/TrackFitting/detail/GsfComponentMerging.hpp"
@@ -36,6 +38,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 
@@ -115,6 +118,15 @@ struct CombinatorialKalmanFilterOptions {
   /// @note Keep enabled if the surfaces themselves are needed, e.g. for a refit
   ///       with the `DirectNavigator`.
   bool recordMaterialStates = true;
+
+  /// Model of the multiple scattering tail, which adds a second component to
+  /// the prediction for the track state creator. Off if not connected, ignored
+  /// with a multi-component stepper.
+  ScatteringTailModel scatteringTailModel;
+
+  /// No scattering tail if it adds less than this fraction of the predicted
+  /// variance to both local coordinates.
+  double scatteringTailGate = 0.05;
 };
 
 /// Options for the combinatorial Kalman filter with bremsstrahlung recovery.
@@ -176,6 +188,9 @@ struct CombinatorialKalmanFilterResult {
   /// Transport jacobians of skipped material surfaces, folded into the next
   /// recorded track state to keep the jacobian chain intact
   BoundMatrix accumulatedJacobian = BoundMatrix::Identity();
+
+  /// The scattering tail since the last measurement
+  detail::ScatteringTailState scatteringTail;
 
   /// Indicator if track finding has been done
   bool finished = false;
@@ -268,6 +283,12 @@ class CombinatorialKalmanFilter {
 
     /// @see CombinatorialKalmanFilterOptions::recordMaterialStates
     bool recordMaterialStates = true;
+
+    /// @see CombinatorialKalmanFilterOptions::scatteringTailModel
+    ScatteringTailModel scatteringTailModel;
+
+    /// @see CombinatorialKalmanFilterOptions::scatteringTailGate
+    double scatteringTailGate = 0.05;
 
     /// Calibration context for the finding run
     const CalibrationContext* calibrationContextPtr{nullptr};
@@ -510,6 +531,7 @@ class CombinatorialKalmanFilter {
 
       // `initialize` re-roots the jacobian chain at this branch
       result.accumulatedJacobian = BoundMatrix::Identity();
+      result.scatteringTail.reset();
 
       // Reset the navigation state
       // Set targetSurface to nullptr for forward filtering
@@ -529,7 +551,8 @@ class CombinatorialKalmanFilter {
       const Result<void> materialRes = performMaterialInteraction(
           state, stepper, currentState.referenceSurface(),
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate));
+                                              MaterialUpdateMode::PostUpdate),
+          result);
       if (!materialRes.ok()) {
         ACTS_DEBUG("Material interaction failed during reset: "
                    << materialRes.error().message());
@@ -595,12 +618,14 @@ class CombinatorialKalmanFilter {
         }
         jacobian = *transportRes;
       }
+      result.scatteringTail.transport(jacobian);
 
       // Update state and stepper with pre material effects
       const Result<void> materialPreRes = performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PreUpdate));
+                                              MaterialUpdateMode::PreUpdate),
+          result);
       if (!materialPreRes.ok()) {
         ACTS_DEBUG("Material interaction failed during reset: "
                    << materialPreRes.error().message());
@@ -627,8 +652,9 @@ class CombinatorialKalmanFilter {
         // track state creation below
         const Result<void> materialPostRes = performMaterialInteraction(
             state, stepper, surface,
-            detail::determineMaterialUpdateMode(
-                state, navigator, MaterialUpdateMode::PostUpdate));
+            detail::determineMaterialUpdateMode(state, navigator,
+                                                MaterialUpdateMode::PostUpdate),
+            result);
         if (!materialPostRes.ok()) {
           ACTS_DEBUG("Material interaction failed during post-update: "
                      << materialPostRes.error().message());
@@ -687,10 +713,13 @@ class CombinatorialKalmanFilter {
         // extend trajectory with measurements associated to the current surface
         // which may create extra trajectory branches if more than one
         // measurement is selected.
+        const std::optional<ScatteringTailPrior> scatteringTail =
+            result.scatteringTail.prior(*std::get<0>(boundState).covariance(),
+                                        scatteringTailGate);
         tsRes = extensions.createTrackStates(
             state.geoContext, *calibrationContextPtr, surface, boundState,
             prevTip, result.trackStateCandidates, *result.trackStates,
-            logger());
+            logger(), scatteringTail.has_value() ? &*scatteringTail : nullptr);
       }
 
       if (tsRes.ok() && !(*tsRes).empty()) {
@@ -789,6 +818,7 @@ class CombinatorialKalmanFilter {
         // Update stepping state using filtered parameters of last track
         // state on this surface
         updateStepper(state, stepper, currentState);
+        result.scatteringTail.reset();
         ACTS_VERBOSE("Stepping state is updated with filtered parameter:");
         ACTS_VERBOSE("-> " << currentState.filtered().transpose()
                            << " of track state with tip = "
@@ -799,7 +829,8 @@ class CombinatorialKalmanFilter {
       const Result<void> materialPostRes = performMaterialInteraction(
           state, stepper, surface,
           detail::determineMaterialUpdateMode(state, navigator,
-                                              MaterialUpdateMode::PostUpdate));
+                                              MaterialUpdateMode::PostUpdate),
+          result);
       if (!materialPostRes.ok()) {
         ACTS_DEBUG("Material interaction failed during post-update: "
                    << materialPostRes.error().message());
@@ -981,23 +1012,35 @@ class CombinatorialKalmanFilter {
     }
 
     template <typename propagator_state_t, typename stepper_t>
-    Result<void> performMaterialInteraction(
-        propagator_state_t& state, const stepper_t& stepper,
-        const Surface& surface, MaterialUpdateMode updateMode) const {
+    Result<void> performMaterialInteraction(propagator_state_t& state,
+                                            const stepper_t& stepper,
+                                            const Surface& surface,
+                                            MaterialUpdateMode updateMode,
+                                            result_type& result) const {
       if (!surface.hasMaterial()) {
         return Result<void>::success();
       }
 
       if constexpr (!IsMultiStepper) {
-        const Result<detail::PointwiseMaterialEffects> materialInteractionRes =
-            detail::performMaterialInteraction(
-                state, stepper, surface, updateMode, NoiseUpdateMode::addNoise,
-                multipleScattering, energyLoss, logger());
-        if (!materialInteractionRes.ok()) {
-          ACTS_DEBUG("Material interaction failed during reset: "
-                     << materialInteractionRes.error().message());
-          return materialInteractionRes.error();
+        const Result<MaterialSlab> slab =
+            detail::evaluateMaterialSlab(state, stepper, surface, updateMode);
+        if (!slab.ok()) {
+          return slab.error();
         }
+        // the tail model sees the momentum before the energy loss
+        const ScatteringTailComponent tail =
+            scatteringTailModel.connected() && multipleScattering &&
+                    !slab->isVacuum()
+                ? scatteringTailModel(
+                      *slab, stepper.particleHypothesis(state.stepping),
+                      stepper.qOverP(state.stepping))
+                : ScatteringTailComponent{};
+        const detail::PointwiseMaterialEffects effects =
+            detail::performMaterialInteraction(state, stepper, *slab,
+                                               NoiseUpdateMode::addNoise,
+                                               multipleScattering, energyLoss);
+        result.scatteringTail.add(tail, effects.variancePhi,
+                                  effects.varianceTheta);
 
         return Result<void>::success();
       } else {
@@ -1238,6 +1281,8 @@ class CombinatorialKalmanFilter {
     combKalmanActor.skipPrePropagationUpdate =
         tfOptions.skipPrePropagationUpdate;
     combKalmanActor.recordMaterialStates = tfOptions.recordMaterialStates;
+    combKalmanActor.scatteringTailModel = tfOptions.scatteringTailModel;
+    combKalmanActor.scatteringTailGate = tfOptions.scatteringTailGate;
     combKalmanActor.actorLogger = m_actorLogger.get();
     combKalmanActor.updaterLogger = m_updaterLogger.get();
     combKalmanActor.calibrationContextPtr = &tfOptions.calibrationContext.get();
